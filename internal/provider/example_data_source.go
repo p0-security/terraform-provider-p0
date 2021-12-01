@@ -1,70 +1,92 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"net/http"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-type exampleDataSourceType struct{}
+// Ensure provider defined types fully satisfy framework interfaces.
+var _ datasource.DataSource = &ExampleDataSource{}
 
-func (t exampleDataSourceType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfsdk.Schema{
-		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "Example data source",
-
-		Attributes: map[string]tfsdk.Attribute{
-			"configurable_attribute": {
-				MarkdownDescription: "Example configurable attribute",
-				Optional:            true,
-				Type:                types.StringType,
-			},
-			"id": {
-				MarkdownDescription: "Example identifier",
-				Type:                types.StringType,
-				Computed:            true,
-			},
-		},
-	}, nil
+func NewExampleDataSource() datasource.DataSource {
+	return &ExampleDataSource{}
 }
 
-func (t exampleDataSourceType) NewDataSource(ctx context.Context, in tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	provider, diags := convertProviderType(in)
-
-	return exampleDataSource{
-		provider: provider,
-	}, diags
+// ExampleDataSource defines the data source implementation.
+type ExampleDataSource struct {
+	client *http.Client
 }
 
-type exampleDataSourceData struct {
+// ExampleDataSourceModel describes the data source data model.
+type ExampleDataSourceModel struct {
 	ConfigurableAttribute types.String `tfsdk:"configurable_attribute"`
 	Id                    types.String `tfsdk:"id"`
 }
 
-type exampleDataSource struct {
-	provider provider
+func (d *ExampleDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_example"
 }
 
-func (d exampleDataSource) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
-	var data exampleDataSourceData
+func (d *ExampleDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		// This description is used by the documentation generator and the language server.
+		MarkdownDescription: "Example data source",
 
-	diags := req.Config.Get(ctx, &data)
-	resp.Diagnostics.Append(diags...)
+		Attributes: map[string]schema.Attribute{
+			"configurable_attribute": schema.StringAttribute{
+				MarkdownDescription: "Example configurable attribute",
+				Optional:            true,
+			},
+			"id": schema.StringAttribute{
+				MarkdownDescription: "Example identifier",
+				Computed:            true,
+			},
+		},
+	}
+}
 
-	log.Printf("got here")
+func (d *ExampleDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	// Prevent panic if the provider has not been configured.
+	if req.ProviderData == nil {
+		return
+	}
+
+	client, ok := req.ProviderData.(*http.Client)
+
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Data Source Configure Type",
+			fmt.Sprintf("Expected *http.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+
+		return
+	}
+
+	d.client = client
+}
+
+func (d *ExampleDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data ExampleDataSourceModel
+
+	// Read Terraform configuration data into the model
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	log.Printf("got here")
-
 	// If applicable, this is a great opportunity to initialize any necessary
 	// provider client data and make a call using it.
-	// example, err := d.provider.client.ReadExample(...)
+	// httpResp, err := d.client.Do(httpReq)
 	// if err != nil {
 	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read example, got error: %s", err))
 	//     return
@@ -72,8 +94,12 @@ func (d exampleDataSource) Read(ctx context.Context, req tfsdk.ReadDataSourceReq
 
 	// For the purposes of this example code, hardcoding a response value to
 	// save into the Terraform state.
-	data.Id = types.String{Value: "example-id"}
+	data.Id = types.StringValue("example-id")
 
-	diags = resp.State.Set(ctx, &data)
-	resp.Diagnostics.Append(diags...)
+	// Write logs using the tflog package
+	// Documentation: https://terraform.io/plugin/log
+	tflog.Trace(ctx, "read a data source")
+
+	// Save data into Terraform state
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
