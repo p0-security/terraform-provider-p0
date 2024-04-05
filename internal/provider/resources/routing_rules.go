@@ -128,7 +128,7 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 									MarkdownDescription: `How P0 matches requestors:
     - 'any': Any requestor will match
     - 'group': Members of a directory group will match
-    - ''user': Only match a single user`,
+    - 'user': Only match a single user`,
 									Required: true,
 								},
 								"uid": schema.StringAttribute{MarkdownDescription: `May only be used if 'type' is 'user'. This is the user's email address.`, Optional: true},
@@ -143,12 +143,17 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 									NestedObject: schema.NestedAttributeObject{
 										Attributes: map[string]schema.Attribute{
 											"effect": schema.StringAttribute{
-												MarkdownDescription: `The filter effect. May be one of 'keep', 'remove', or 'removeAll'.`,
-												Required:            true,
+												MarkdownDescription: `The filter effect. May be one of:
+		- 'keep': Access rule only applies to items matching this filter
+		- 'remove': Access rule only applies to items _not_ matching this filter
+		- 'removeAll': Access rule does not apply to any item with this filter key
+`,
+												Required: true,
 											},
 											"key": schema.StringAttribute{
-												MarkdownDescription: `The value being filtered. See [docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for available values`,
-												Optional:            true,
+												MarkdownDescription: `The value being filtered. Required if the filter effect is 'keep' or 'remove'.
+See [docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for available values.`,
+												Optional: true,
 											},
 											"pattern": schema.StringAttribute{
 												MarkdownDescription: `Filter patterns. Patterns are unanchored.`,
@@ -159,8 +164,9 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 									Optional: true,
 								},
 								"service": schema.StringAttribute{
-									MarkdownDescription: `May only be used if 'type' is 'integration'. See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for a list of available services.`,
-									Optional:            true,
+									MarkdownDescription: `May only be used if 'type' is 'integration'.
+See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for a list of available services.`,
+									Optional: true,
 								},
 								"type": schema.StringAttribute{
 									MarkdownDescription: `How P0 matches resources:

@@ -45,7 +45,10 @@ func (data *P0ProviderData) Do(req *http.Request, value any) (err error) {
 	if generic["error"] != nil || resp.StatusCode >= 400 {
 		errorText, errorErr := generic["error"].(string)
 		if errorErr {
-			return nil
+			return fmt.Errorf(
+				"got error response from P0, but error was not a string. Please contact support@p0.dev. HTTP status code: %s",
+				resp.Status,
+			)
 		}
 		return fmt.Errorf("%s: %s", resp.Status, errorText)
 	}
