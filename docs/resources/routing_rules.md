@@ -102,7 +102,7 @@ Required:
 - `type` (String) How P0 matches requestors:
     - 'any': Any requestor will match
     - 'group': Members of a directory group will match
-    - ''user': Only match a single user
+    - 'user': Only match a single user
 
 Optional:
 
@@ -125,16 +125,21 @@ Optional:
 
 - `filters` (Attributes Map) May only be used if 'type' is 'integration'. Available filters depend on the value of 'service'.
 See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for a list of available filters. (see [below for nested schema](#nestedatt--rule--resource--filters))
-- `service` (String) May only be used if 'type' is 'integration'. See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for a list of available services.
+- `service` (String) May only be used if 'type' is 'integration'.
+See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for a list of available services.
 
 <a id="nestedatt--rule--resource--filters"></a>
 ### Nested Schema for `rule.resource.filters`
 
 Required:
 
-- `effect` (String) The filter effect. May be one of 'keep', 'remove', or 'removeAll'.
+- `effect` (String) The filter effect. May be one of:
+		- 'keep': Access rule only applies to items matching this filter
+		- 'remove': Access rule only applies to items _not_ matching this filter
+		- 'removeAll': Access rule does not apply to any item with this filter key
 
 Optional:
 
-- `key` (String) The value being filtered. See [docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for available values
+- `key` (String) The value being filtered. Required if the filter effect is 'keep' or 'remove'.
+See [docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for available values.
 - `pattern` (String) Filter patterns. Patterns are unanchored.
