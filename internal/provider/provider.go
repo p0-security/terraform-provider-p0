@@ -18,6 +18,7 @@ import (
 
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/provider/resources"
+	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
 // Ensure P0Provider satisfies various provider interfaces.
@@ -101,6 +102,7 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		resources.NewRoutingRules,
+		installresources.NewStagedAws,
 	}
 }
 
