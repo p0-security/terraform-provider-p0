@@ -111,8 +111,9 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 			"rule": schema.SetNestedBlock{
 				MarkdownDescription: "All access rules",
 				NestedObject: schema.NestedBlockObject{
-					Blocks: map[string]schema.Block{
-						"requestor": schema.SingleNestedBlock{
+					Attributes: map[string]schema.Attribute{
+						"requestor": schema.SingleNestedAttribute{
+							Required:            true,
 							MarkdownDescription: `Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor).`,
 							Attributes: map[string]schema.Attribute{
 								"directory": schema.StringAttribute{
@@ -134,7 +135,8 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 								"uid": schema.StringAttribute{MarkdownDescription: `May only be used if 'type' is 'user'. This is the user's email address.`, Optional: true},
 							},
 						},
-						"resource": schema.SingleNestedBlock{
+						"resource": schema.SingleNestedAttribute{
+							Required:            true,
 							MarkdownDescription: `Controls what is accessed. See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource).`,
 							Attributes: map[string]schema.Attribute{
 								"filters": schema.MapNestedAttribute{
@@ -176,6 +178,8 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 								},
 							},
 						},
+					},
+					Blocks: map[string]schema.Block{
 						"approval": schema.ListNestedBlock{
 							MarkdownDescription: `Determines access requirements. See [the Approval docs](https://docs.p0.dev/just-in-time-access/request-routing#approval).`,
 							NestedObject: schema.NestedBlockObject{

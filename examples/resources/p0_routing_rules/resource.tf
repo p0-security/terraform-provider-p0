@@ -1,12 +1,12 @@
 resource "p0_routing_rules" "example" {
   rule {
-    requestor {
+    requestor = {
       type      = "group"
       directory = "okta"
       id        = "00abcdefghijklmno697"
       label     = "AWS Developers"
     }
-    resource {
+    resource = {
       type    = "integration"
       service = "aws"
       filters = {
