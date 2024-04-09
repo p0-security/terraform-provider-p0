@@ -146,10 +146,9 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 										Attributes: map[string]schema.Attribute{
 											"effect": schema.StringAttribute{
 												MarkdownDescription: `The filter effect. May be one of:
-		- 'keep': Access rule only applies to items matching this filter
-		- 'remove': Access rule only applies to items _not_ matching this filter
-		- 'removeAll': Access rule does not apply to any item with this filter key
-`,
+    - 'keep': Access rule only applies to items matching this filter
+    - 'remove': Access rule only applies to items _not_ matching this filter
+    - 'removeAll': Access rule does not apply to any item with this filter key`,
 												Required: true,
 											},
 											"key": schema.StringAttribute{
@@ -224,9 +223,10 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 										MarkdownDescription: `Determines trust requirements for access. If empty, access is disallowed. Except for 'deny', meeting any requirement is sufficient to grant access. Possible values:
     - 'auto': Access is granted according to the requirements of the specified 'integration'
     - 'deny': Access is always denied
-    - 'escalation': Access may be approved by on-call members of the specified services, who are paged when access is requested
+    - 'escalation': Access may be approved by on-call members of the specified services, who are paged when access is manually escalated by the requestor
     - 'group': Access may be granted by any member of the defined directory group
-    - 'p0': Access may be granted by any user with the P0 approval role (defined in the P0 app)`,
+    - 'persistent': Access is always granted
+    - 'p0': Access may be granted by any user with the P0 "approver" role (defined in the P0 app)`,
 										Required: true,
 									},
 								},
