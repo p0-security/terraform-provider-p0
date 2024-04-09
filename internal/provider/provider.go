@@ -44,7 +44,10 @@ func (p *P0Provider) Metadata(ctx context.Context, req provider.MetadataRequest,
 
 func (p *P0Provider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Configures a P0 organization. Requires a P0 account. Go to https://p0.app to create an account.",
+		MarkdownDescription: `Configures a P0 organization. Requires a P0 account. Go to https://p0.app to create an account.
+
+You must also configure a P0 API token (on your P0 app "/settings" page). Then run Terraform with your API token in
+the P0_API_TOKEN environment variable.`,
 		Attributes: map[string]schema.Attribute{
 			"org": schema.StringAttribute{
 				MarkdownDescription: "Your P0 organization identifier.",

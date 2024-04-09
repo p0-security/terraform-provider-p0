@@ -17,13 +17,13 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 ```terraform
 resource "p0_routing_rules" "example" {
   rule {
-    requestor {
+    requestor = {
       type      = "group"
       directory = "okta"
       id        = "00abcdefghijklmno697"
       label     = "AWS Developers"
     }
-    resource {
+    resource = {
       type    = "integration"
       service = "aws"
       filters = {
@@ -56,45 +56,16 @@ resource "p0_routing_rules" "example" {
 <a id="nestedblock--rule"></a>
 ### Nested Schema for `rule`
 
+Required:
+
+- `requestor` (Attributes) Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor). (see [below for nested schema](#nestedatt--rule--requestor))
+- `resource` (Attributes) Controls what is accessed. See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource). (see [below for nested schema](#nestedatt--rule--resource))
+
 Optional:
 
 - `approval` (Block List) Determines access requirements. See [the Approval docs](https://docs.p0.dev/just-in-time-access/request-routing#approval). (see [below for nested schema](#nestedblock--rule--approval))
-- `requestor` (Block, Optional) Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor). (see [below for nested schema](#nestedblock--rule--requestor))
-- `resource` (Block, Optional) Controls what is accessed. See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource). (see [below for nested schema](#nestedblock--rule--resource))
 
-<a id="nestedblock--rule--approval"></a>
-### Nested Schema for `rule.approval`
-
-Required:
-
-- `type` (String) Determines trust requirements for access. If empty, access is disallowed. Except for 'deny', meeting any requirement is sufficient to grant access. Possible values:
-    - 'auto': Access is granted according to the requirements of the specified 'integration'
-    - 'deny': Access is always denied
-    - 'escalation': Access may be approved by on-call members of the specified services, who are paged when access is requested
-    - 'group': Access may be granted by any member of the defined directory group
-    - 'p0': Access may be granted by any user with the P0 approval role (defined in the P0 app)
-
-Optional:
-
-- `directory` (String) May only be used if 'type' is 'group'. One of "azure-ad", "okta", or "workspace".
-- `id` (String) May only be used if 'type' is 'group'. This is the directory's internal group identifier for matching approvers.
-- `integration` (String) May only be used if 'type' is 'auto' or 'escalation'. Possible values:
-    - 'pagerduty': Access is granted if the requestor is on-call.
-- `label` (String) May only be used if 'type' is 'group'. This is any human-readable name for the directory group specified in the 'id' attribute.
-- `options` (Attributes) If present, determines additional trust requirements. (see [below for nested schema](#nestedatt--rule--approval--options))
-- `services` (List of String) May only be used if 'type' is 'escalation'. Defines which services to page on escalation.
-
-<a id="nestedatt--rule--approval--options"></a>
-### Nested Schema for `rule.approval.options`
-
-Optional:
-
-- `allow_one_party` (Boolean) If true, allows requestors to approve their own requests.
-- `require_reason` (Boolean) If true, requires access requests to include a reason.
-
-
-
-<a id="nestedblock--rule--requestor"></a>
+<a id="nestedatt--rule--requestor"></a>
 ### Nested Schema for `rule.requestor`
 
 Required:
@@ -112,7 +83,7 @@ Optional:
 - `uid` (String) May only be used if 'type' is 'user'. This is the user's email address.
 
 
-<a id="nestedblock--rule--resource"></a>
+<a id="nestedatt--rule--resource"></a>
 ### Nested Schema for `rule.resource`
 
 Required:
@@ -143,3 +114,35 @@ Optional:
 - `key` (String) The value being filtered. Required if the filter effect is 'keep' or 'remove'.
 See [docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for available values.
 - `pattern` (String) Filter patterns. Patterns are unanchored.
+
+
+
+<a id="nestedblock--rule--approval"></a>
+### Nested Schema for `rule.approval`
+
+Required:
+
+- `type` (String) Determines trust requirements for access. If empty, access is disallowed. Except for 'deny', meeting any requirement is sufficient to grant access. Possible values:
+    - 'auto': Access is granted according to the requirements of the specified 'integration'
+    - 'deny': Access is always denied
+    - 'escalation': Access may be approved by on-call members of the specified services, who are paged when access is requested
+    - 'group': Access may be granted by any member of the defined directory group
+    - 'p0': Access may be granted by any user with the P0 approval role (defined in the P0 app)
+
+Optional:
+
+- `directory` (String) May only be used if 'type' is 'group'. One of "azure-ad", "okta", or "workspace".
+- `id` (String) May only be used if 'type' is 'group'. This is the directory's internal group identifier for matching approvers.
+- `integration` (String) May only be used if 'type' is 'auto' or 'escalation'. Possible values:
+    - 'pagerduty': Access is granted if the requestor is on-call.
+- `label` (String) May only be used if 'type' is 'group'. This is any human-readable name for the directory group specified in the 'id' attribute.
+- `options` (Attributes) If present, determines additional trust requirements. (see [below for nested schema](#nestedatt--rule--approval--options))
+- `services` (List of String) May only be used if 'type' is 'escalation'. Defines which services to page on escalation.
+
+<a id="nestedatt--rule--approval--options"></a>
+### Nested Schema for `rule.approval.options`
+
+Optional:
+
+- `allow_one_party` (Boolean) If true, allows requestors to approve their own requests.
+- `require_reason` (Boolean) If true, requires access requests to include a reason.

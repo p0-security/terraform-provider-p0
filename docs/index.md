@@ -4,11 +4,16 @@ page_title: "p0 Provider"
 subcategory: ""
 description: |-
   Configures a P0 organization. Requires a P0 account. Go to https://p0.app to create an account.
+  You must also configure a P0 API token (on your P0 app "/settings" page). Then run Terraform with your API token in
+  the P0APITOKEN environment variable.
 ---
 
 # p0 Provider
 
 Configures a P0 organization. Requires a P0 account. Go to https://p0.app to create an account.
+
+You must also configure a P0 API token (on your P0 app "/settings" page). Then run Terraform with your API token in
+the P0_API_TOKEN environment variable.
 
 ## Example Usage
 
