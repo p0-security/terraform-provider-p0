@@ -12,16 +12,16 @@ import (
 )
 
 // Like http.Client, except:
-// - handles authentication
-// - converts to/from JSON
-// - treats response codes 400 and higher as errors
+//   - handles authentication
+//   - converts to/from JSON
+//   - treats response codes 400 and higher as errors
 type P0ProviderData struct {
 	BaseUrl        string
 	Authentication string
 	Client         *http.Client
 }
 
-func (data *P0ProviderData) Do(req *http.Request, value any) error {
+func (data *P0ProviderData) Do(req *http.Request, responseJson any) error {
 	req.Header.Add("Accept", "application/json")
 
 	resp, errDo := data.Client.Do(req)
@@ -35,7 +35,7 @@ func (data *P0ProviderData) Do(req *http.Request, value any) error {
 		return readErr
 	}
 
-	parseErr := json.Unmarshal(body, &value)
+	parseErr := json.Unmarshal(body, &responseJson)
 	if parseErr != nil {
 		return parseErr
 	}
@@ -60,14 +60,14 @@ func (data *P0ProviderData) Do(req *http.Request, value any) error {
 	return nil
 }
 
-func (data *P0ProviderData) Get(path string, value any) error {
+func (data *P0ProviderData) Get(path string, responseJson any) error {
 	req, errNew := http.NewRequest("GET", fmt.Sprintf("%s/%s", data.BaseUrl, path), nil)
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Authorization", data.Authentication)
 	if errNew != nil {
 		return errNew
 	}
-	return data.Do(req, value)
+	return data.Do(req, responseJson)
 }
 
 func (data *P0ProviderData) Delete(path string) error {
@@ -91,8 +91,8 @@ func (data *P0ProviderData) Delete(path string) error {
 	return nil
 }
 
-func (data *P0ProviderData) doBody(method string, path string, body any, value any) error {
-	buf, marshalErr := json.Marshal(&body)
+func (data *P0ProviderData) doBody(method string, path string, requestJson any, responseJson any) error {
+	buf, marshalErr := json.Marshal(&requestJson)
 	if marshalErr != nil {
 		return marshalErr
 	}
@@ -106,13 +106,13 @@ func (data *P0ProviderData) doBody(method string, path string, body any, value a
 	if errNew != nil {
 		return errNew
 	}
-	return data.Do(req, value)
+	return data.Do(req, responseJson)
 }
 
-func (data *P0ProviderData) Post(path string, body any, value any) error {
-	return data.doBody("POST", path, body, value)
+func (data *P0ProviderData) Post(path string, requestJson any, responseJson any) error {
+	return data.doBody("POST", path, requestJson, responseJson)
 }
 
-func (data *P0ProviderData) Put(path string, body any, value any) error {
-	return data.doBody("PUT", path, body, value)
+func (data *P0ProviderData) Put(path string, requestJson any, responseJson any) error {
+	return data.doBody("PUT", path, requestJson, responseJson)
 }

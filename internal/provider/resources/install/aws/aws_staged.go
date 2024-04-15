@@ -1,12 +1,11 @@
 // Copyright (c) 2024 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package installresources
+package installaws
 
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"slices"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
@@ -24,11 +23,6 @@ import (
 // Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.Resource = &StagedAws{}
 var _ resource.ResourceWithImportState = &StagedAws{}
-
-var iamWrite = "iam-write"
-var inventory = "inventory"
-var components = []string{iamWrite, inventory}
-var awsAccountIdRegex = regexp.MustCompile(`^\d{12}$`)
 
 func NewStagedAws() resource.Resource {
 	return &StagedAws{}
@@ -69,13 +63,16 @@ func (r *StagedAws) Metadata(ctx context.Context, req resource.MetadataRequest, 
 
 func (r *StagedAws) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A staged AWS installation. Staged resources are used to generate AWS trust policies.`,
+		MarkdownDescription: `A staged AWS installation. Staged resources are used to generate AWS trust policies.
+
+**Important** Before using this resource, please read the instructions for the 'aws_iam_write' resource.
+`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The AWS account ID`,
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(awsAccountIdRegex, "AWS account IDs should be numeric"),
+					stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should be numeric"),
 				},
 			},
 			"label": schema.StringAttribute{
@@ -92,7 +89,7 @@ func (r *StagedAws) Schema(ctx context.Context, req resource.SchemaRequest, resp
 				MarkdownDescription: `Components to install (any of "iam-write", "inventory")`,
 				Validators: []validator.Set{
 					setvalidator.ValueStringsAre(
-						stringvalidator.OneOf(components...),
+						stringvalidator.OneOf(Components...),
 					),
 					setvalidator.SizeAtLeast(1),
 				},
@@ -109,18 +106,18 @@ func (r *StagedAws) Configure(ctx context.Context, req resource.ConfigureRequest
 	}
 }
 
-func itemPath(component string, id string) string {
+func (r *StagedAws) itemPath(component string, id string) string {
 	return fmt.Sprintf("integrations/aws/config/%s/%s", component, id)
 }
 
-func fromComponentJson(data *StagedAwsModel, json *StagedAwsComponentJson, component string) {
+func (r *StagedAws) fromComponentJson(data *StagedAwsModel, json *StagedAwsComponentJson, component string) {
 	if json.Label != nil {
 		data.Label = types.StringValue(*json.Label)
 	}
 	data.Components = append(data.Components, component)
 }
 
-func fromJson(data *StagedAwsModel, json *StagedAwsJson) {
+func (r *StagedAws) fromJson(data *StagedAwsModel, json *StagedAwsJson) {
 	data.Components = []string{}
 	data.Label = types.StringNull()
 	data.ServiceAccountId = types.StringNull()
@@ -132,12 +129,12 @@ func fromJson(data *StagedAwsModel, json *StagedAwsJson) {
 
 	iamWriteJson, okIamWrite := json.Config.IamWrite[data.Id]
 	if okIamWrite {
-		fromComponentJson(data, &iamWriteJson, iamWrite)
+		r.fromComponentJson(data, &iamWriteJson, IamWrite)
 	}
 
 	inventoryJson, okInventory := json.Config.Inventory[data.Id]
 	if okInventory {
-		fromComponentJson(data, &inventoryJson, inventory)
+		r.fromComponentJson(data, &inventoryJson, Inventory)
 	}
 }
 
@@ -148,7 +145,7 @@ func (r *StagedAws) readState(ctx context.Context, diags *diag.Diagnostics, data
 		diags.AddError("Error communicationg with P0", fmt.Sprintf("Unable to read AWS configuration, got error:\n%s", httpErr))
 		return
 	}
-	fromJson(data, &config)
+	r.fromJson(data, &config)
 
 	// Save updated data into Terraform state
 	diags.Append(state.Set(ctx, data)...)
@@ -167,8 +164,8 @@ func (r *StagedAws) put(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 		}
 	}
 
-	for _, component := range components {
-		path := itemPath(component, data.Id)
+	for _, component := range Components {
+		path := r.itemPath(component, data.Id)
 		if slices.Contains(data.Components, component) {
 			// We need to read back the entire configuration anyway (to get the base config), so ignore post responses
 			throwaway_response := struct{}{}
@@ -214,8 +211,8 @@ func (r *StagedAws) Delete(ctx context.Context, req resource.DeleteRequest, resp
 		return
 	}
 
-	for _, component := range components {
-		path := itemPath(component, data.Id)
+	for _, component := range Components {
+		path := r.itemPath(component, data.Id)
 		err := r.data.Delete(path)
 		if err != nil {
 			resp.Diagnostics.AddError("Could not delete component", fmt.Sprintf("%s", err))
