@@ -81,6 +81,7 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		)
 	}
 
+	// For dev only: optionally override P0 app server
 	p0_host := os.Getenv("P0_HOST")
 	if p0_host == "" {
 		p0_host = "https://api.p0.app"
