@@ -11,8 +11,15 @@ import (
 )
 
 const (
-	Config = "configure"
-	Verify = "verify"
+	Config                      = "configure"
+	Verify                      = "verify"
+	AwsLabelMarkdownDescription = "The AWS account's alias (if available)"
+	StateMarkdownDescription    = `This account's install progress in the P0 application:
+	- 'stage': The account has been staged for installation
+	- 'configure': The account is available to be added to P0, and may be configured
+	- 'installed': The account is fully installed`
+	IamWrite  = "iam-write"
+	Inventory = "inventory"
 )
 
 // Order matters here; components installed in this order.
@@ -27,12 +34,10 @@ type ReadResponse struct {
 }
 
 type Install struct {
-	// This Integration's key
-	Integration string
-	// This Component's key
-	Component string
 	// The provider internal data object
 	ProviderData *internal.P0ProviderData
+	// Get the path for the item in the API
+	GetItemPath func(id string) string
 	// Extract the item id from the TF state model, or nil if it can not be extracted
 	GetId func(data any) *string
 	// Convert the API response to the single item's JSON (should just equate to returning &data.Item)
@@ -49,10 +54,6 @@ func (i *Install) reportConversionError(header string, subheader string, value a
 		marshalled = []byte("<An unparseable entity>")
 	}
 	diags.AddError(header, fmt.Sprintf("%s:\n%s", subheader, marshalled))
-}
-
-func (i *Install) itemPath(id string) string {
-	return fmt.Sprintf("integrations/%s/config/%s/%s", i.Integration, i.Component, id)
 }
 
 // Advances the item to "installed" state.
@@ -82,10 +83,10 @@ func (i *Install) Upsert(ctx context.Context, diags *diag.Diagnostics, plan *tfs
 
 	for _, step := range InstallSteps {
 		// in-place evolves data object
-		path := fmt.Sprintf("%s/%s", i.itemPath(*id), step)
+		path := fmt.Sprintf("%s/%s", i.GetItemPath(*id), step)
 		err := i.ProviderData.Post(path, inputJson, json)
 		if err != nil {
-			diags.AddError("Error communicating with P0", fmt.Sprintf("Could not %s %s component, got error:\n%s", step, i.Component, err))
+			diags.AddError("Error communicating with P0", fmt.Sprintf("Failed %s step, got error:\n%s", step, err))
 			return
 		}
 	}
@@ -124,7 +125,7 @@ func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsd
 		return
 	}
 
-	httpErr := i.ProviderData.Get(i.itemPath(*id), json)
+	httpErr := i.ProviderData.Get(i.GetItemPath(*id), json)
 	if httpErr != nil {
 		diags.AddError("Error communicating with P0", fmt.Sprintf("Unable to read configuration, got error:\n%s", httpErr))
 		return
@@ -167,7 +168,7 @@ func (i *Install) Delete(ctx context.Context, diags *diag.Diagnostics, state *tf
 	}
 
 	var discardedResponse = struct{}{}
-	httpErr := i.ProviderData.Put(i.itemPath(*id), json, &discardedResponse)
+	httpErr := i.ProviderData.Put(i.GetItemPath(*id), json, &discardedResponse)
 	if httpErr != nil {
 		diags.AddError("Error communicating with P0", fmt.Sprintf("Could not delete, got error:\n%s", httpErr))
 		return

@@ -19,6 +19,7 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/provider/resources"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
+	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
 )
 
 // Ensure P0Provider satisfies various provider interfaces.
@@ -105,6 +106,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		resources.NewRoutingRules,
 		installaws.NewStagedAws,
 		installaws.NewAwsIamWrite,
+		installssh.NewAwsSshIamWrite,
+		installssh.NewGcpSshIamWrite,
 	}
 }
 

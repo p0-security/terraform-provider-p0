@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -78,7 +79,7 @@ func (r *StagedAws) Schema(ctx context.Context, req resource.SchemaRequest, resp
 			},
 			"label": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The AWS account's alias (if available)`,
+				MarkdownDescription: installresources.AwsLabelMarkdownDescription,
 			},
 			"service_account_id": schema.StringAttribute{
 				Computed:            true,
@@ -130,12 +131,12 @@ func (r *StagedAws) fromJson(data *stagedAwsModel, json *stagedAwsJson) {
 
 	iamWriteJson, okIamWrite := json.Config.IamWrite[data.Id]
 	if okIamWrite {
-		r.fromComponentJson(data, &iamWriteJson, IamWrite)
+		r.fromComponentJson(data, &iamWriteJson, installresources.IamWrite)
 	}
 
 	inventoryJson, okInventory := json.Config.Inventory[data.Id]
 	if okInventory {
-		r.fromComponentJson(data, &inventoryJson, Inventory)
+		r.fromComponentJson(data, &inventoryJson, installresources.Inventory)
 	}
 }
 

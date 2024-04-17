@@ -5,6 +5,7 @@ package installaws
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -144,11 +145,8 @@ resource "p0_aws_iam_write" "installed_account" {
 				MarkdownDescription: `The AWS account's alias (if available)`,
 			},
 			"state": schema.StringAttribute{
-				Computed: true,
-				MarkdownDescription: `This account's install progress in the P0 application:
-		- 'stage': The account has been staged for installation
-		- 'configure': The account is available to be added to P0, and may be configured
-		- 'installed': The account is fully installed`,
+				Computed:            true,
+				MarkdownDescription: installresources.StateMarkdownDescription,
 			},
 			"login": schema.SingleNestedAttribute{
 				Required:            true,
@@ -360,12 +358,15 @@ func (r *AwsIamWrite) toJson(data any) any {
 	return &json
 }
 
+func (i *AwsIamWrite) getItemPath(id string) string {
+	return fmt.Sprintf("integrations/%s/config/%s/%s", Aws, installresources.IamWrite, id)
+}
+
 func (r *AwsIamWrite) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
 	r.installer = &installresources.Install{
-		Component:    IamWrite,
-		Integration:  Aws,
 		ProviderData: providerData,
+		GetItemPath:  r.getItemPath,
 		GetId:        r.getId,
 		GetItemJson:  r.getItemJson,
 		FromJson:     r.fromJson,

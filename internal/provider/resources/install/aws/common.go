@@ -1,14 +1,15 @@
 package installaws
 
-import "regexp"
+import (
+	"regexp"
+
+	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
+)
 
 var Aws = "aws"
 
-var IamWrite = "iam-write"
-var Inventory = "inventory"
-
 // All installable AWS components.
-var Components = []string{IamWrite, Inventory}
+var Components = []string{installresources.IamWrite, installresources.Inventory}
 
 var AwsAccountIdRegex = regexp.MustCompile(`^\d{12}$`)
 var AwsIdpPattern = regexp.MustCompile(`^[\w.-/]+$`)
