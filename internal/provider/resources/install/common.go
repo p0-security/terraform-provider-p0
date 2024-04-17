@@ -15,9 +15,9 @@ const (
 	Verify                      = "verify"
 	AwsLabelMarkdownDescription = "The AWS account's alias (if available)"
 	StateMarkdownDescription    = `This account's install progress in the P0 application:
-	- 'stage': The account has been staged for installation
-	- 'configure': The account is available to be added to P0, and may be configured
-	- 'installed': The account is fully installed`
+		- 'stage': The account has been staged for installation
+		- 'configure': The account is available to be added to P0, and may be configured
+		- 'installed': The account is fully installed`
 	IamWrite  = "iam-write"
 	Inventory = "inventory"
 )
