@@ -17,8 +17,7 @@ Installing SSH allows you to manage access to your servers on AWS.
 
 ```terraform
 resource "p0_aws_ssh_install" "example" {
-  account_id = p0_aws_staged.example.id
-  depends_on = [p0_aws_staged.example]
+  account_id = "123456789012"
   group_key  = "vegetables"
 }
 ```
