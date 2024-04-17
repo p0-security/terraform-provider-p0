@@ -202,7 +202,11 @@ func (s *AwsSshIamWrite) Delete(ctx context.Context, req resource.DeleteRequest,
 	id := s.getId(&state)
 	path := s.getItemPath(*id)
 	// delete the staged component.
-	s.installer.ProviderData.Delete(path)
+	err := s.installer.ProviderData.Delete(path)
+	if err != nil {
+		resp.Diagnostics.AddError("Could not delete component", fmt.Sprintf("%s", err))
+		return
+	}
 }
 
 // Update implements resource.ResourceWithImportState.
