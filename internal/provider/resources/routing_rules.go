@@ -5,7 +5,6 @@ package resources
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -247,22 +246,10 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 
 func (r *RoutingRules) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
-	if req.ProviderData == nil {
-		return
+	data := internal.Configure(&req, resp)
+	if data != nil {
+		r.data = data
 	}
-
-	data, ok := req.ProviderData.(internal.P0ProviderData)
-
-	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected internal.P0ProviderData, got: %T. Please report this issue to support@p0.dev.", req.ProviderData),
-		)
-
-		return
-	}
-
-	r.data = &data
 }
 
 // Updates TF state based on current state and P0 routing-rules API response.
@@ -284,14 +271,8 @@ func (r *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnostics,
 func (r *RoutingRules) postVersion(ctx context.Context, data RoutingRulesModel, diag *diag.Diagnostics, state *tfsdk.State) {
 	workflowUpdate := WorkflowLatestApi{Workflow: RoutingRulesRepr{Rule: data.Rule}}
 
-	postBody, marshalErr := json.Marshal(&workflowUpdate)
-	if marshalErr != nil {
-		diag.AddError("Could not serialize routing rules state", fmt.Sprintf("Encountered error: %s", marshalErr))
-		return
-	}
-
 	var latest WorkflowLatestApi
-	postErr := r.data.Post("workflow", postBody, &latest)
+	postErr := r.data.Post("workflow", &workflowUpdate, &latest)
 	if postErr != nil {
 		diag.AddError("Could not update routing rules", fmt.Sprintf("Encountered error: %s", postErr))
 		return
