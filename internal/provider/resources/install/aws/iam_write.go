@@ -20,8 +20,9 @@ import (
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
-var _ resource.Resource = &AwsIamWrite{}
-var _ resource.ResourceWithImportState = &AwsIamWrite{}
+var _ resource.Resource = &StagedAws{}
+var _ resource.ResourceWithImportState = &StagedAws{}
+var _ resource.ResourceWithConfigure = &StagedAws{}
 
 func NewAwsIamWrite() resource.Resource {
 	return &AwsIamWrite{}
@@ -31,12 +32,12 @@ type AwsIamWrite struct {
 	installer *installresources.Install
 }
 
-type AwsIamWriteLoginIdentityModel = struct {
+type awsIamWriteLoginIdentityModel struct {
 	Type    string  `json:"type" tfsdk:"type"`
 	TagName *string `json:"tagName" tfsdk:"tag_name"`
 }
 
-type AwsIamWriteLoginProviderMethodModel = struct {
+type awsIamWriteLoginProviderMethodModel struct {
 	Type         string `json:"type" tfsdk:"type"`
 	AccountCount *struct {
 		Type   string  `json:"type" tfsdk:"type"`
@@ -44,35 +45,35 @@ type AwsIamWriteLoginProviderMethodModel = struct {
 	} `json:"accountCount" tfsdk:"account_count"`
 }
 
-type AwsIamWriteLoginProviderModel = struct {
+type awsIamWriteLoginProviderModel struct {
 	Type             string                               `json:"type" tfsdk:"type"`
 	AppId            *string                              `json:"appId" tfsdk:"app_id"`
 	IdentityProvider *string                              `json:"identityProvider" tfsdk:"identity_provider"`
-	Method           *AwsIamWriteLoginProviderMethodModel `json:"method" tfsdk:"method"`
+	Method           *awsIamWriteLoginProviderMethodModel `json:"method" tfsdk:"method"`
 }
 
-type AwsIamWriteLoginModel = struct {
+type awsIamWriteLoginModel struct {
 	Type     string                         `json:"type" tfsdk:"type"`
-	Identity *AwsIamWriteLoginIdentityModel `json:"identity" tfsdk:"identity"`
+	Identity *awsIamWriteLoginIdentityModel `json:"identity" tfsdk:"identity"`
 	Parent   *string                        `json:"parent" tfsdk:"parent"`
-	Provider *AwsIamWriteLoginProviderModel `json:"provider" tfsdk:"provider"`
+	Provider *awsIamWriteLoginProviderModel `json:"provider" tfsdk:"provider"`
 }
 
-type AwsIamWriteModel = struct {
+type awsIamWriteModel struct {
 	Id    string                 `tfsdk:"id"`
 	Label basetypes.StringValue  `tfsdk:"label"`
 	State basetypes.StringValue  `tfsdk:"state"`
-	Login *AwsIamWriteLoginModel `tfsdk:"login"`
+	Login *awsIamWriteLoginModel `tfsdk:"login"`
 }
 
-type AwsIamWriteJson = struct {
+type awsIamWriteJson struct {
 	Label *string                `json:"label"`
 	State string                 `json:"state"`
-	Login *AwsIamWriteLoginModel `json:"login"`
+	Login *awsIamWriteLoginModel `json:"login"`
 }
 
-type AwsIamWriteApi = struct {
-	Item *AwsIamWriteJson `json:"item"`
+type awsIamWriteApi struct {
+	Item *awsIamWriteJson `json:"item"`
 }
 
 func (r *AwsIamWrite) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -145,9 +146,9 @@ resource "p0_aws_iam_write" "installed_account" {
 			"state": schema.StringAttribute{
 				Computed: true,
 				MarkdownDescription: `This account's install progress in the P0 application:
-			- 'stage': The account has been staged for installation
-			- 'configure': The account is available to be added to P0, and may be configured
-			- 'installed': The account is fully installed`,
+		- 'stage': The account has been staged for installation
+		- 'configure': The account is available to be added to P0, and may be configured
+		- 'installed': The account is fully installed`,
 			},
 			"login": schema.SingleNestedAttribute{
 				Required:            true,
@@ -306,7 +307,7 @@ defined on the ["Identity providers" tab](https://console.aws.amazon.com/iam/hom
 }
 
 func (r *AwsIamWrite) getId(data any) *string {
-	model, ok := data.(*AwsIamWriteModel)
+	model, ok := data.(*awsIamWriteModel)
 	if !ok {
 		return nil
 	}
@@ -314,7 +315,7 @@ func (r *AwsIamWrite) getId(data any) *string {
 }
 
 func (r *AwsIamWrite) getItemJson(json any) any {
-	inner, ok := json.(*AwsIamWriteApi)
+	inner, ok := json.(*awsIamWriteApi)
 	if !ok {
 		return nil
 	}
@@ -322,8 +323,8 @@ func (r *AwsIamWrite) getItemJson(json any) any {
 }
 
 func (r *AwsIamWrite) fromJson(id string, json any) any {
-	data := AwsIamWriteModel{}
-	jsonv, ok := json.(*AwsIamWriteJson)
+	data := awsIamWriteModel{}
+	jsonv, ok := json.(*awsIamWriteJson)
 	if !ok {
 		return nil
 	}
@@ -341,9 +342,9 @@ func (r *AwsIamWrite) fromJson(id string, json any) any {
 }
 
 func (r *AwsIamWrite) toJson(data any) any {
-	json := AwsIamWriteJson{}
+	json := awsIamWriteJson{}
 
-	datav, ok := data.(*AwsIamWriteModel)
+	datav, ok := data.(*awsIamWriteModel)
 	if !ok {
 		return nil
 	}
@@ -373,25 +374,25 @@ func (r *AwsIamWrite) Configure(ctx context.Context, req resource.ConfigureReque
 }
 
 func (r *AwsIamWrite) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var json AwsIamWriteApi
-	var data AwsIamWriteModel
+	var json awsIamWriteApi
+	var data awsIamWriteModel
 	r.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
 func (r *AwsIamWrite) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var json AwsIamWriteApi
-	var data AwsIamWriteModel
+	var json awsIamWriteApi
+	var data awsIamWriteModel
 	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &json, &data)
 }
 
 func (r *AwsIamWrite) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var json AwsIamWriteApi
-	var data AwsIamWriteModel
+	var json awsIamWriteApi
+	var data awsIamWriteModel
 	r.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
 func (r *AwsIamWrite) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data AwsIamWriteModel
+	var data awsIamWriteModel
 	r.installer.Delete(ctx, &resp.Diagnostics, &resp.State, &data)
 }
 

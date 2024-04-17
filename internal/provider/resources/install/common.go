@@ -10,8 +10,10 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal"
 )
 
-var Config = "configure"
-var Verify = "verify"
+const (
+	Config = "configure"
+	Verify = "verify"
+)
 
 // Order matters here; components installed in this order.
 var InstallSteps = []string{Verify, Config}
@@ -152,8 +154,6 @@ func (i *Install) Delete(ctx context.Context, diags *diag.Diagnostics, state *tf
 		return
 	}
 
-	var discardedResponse = struct{}{}
-
 	id := i.GetId(data)
 	if id == nil {
 		i.reportConversionError("Missing ID", "Could not extract ID from", data, diags)
@@ -166,6 +166,7 @@ func (i *Install) Delete(ctx context.Context, diags *diag.Diagnostics, state *tf
 		return
 	}
 
+	var discardedResponse = struct{}{}
 	httpErr := i.ProviderData.Put(i.itemPath(*id), json, &discardedResponse)
 	if httpErr != nil {
 		diags.AddError("Error communicating with P0", fmt.Sprintf("Could not delete, got error:\n%s", httpErr))

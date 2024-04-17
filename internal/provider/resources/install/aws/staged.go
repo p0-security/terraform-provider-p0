@@ -23,6 +23,7 @@ import (
 // Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.Resource = &StagedAws{}
 var _ resource.ResourceWithImportState = &StagedAws{}
+var _ resource.ResourceWithConfigure = &StagedAws{}
 
 func NewStagedAws() resource.Resource {
 	return &StagedAws{}
@@ -32,25 +33,25 @@ type StagedAws struct {
 	data *internal.P0ProviderData
 }
 
-type StagedAwsBaseJson = struct {
+type stagedAwsBaseJson = struct {
 	ServiceAccountId string `json:"serviceAccountId"`
 	State            string `json:"state"`
 }
 
-type StagedAwsComponentJson = struct {
+type stagedAwsComponentJson = struct {
 	Label *string `json:"label"`
 	State *string `json:"state"`
 }
 
-type StagedAwsJson struct {
+type stagedAwsJson struct {
 	Config struct {
-		Base      map[string]StagedAwsBaseJson      `json:"base"`
-		IamWrite  map[string]StagedAwsComponentJson `json:"iam-write"`
-		Inventory map[string]StagedAwsComponentJson `json:"inventory"`
+		Base      map[string]stagedAwsBaseJson      `json:"base"`
+		IamWrite  map[string]stagedAwsComponentJson `json:"iam-write"`
+		Inventory map[string]stagedAwsComponentJson `json:"inventory"`
 	} `json:"config"`
 }
 
-type StagedAwsModel struct {
+type stagedAwsModel struct {
 	Id               string       `tfsdk:"id"`
 	Label            types.String `tfsdk:"label"`
 	ServiceAccountId types.String `tfsdk:"service_account_id"`
@@ -110,14 +111,14 @@ func (r *StagedAws) itemPath(component string, id string) string {
 	return fmt.Sprintf("integrations/aws/config/%s/%s", component, id)
 }
 
-func (r *StagedAws) fromComponentJson(data *StagedAwsModel, json *StagedAwsComponentJson, component string) {
+func (r *StagedAws) fromComponentJson(data *stagedAwsModel, json *stagedAwsComponentJson, component string) {
 	if json.Label != nil {
 		data.Label = types.StringValue(*json.Label)
 	}
 	data.Components = append(data.Components, component)
 }
 
-func (r *StagedAws) fromJson(data *StagedAwsModel, json *StagedAwsJson) {
+func (r *StagedAws) fromJson(data *stagedAwsModel, json *stagedAwsJson) {
 	data.Components = []string{}
 	data.Label = types.StringNull()
 	data.ServiceAccountId = types.StringNull()
@@ -138,8 +139,8 @@ func (r *StagedAws) fromJson(data *StagedAwsModel, json *StagedAwsJson) {
 	}
 }
 
-func (r *StagedAws) readState(ctx context.Context, diags *diag.Diagnostics, data *StagedAwsModel, state *tfsdk.State) {
-	var config StagedAwsJson
+func (r *StagedAws) readState(ctx context.Context, diags *diag.Diagnostics, data *stagedAwsModel, state *tfsdk.State) {
+	var config stagedAwsJson
 	httpErr := r.data.Get("integrations/aws/config", &config)
 	if httpErr != nil {
 		diags.AddError("Error communicationg with P0", fmt.Sprintf("Unable to read AWS configuration, got error:\n%s", httpErr))
@@ -152,7 +153,7 @@ func (r *StagedAws) readState(ctx context.Context, diags *diag.Diagnostics, data
 }
 
 func (r *StagedAws) put(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, operation string) {
-	var data StagedAwsModel
+	var data stagedAwsModel
 	diags.Append(plan.Get(ctx, &data)...)
 	if diags.HasError() {
 		return
@@ -167,10 +168,9 @@ func (r *StagedAws) put(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 	for _, component := range Components {
 		path := r.itemPath(component, data.Id)
 		if slices.Contains(data.Components, component) {
+			var json stagedAwsComponentJson
 			// We need to read back the entire configuration anyway (to get the base config), so ignore post responses
-			throwaway_response := struct{}{}
-			var json StagedAwsComponentJson
-			err := r.data.Put(path, &throwaway_response, &json)
+			err := r.data.Put(path, &struct{}{}, &json)
 			report(component, err)
 		} else {
 			err := r.data.Delete(path)
@@ -191,7 +191,7 @@ func (r *StagedAws) Create(ctx context.Context, req resource.CreateRequest, resp
 }
 
 func (r *StagedAws) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var data StagedAwsModel
+	var data stagedAwsModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -205,7 +205,7 @@ func (r *StagedAws) Update(ctx context.Context, req resource.UpdateRequest, resp
 }
 
 func (r *StagedAws) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data StagedAwsModel
+	var data stagedAwsModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
