@@ -4,7 +4,7 @@ page_title: "p0_aws_staged Resource - p0"
 subcategory: ""
 description: |-
   A staged AWS installation. Staged resources are used to generate AWS trust policies.
-  Important Before using this resource, please read the instructions for the 'awsiamwrite' resource.
+  Important Before using this resource, please read the instructions for the 'aws_iam_write' resource.
 ---
 
 # p0_aws_staged (Resource)

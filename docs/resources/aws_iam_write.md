@@ -4,21 +4,23 @@ page_title: "p0_aws_iam_write Resource - p0"
 subcategory: ""
 description: |-
   An AWS installation.
-  Important: This resource should be used together with the 'awsstaged' resource, with a dependency chain
-  requiring this resource to be updated after the 'awsstaged' resource.
+  Important: This resource should be used together with the 'aws_staged' resource, with a dependency chain
+  requiring this resource to be updated after the 'aws_staged' resource.
   P0 recommends you use these resources according to the following pattern:
-  ```
-  resource "p0awsstaged" "staged_account" {
+  
+  resource "p0_aws_staged" "staged_account" {
     id         = ...
     components = ["iam-write"]
   }
-  See current P0 docs for the appropriate input in this block
-  resource "awsiampolicy" "p0iammanager" {
+  
+  # See current P0 docs for the appropriate input in this block
+  resource "aws_iam_policy" "p0_iam_manager" {
     ...
   }
-  resource "awsiamrole" "p0iammanager" {
+  
+  resource "aws_iam_role" "p0_iam_manager" {
     name               = "P0RoleIamManager"
-    assumerolepolicy = jsonencode({
+    assume_role_policy = jsonencode({
       Version = "2012-10-17"
       Statement = [
         {
@@ -29,20 +31,20 @@ description: |-
           Action = "sts:AssumeRoleWithWebIdentity"
           Condition = {
             StringEquals = {
-              "accounts.google.com:aud" = "${p0awsstaged.stagedaccount.serviceaccountid}"
+              "accounts.google.com:aud" = "${p0_aws_staged.staged_account.service_account_id}"
             }
           }
         }
       ]
     })
-    managedpolicyarns = [awsiampolicy.p0iam_manager.arn]
+    managed_policy_arns = [aws_iam_policy.p0_iam_manager.arn]
   }
-  resource "p0awsiamwrite" "installedaccount" {
-    id         = p0awsstaged.stagedaccount.id
-    dependson = [awsiamrole.p0iammanager]
+  
+  resource "p0_aws_iam_write" "installed_account" {
+    id         = p0_aws_staged.staged_account.id
+    depends_on = [aws_iam_role.p0_iam_manager]
     ...
   }
-  ```
 ---
 
 # p0_aws_iam_write (Resource)
@@ -186,7 +188,7 @@ Optional:
 - `type` (String) Only 'saml' is supported at this time
 
 <a id="nestedatt--login--provider--method--account_count"></a>
-### Nested Schema for `login.provider.method.type`
+### Nested Schema for `login.provider.method.account_count`
 
 Optional:
 
