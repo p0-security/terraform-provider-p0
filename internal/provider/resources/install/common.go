@@ -15,7 +15,6 @@ const (
 	Config                   = "configure"
 	Verify                   = "verify"
 	IamWrite                 = "iam-write"
-	Inventory                = "inventory"
 	StateMarkdownDescription = `This account's install progress in the P0 application:
 	- 'stage': The account has been staged for installation
 	- 'configure': The account is available to be added to P0, and may be configured
