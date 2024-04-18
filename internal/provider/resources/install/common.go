@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -11,8 +12,13 @@ import (
 )
 
 const (
-	Config = "configure"
-	Verify = "verify"
+	Config                   = "configure"
+	Verify                   = "verify"
+	IamWrite                 = "iam-write"
+	StateMarkdownDescription = `This account's install progress in the P0 application:
+	- 'stage': The account has been staged for installation
+	- 'configure': The account is available to be added to P0, and may be configured
+	- 'installed': The account is fully installed`
 )
 
 // Order matters here; components installed in this order.
@@ -52,7 +58,52 @@ func (i *Install) reportConversionError(header string, subheader string, value a
 }
 
 func (i *Install) itemPath(id string) string {
-	return fmt.Sprintf("integrations/%s/config/%s/%s", i.Integration, i.Component, id)
+	return fmt.Sprintf("%s/%s/%s", i.itemBasePath(), i.Component, id)
+}
+
+func (i *Install) itemBasePath() string {
+	return fmt.Sprintf("integrations/%s/config", i.Integration)
+}
+
+// Ensures that the item's configuration has been created in P0. If the item's configuration already exists we'll ignore the error.
+func (i *Install) EnsureConfig(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any) {
+	diags.Append(plan.Get(ctx, model)...)
+	if diags.HasError() {
+		return
+	}
+
+	throwaway_response := struct{}{}
+	err := i.ProviderData.Post(i.itemBasePath(), struct{}{}, &throwaway_response)
+	if err != nil {
+		// we can safely 409 Conflict errors, because they indicate the item is already installed
+		if !strings.Contains(err.Error(), "409 Conflict") {
+			diags.AddError("Error communicating with P0", fmt.Sprintf("Failed to install integration %s, got error %s", i.Integration, err))
+			return
+		}
+	}
+}
+
+// Places the item in the "stage" state in P0.
+// To use, the item's TFSDK model must be passed. For example:
+//
+//	var data ItemConfigurationModel
+//	var json ConfigurationApiResponseJson
+func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any) {
+	diags.Append(plan.Get(ctx, model)...)
+	if diags.HasError() {
+		return
+	}
+
+	id := i.GetId(model)
+	if id == nil {
+		i.reportConversionError("Missing ID", "Could not extract ID from", model, diags)
+		return
+	}
+
+	err := i.ProviderData.Put(i.itemPath(*id), &struct{}{}, &struct{}{})
+	if err != nil {
+		diags.AddError(fmt.Sprintf("Could not %s %s component", "", i.Component), fmt.Sprintf("Error: %s", err))
+	}
 }
 
 // Advances the item to "installed" state.
@@ -62,21 +113,21 @@ func (i *Install) itemPath(id string) string {
 //	var data ItemConfigurationModel
 //	var json ConfigurationApiResponseJson
 //	install.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
-func (i *Install) Upsert(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, data any) {
-	diags.Append(plan.Get(ctx, data)...)
+func (i *Install) UpsertFromStage(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any) {
+	diags.Append(plan.Get(ctx, model)...)
 	if diags.HasError() {
 		return
 	}
 
-	id := i.GetId(data)
+	id := i.GetId(model)
 	if id == nil {
-		i.reportConversionError("Missing ID", "Could not extract ID from", data, diags)
+		i.reportConversionError("Missing ID", "Could not extract ID from", model, diags)
 		return
 	}
 
-	inputJson := i.ToJson(data)
+	inputJson := i.ToJson(model)
 	if inputJson == nil {
-		i.reportConversionError("Bad Terraform state", "Could not represent as JSON", data, diags)
+		i.reportConversionError("Bad Terraform state", "Could not represent as JSON", model, diags)
 		return
 	}
 
@@ -112,15 +163,15 @@ func (i *Install) Upsert(ctx context.Context, diags *diag.Diagnostics, plan *tfs
 //	struct{
 //	  Item *ItemConfigurationJson `json:"item"`
 //	}
-func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, json any, data any) {
-	diags.Append(state.Get(ctx, data)...)
+func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, json any, model any) {
+	diags.Append(state.Get(ctx, model)...)
 	if diags.HasError() {
 		return
 	}
 
-	id := i.GetId(data)
+	id := i.GetId(model)
 	if id == nil {
-		i.reportConversionError("Missing ID", "Could not extract ID from", data, diags)
+		i.reportConversionError("Missing ID", "Could not extract ID from", model, diags)
 		return
 	}
 
@@ -145,22 +196,22 @@ func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsd
 	diags.Append(state.Set(ctx, updated)...)
 }
 
-// "Delete" does not delete the item from P0; rather, it returns it to the "stage" state.
+// "Rollback" does not delete the item from P0; rather, it returns it to the "stage" state.
 //
 // This prevents double-delete issues when the stage resource is also deleted.
-func (i *Install) Delete(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, data any) {
-	diags.Append(state.Get(ctx, data)...)
+func (i *Install) Rollback(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, model any) {
+	diags.Append(state.Get(ctx, model)...)
 	if diags.HasError() {
 		return
 	}
 
-	id := i.GetId(data)
+	id := i.GetId(model)
 	if id == nil {
-		i.reportConversionError("Missing ID", "Could not extract ID from", data, diags)
+		i.reportConversionError("Missing ID", "Could not extract ID from", model, diags)
 		return
 	}
 
-	json := i.ToJson(data)
+	json := i.ToJson(model)
 	if json == nil {
 		i.reportConversionError("Bad Terraform state", "Could not create an API request from", json, diags)
 		return
@@ -169,7 +220,28 @@ func (i *Install) Delete(ctx context.Context, diags *diag.Diagnostics, state *tf
 	var discardedResponse = struct{}{}
 	httpErr := i.ProviderData.Put(i.itemPath(*id), json, &discardedResponse)
 	if httpErr != nil {
-		diags.AddError("Error communicating with P0", fmt.Sprintf("Could not delete, got error:\n%s", httpErr))
+		diags.AddError("Error communicating with P0", fmt.Sprintf("Could not rollback, got error:\n%s", httpErr))
+		return
+	}
+}
+
+// Deletes the item from P0.
+func (i *Install) Delete(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, model any) {
+	diags.Append(state.Get(ctx, model)...)
+	if diags.HasError() {
+		return
+	}
+
+	id := i.GetId(model)
+	if id == nil {
+		i.reportConversionError("Missing ID", "Could not extract ID from", model, diags)
+		return
+	}
+
+	// delete the staged component.
+	err := i.ProviderData.Delete(i.itemPath(*id))
+	if err != nil {
+		diags.AddError("Error communicating with P0", fmt.Sprintf("Could not delete, got error: %s", err))
 		return
 	}
 }

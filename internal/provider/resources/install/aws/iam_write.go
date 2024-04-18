@@ -144,11 +144,8 @@ resource "p0_aws_iam_write" "installed_account" {
 				MarkdownDescription: `The AWS account's alias (if available)`,
 			},
 			"state": schema.StringAttribute{
-				Computed: true,
-				MarkdownDescription: `This account's install progress in the P0 application:
-		- 'stage': The account has been staged for installation
-		- 'configure': The account is available to be added to P0, and may be configured
-		- 'installed': The account is fully installed`,
+				Computed:            true,
+				MarkdownDescription: installresources.StateMarkdownDescription,
 			},
 			"login": schema.SingleNestedAttribute{
 				Required:            true,
@@ -363,8 +360,8 @@ func (r *AwsIamWrite) toJson(data any) any {
 func (r *AwsIamWrite) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
 	r.installer = &installresources.Install{
-		Component:    IamWrite,
 		Integration:  Aws,
+		Component:    installresources.IamWrite,
 		ProviderData: providerData,
 		GetId:        r.getId,
 		GetItemJson:  r.getItemJson,
@@ -376,7 +373,7 @@ func (r *AwsIamWrite) Configure(ctx context.Context, req resource.ConfigureReque
 func (r *AwsIamWrite) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json awsIamWriteApi
 	var data awsIamWriteModel
-	r.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
 func (r *AwsIamWrite) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -388,12 +385,12 @@ func (r *AwsIamWrite) Read(ctx context.Context, req resource.ReadRequest, resp *
 func (r *AwsIamWrite) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var json awsIamWriteApi
 	var data awsIamWriteModel
-	r.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
 func (r *AwsIamWrite) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var data awsIamWriteModel
-	r.installer.Delete(ctx, &resp.Diagnostics, &resp.State, &data)
+	r.installer.Rollback(ctx, &resp.Diagnostics, &resp.State, &data)
 }
 
 func (r *AwsIamWrite) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

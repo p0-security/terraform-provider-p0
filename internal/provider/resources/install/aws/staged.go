@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -18,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -78,7 +80,7 @@ func (r *StagedAws) Schema(ctx context.Context, req resource.SchemaRequest, resp
 			},
 			"label": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The AWS account's alias (if available)`,
+				MarkdownDescription: AwsLabelMarkdownDescription,
 			},
 			"service_account_id": schema.StringAttribute{
 				Computed:            true,
@@ -107,6 +109,10 @@ func (r *StagedAws) Configure(ctx context.Context, req resource.ConfigureRequest
 	}
 }
 
+func (r *StagedAws) itemBasePath() string {
+	return "integrations/aws/config"
+}
+
 func (r *StagedAws) itemPath(component string, id string) string {
 	return fmt.Sprintf("integrations/aws/config/%s/%s", component, id)
 }
@@ -130,7 +136,7 @@ func (r *StagedAws) fromJson(data *stagedAwsModel, json *stagedAwsJson) {
 
 	iamWriteJson, okIamWrite := json.Config.IamWrite[data.Id]
 	if okIamWrite {
-		r.fromComponentJson(data, &iamWriteJson, IamWrite)
+		r.fromComponentJson(data, &iamWriteJson, installresources.IamWrite)
 	}
 
 	inventoryJson, okInventory := json.Config.Inventory[data.Id]
@@ -141,7 +147,7 @@ func (r *StagedAws) fromJson(data *stagedAwsModel, json *stagedAwsJson) {
 
 func (r *StagedAws) readState(ctx context.Context, diags *diag.Diagnostics, data *stagedAwsModel, state *tfsdk.State) {
 	var config stagedAwsJson
-	httpErr := r.data.Get("integrations/aws/config", &config)
+	httpErr := r.data.Get(r.itemBasePath(), &config)
 	if httpErr != nil {
 		diags.AddError("Error communicationg with P0", fmt.Sprintf("Unable to read AWS configuration, got error:\n%s", httpErr))
 		return
@@ -187,6 +193,22 @@ func (r *StagedAws) put(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 }
 
 func (r *StagedAws) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	diags := &resp.Diagnostics
+	diags.Append(req.Plan.Get(ctx, &stagedAwsModel{})...)
+	if diags.HasError() {
+		return
+	}
+
+	throwaway_response := struct{}{}
+	err := r.data.Post(r.itemBasePath(), struct{}{}, &throwaway_response)
+	if err != nil {
+		// we can safely 409 Conflict errors, because they indicate the item is already installed
+		if !strings.Contains(err.Error(), "409 Conflict") {
+			diags.AddError("Error communicating with P0", fmt.Sprintf("Failed to install integration %s, got error %s", Aws, err))
+			return
+		}
+	}
+
 	r.put(ctx, &resp.Diagnostics, &req.Plan, &resp.State, "create")
 }
 
