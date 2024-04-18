@@ -39,7 +39,7 @@ type gcpSshIamWriteApi struct {
 	Item *gcpSshIamWriteJson `json:"item"`
 }
 
-func NewGcpSshIamWrite() resource.Resource {
+func NewSshGcpIamWrite() resource.Resource {
 	return &gcpSshIamWrite{}
 }
 

@@ -44,7 +44,7 @@ type awsSshIamWriteApi struct {
 	Item *awsSshIamWriteJson `json:"item"`
 }
 
-func NewAwsSshIamWrite() resource.Resource {
+func NewSshAwsIamWrite() resource.Resource {
 	return &AwsSshIamWrite{}
 }
 

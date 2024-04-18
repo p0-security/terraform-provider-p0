@@ -106,8 +106,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		resources.NewRoutingRules,
 		installaws.NewStagedAws,
 		installaws.NewAwsIamWrite,
-		installssh.NewAwsSshIamWrite,
-		installssh.NewGcpSshIamWrite,
+		installssh.NewSshAwsIamWrite,
+		installssh.NewSshGcpIamWrite,
 	}
 }
 
