@@ -19,42 +19,42 @@ import (
 const awsPrefix = "aws:"
 
 // Ensure provider defined types fully satisfy framework interfaces.
-var _ resource.Resource = &AwsSshIamWrite{}
-var _ resource.ResourceWithConfigure = &AwsSshIamWrite{}
-var _ resource.ResourceWithImportState = &AwsSshIamWrite{}
+var _ resource.Resource = &sshAwsIamWrite{}
+var _ resource.ResourceWithConfigure = &sshAwsIamWrite{}
+var _ resource.ResourceWithImportState = &sshAwsIamWrite{}
 
-type AwsSshIamWrite struct {
+type sshAwsIamWrite struct {
 	installer *installresources.Install
 }
 
-type awsSshIamWriteModel struct {
+type sshAwsIamWriteModel struct {
 	AccountId types.String `tfsdk:"account_id" json:"accountId,omitempty"`
 	GroupKey  types.String `tfsdk:"group_key" json:"groupKey,omitempty"`
 	State     types.String `tfsdk:"state" json:"state,omitempty"`
 	Label     types.String `tfsdk:"label" json:"label,omitempty"`
 }
 
-type awsSshIamWriteJson struct {
+type sshAwsIamWriteJson struct {
 	GroupKey *string `json:"groupKey"`
 	State    string  `json:"state"`
 	Label    *string `json:"label,omitempty"`
 }
 
-type awsSshIamWriteApi struct {
-	Item *awsSshIamWriteJson `json:"item"`
+type sshAwsIamWriteApi struct {
+	Item *sshAwsIamWriteJson `json:"item"`
 }
 
 func NewSshAwsIamWrite() resource.Resource {
-	return &AwsSshIamWrite{}
+	return &sshAwsIamWrite{}
 }
 
 // Metadata implements resource.ResourceWithImportState.
-func (*AwsSshIamWrite) Metadata(_ context.Context, req resource.MetadataRequest, res *resource.MetadataResponse) {
+func (*sshAwsIamWrite) Metadata(_ context.Context, req resource.MetadataRequest, res *resource.MetadataResponse) {
 	res.TypeName = req.ProviderTypeName + "_ssh_aws"
 }
 
 // Schema implements resource.ResourceWithImportState.
-func (*AwsSshIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (*sshAwsIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `An AWS SSH Installation.
 		
@@ -84,7 +84,7 @@ Installing SSH allows you to manage access to your servers on AWS.`,
 	}
 }
 
-func (r *AwsSshIamWrite) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *sshAwsIamWrite) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	data := internal.Configure(&req, resp)
 	r.installer = &installresources.Install{
 		Integration:  SshKey,
@@ -97,8 +97,8 @@ func (r *AwsSshIamWrite) Configure(ctx context.Context, req resource.ConfigureRe
 	}
 }
 
-func (r *AwsSshIamWrite) getId(data any) *string {
-	model, ok := data.(*awsSshIamWriteModel)
+func (r *sshAwsIamWrite) getId(data any) *string {
+	model, ok := data.(*sshAwsIamWriteModel)
 	if !ok {
 		return nil
 	}
@@ -107,17 +107,17 @@ func (r *AwsSshIamWrite) getId(data any) *string {
 	return &str
 }
 
-func (r *AwsSshIamWrite) getItemJson(json any) any {
-	inner, ok := json.(*awsSshIamWriteApi)
+func (r *sshAwsIamWrite) getItemJson(json any) any {
+	inner, ok := json.(*sshAwsIamWriteApi)
 	if !ok {
 		return nil
 	}
 	return inner.Item
 }
 
-func (r *AwsSshIamWrite) fromJson(id string, json any) any {
-	data := awsSshIamWriteModel{}
-	jsonv, ok := json.(*awsSshIamWriteJson)
+func (r *sshAwsIamWrite) fromJson(id string, json any) any {
+	data := sshAwsIamWriteModel{}
+	jsonv, ok := json.(*sshAwsIamWriteJson)
 	if !ok {
 		return nil
 	}
@@ -141,10 +141,10 @@ func (r *AwsSshIamWrite) fromJson(id string, json any) any {
 	return &data
 }
 
-func (r *AwsSshIamWrite) toJson(data any) any {
-	json := awsSshIamWriteJson{}
+func (r *sshAwsIamWrite) toJson(data any) any {
+	json := sshAwsIamWriteJson{}
 
-	datav, ok := data.(*awsSshIamWriteModel)
+	datav, ok := data.(*sshAwsIamWriteModel)
 	if !ok {
 		return nil
 	}
@@ -164,28 +164,28 @@ func (r *AwsSshIamWrite) toJson(data any) any {
 }
 
 // Create implements resource.ResourceWithImportState.
-func (s *AwsSshIamWrite) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var json awsSshIamWriteApi
-	var data awsSshIamWriteModel
+func (s *sshAwsIamWrite) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var json sshAwsIamWriteApi
+	var data sshAwsIamWriteModel
 
 	s.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
-func (s *AwsSshIamWrite) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	s.installer.Read(ctx, &resp.Diagnostics, &resp.State, &awsSshIamWriteApi{}, &awsSshIamWriteModel{})
+func (s *sshAwsIamWrite) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	s.installer.Read(ctx, &resp.Diagnostics, &resp.State, &sshAwsIamWriteApi{}, &sshAwsIamWriteModel{})
 }
 
-func (s *AwsSshIamWrite) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	s.installer.Delete(ctx, &resp.Diagnostics, &req.State, &awsSshIamWriteModel{})
+func (s *sshAwsIamWrite) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	s.installer.Delete(ctx, &resp.Diagnostics, &req.State, &sshAwsIamWriteModel{})
 }
 
 // Update implements resource.ResourceWithImportState.
-func (s *AwsSshIamWrite) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &awsSshIamWriteApi{}, &awsSshIamWriteModel{})
+func (s *sshAwsIamWrite) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &sshAwsIamWriteApi{}, &sshAwsIamWriteModel{})
 }
 
-func (s *AwsSshIamWrite) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (s *sshAwsIamWrite) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("account_id"), req, resp)
 }
