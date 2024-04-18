@@ -13,6 +13,8 @@ import (
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
+const gcloudPrefix = "gcloud:"
+
 // Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.Resource = &gcpSshIamWrite{}
 var _ resource.ResourceWithConfigure = &gcpSshIamWrite{}
@@ -88,7 +90,7 @@ func (r *gcpSshIamWrite) getId(data any) *string {
 		return nil
 	}
 
-	str := fmt.Sprintf("gcloud:%s", model.ProjectId.ValueString())
+	str := fmt.Sprintf("%s%s", gcloudPrefix, model.ProjectId.ValueString())
 	return &str
 }
 
@@ -107,7 +109,7 @@ func (r *gcpSshIamWrite) fromJson(id string, json any) any {
 		return nil
 	}
 
-	projectId := strings.TrimPrefix(id, "gcloud:")
+	projectId := strings.TrimPrefix(id, gcloudPrefix)
 	data.ProjectId = types.StringValue(projectId)
 	if jsonv.Label != nil {
 		data.Label = types.StringValue(*jsonv.Label)

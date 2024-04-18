@@ -16,6 +16,8 @@ import (
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 )
 
+const awsPrefix = "aws:"
+
 // Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.Resource = &AwsSshIamWrite{}
 var _ resource.ResourceWithConfigure = &AwsSshIamWrite{}
@@ -101,7 +103,7 @@ func (r *AwsSshIamWrite) getId(data any) *string {
 		return nil
 	}
 
-	str := fmt.Sprintf("aws:%s", model.AccountId.ValueString())
+	str := fmt.Sprintf("%s%s", awsPrefix, model.AccountId.ValueString())
 	return &str
 }
 
@@ -121,7 +123,7 @@ func (r *AwsSshIamWrite) fromJson(id string, json any) any {
 	}
 
 	// remove the aws prefix.
-	accountId := strings.TrimPrefix(id, "aws:")
+	accountId := strings.TrimPrefix(id, awsPrefix)
 	data.AccountId = types.StringValue(accountId)
 	data.Label = types.StringNull()
 	if jsonv.Label != nil {
