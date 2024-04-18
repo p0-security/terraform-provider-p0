@@ -66,12 +66,8 @@ func (i *Install) itemBasePath() string {
 	return fmt.Sprintf("integrations/%s/config", i.Integration)
 }
 
-// Places the item in the "stage" state in P0.
-// To use, the item's TFSDK model must be passed. For example:
-//
-//	var data ItemConfigurationModel
-//	var json ConfigurationApiResponseJson
-func (i *Install) Upsert(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any) {
+// Ensures that the item's configuration has been created in P0. If the item's configuration already exists we'll ignore the error.
+func (i *Install) EnsureConfig(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any) {
 	diags.Append(plan.Get(ctx, model)...)
 	if diags.HasError() {
 		return
@@ -85,6 +81,29 @@ func (i *Install) Upsert(ctx context.Context, diags *diag.Diagnostics, plan *tfs
 			diags.AddError("Error communicating with P0", fmt.Sprintf("Failed to install integration %s, got error %s", i.Integration, err))
 			return
 		}
+	}
+}
+
+// Places the item in the "stage" state in P0.
+// To use, the item's TFSDK model must be passed. For example:
+//
+//	var data ItemConfigurationModel
+//	var json ConfigurationApiResponseJson
+func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any) {
+	diags.Append(plan.Get(ctx, model)...)
+	if diags.HasError() {
+		return
+	}
+
+	id := i.GetId(model)
+	if id == nil {
+		i.reportConversionError("Missing ID", "Could not extract ID from", model, diags)
+		return
+	}
+
+	err := i.ProviderData.Put(i.itemPath(*id), &struct{}{}, &struct{}{})
+	if err != nil {
+		diags.AddError(fmt.Sprintf("Could not %s %s component", "", i.Component), fmt.Sprintf("Error: %s", err))
 	}
 }
 

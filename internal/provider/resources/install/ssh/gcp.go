@@ -141,7 +141,8 @@ func (r *gcpSshIamWrite) toJson(data any) any {
 func (s *gcpSshIamWrite) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json gcpSshIamWriteApi
 	var data gcpSshIamWriteModel
-	s.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	s.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
