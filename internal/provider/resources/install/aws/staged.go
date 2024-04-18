@@ -141,7 +141,7 @@ func (r *StagedAws) fromJson(data *stagedAwsModel, json *stagedAwsJson) {
 
 	inventoryJson, okInventory := json.Config.Inventory[data.Id]
 	if okInventory {
-		r.fromComponentJson(data, &inventoryJson, installresources.Inventory)
+		r.fromComponentJson(data, &inventoryJson, Inventory)
 	}
 }
 
