@@ -48,26 +48,25 @@ func NewAwsSshIamWrite() resource.Resource {
 
 // Metadata implements resource.ResourceWithImportState.
 func (*AwsSshIamWrite) Metadata(_ context.Context, req resource.MetadataRequest, res *resource.MetadataResponse) {
-	res.TypeName = req.ProviderTypeName + "_aws_ssh_install"
+	res.TypeName = req.ProviderTypeName + "_ssh_aws"
 }
 
 // Schema implements resource.ResourceWithImportState.
 func (*AwsSshIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		// Note that the TF doc generator clobbers _most_ underscores :(
 		MarkdownDescription: `An AWS SSH Installation.
 		
 Installing SSH allows you to manage access to your servers on AWS.`,
 		Attributes: map[string]schema.Attribute{
 			"account_id": schema.StringAttribute{
-				MarkdownDescription: `The AWS account ID.`,
+				MarkdownDescription: `The AWS account ID`,
 				Required:            true,
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(installaws.AwsAccountIdRegex, "AWS account IDs should be numeric"),
 				},
 			},
 			"group_key": schema.StringAttribute{
-				MarkdownDescription: `If present, AWS instances will be grouped by the value of this tag. Access can be requested, in one request, to all instances with a shared tag value.`,
+				MarkdownDescription: `If present, AWS instances will be grouped by the value of this tag. Access can be requested, in one request, to all instances with a shared tag value`,
 				Optional:            true,
 			},
 			"state": schema.StringAttribute{
@@ -75,7 +74,7 @@ Installing SSH allows you to manage access to your servers on AWS.`,
 				Computed:            true,
 			},
 			"label": schema.StringAttribute{
-				MarkdownDescription: installresources.AwsLabelMarkdownDescription,
+				MarkdownDescription: installaws.AwsLabelMarkdownDescription,
 				Computed:            true,
 				Optional:            true,
 			},
@@ -86,15 +85,13 @@ Installing SSH allows you to manage access to your servers on AWS.`,
 func (r *AwsSshIamWrite) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	data := internal.Configure(&req, resp)
 	r.installer = &installresources.Install{
+		Integration:  SshKey,
+		Component:    installresources.IamWrite,
 		ProviderData: data,
-		GetItemPath:  r.getItemPath,
 		GetId:        r.getId,
 		GetItemJson:  r.getItemJson,
 		FromJson:     r.fromJson,
 		ToJson:       r.toJson,
-	}
-	if data == nil {
-		return
 	}
 }
 
@@ -104,12 +101,8 @@ func (r *AwsSshIamWrite) getId(data any) *string {
 		return nil
 	}
 
-	str := model.AccountId.ValueString()
+	str := fmt.Sprintf("aws:%s", model.AccountId.ValueString())
 	return &str
-}
-
-func (r *AwsSshIamWrite) getItemPath(id string) string {
-	return fmt.Sprintf("integrations/%s/config/%s/aws:%s", SshKey, installresources.IamWrite, id)
 }
 
 func (r *AwsSshIamWrite) getItemJson(json any) any {
@@ -127,14 +120,15 @@ func (r *AwsSshIamWrite) fromJson(id string, json any) any {
 		return nil
 	}
 
-	data.AccountId = types.StringValue(id)
+	// remove the aws prefix.
+	accountId := strings.TrimPrefix(id, "aws:")
+	data.AccountId = types.StringValue(accountId)
 	data.Label = types.StringNull()
 	if jsonv.Label != nil {
 		label := types.StringValue(*jsonv.Label)
 		data.Label = label
 	}
 
-	data.Label = types.StringNull()
 	data.State = types.StringValue(jsonv.State)
 	data.GroupKey = types.StringNull()
 	if jsonv.GroupKey != nil {
@@ -158,34 +152,22 @@ func (r *AwsSshIamWrite) toJson(data any) any {
 		json.Label = &label
 	}
 
-	// can omit state here as it's filled by the backend
 	if !datav.GroupKey.IsNull() {
 		group := datav.GroupKey.ValueString()
 		json.GroupKey = &group
 	}
 
+	// can omit state here as it's filled by the backend
 	return &json
 }
 
 // Create implements resource.ResourceWithImportState.
 func (s *AwsSshIamWrite) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan awsSshIamWriteModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	var json awsSshIamWriteApi
+	var data awsSshIamWriteModel
 
-	throwaway_response := struct{}{}
-	err := s.installer.ProviderData.Post("integrations/ssh/config", struct{}{}, &throwaway_response)
-	if err != nil {
-		if !strings.Contains(err.Error(), "409 Conflict") {
-			resp.Diagnostics.AddError("Failed to install IAM write", err.Error())
-			return
-		}
-	}
-
-	s.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &awsSshIamWriteApi{}, &awsSshIamWriteModel{})
+	s.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
 func (s *AwsSshIamWrite) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -193,25 +175,12 @@ func (s *AwsSshIamWrite) Read(ctx context.Context, req resource.ReadRequest, res
 }
 
 func (s *AwsSshIamWrite) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state awsSshIamWriteModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	id := s.getId(&state)
-	path := s.getItemPath(*id)
-	// delete the staged component.
-	err := s.installer.ProviderData.Delete(path)
-	if err != nil {
-		resp.Diagnostics.AddError("Could not delete component", fmt.Sprintf("%s", err))
-		return
-	}
+	s.installer.Delete(ctx, &resp.Diagnostics, &req.State, &awsSshIamWriteModel{})
 }
 
 // Update implements resource.ResourceWithImportState.
 func (s *AwsSshIamWrite) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	s.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &awsSshIamWriteApi{}, &awsSshIamWriteModel{})
+	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &awsSshIamWriteApi{}, &awsSshIamWriteModel{})
 }
 
 func (s *AwsSshIamWrite) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

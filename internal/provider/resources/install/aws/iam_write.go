@@ -5,7 +5,6 @@ package installaws
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -358,15 +357,12 @@ func (r *AwsIamWrite) toJson(data any) any {
 	return &json
 }
 
-func (i *AwsIamWrite) getItemPath(id string) string {
-	return fmt.Sprintf("integrations/%s/config/%s/%s", Aws, installresources.IamWrite, id)
-}
-
 func (r *AwsIamWrite) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
 	r.installer = &installresources.Install{
+		Integration:  Aws,
+		Component:    installresources.IamWrite,
 		ProviderData: providerData,
-		GetItemPath:  r.getItemPath,
 		GetId:        r.getId,
 		GetItemJson:  r.getItemJson,
 		FromJson:     r.fromJson,
@@ -377,7 +373,7 @@ func (r *AwsIamWrite) Configure(ctx context.Context, req resource.ConfigureReque
 func (r *AwsIamWrite) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json awsIamWriteApi
 	var data awsIamWriteModel
-	r.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
 func (r *AwsIamWrite) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -389,12 +385,12 @@ func (r *AwsIamWrite) Read(ctx context.Context, req resource.ReadRequest, resp *
 func (r *AwsIamWrite) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var json awsIamWriteApi
 	var data awsIamWriteModel
-	r.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
 func (r *AwsIamWrite) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var data awsIamWriteModel
-	r.installer.Delete(ctx, &resp.Diagnostics, &resp.State, &data)
+	r.installer.Rollback(ctx, &resp.Diagnostics, &resp.State, &data)
 }
 
 func (r *AwsIamWrite) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

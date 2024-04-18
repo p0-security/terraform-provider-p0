@@ -43,19 +43,18 @@ func NewGcpSshIamWrite() resource.Resource {
 
 // Metadata implements resource.ResourceWithImportState.
 func (*gcpSshIamWrite) Metadata(_ context.Context, req resource.MetadataRequest, res *resource.MetadataResponse) {
-	res.TypeName = req.ProviderTypeName + "_gcp_ssh_install"
+	res.TypeName = req.ProviderTypeName + "_ssh_gcp"
 }
 
 // Schema implements resource.ResourceWithImportState.
 func (*gcpSshIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		// Note that the TF doc generator clobbers _most_ underscores :(
 		MarkdownDescription: `A Google Cloud SSH installation. 
 		
 Installing SSH allows you to manage access to your servers on Google Cloud.`,
 		Attributes: map[string]schema.Attribute{
 			"project_id": schema.StringAttribute{
-				MarkdownDescription: "The Google Cloud project ID.",
+				MarkdownDescription: "The Google Cloud project ID",
 				Required:            true,
 			},
 			"state": schema.StringAttribute{
@@ -73,15 +72,13 @@ Installing SSH allows you to manage access to your servers on Google Cloud.`,
 func (r *gcpSshIamWrite) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	data := internal.Configure(&req, resp)
 	r.installer = &installresources.Install{
+		Integration:  SshKey,
+		Component:    installresources.IamWrite,
 		ProviderData: data,
-		GetItemPath:  r.getItemPath,
 		GetId:        r.getId,
 		GetItemJson:  r.getItemJson,
 		FromJson:     r.fromJson,
 		ToJson:       r.toJson,
-	}
-	if data == nil {
-		return
 	}
 }
 
@@ -91,12 +88,8 @@ func (r *gcpSshIamWrite) getId(data any) *string {
 		return nil
 	}
 
-	str := model.ProjectId.ValueString()
+	str := fmt.Sprintf("gcloud:%s", model.ProjectId.ValueString())
 	return &str
-}
-
-func (r *gcpSshIamWrite) getItemPath(id string) string {
-	return fmt.Sprintf("integrations/%s/config/%s/gcloud:%s", SshKey, installresources.IamWrite, id)
 }
 
 func (r *gcpSshIamWrite) getItemJson(json any) any {
@@ -114,7 +107,8 @@ func (r *gcpSshIamWrite) fromJson(id string, json any) any {
 		return nil
 	}
 
-	data.ProjectId = types.StringValue(id)
+	projectId := strings.TrimPrefix(id, "gcloud:")
+	data.ProjectId = types.StringValue(projectId)
 	if jsonv.Label != nil {
 		data.Label = types.StringValue(*jsonv.Label)
 	}
@@ -143,23 +137,10 @@ func (r *gcpSshIamWrite) toJson(data any) any {
 
 // Create implements resource.ResourceWithImportState.
 func (s *gcpSshIamWrite) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan gcpSshIamWriteModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	throwaway_response := struct{}{}
-	err := s.installer.ProviderData.Post("integrations/ssh/config", struct{}{}, &throwaway_response)
-	if err != nil {
-		if !strings.Contains(err.Error(), "409 Conflict") {
-			resp.Diagnostics.AddError("Failed to install IAM write", err.Error())
-			return
-		}
-	}
-
-	s.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &gcpSshIamWriteApi{}, &gcpSshIamWriteModel{})
+	var json gcpSshIamWriteApi
+	var data gcpSshIamWriteModel
+	s.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
 func (s *gcpSshIamWrite) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -168,24 +149,12 @@ func (s *gcpSshIamWrite) Read(ctx context.Context, req resource.ReadRequest, res
 
 // Skips the unstaging step, as it is not needed for ssh integrations and instead performs a full delete.
 func (s *gcpSshIamWrite) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state gcpSshIamWriteModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	id := s.getId(&state)
-	path := s.getItemPath(*id)
-	err := s.installer.ProviderData.Delete(path)
-	if err != nil {
-		resp.Diagnostics.AddError("Could not delete component", fmt.Sprintf("%s", err))
-		return
-	}
+	s.installer.Delete(ctx, &resp.Diagnostics, &req.State, &gcpSshIamWriteModel{})
 }
 
 // Update implements resource.ResourceWithImportState.
 func (s *gcpSshIamWrite) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	s.installer.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &gcpSshIamWriteApi{}, &gcpSshIamWriteModel{})
+	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &gcpSshIamWriteApi{}, &gcpSshIamWriteModel{})
 }
 
 func (s *gcpSshIamWrite) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

@@ -79,7 +79,7 @@ func (r *StagedAws) Schema(ctx context.Context, req resource.SchemaRequest, resp
 			},
 			"label": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: installresources.AwsLabelMarkdownDescription,
+				MarkdownDescription: AwsLabelMarkdownDescription,
 			},
 			"service_account_id": schema.StringAttribute{
 				Computed:            true,
