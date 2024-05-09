@@ -20,9 +20,9 @@ import (
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
-var _ resource.Resource = &StagedAws{}
-var _ resource.ResourceWithImportState = &StagedAws{}
-var _ resource.ResourceWithConfigure = &StagedAws{}
+var _ resource.Resource = &AwsIamWriteStaged{}
+var _ resource.ResourceWithImportState = &AwsIamWriteStaged{}
+var _ resource.ResourceWithConfigure = &AwsIamWriteStaged{}
 
 func NewAwsIamWrite() resource.Resource {
 	return &AwsIamWrite{}
@@ -85,43 +85,24 @@ func (r *AwsIamWrite) Schema(ctx context.Context, req resource.SchemaRequest, re
 		// Note that the TF doc generator clobbers _most_ underscores :(
 		MarkdownDescription: `An AWS installation.
 
-**Important**: This resource should be used together with the 'aws_staged' resource, with a dependency chain
-requiring this resource to be updated after the 'aws_staged' resource.
+**Important**: This resource should be used together with the 'aws_iam_write_staged' resource, with a dependency chain
+requiring this resource to be updated after the 'aws_iam_write_staged' resource.
 
 P0 recommends you use these resources according to the following pattern:
 
 ` + "```" + // Go does not support escaping backticks in literals, see https://github.com/golang/go/issues/32590 and its many friends
 			`
-resource "p0_aws_staged" "staged_account" {
+resource "p0_aws_iam_write_staged" "staged_account" {
   id         = ...
-  components = ["iam-write"]
-}
-
-# See current P0 docs for the appropriate input in this block
-resource "aws_iam_policy" "p0_iam_manager" {
-  ...
 }
 
 resource "aws_iam_role" "p0_iam_manager" {
-  name               = "P0RoleIamManager"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = "accounts.google.com"
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "accounts.google.com:aud" = "${p0_aws_staged.staged_account.service_account_id}"
-          }
-        }
-      }
-    ]
-  })
-  managed_policy_arns = [aws_iam_policy.p0_iam_manager.arn]
+  name               = p0_aws_iam_write_staged.staged_account.role.name
+  assume_role_policy = p0_aws_iam_write_staged.staged_account.role.trust_policy
+  inline_policy {
+    name   = p0_aws_iam_write_staged.staged_account.role.inline_policy_name
+    policy = p0_aws_iam_write_staged.staged_account.role.inline_policy
+  }
 }
 
 resource "p0_aws_iam_write" "installed_account" {

@@ -66,7 +66,7 @@ func (i *Install) itemBasePath() string {
 }
 
 // Ensures that the item's configuration has been created in P0. If the item's configuration already exists we'll ignore the error.
-func (i *Install) EnsureConfig(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any) {
+func (i *Install) EnsureConfig(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, model any) {
 	diags.Append(plan.Get(ctx, model)...)
 	if diags.HasError() {
 		return
@@ -100,10 +100,24 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 		return
 	}
 
-	err := i.ProviderData.Put(i.itemPath(*id), &struct{}{}, &struct{}{})
+	err := i.ProviderData.Put(i.itemPath(*id), &struct{}{}, json)
 	if err != nil {
-		diags.AddError(fmt.Sprintf("Could not %s %s component", "", i.Component), fmt.Sprintf("Error: %s", err))
+		diags.AddError(fmt.Sprintf("Could not stage %s component", i.Component), fmt.Sprintf("Error: %s", err))
 	}
+
+	itemJson := i.GetItemJson(json)
+	if itemJson == nil {
+		i.reportConversionError("Bad API response", "Could not read 'item' from", json, diags)
+		return
+	}
+
+	created := i.FromJson(*id, itemJson)
+	if created == nil {
+		i.reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
+		return
+	}
+
+	diags.Append(state.Set(ctx, created)...)
 }
 
 // Advances the item to "installed" state.
