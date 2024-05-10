@@ -168,7 +168,7 @@ func (s *sshAwsIamWrite) Create(ctx context.Context, req resource.CreateRequest,
 	var json sshAwsIamWriteApi
 	var data sshAwsIamWriteModel
 
-	s.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	s.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
 	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
