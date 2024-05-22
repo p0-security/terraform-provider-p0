@@ -21,4 +21,91 @@ A Google Cloud installation.
 
 ### Read-Only
 
+- `access_logs` (Attributes) Read-only attributes used to configure infrastructure and IAM grants for access-logs integrations (see [below for nested schema](#nestedatt--access_logs))
+- `iam_assessment` (Attributes) Read-only attributes used to configure IAM grants for IAM-assessment integrations (see [below for nested schema](#nestedatt--iam_assessment))
+- `iam_write` (Attributes) Read-only attributes used to configure IAM grants for IAM-management integrations (see [below for nested schema](#nestedatt--iam_write))
+- `org_wide_policy` (Attributes) Read-only attributes used to configure IAM grants for org-wide policy-read installation (see [below for nested schema](#nestedatt--org_wide_policy))
 - `service_account_email` (String) The identity that P0 uses to communicate with your Google Cloud organization
+
+<a id="nestedatt--access_logs"></a>
+### Nested Schema for `access_logs`
+
+Read-Only:
+
+- `logging` (Attributes) Describes expected Cloud Logging infrastructure (see [below for nested schema](#nestedatt--access_logs--logging))
+- `predefined_role` (String) The predefined role that should be granted to P0, in order to install projects for IAM management
+- `pub_sub` (Attributes) Describes expected Pub/Sub infrastructure (see [below for nested schema](#nestedatt--access_logs--pub_sub))
+
+<a id="nestedatt--access_logs--logging"></a>
+### Nested Schema for `access_logs.logging`
+
+Read-Only:
+
+- `filter` (String) Logs should be directed to a logging sink with this filter
+- `role` (String) The project's logging service account should have this predefined role
+- `sink_id` (String) Logs should be directed to a logging sink with this ID
+
+
+<a id="nestedatt--access_logs--pub_sub"></a>
+### Nested Schema for `access_logs.pub_sub`
+
+Read-Only:
+
+- `topic_id` (String) Logs should be directed to a Pub/Sub topic with this ID
+
+
+
+<a id="nestedatt--iam_assessment"></a>
+### Nested Schema for `iam_assessment`
+
+Read-Only:
+
+- `custom_role` (Attributes) Describes the custom role that should be created and assigned to P0's service account (see [below for nested schema](#nestedatt--iam_assessment--custom_role))
+- `permissions` (List of String) Permissions that should be granted to P0 via the custom role, described in the 'role' attribute,
+in order to install projects for IAM assessment
+
+<a id="nestedatt--iam_assessment--custom_role"></a>
+### Nested Schema for `iam_assessment.custom_role`
+
+Read-Only:
+
+- `id` (String) The custom role expected identifier
+- `name` (String) The custom role's expected title
+
+
+
+<a id="nestedatt--iam_write"></a>
+### Nested Schema for `iam_write`
+
+Read-Only:
+
+- `custom_role` (Attributes) Describes the custom role that should be created and assigned to P0's service account (see [below for nested schema](#nestedatt--iam_write--custom_role))
+- `permissions` (List of String) Permissions that should be granted to P0 via the custom role, described in the 'role' attribute, in order to install projects for IAM management
+- `predefined_role` (String) The predefined role that should be granted to P0, in order to install projects for IAM management
+
+<a id="nestedatt--iam_write--custom_role"></a>
+### Nested Schema for `iam_write.custom_role`
+
+Read-Only:
+
+- `id` (String) The custom role expected identifier
+- `name` (String) The custom role's expected title
+
+
+
+<a id="nestedatt--org_wide_policy"></a>
+### Nested Schema for `org_wide_policy`
+
+Read-Only:
+
+- `custom_role` (Attributes) Describes the custom role that should be created and assigned to P0's service account (see [below for nested schema](#nestedatt--org_wide_policy--custom_role))
+- `permissions` (List of String) Permissions that should be granted to P0 via the custom role, described in the 'role' attribute,
+in order to install projects for org-wide policy-read installation
+
+<a id="nestedatt--org_wide_policy--custom_role"></a>
+### Nested Schema for `org_wide_policy.custom_role`
+
+Read-Only:
+
+- `id` (String) The custom role expected identifier
+- `name` (String) The custom role's expected title

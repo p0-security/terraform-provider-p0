@@ -29,9 +29,41 @@ type Gcp struct {
 	installer *installresources.RootInstall
 }
 
+type gcpRoleMetadata struct {
+	Id   string `json:"id" tfsdk:"id"`
+	Name string `json:"name" tfsdk:"name"`
+}
+
+type gcpAccessLogsMetadata struct {
+	Logging struct {
+		Filter string `json:"filter" tfsdk:"filter"`
+		SinkId string `json:"sinkId" tfsdk:"sink_id"`
+		Role   string `json:"role" tfsdk:"role"`
+	} `json:"logging" tfsdk:"logging"`
+	PredefinedRole string `json:"predefinedRole" tfsdk:"predefined_role"`
+	PubSub         struct {
+		TopicId string `json:"topicId" tfsdk:"topic_id"`
+	} `json:"pubSub" tfsdk:"pub_sub"`
+}
+
+type gcpPermissionsMetadata struct {
+	Permissions []string        `json:"requiredPermissions" tfsdk:"permissions"`
+	Role        gcpRoleMetadata `json:"role" tfsdk:"custom_role"`
+}
+
+type gcpPermissionsMetadataWithPredefinedRole struct {
+	PredefinedRole string          `json:"predefinedRole" tfsdk:"predefined_role"`
+	Permissions    []string        `json:"requiredPermissions" tfsdk:"permissions"`
+	CustomRole     gcpRoleMetadata `json:"role" tfsdk:"custom_role"`
+}
+
 type gcpModel struct {
-	OrganizationId      basetypes.StringValue `tfsdk:"organization_id"`
-	ServiceAccountEmail basetypes.StringValue `tfsdk:"service_account_email"`
+	OrganizationId      basetypes.StringValue                     `tfsdk:"organization_id"`
+	ServiceAccountEmail basetypes.StringValue                     `tfsdk:"service_account_email"`
+	AccessLogs          *gcpAccessLogsMetadata                    `tfsdk:"access_logs"`
+	IamAssessment       *gcpPermissionsMetadata                   `tfsdk:"iam_assessment"`
+	IamWrite            *gcpPermissionsMetadataWithPredefinedRole `tfsdk:"iam_write"`
+	OrgWidePolicy       *gcpPermissionsMetadata                   `tfsdk:"org_wide_policy"`
 }
 
 type gcpApi struct {
@@ -43,6 +75,12 @@ type gcpApi struct {
 			} `json:"_"`
 		} `json:"root"`
 	} `json:"config"`
+	Metadata struct {
+		AccessLogs    gcpAccessLogsMetadata                    `json:"access-logs"`
+		IamAssessment gcpPermissionsMetadata                   `json:"iam-assessment"`
+		IamWrite      gcpPermissionsMetadataWithPredefinedRole `json:"iam-write"`
+		OrgWidePolicy gcpPermissionsMetadata                   `json:"org-wide-policy"`
+	} `json:"metadata"`
 }
 
 func (r *Gcp) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -50,6 +88,24 @@ func (r *Gcp) Metadata(ctx context.Context, req resource.MetadataRequest, resp *
 }
 
 func (r *Gcp) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	customRole := schema.SingleNestedAttribute{
+		Computed:            true,
+		MarkdownDescription: `Describes the custom role that should be created and assigned to P0's service account`,
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: `The custom role expected identifier`,
+			},
+			"name": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: `The custom role's expected title`,
+			},
+		},
+	}
+	predefinedRole := schema.StringAttribute{
+		Computed:            true,
+		MarkdownDescription: `The predefined role that should be granted to P0, in order to install projects for IAM management`,
+	}
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Google Cloud installation.`,
 		Attributes: map[string]schema.Attribute{
@@ -66,6 +122,80 @@ func (r *Gcp) Schema(ctx context.Context, req resource.SchemaRequest, resp *reso
 			"service_account_email": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: `The identity that P0 uses to communicate with your Google Cloud organization`,
+			},
+			"access_logs": schema.SingleNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: `Read-only attributes used to configure infrastructure and IAM grants for access-logs integrations`,
+				Attributes: map[string]schema.Attribute{
+					"logging": schema.SingleNestedAttribute{
+						Computed:            true,
+						MarkdownDescription: `Describes expected Cloud Logging infrastructure`,
+						Attributes: map[string]schema.Attribute{
+							"filter": schema.StringAttribute{
+								Computed:            true,
+								MarkdownDescription: `Logs should be directed to a logging sink with this filter`,
+							},
+							"role": schema.StringAttribute{
+								Computed:            true,
+								MarkdownDescription: `The project's logging service account should have this predefined role`,
+							},
+							"sink_id": schema.StringAttribute{
+								Computed:            true,
+								MarkdownDescription: `Logs should be directed to a logging sink with this ID`,
+							},
+						},
+					},
+					"predefined_role": predefinedRole,
+					"pub_sub": schema.SingleNestedAttribute{
+						Computed:            true,
+						MarkdownDescription: `Describes expected Pub/Sub infrastructure`,
+						Attributes: map[string]schema.Attribute{
+							"topic_id": schema.StringAttribute{
+								Computed:            true,
+								MarkdownDescription: `Logs should be directed to a Pub/Sub topic with this ID`,
+							},
+						},
+					},
+				},
+			},
+			"iam_assessment": schema.SingleNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: `Read-only attributes used to configure IAM grants for IAM-assessment integrations`,
+				Attributes: map[string]schema.Attribute{
+					"permissions": schema.ListAttribute{
+						ElementType: types.StringType,
+						Computed:    true,
+						MarkdownDescription: `Permissions that should be granted to P0 via the custom role, described in the 'role' attribute,
+in order to install projects for IAM assessment`,
+					},
+					"custom_role": customRole,
+				},
+			},
+			"iam_write": schema.SingleNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: `Read-only attributes used to configure IAM grants for IAM-management integrations`,
+				Attributes: map[string]schema.Attribute{
+					"permissions": schema.ListAttribute{
+						ElementType:         types.StringType,
+						Computed:            true,
+						MarkdownDescription: `Permissions that should be granted to P0 via the custom role, described in the 'role' attribute, in order to install projects for IAM management`,
+					},
+					"predefined_role": predefinedRole,
+					"custom_role":     customRole,
+				},
+			},
+			"org_wide_policy": schema.SingleNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: `Read-only attributes used to configure IAM grants for org-wide policy-read installation`,
+				Attributes: map[string]schema.Attribute{
+					"permissions": schema.ListAttribute{
+						ElementType: types.StringType,
+						Computed:    true,
+						MarkdownDescription: `Permissions that should be granted to P0 via the custom role, described in the 'role' attribute,
+in order to install projects for org-wide policy-read installation`,
+					},
+					"custom_role": customRole,
+				},
 			},
 		},
 	}
@@ -94,6 +224,13 @@ func (r *Gcp) fromJson(json any) any {
 	data.OrganizationId = types.StringValue(root.OrganizationId)
 	data.ServiceAccountEmail = types.StringPointerValue(root.ServiceAccountEmail)
 
+	metadata := jsonv.Metadata
+
+	data.AccessLogs = &metadata.AccessLogs
+	data.IamAssessment = &metadata.IamAssessment
+	data.IamWrite = &metadata.IamWrite
+	data.OrgWidePolicy = &metadata.OrgWidePolicy
+
 	return &data
 }
 
@@ -108,7 +245,6 @@ func (r *Gcp) toJson(data any) any {
 	json.Config.Root.Singleton.OrganizationId = datav.OrganizationId.ValueString()
 	json.Config.Root.Singleton.ServiceAccountEmail = datav.OrganizationId.ValueStringPointer()
 
-	// can omit state here as it's filled by the backend
 	return &json
 }
 
