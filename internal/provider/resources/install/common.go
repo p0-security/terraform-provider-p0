@@ -45,8 +45,9 @@ type Install struct {
 	GetId func(data any) *string
 	// Convert the API response to the single item's JSON (should just equate to returning &data.Item)
 	GetItemJson func(readJson any) any
-	// Convert a pointer to the item's JSON model to a pointer to the TF state model
-	FromJson func(id string, json any) any
+	// Convert a pointer to the item's JSON model to a pointer to the TF state model.
+	// Returns nil if the JSON can not be converted.
+	FromJson func(ctx context.Context, diags *diag.Diagnostics, id string, json any) any
 	// Convert a pointer to the TF state model to a pointer to an item's JSON model
 	ToJson func(data any) any
 }
@@ -113,7 +114,7 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 		return
 	}
 
-	created := i.FromJson(*id, itemJson)
+	created := i.FromJson(ctx, diags, *id, itemJson)
 	if created == nil {
 		reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
 		return
@@ -163,7 +164,7 @@ func (i *Install) UpsertFromStage(ctx context.Context, diags *diag.Diagnostics, 
 		return
 	}
 
-	updated := i.FromJson(*id, itemJson)
+	updated := i.FromJson(ctx, diags, *id, itemJson)
 	if updated == nil {
 		reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
 		return
@@ -193,6 +194,11 @@ func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsd
 
 	httpErr := i.ProviderData.Get(i.itemPath(*id), json)
 	if httpErr != nil {
+		// TODO: use structured response
+		if httpErr.Error() == "404 Not Found: Not found" {
+			state.RemoveResource(ctx)
+			return
+		}
 		diags.AddError("Error communicating with P0", fmt.Sprintf("Unable to read configuration, got error:\n%s", httpErr))
 		return
 	}
@@ -203,7 +209,7 @@ func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsd
 		return
 	}
 
-	updated := i.FromJson(*id, itemJson)
+	updated := i.FromJson(ctx, diags, *id, itemJson)
 	if updated == nil {
 		reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
 		return

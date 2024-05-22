@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -132,7 +133,7 @@ func (r *AwsIamWriteStaged) getItemJson(json any) any {
 	return inner
 }
 
-func (r *AwsIamWriteStaged) fromJson(id string, json any) any {
+func (r *AwsIamWriteStaged) fromJson(ctx context.Context, diags *diag.Diagnostics, id string, json any) any {
 	data := awsIamWriteStagedModel{}
 
 	jsonv, ok := json.(*awsIamWriteStagedApi)
@@ -161,6 +162,7 @@ func (r *AwsIamWriteStaged) fromJson(id string, json any) any {
 		},
 	)
 	if objErr.HasError() {
+		diags.Append(objErr...)
 		return nil
 	}
 	data.Role = role

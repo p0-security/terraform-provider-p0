@@ -15,7 +15,7 @@ type RootInstall struct {
 	// The provider internal data object
 	ProviderData *internal.P0ProviderData
 	// Convert a pointer to the item's JSON model to a pointer to the TF state model
-	FromJson func(json any) any
+	FromJson func(ctx context.Context, diags *diag.Diagnostics, json any) any
 	// Convert a pointer to the TF state model to a pointer to an item's JSON model
 	ToJson func(data any) any
 }
@@ -39,7 +39,7 @@ func (i *RootInstall) Create(ctx context.Context, diags *diag.Diagnostics, plan 
 		return
 	}
 
-	item := i.FromJson(json)
+	item := i.FromJson(ctx, diags, json)
 	if item == nil {
 		reportConversionError("Bad API response", "Could not read resource data from", json, diags)
 		return
@@ -61,7 +61,7 @@ func (i *RootInstall) Read(ctx context.Context, diags *diag.Diagnostics, state *
 		return
 	}
 
-	item := i.FromJson(json)
+	item := i.FromJson(ctx, diags, json)
 	if item == nil {
 		reportConversionError("Bad API response", "Could not read resource data from", json, diags)
 		return
