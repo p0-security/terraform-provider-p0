@@ -14,11 +14,13 @@ import (
 const (
 	Config                   = "configure"
 	Verify                   = "verify"
+	IamAssessment            = "iam-assessment"
 	IamWrite                 = "iam-write"
-	StateMarkdownDescription = `This account's install progress in the P0 application:
-	- 'stage': The account has been staged for installation
-	- 'configure': The account is available to be added to P0, and may be configured
-	- 'installed': The account is fully installed`
+	SingletonKey             = "_"
+	StateMarkdownDescription = `This item's install progress in the P0 application:
+	- 'stage': The item has been staged for installation
+	- 'configure': The item is available to be added to P0, and may be configured
+	- 'installed': The item is fully installed`
 )
 
 // Order matters here; components installed in this order.
@@ -49,7 +51,7 @@ type Install struct {
 	ToJson func(data any) any
 }
 
-func (i *Install) reportConversionError(header string, subheader string, value any, diags *diag.Diagnostics) {
+func reportConversionError(header string, subheader string, value any, diags *diag.Diagnostics) {
 	marshalled, marshallErr := json.MarshalIndent(value, "", "  ")
 	if marshallErr != nil {
 		marshalled = []byte("<An unparseable entity>")
@@ -75,7 +77,7 @@ func (i *Install) EnsureConfig(ctx context.Context, diags *diag.Diagnostics, pla
 	throwaway_response := struct{}{}
 	err := i.ProviderData.Post(i.itemBasePath(), struct{}{}, &throwaway_response)
 	if err != nil {
-		// we can safely 409 Conflict errors, because they indicate the item is already installed
+		// we can safely ignore 409 Conflict errors, because they indicate the item is already installed
 		if !strings.Contains(err.Error(), "409 Conflict") {
 			diags.AddError("Error communicating with P0", fmt.Sprintf("Failed to install integration %s, got error %s", i.Integration, err))
 			return
@@ -96,7 +98,7 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 
 	id := i.GetId(model)
 	if id == nil {
-		i.reportConversionError("Missing ID", "Could not extract ID from", model, diags)
+		reportConversionError("Missing ID", "Could not extract ID from", model, diags)
 		return
 	}
 
@@ -107,13 +109,13 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 
 	itemJson := i.GetItemJson(json)
 	if itemJson == nil {
-		i.reportConversionError("Bad API response", "Could not read 'item' from", json, diags)
+		reportConversionError("Bad API response", "Could not read 'item' from", json, diags)
 		return
 	}
 
 	created := i.FromJson(*id, itemJson)
 	if created == nil {
-		i.reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
+		reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
 		return
 	}
 
@@ -135,13 +137,13 @@ func (i *Install) UpsertFromStage(ctx context.Context, diags *diag.Diagnostics, 
 
 	id := i.GetId(model)
 	if id == nil {
-		i.reportConversionError("Missing ID", "Could not extract ID from", model, diags)
+		reportConversionError("Missing ID", "Could not extract ID from", model, diags)
 		return
 	}
 
 	inputJson := i.ToJson(model)
 	if inputJson == nil {
-		i.reportConversionError("Bad Terraform state", "Could not represent as JSON", model, diags)
+		reportConversionError("Bad Terraform state", "Could not represent as JSON", model, diags)
 		return
 	}
 
@@ -157,13 +159,13 @@ func (i *Install) UpsertFromStage(ctx context.Context, diags *diag.Diagnostics, 
 
 	itemJson := i.GetItemJson(json)
 	if itemJson == nil {
-		i.reportConversionError("Bad API response", "Could not read 'item' from", json, diags)
+		reportConversionError("Bad API response", "Could not read 'item' from", json, diags)
 		return
 	}
 
 	updated := i.FromJson(*id, itemJson)
 	if updated == nil {
-		i.reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
+		reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
 		return
 	}
 
@@ -185,7 +187,7 @@ func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsd
 
 	id := i.GetId(model)
 	if id == nil {
-		i.reportConversionError("Missing ID", "Could not extract ID from", model, diags)
+		reportConversionError("Missing ID", "Could not extract ID from", model, diags)
 		return
 	}
 
@@ -197,13 +199,13 @@ func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsd
 
 	itemJson := i.GetItemJson(json)
 	if itemJson == nil {
-		i.reportConversionError("Bad API response", "Could not read 'item' from", json, diags)
+		reportConversionError("Bad API response", "Could not read 'item' from", json, diags)
 		return
 	}
 
 	updated := i.FromJson(*id, itemJson)
 	if updated == nil {
-		i.reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
+		reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
 		return
 	}
 
@@ -221,13 +223,13 @@ func (i *Install) Rollback(ctx context.Context, diags *diag.Diagnostics, state *
 
 	id := i.GetId(model)
 	if id == nil {
-		i.reportConversionError("Missing ID", "Could not extract ID from", model, diags)
+		reportConversionError("Missing ID", "Could not extract ID from", model, diags)
 		return
 	}
 
 	json := i.ToJson(model)
 	if json == nil {
-		i.reportConversionError("Bad Terraform state", "Could not create an API request from", json, diags)
+		reportConversionError("Bad Terraform state", "Could not create an API request from", json, diags)
 		return
 	}
 
@@ -248,7 +250,7 @@ func (i *Install) Delete(ctx context.Context, diags *diag.Diagnostics, state *tf
 
 	id := i.GetId(model)
 	if id == nil {
-		i.reportConversionError("Missing ID", "Could not extract ID from", model, diags)
+		reportConversionError("Missing ID", "Could not extract ID from", model, diags)
 		return
 	}
 

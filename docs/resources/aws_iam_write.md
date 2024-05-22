@@ -87,10 +87,10 @@ resource "p0_aws_iam_write" "example" {
 
 ### Read-Only
 
-- `state` (String) This account's install progress in the P0 application:
-	- 'stage': The account has been staged for installation
-	- 'configure': The account is available to be added to P0, and may be configured
-	- 'installed': The account is fully installed
+- `state` (String) This item's install progress in the P0 application:
+	- 'stage': The item has been staged for installation
+	- 'configure': The item is available to be added to P0, and may be configured
+	- 'installed': The item is fully installed
 
 <a id="nestedatt--login"></a>
 ### Nested Schema for `login`
