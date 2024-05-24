@@ -33,7 +33,7 @@ func (i *RootInstall) Create(ctx context.Context, diags *diag.Diagnostics, plan 
 
 	inputJson := i.ToJson(model)
 
-	err := i.ProviderData.Post(i.configPath(), &inputJson, &json)
+	_, err := i.ProviderData.Post(i.configPath(), &inputJson, &json)
 	if err != nil {
 		diags.AddError("Error communicating with P0", fmt.Sprintf("Failed to install integration %s, got error %s", i.Integration, err))
 		return
@@ -55,7 +55,11 @@ func (i *RootInstall) Read(ctx context.Context, diags *diag.Diagnostics, state *
 		return
 	}
 
-	err := i.ProviderData.Get(i.configPath(), &json)
+	resp, err := i.ProviderData.Get(i.configPath(), &json)
+	if resp != nil && resp.StatusCode == 404 {
+		state.RemoveResource(ctx)
+		return
+	}
 	if err != nil {
 		diags.AddError("Error communicating with P0", fmt.Sprintf("Failed to install integration %s, got error %s", i.Integration, err))
 		return
@@ -77,8 +81,11 @@ func (i *RootInstall) Delete(ctx context.Context, diags *diag.Diagnostics, state
 		return
 	}
 
-	// delete the staged component.
-	err := i.ProviderData.Delete(i.configPath())
+	resp, err := i.ProviderData.Delete(i.configPath())
+	if resp != nil && resp.StatusCode == 404 {
+		// Item was already deleted.
+		return
+	}
 	if err != nil {
 		diags.AddError("Error communicating with P0", fmt.Sprintf("Could not delete, got error: %s", err))
 		return
