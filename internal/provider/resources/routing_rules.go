@@ -272,7 +272,7 @@ func (r *RoutingRules) postVersion(ctx context.Context, data RoutingRulesModel, 
 	workflowUpdate := WorkflowLatestApi{Workflow: RoutingRulesRepr{Rule: data.Rule}}
 
 	var latest WorkflowLatestApi
-	postErr := r.data.Post("workflow", &workflowUpdate, &latest)
+	_, postErr := r.data.Post("workflow", &workflowUpdate, &latest)
 	if postErr != nil {
 		diag.AddError("Could not update routing rules", fmt.Sprintf("Encountered error: %s", postErr))
 		return
@@ -299,7 +299,7 @@ func (r *RoutingRules) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 
 	var latest WorkflowLatestApi
-	httpErr := r.data.Get("workflow/latest", &latest)
+	_, httpErr := r.data.Get("workflow/latest", &latest)
 	if httpErr != nil {
 		resp.Diagnostics.AddError("Error communicationg with P0", fmt.Sprintf("Unable to read routing rules, got error:\n%s", httpErr))
 		return

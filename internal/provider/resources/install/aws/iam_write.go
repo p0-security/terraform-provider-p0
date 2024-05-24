@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -300,7 +301,7 @@ func (r *AwsIamWrite) getItemJson(json any) any {
 	return inner.Item
 }
 
-func (r *AwsIamWrite) fromJson(id string, json any) any {
+func (r *AwsIamWrite) fromJson(ctx context.Context, diags *diag.Diagnostics, id string, json any) any {
 	data := awsIamWriteModel{}
 	jsonv, ok := json.(*awsIamWriteJson)
 	if !ok {

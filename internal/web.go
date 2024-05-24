@@ -21,80 +21,81 @@ type P0ProviderData struct {
 	Client         *http.Client
 }
 
-func (data *P0ProviderData) Do(req *http.Request, responseJson any) error {
+func (data *P0ProviderData) Do(req *http.Request, responseJson any) (*http.Response, error) {
 	req.Header.Add("Accept", "application/json")
 
 	resp, errDo := data.Client.Do(req)
 	if errDo != nil {
-		return errDo
+		return resp, errDo
 	}
 	defer resp.Body.Close()
 
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
-		return readErr
+		return resp, readErr
 	}
 
 	parseErr := json.Unmarshal(body, &responseJson)
 	if parseErr != nil {
-		return parseErr
+		return resp, parseErr
 	}
 
 	// If the response contains "error", throw that here
 	var generic map[string]any
 	genericErr := json.Unmarshal(body, &generic)
 	if genericErr != nil {
-		return genericErr
+		return resp, genericErr
 	}
 	if generic["error"] != nil || resp.StatusCode >= 400 {
 		errorText, ok := generic["error"].(string)
 		if !ok {
-			return fmt.Errorf(
+			errorErr := fmt.Errorf(
 				"got error response from P0, but error was not a string. Please contact support@p0.dev. HTTP status code: %s",
 				resp.Status,
 			)
+			return resp, errorErr
 		}
-		return fmt.Errorf("%s: %s", resp.Status, errorText)
+		return resp, fmt.Errorf("%s: %s", resp.Status, errorText)
 	}
 
-	return nil
+	return resp, nil
 }
 
-func (data *P0ProviderData) Get(path string, responseJson any) error {
+func (data *P0ProviderData) Get(path string, responseJson any) (*http.Response, error) {
 	req, errNew := http.NewRequest("GET", fmt.Sprintf("%s/%s", data.BaseUrl, path), nil)
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Authorization", data.Authentication)
 	if errNew != nil {
-		return errNew
+		return nil, errNew
 	}
 	return data.Do(req, responseJson)
 }
 
-func (data *P0ProviderData) Delete(path string) error {
+func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
 	req, errNew := http.NewRequest("DELETE", fmt.Sprintf("%s/%s", data.BaseUrl, path), nil)
 	req.Header.Add("Authorization", data.Authentication)
 	if errNew != nil {
-		return errNew
+		return nil, errNew
 	}
 
 	resp, errDo := data.Client.Do(req)
 	if errDo != nil {
-		return errDo
+		return resp, errDo
 	}
 	defer resp.Body.Close()
 
 	// Endpoints should not return content
 	// TODO: Render actual error
 	if resp.StatusCode != 204 {
-		return fmt.Errorf("unexpected return code during delete: %d", resp.StatusCode)
+		return resp, fmt.Errorf("unexpected return code during delete: %d", resp.StatusCode)
 	}
-	return nil
+	return resp, nil
 }
 
-func (data *P0ProviderData) doBody(method string, path string, requestJson any, responseJson any) error {
+func (data *P0ProviderData) doBody(method string, path string, requestJson any, responseJson any) (*http.Response, error) {
 	buf, marshalErr := json.Marshal(&requestJson)
 	if marshalErr != nil {
-		return marshalErr
+		return nil, marshalErr
 	}
 
 	reader := bytes.NewReader(buf)
@@ -104,15 +105,15 @@ func (data *P0ProviderData) doBody(method string, path string, requestJson any, 
 	req.Header.Add("Authorization", data.Authentication)
 	req.Header.Add("Content-Type", "application/json")
 	if errNew != nil {
-		return errNew
+		return nil, errNew
 	}
 	return data.Do(req, responseJson)
 }
 
-func (data *P0ProviderData) Post(path string, requestJson any, responseJson any) error {
+func (data *P0ProviderData) Post(path string, requestJson any, responseJson any) (*http.Response, error) {
 	return data.doBody("POST", path, requestJson, responseJson)
 }
 
-func (data *P0ProviderData) Put(path string, requestJson any, responseJson any) error {
+func (data *P0ProviderData) Put(path string, requestJson any, responseJson any) (*http.Response, error) {
 	return data.doBody("PUT", path, requestJson, responseJson)
 }

@@ -45,8 +45,9 @@ type Install struct {
 	GetId func(data any) *string
 	// Convert the API response to the single item's JSON (should just equate to returning &data.Item)
 	GetItemJson func(readJson any) any
-	// Convert a pointer to the item's JSON model to a pointer to the TF state model
-	FromJson func(id string, json any) any
+	// Convert a pointer to the item's JSON model to a pointer to the TF state model.
+	// Returns nil if the JSON can not be converted.
+	FromJson func(ctx context.Context, diags *diag.Diagnostics, id string, json any) any
 	// Convert a pointer to the TF state model to a pointer to an item's JSON model
 	ToJson func(data any) any
 }
@@ -75,7 +76,7 @@ func (i *Install) EnsureConfig(ctx context.Context, diags *diag.Diagnostics, pla
 	}
 
 	throwaway_response := struct{}{}
-	err := i.ProviderData.Post(i.itemBasePath(), struct{}{}, &throwaway_response)
+	_, err := i.ProviderData.Post(i.itemBasePath(), struct{}{}, &throwaway_response)
 	if err != nil {
 		// we can safely ignore 409 Conflict errors, because they indicate the item is already installed
 		if !strings.Contains(err.Error(), "409 Conflict") {
@@ -102,7 +103,7 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 		return
 	}
 
-	err := i.ProviderData.Put(i.itemPath(*id), &struct{}{}, json)
+	_, err := i.ProviderData.Put(i.itemPath(*id), &struct{}{}, json)
 	if err != nil {
 		diags.AddError(fmt.Sprintf("Could not stage %s component", i.Component), fmt.Sprintf("Error: %s", err))
 	}
@@ -113,7 +114,7 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 		return
 	}
 
-	created := i.FromJson(*id, itemJson)
+	created := i.FromJson(ctx, diags, *id, itemJson)
 	if created == nil {
 		reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
 		return
@@ -150,7 +151,11 @@ func (i *Install) UpsertFromStage(ctx context.Context, diags *diag.Diagnostics, 
 	for _, step := range InstallSteps {
 		// in-place evolves data object
 		path := fmt.Sprintf("%s/%s", i.itemPath(*id), step)
-		err := i.ProviderData.Post(path, inputJson, json)
+		resp, err := i.ProviderData.Post(path, inputJson, json)
+		if resp != nil && resp.StatusCode == 404 {
+			state.RemoveResource(ctx)
+			return
+		}
 		if err != nil {
 			diags.AddError("Error communicating with P0", fmt.Sprintf("Could not %s %s component, got error:\n%s", step, i.Component, err))
 			return
@@ -163,7 +168,7 @@ func (i *Install) UpsertFromStage(ctx context.Context, diags *diag.Diagnostics, 
 		return
 	}
 
-	updated := i.FromJson(*id, itemJson)
+	updated := i.FromJson(ctx, diags, *id, itemJson)
 	if updated == nil {
 		reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
 		return
@@ -191,7 +196,11 @@ func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsd
 		return
 	}
 
-	httpErr := i.ProviderData.Get(i.itemPath(*id), json)
+	resp, httpErr := i.ProviderData.Get(i.itemPath(*id), json)
+	if resp != nil && resp.StatusCode == 404 {
+		state.RemoveResource(ctx)
+		return
+	}
 	if httpErr != nil {
 		diags.AddError("Error communicating with P0", fmt.Sprintf("Unable to read configuration, got error:\n%s", httpErr))
 		return
@@ -203,7 +212,7 @@ func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsd
 		return
 	}
 
-	updated := i.FromJson(*id, itemJson)
+	updated := i.FromJson(ctx, diags, *id, itemJson)
 	if updated == nil {
 		reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
 		return
@@ -234,7 +243,7 @@ func (i *Install) Rollback(ctx context.Context, diags *diag.Diagnostics, state *
 	}
 
 	var discardedResponse = struct{}{}
-	httpErr := i.ProviderData.Put(i.itemPath(*id), json, &discardedResponse)
+	_, httpErr := i.ProviderData.Put(i.itemPath(*id), json, &discardedResponse)
 	if httpErr != nil {
 		diags.AddError("Error communicating with P0", fmt.Sprintf("Could not rollback, got error:\n%s", httpErr))
 		return
@@ -254,8 +263,11 @@ func (i *Install) Delete(ctx context.Context, diags *diag.Diagnostics, state *tf
 		return
 	}
 
-	// delete the staged component.
-	err := i.ProviderData.Delete(i.itemPath(*id))
+	resp, err := i.ProviderData.Delete(i.itemPath(*id))
+	if resp != nil && resp.StatusCode == 404 {
+		// Item was already removed.
+		return
+	}
 	if err != nil {
 		diags.AddError("Error communicating with P0", fmt.Sprintf("Could not delete, got error: %s", err))
 		return
