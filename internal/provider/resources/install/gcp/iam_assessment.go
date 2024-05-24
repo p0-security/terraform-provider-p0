@@ -3,13 +3,11 @@ package installgcp
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
@@ -25,19 +23,6 @@ func NewGcpIamAssessment() resource.Resource {
 
 type GcpIamAssessment struct {
 	installer *installresources.Install
-}
-
-type gcpIamAssessmentModel struct {
-	Project string       `tfsdk:"project"`
-	State   types.String `tfsdk:"state"`
-}
-
-type gcpIamAssessmentJson struct {
-	State string `json:"state"`
-}
-
-type gcpIamAssessmentApi struct {
-	Item gcpIamAssessmentJson `json:"item"`
 }
 
 func (r *GcpIamAssessment) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -75,69 +60,25 @@ P0 recommends defining this infrastructure according to the pattern in the examp
 	}
 }
 
-func (r *GcpIamAssessment) getId(data any) *string {
-	model, ok := data.(*gcpIamAssessmentModel)
-	if !ok {
-		return nil
-	}
-	return &model.Project
-}
-
-func (r *GcpIamAssessment) getItemJson(json any) any {
-	inner, ok := json.(*gcpIamAssessmentApi)
-	if !ok {
-		return nil
-	}
-	return &inner.Item
-}
-
-func (r *GcpIamAssessment) fromJson(ctx context.Context, diags *diag.Diagnostics, id string, json any) any {
-	data := gcpIamAssessmentModel{}
-	jsonv, ok := json.(*gcpIamAssessmentJson)
-	if !ok {
-		return nil
-	}
-
-	data.Project = id
-	data.State = types.StringValue(jsonv.State)
-
-	return &data
-}
-
-func (r *GcpIamAssessment) toJson(data any) any {
-	json := gcpIamAssessmentJson{}
-
-	// can omit state here as it's filled by the backend
-	return json
-}
-
 func (r *GcpIamAssessment) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
-		Integration:  GcpKey,
-		Component:    installresources.IamAssessment,
-		ProviderData: providerData,
-		GetId:        r.getId,
-		GetItemJson:  r.getItemJson,
-		FromJson:     r.fromJson,
-		ToJson:       r.toJson,
-	}
+	r.installer = newItemInstaller(installresources.IamAssessment, providerData)
 }
 
 func (s *GcpIamAssessment) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &gcpIamAssessmentApi{}, &gcpIamAssessmentModel{})
+	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &gcpItemApi{}, &gcpItemModel{})
 }
 
 func (s *GcpIamAssessment) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	s.installer.Read(ctx, &resp.Diagnostics, &resp.State, &gcpIamAssessmentApi{}, &gcpIamAssessmentModel{})
+	s.installer.Read(ctx, &resp.Diagnostics, &resp.State, &gcpItemApi{}, &gcpItemModel{})
 }
 
 func (s *GcpIamAssessment) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	s.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &gcpIamAssessmentModel{})
+	s.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &gcpItemModel{})
 }
 
 func (s *GcpIamAssessment) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &gcpIamAssessmentApi{}, &gcpIamAssessmentModel{})
+	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &gcpItemApi{}, &gcpItemModel{})
 }
 
 func (s *GcpIamAssessment) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

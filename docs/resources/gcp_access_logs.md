@@ -6,7 +6,7 @@ description: |-
   An installation of P0, on a single Google Cloud project, for access-log collection,
   which enhances IAM assessment.
   To use this resource, you must also:
-  install the p0_gcp_iam_assessment resource,create a Pub/Sub topic,create a logging sink, publishing to this topic,grant your logging service account permissions to publish to this Pub/Sub topicgrant P0 the ability to subscribe to this Pub/Sub topic
+  install the p0_gcp_iam_assessment resource,create a Pub/Sub topic,create a logging sink, publishing to this topic,grant your logging service account permissions to publish to this Pub/Sub topic, andgrant P0 the ability to subscribe to this Pub/Sub topic.
   Use the read-only attributes defined on p0_gcp to create the requisite Google Cloud infrastructure.
   P0 recommends defining this infrastructure according to the example usage pattern.
 ---
@@ -20,8 +20,8 @@ To use this resource, you must also:
 - install the `p0_gcp_iam_assessment` resource,
 - create a Pub/Sub topic,
 - create a logging sink, publishing to this topic,
-- grant your logging service account permissions to publish to this Pub/Sub topic
-- grant P0 the ability to subscribe to this Pub/Sub topic
+- grant your logging service account permissions to publish to this Pub/Sub topic, and
+- grant P0 the ability to subscribe to this Pub/Sub topic.
 
 Use the read-only attributes defined on `p0_gcp` to create the requisite Google Cloud infrastructure.
 

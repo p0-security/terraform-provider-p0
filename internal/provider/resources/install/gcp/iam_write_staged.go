@@ -118,8 +118,6 @@ func (r *GcpIamWriteStaged) fromJson(ctx context.Context, diags *diag.Diagnostic
 
 func (r *GcpIamWriteStaged) toJson(data any) any {
 	json := gcpIamWriteStagedApi{}
-
-	// can omit state here as it's filled by the backend
 	return &json.Item
 }
 
