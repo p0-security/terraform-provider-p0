@@ -39,7 +39,7 @@ type gcpIamAssessmentStagedApi struct {
 	Item struct {
 		State string `json:"state"`
 	} `json:"item"`
-	Metadata gcpPermissionsMetadataWithPredefinedRole `json:"metadata"`
+	Metadata gcpPermissionsMetadata `json:"metadata"`
 }
 
 func (r *GcpIamAssessmentStaged) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {

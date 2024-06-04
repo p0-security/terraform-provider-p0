@@ -20,7 +20,7 @@ type gcpRoleMetadata struct {
 
 type gcpPermissionsMetadata struct {
 	Permissions []string        `json:"requiredPermissions" tfsdk:"permissions"`
-	Role        gcpRoleMetadata `json:"customRole" tfsdk:"custom_role"`
+	CustomRole  gcpRoleMetadata `json:"customRole" tfsdk:"custom_role"`
 }
 
 type gcpPermissionsMetadataWithPredefinedRole struct {
