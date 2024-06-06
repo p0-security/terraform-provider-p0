@@ -105,14 +105,15 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		resources.NewRoutingRules,
-		installaws.NewIamWriteStagedAws,
 		installaws.NewAwsIamWrite,
+		installaws.NewIamWriteStagedAws,
 		installgcp.NewGcp,
 		installgcp.NewGcpAccessLogs,
 		installgcp.NewGcpIamAssessment,
 		installgcp.NewGcpIamAssessmentStaged,
 		installgcp.NewGcpIamWrite,
 		installgcp.NewGcpIamWriteStaged,
+		installgcp.NewGcpOrgAccessLogs,
 		installgcp.NewGcpSharingRestriction,
 		installssh.NewSshAwsIamWrite,
 		installssh.NewSshGcpIamWrite,

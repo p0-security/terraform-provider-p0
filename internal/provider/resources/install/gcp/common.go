@@ -4,10 +4,12 @@ import (
 	"context"
 	"regexp"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
@@ -45,6 +47,7 @@ type gcpItemApi struct {
 const (
 	AccessLogs         = "access-logs"
 	GcpKey             = "gcloud"
+	OrgAccessLogs      = "org-access-logs"
 	SharingRestriction = "sharing-restriction"
 )
 
@@ -71,6 +74,15 @@ var predefinedRole = schema.StringAttribute{
 	MarkdownDescription: `The predefined role that should be granted to P0, in order to install projects for IAM management`,
 }
 
+var projectValidators = []validator.String{
+	stringvalidator.RegexMatches(GcpProjectIdRegex, "GCP project IDs should consist only of alphanumeric characters and hyphens"),
+}
+
+var stateAttribute = schema.StringAttribute{
+	Computed:            true,
+	MarkdownDescription: installresources.StateMarkdownDescription,
+}
+
 var itemAttributes = map[string]schema.Attribute{
 	// In P0 we would name this 'id' or 'project_id'; it is named 'project' here to align with Terraform's naming for
 	// Google Cloud resources
@@ -80,11 +92,9 @@ var itemAttributes = map[string]schema.Attribute{
 		PlanModifiers: []planmodifier.String{
 			stringplanmodifier.RequiresReplace(),
 		},
+		Validators: projectValidators,
 	},
-	"state": schema.StringAttribute{
-		Computed:            true,
-		MarkdownDescription: installresources.StateMarkdownDescription,
-	},
+	"state": stateAttribute,
 }
 
 func permissions(name string) schema.ListAttribute {
@@ -142,4 +152,9 @@ func newItemInstaller(component string, providerData *internal.P0ProviderData) *
 		FromJson:     itemFromJson,
 		ToJson:       itemToJson,
 	}
+}
+
+func singletonGetId(data any) *string {
+	key := installresources.SingletonKey
+	return &key
 }
