@@ -70,7 +70,7 @@ resource "google_pubsub_topic" "example" {
 resource "google_logging_project_sink" "example" {
   project     = locals.project
   name        = p0_gcp.example.access_logs.logging.sink_id
-  destination = "pubsub.googleapis.com/projects/my_project/topics/${google_pubsub_topic.example.name}"
+  destination = google_pubsub_topic.example.id
   description = "P0 data access log sink"
 
   filter = p0_gcp.example.access_logs.logging.filter

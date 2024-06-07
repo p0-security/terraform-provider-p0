@@ -28,10 +28,11 @@ resource "google_pubsub_topic" "example" {
 
 # The log sink that writes to the P0 access-logging Pub/Sub topic
 resource "google_logging_organization_sink" "example" {
-  org_id      = p0_gcp.example.org_id
-  name        = p0_gcp.example.access_logs.logging.sink_id
-  destination = "pubsub.googleapis.com/projects/${locals.logs_topic_project}/topics/${google_pubsub_topic.example.name}"
-  description = "P0 data access log sink"
+  org_id           = p0_gcp.example.org_id
+  name             = p0_gcp.example.access_logs.logging.sink_id
+  include_children = true
+  destination      = google_pubsub_topic.example.id
+  description      = "P0 data access log sink"
 
   filter = p0_gcp.example.access_logs.logging.filter
 }
