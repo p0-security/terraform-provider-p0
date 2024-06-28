@@ -37,7 +37,8 @@ type P0Provider struct {
 
 // P0ProviderModel describes the provider data model.
 type P0ProviderModel struct {
-	Org types.String `tfsdk:"org"`
+	Host types.String `tfsdk:"host"`
+	Org  types.String `tfsdk:"org"`
 }
 
 func (p *P0Provider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -52,8 +53,12 @@ func (p *P0Provider) Schema(ctx context.Context, req provider.SchemaRequest, res
 You must also configure a P0 API token (on your P0 app "/settings" page). Then run Terraform with your API token in
 the P0_API_TOKEN environment variable.`,
 		Attributes: map[string]schema.Attribute{
+			"host": schema.StringAttribute{
+				MarkdownDescription: "Your P0 application API host (defaults to `https://api.p0.app`)",
+				Optional:            true,
+			},
 			"org": schema.StringAttribute{
-				MarkdownDescription: "Your P0 organization identifier.",
+				MarkdownDescription: "Your P0 organization identifier",
 				Required:            true,
 			},
 		},
@@ -83,8 +88,7 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		)
 	}
 
-	// For dev only: optionally override P0 app server
-	p0_host := os.Getenv("P0_HOST")
+	p0_host := model.Host.ValueString()
 	if p0_host == "" {
 		p0_host = "https://api.p0.app"
 	}
