@@ -58,7 +58,7 @@ the P0_API_TOKEN environment variable.`,
 				Optional:            true,
 			},
 			"org": schema.StringAttribute{
-				MarkdownDescription: "Your P0 organization identifier.",
+				MarkdownDescription: "Your P0 organization identifier",
 				Required:            true,
 			},
 		},

@@ -28,7 +28,7 @@ provider "p0" {
 
 ### Required
 
-- `org` (String) Your P0 organization identifier.
+- `org` (String) Your P0 organization identifier
 
 ### Optional
 
