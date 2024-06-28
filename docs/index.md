@@ -29,3 +29,7 @@ provider "p0" {
 ### Required
 
 - `org` (String) Your P0 organization identifier.
+
+### Optional
+
+- `host` (String) Your P0 application API host (defaults to `https://api.p0.app`)
