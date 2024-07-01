@@ -28,6 +28,7 @@ resource "p0_gcp" "example" {
 ### Read-Only
 
 - `access_logs` (Attributes) Read-only attributes used to configure infrastructure and IAM grants for access-logs integrations (see [below for nested schema](#nestedatt--access_logs))
+- `iam_assessment` (Attributes) Read-only attributes used to configure IAM grants for IAM-assessment integrations (see [below for nested schema](#nestedatt--iam_assessment))
 - `org_wide_policy` (Attributes) Read-only attributes used to configure IAM grants for org-wide policy-read installation (see [below for nested schema](#nestedatt--org_wide_policy))
 - `service_account_email` (String) The identity that P0 uses to communicate with your Google Cloud organization
 
@@ -56,6 +57,23 @@ Read-Only:
 Read-Only:
 
 - `topic_id` (String) Logs should be directed to a Pub/Sub topic with this ID
+
+
+
+<a id="nestedatt--iam_assessment"></a>
+### Nested Schema for `iam_assessment`
+
+Read-Only:
+
+- `permissions` (Attributes) Permissions that must be granted to P0's service account (see [below for nested schema](#nestedatt--iam_assessment--permissions))
+
+<a id="nestedatt--iam_assessment--permissions"></a>
+### Nested Schema for `iam_assessment.permissions`
+
+Read-Only:
+
+- `organization` (List of String) Permissions, in addition to 'project' permissions, required for organization-level IAM-assessment installs
+- `project` (List of String) Permissions required for project-level IAM-assessment installs
 
 
 

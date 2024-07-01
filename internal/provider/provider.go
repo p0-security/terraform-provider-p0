@@ -118,6 +118,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installgcp.NewGcpIamWrite,
 		installgcp.NewGcpIamWriteStaged,
 		installgcp.NewGcpOrgAccessLogs,
+		installgcp.NewGcpOrgIamAssessment,
 		installgcp.NewGcpSharingRestriction,
 		installssh.NewSshAwsIamWrite,
 		installssh.NewSshGcpIamWrite,

@@ -48,6 +48,7 @@ const (
 	AccessLogs         = "access-logs"
 	GcpKey             = "gcloud"
 	OrgAccessLogs      = "org-access-logs"
+	OrgIamAssessment   = "org-iam-assessment"
 	SharingRestriction = "sharing-restriction"
 )
 

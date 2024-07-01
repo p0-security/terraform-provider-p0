@@ -34,6 +34,7 @@ type gcpModel struct {
 	OrganizationId      types.String `tfsdk:"organization_id"`
 	ServiceAccountEmail types.String `tfsdk:"service_account_email"`
 	AccessLogs          types.Object `tfsdk:"access_logs"`
+	IamAssessment       types.Object `tfsdk:"iam_assessment"`
 	OrgWidePolicy       types.Object `tfsdk:"org_wide_policy"`
 }
 
@@ -53,6 +54,11 @@ type gcpAccessLogsMetadata struct {
 	PubSub         gcpAccessLogsPubSubMetadata  `json:"pubSub" tfsdk:"pub_sub"`
 }
 
+type gcpIamAssessmentMetadata struct {
+	ProjectPermissions      []string `json:"requiredPermissions" tfsdk:"project"`
+	OrganizationPermissions []string `json:"orgLevelPermissions" tfsdk:"organization"`
+}
+
 type gcpApi struct {
 	Config struct {
 		Root struct {
@@ -63,8 +69,9 @@ type gcpApi struct {
 		} `json:"root"`
 	} `json:"config"`
 	Metadata struct {
-		AccessLogs    gcpAccessLogsMetadata  `json:"access-logs"`
-		OrgWidePolicy gcpPermissionsMetadata `json:"org-wide-policy"`
+		AccessLogs    gcpAccessLogsMetadata    `json:"access-logs"`
+		IamAssessment gcpIamAssessmentMetadata `json:"iam-assessment"`
+		OrgWidePolicy gcpPermissionsMetadata   `json:"org-wide-policy"`
 	} `json:"metadata"`
 }
 
@@ -125,6 +132,28 @@ func (r *Gcp) Schema(ctx context.Context, req resource.SchemaRequest, resp *reso
 					},
 				},
 			},
+			"iam_assessment": schema.SingleNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: `Read-only attributes used to configure IAM grants for IAM-assessment integrations`,
+				Attributes: map[string]schema.Attribute{
+					"permissions": schema.SingleNestedAttribute{
+						Computed:            true,
+						MarkdownDescription: `Permissions that must be granted to P0's service account`,
+						Attributes: map[string]schema.Attribute{
+							"project": schema.ListAttribute{
+								Computed:            true,
+								ElementType:         types.StringType,
+								MarkdownDescription: `Permissions required for project-level IAM-assessment installs`,
+							},
+							"organization": schema.ListAttribute{
+								Computed:            true,
+								ElementType:         types.StringType,
+								MarkdownDescription: `Permissions, in addition to 'project' permissions, required for organization-level IAM-assessment installs`,
+							},
+						},
+					},
+				},
+			},
 			"org_wide_policy": schema.SingleNestedAttribute{
 				Computed:            true,
 				MarkdownDescription: `Read-only attributes used to configure IAM grants for org-wide policy-read installation`,
@@ -176,6 +205,29 @@ func (r *Gcp) fromJson(ctx context.Context, diags *diag.Diagnostics, json any) a
 		return nil
 	}
 	data.AccessLogs = accessLogs
+
+	iamAssessmentPermissionsType := map[string]attr.Type{
+		"project":      types.ListType{ElemType: types.StringType},
+		"organization": types.ListType{ElemType: types.StringType},
+	}
+	iamAssessmentPermissions, iapDiags := types.ObjectValueFrom(
+		ctx, iamAssessmentPermissionsType, metadata.IamAssessment,
+	)
+	if iapDiags.HasError() {
+		diags.Append(iapDiags...)
+		return nil
+	}
+	iamAssessment, iaDiags := types.ObjectValue(
+		map[string]attr.Type{"permissions": types.ObjectType{
+			AttrTypes: iamAssessmentPermissionsType,
+		}},
+		map[string]attr.Value{"permissions": iamAssessmentPermissions},
+	)
+	if iaDiags.HasError() {
+		diags.Append(iaDiags...)
+		return nil
+	}
+	data.IamAssessment = iamAssessment
 
 	orgWidePolicy, owDiags := types.ObjectValueFrom(ctx, map[string]attr.Type{
 		"custom_role": types.ObjectType{
