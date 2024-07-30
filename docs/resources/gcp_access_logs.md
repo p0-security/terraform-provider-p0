@@ -6,7 +6,7 @@ description: |-
   An installation of P0, on a single Google Cloud project, for access-log collection,
   which enhances IAM assessment.
   To use this resource, you must also:
-  install the p0_gcp_iam_assessment resource,create a Pub/Sub topic,create a logging sink, publishing to this topic,grant your logging service account permissions to publish to this Pub/Sub topic, andgrant P0 the ability to subscribe to this Pub/Sub topic.
+  install the p0_gcp_iam_assessment resource, andgrant P0 the ability to create logging sinks in your project.
   Use the read-only attributes defined on p0_gcp to create the requisite Google Cloud infrastructure.
   P0 recommends defining this infrastructure according to the example usage pattern.
 ---
@@ -17,11 +17,8 @@ An installation of P0, on a single Google Cloud project, for access-log collecti
 which enhances IAM assessment.
 
 To use this resource, you must also:
-- install the `p0_gcp_iam_assessment` resource,
-- create a Pub/Sub topic,
-- create a logging sink, publishing to this topic,
-- grant your logging service account permissions to publish to this Pub/Sub topic, and
-- grant P0 the ability to subscribe to this Pub/Sub topic.
+- install the `p0_gcp_iam_assessment` resource, and
+- grant P0 the ability to create logging sinks in your project.
 
 Use the read-only attributes defined on `p0_gcp` to create the requisite Google Cloud infrastructure.
 
@@ -60,44 +57,26 @@ resource "google_project_iam_audit_config" "example" {
   }
 }
 
-# Data access logs are sent to P0 using this Pub/Sub topic
-resource "google_pubsub_topic" "example" {
-  project = locals.project
-  name    = p0_gcp.example.access_logs.pub_sub.topic_id
-}
-
-# The log sink that writes to the P0 access-logging Pub/Sub topic
-resource "google_logging_project_sink" "example" {
+resource "google_project_iam_custom_role" "example" {
   project     = locals.project
-  name        = p0_gcp.example.access_logs.logging.sink_id
-  destination = "pubsub.googleapis.com/projects/my_project/topics/${google_pubsub_topic.example.name}"
-  description = "P0 data access log sink"
-
-  filter = p0_gcp.example.access_logs.logging.filter
+  role_id     = p0_gcp.example.access_logs.custom_role.id
+  title       = p0_gcp.example.access_logs.custom_role.name
+  permissions = p0_gcp.example.access_logs.permissions
 }
 
 # Grants the logging service account permission to write to the access-logging Pub/Sub topic
-resource "google_pubsub_topic_iam_member" "logging_example" {
+resource "google_project_iam_member" "example" {
   project = locals.project
-  role    = p0_gcp.example.access_logs.logging.role
-  topic   = google_pubsub_topic.example.name
-  member  = google_logging_project_sink.example.writer_identity
-}
-
-# Grants P0 permission to read from the access-logging Pub/Sub topic
-resource "google_pubsub_topic_iam_member" "p0_example" {
-  project = locals.project
-  role    = p0_gcp.example.access_logs.predefined_role
-  topic   = google_pubsub_topic.example.name
-  member  = "serviceAccount:${p0_gcp.example.serviceAccountEmail}"
+  role    = google_project_iam_custom_role.example.name
+  member  = "serviceAccount:${p0_gcp.example.service_account_email}"
 }
 
 # Finish the P0 access-logs installation
 resource "p0_gcp_access_logs" "example" {
   project = locals.project
   depends_on = [
-    google_logging_project_sink.example,
-    google_pubsub_topic_iam_member.p0_example
+    google_project_iam_audit_config.example,
+    google_project_iam_member.example
   ]
 }
 ```

@@ -33,11 +33,8 @@ func (r *GcpAccessLogs) Schema(ctx context.Context, req resource.SchemaRequest, 
 which enhances IAM assessment.
 
 To use this resource, you must also:
-- install the ` + "`p0_gcp_iam_assessment`" + ` resource,
-- create a Pub/Sub topic,
-- create a logging sink, publishing to this topic,
-- grant your logging service account permissions to publish to this Pub/Sub topic, and
-- grant P0 the ability to subscribe to this Pub/Sub topic.
+- install the ` + "`p0_gcp_iam_assessment`" + ` resource, and
+- grant P0 the ability to create logging sinks in your project.
 
 Use the read-only attributes defined on ` + "`p0_gcp`" + ` to create the requisite Google Cloud infrastructure.
 

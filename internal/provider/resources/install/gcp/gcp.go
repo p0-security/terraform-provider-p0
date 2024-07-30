@@ -38,20 +38,9 @@ type gcpModel struct {
 	OrgWidePolicy       types.Object `tfsdk:"org_wide_policy"`
 }
 
-type gcpAccessLogsLoggingMetadata struct {
-	Filter string `json:"filter" tfsdk:"filter"`
-	SinkId string `json:"sinkId" tfsdk:"sink_id"`
-	Role   string `json:"role" tfsdk:"role"`
-}
-
-type gcpAccessLogsPubSubMetadata struct {
-	TopicId string `json:"topicId" tfsdk:"topic_id"`
-}
-
 type gcpAccessLogsMetadata struct {
-	Logging        gcpAccessLogsLoggingMetadata `json:"logging" tfsdk:"logging"`
-	PredefinedRole string                       `json:"predefinedRole" tfsdk:"predefined_role"`
-	PubSub         gcpAccessLogsPubSubMetadata  `json:"pubSub" tfsdk:"pub_sub"`
+	Permissions []string        `json:"requiredPermissions" tfsdk:"permissions"`
+	CustomRole  gcpRoleMetadata `json:"customRole" tfsdk:"custom_role"`
 }
 
 type gcpIamAssessmentMetadata struct {
@@ -101,35 +90,8 @@ func (r *Gcp) Schema(ctx context.Context, req resource.SchemaRequest, resp *reso
 				Computed:            true,
 				MarkdownDescription: `Read-only attributes used to configure infrastructure and IAM grants for access-logs integrations`,
 				Attributes: map[string]schema.Attribute{
-					"logging": schema.SingleNestedAttribute{
-						Computed:            true,
-						MarkdownDescription: `Describes expected Cloud Logging infrastructure`,
-						Attributes: map[string]schema.Attribute{
-							"filter": schema.StringAttribute{
-								Computed:            true,
-								MarkdownDescription: `Logs should be directed to a logging sink with this filter`,
-							},
-							"role": schema.StringAttribute{
-								Computed:            true,
-								MarkdownDescription: `The project's logging service account should have this predefined role`,
-							},
-							"sink_id": schema.StringAttribute{
-								Computed:            true,
-								MarkdownDescription: `Logs should be directed to a logging sink with this ID`,
-							},
-						},
-					},
-					"predefined_role": predefinedRole,
-					"pub_sub": schema.SingleNestedAttribute{
-						Computed:            true,
-						MarkdownDescription: `Describes expected Pub/Sub infrastructure`,
-						Attributes: map[string]schema.Attribute{
-							"topic_id": schema.StringAttribute{
-								Computed:            true,
-								MarkdownDescription: `Logs should be directed to a Pub/Sub topic with this ID`,
-							},
-						},
-					},
+					"permissions": permissions("access logging"),
+					"custom_role": customRole,
 				},
 			},
 			"iam_assessment": schema.SingleNestedAttribute{
@@ -192,13 +154,11 @@ func (r *Gcp) fromJson(ctx context.Context, diags *diag.Diagnostics, json any) a
 	metadata := jsonv.Metadata
 
 	accessLogs, alDiags := types.ObjectValueFrom(ctx, map[string]attr.Type{
-		"logging": types.ObjectType{
-			AttrTypes: map[string]attr.Type{"filter": types.StringType, "role": types.StringType, "sink_id": types.StringType},
-		},
-		"predefined_role": types.StringType,
-		"pub_sub": types.ObjectType{
-			AttrTypes: map[string]attr.Type{"topic_id": types.StringType},
-		},
+		"permissions": types.ListType{ElemType: types.StringType},
+		"custom_role": types.ObjectType{AttrTypes: map[string]attr.Type{
+			"id":   types.StringType,
+			"name": types.StringType,
+		}},
 	}, metadata.AccessLogs)
 	if alDiags.HasError() {
 		diags.Append(alDiags...)
