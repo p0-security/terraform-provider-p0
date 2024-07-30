@@ -37,26 +37,17 @@ resource "p0_gcp" "example" {
 
 Read-Only:
 
-- `logging` (Attributes) Describes expected Cloud Logging infrastructure (see [below for nested schema](#nestedatt--access_logs--logging))
-- `predefined_role` (String) The predefined role that should be granted to P0, in order to install projects for IAM management
-- `pub_sub` (Attributes) Describes expected Pub/Sub infrastructure (see [below for nested schema](#nestedatt--access_logs--pub_sub))
+- `custom_role` (Attributes) Describes the custom role that should be created and assigned to P0's service account (see [below for nested schema](#nestedatt--access_logs--custom_role))
+- `permissions` (List of String) Permissions that should be granted to P0 via the custom role, described in the 'role' attribute,
+in order to install projects for access logging
 
-<a id="nestedatt--access_logs--logging"></a>
-### Nested Schema for `access_logs.logging`
-
-Read-Only:
-
-- `filter` (String) Logs should be directed to a logging sink with this filter
-- `role` (String) The project's logging service account should have this predefined role
-- `sink_id` (String) Logs should be directed to a logging sink with this ID
-
-
-<a id="nestedatt--access_logs--pub_sub"></a>
-### Nested Schema for `access_logs.pub_sub`
+<a id="nestedatt--access_logs--custom_role"></a>
+### Nested Schema for `access_logs.custom_role`
 
 Read-Only:
 
-- `topic_id` (String) Logs should be directed to a Pub/Sub topic with this ID
+- `id` (String) The custom role expected identifier
+- `name` (String) The custom role's expected title
 
 
 
