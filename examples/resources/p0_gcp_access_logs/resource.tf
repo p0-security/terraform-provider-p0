@@ -28,43 +28,25 @@ resource "google_project_iam_audit_config" "example" {
   }
 }
 
-# Data access logs are sent to P0 using this Pub/Sub topic
-resource "google_pubsub_topic" "example" {
-  project = locals.project
-  name    = p0_gcp.example.access_logs.pub_sub.topic_id
-}
-
-# The log sink that writes to the P0 access-logging Pub/Sub topic
-resource "google_logging_project_sink" "example" {
+resource "google_project_iam_custom_role" "example" {
   project     = locals.project
-  name        = p0_gcp.example.access_logs.logging.sink_id
-  destination = "pubsub.googleapis.com/projects/my_project/topics/${google_pubsub_topic.example.name}"
-  description = "P0 data access log sink"
-
-  filter = p0_gcp.example.access_logs.logging.filter
+  role_id     = p0_gcp.example.access_logs.custom_role.id
+  title       = p0_gcp.example.access_logs.custom_role.name
+  permissions = p0_gcp.example.access_logs.permissions
 }
 
 # Grants the logging service account permission to write to the access-logging Pub/Sub topic
-resource "google_pubsub_topic_iam_member" "logging_example" {
+resource "google_project_iam_member" "example" {
   project = locals.project
-  role    = p0_gcp.example.access_logs.logging.role
-  topic   = google_pubsub_topic.example.name
-  member  = google_logging_project_sink.example.writer_identity
-}
-
-# Grants P0 permission to read from the access-logging Pub/Sub topic
-resource "google_pubsub_topic_iam_member" "p0_example" {
-  project = locals.project
-  role    = p0_gcp.example.access_logs.predefined_role
-  topic   = google_pubsub_topic.example.name
-  member  = "serviceAccount:${p0_gcp.example.serviceAccountEmail}"
+  role    = google_project_iam_custom_role.example.name
+  member  = "serviceAccount:${p0_gcp.example.service_account_email}"
 }
 
 # Finish the P0 access-logs installation
 resource "p0_gcp_access_logs" "example" {
   project = locals.project
   depends_on = [
-    google_logging_project_sink.example,
-    google_pubsub_topic_iam_member.p0_example
+    google_project_iam_audit_config.example,
+    google_project_iam_member.example
   ]
 }
