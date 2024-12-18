@@ -51,7 +51,7 @@ If you are using a local build of the P0 API server, you can also set that in yo
 
 ```
 provider "p0" {
-  org = "p0-nathan"
-  host = "http://localhost:8088/"
+  org = "org-id"
+  host = "http://my-custom-host/"
 }
 ```
