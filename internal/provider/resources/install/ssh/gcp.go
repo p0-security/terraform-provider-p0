@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
@@ -26,14 +28,18 @@ type sshGcpIamWrite struct {
 }
 
 type sshGcpIamWriteModel struct {
-	ProjectId types.String `tfsdk:"project_id" json:"projectId,omitempty"`
-	State     types.String `tfsdk:"state" json:"state,omitempty"`
-	Label     types.String `tfsdk:"label" json:"label,omitempty"`
+	GroupKey      types.String `tfsdk:"group_key" json:"groupKey,omitempty"`
+	IsSudoEnabled types.Bool   `tfsdk:"is_sudo_enabled" json:"isSudoEnabled,omitempty"`
+	Label         types.String `tfsdk:"label" json:"label,omitempty"`
+	ProjectId     types.String `tfsdk:"project_id" json:"projectId,omitempty"`
+	State         types.String `tfsdk:"state" json:"state,omitempty"`
 }
 
 type sshGcpIamWriteJson struct {
-	State string  `json:"state"`
-	Label *string `json:"label,omitempty"`
+	GroupKey      *string `json:"groupKey"`
+	IsSudoEnabled *bool   `json:"isSudoEnabled,omitempty"`
+	Label         *string `json:"label,omitempty"`
+	State         string  `json:"state"`
 }
 
 type sshGcpIamWriteApi struct {
@@ -56,6 +62,22 @@ func (*sshGcpIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 		
 Installing SSH allows you to manage access to your servers on Google Cloud.`,
 		Attributes: map[string]schema.Attribute{
+			"group_key": schema.StringAttribute{
+				MarkdownDescription: `If present, Google Cloud instances will be grouped by the value of this tag. Access can be requested, in one request, to all instances with a shared tag value`,
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString(""),
+			},
+			"is_sudo_enabled": schema.BoolAttribute{
+				MarkdownDescription: `If true, users will be able to request sudo access to the instances`,
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+			},
+			"label": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The Google Cloud project's alias (if available)",
+			},
 			"project_id": schema.StringAttribute{
 				MarkdownDescription: "The Google Cloud project ID",
 				Required:            true,
@@ -63,10 +85,6 @@ Installing SSH allows you to manage access to your servers on Google Cloud.`,
 			"state": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: installresources.StateMarkdownDescription,
-			},
-			"label": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The Google Cloud project's alias (if available)",
 			},
 		},
 	}
@@ -110,13 +128,25 @@ func (r *sshGcpIamWrite) fromJson(ctx context.Context, diags *diag.Diagnostics, 
 		return nil
 	}
 
+	data.State = types.StringValue(jsonv.State)
+
 	projectId := strings.TrimPrefix(id, gcloudPrefix)
 	data.ProjectId = types.StringValue(projectId)
 	if jsonv.Label != nil {
 		data.Label = types.StringValue(*jsonv.Label)
 	}
 
-	data.State = types.StringValue(jsonv.State)
+	data.GroupKey = types.StringNull()
+	if jsonv.GroupKey != nil {
+		group := types.StringValue(*jsonv.GroupKey)
+		data.GroupKey = group
+	}
+
+	data.IsSudoEnabled = types.BoolNull()
+	if jsonv.IsSudoEnabled != nil {
+		isSudoEnabled := types.BoolValue(*jsonv.IsSudoEnabled)
+		data.IsSudoEnabled = isSudoEnabled
+	}
 
 	return &data
 }
@@ -132,6 +162,16 @@ func (r *sshGcpIamWrite) toJson(data any) any {
 	if !datav.Label.IsNull() && !datav.Label.IsUnknown() {
 		label := datav.Label.ValueString()
 		json.Label = &label
+	}
+
+	if !datav.GroupKey.IsNull() {
+		group := datav.GroupKey.ValueString()
+		json.GroupKey = &group
+	}
+
+	if !datav.IsSudoEnabled.IsNull() {
+		isSudoEnabled := datav.IsSudoEnabled.ValueBool()
+		json.IsSudoEnabled = &isSudoEnabled
 	}
 
 	// can omit state here as it's filled by the backend

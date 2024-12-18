@@ -28,6 +28,11 @@ resource "p0_ssh_gcp" "example" {
 
 - `project_id` (String) The Google Cloud project ID
 
+### Optional
+
+- `group_key` (String) If present, Google Cloud instances will be grouped by the value of this tag. Access can be requested, in one request, to all instances with a shared tag value
+- `is_sudo_enabled` (Boolean) If true, users will be able to request sudo access to the instances
+
 ### Read-Only
 
 - `label` (String) The Google Cloud project's alias (if available)

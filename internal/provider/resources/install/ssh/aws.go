@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -74,6 +75,8 @@ Installing SSH allows you to manage access to your servers on AWS.`,
 			"group_key": schema.StringAttribute{
 				MarkdownDescription: `If present, AWS instances will be grouped by the value of this tag. Access can be requested, in one request, to all instances with a shared tag value`,
 				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString(""),
 			},
 			"is_sudo_enabled": schema.BoolAttribute{
 				MarkdownDescription: `If true, users will be able to request sudo access to the instances`,
