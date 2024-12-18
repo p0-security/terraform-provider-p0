@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -28,16 +29,18 @@ type sshAwsIamWrite struct {
 }
 
 type sshAwsIamWriteModel struct {
-	AccountId types.String `tfsdk:"account_id" json:"accountId,omitempty"`
-	GroupKey  types.String `tfsdk:"group_key" json:"groupKey,omitempty"`
-	State     types.String `tfsdk:"state" json:"state,omitempty"`
-	Label     types.String `tfsdk:"label" json:"label,omitempty"`
+	AccountId     types.String `tfsdk:"account_id" json:"accountId,omitempty"`
+	IsSudoEnabled types.Bool   `tfsdk:"is_sudo_enabled" json:"isSudoEnabled,omitempty"`
+	GroupKey      types.String `tfsdk:"group_key" json:"groupKey,omitempty"`
+	State         types.String `tfsdk:"state" json:"state,omitempty"`
+	Label         types.String `tfsdk:"label" json:"label,omitempty"`
 }
 
 type sshAwsIamWriteJson struct {
-	GroupKey *string `json:"groupKey"`
-	State    string  `json:"state"`
-	Label    *string `json:"label,omitempty"`
+	GroupKey      *string `json:"groupKey"`
+	IsSudoEnabled *bool   `json:"isSudoEnabled,omitempty"`
+	State         string  `json:"state"`
+	Label         *string `json:"label,omitempty"`
 }
 
 type sshAwsIamWriteApi struct {
@@ -70,6 +73,12 @@ Installing SSH allows you to manage access to your servers on AWS.`,
 			"group_key": schema.StringAttribute{
 				MarkdownDescription: `If present, AWS instances will be grouped by the value of this tag. Access can be requested, in one request, to all instances with a shared tag value`,
 				Optional:            true,
+			},
+			"is_sudo_enabled": schema.BoolAttribute{
+				MarkdownDescription: `If true, users will be able to request sudo access to the instances`,
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
 			},
 			"state": schema.StringAttribute{
 				MarkdownDescription: installresources.StateMarkdownDescription,
@@ -125,17 +134,24 @@ func (r *sshAwsIamWrite) fromJson(id string, json any) any {
 	// remove the aws prefix.
 	accountId := strings.TrimPrefix(id, awsPrefix)
 	data.AccountId = types.StringValue(accountId)
+	data.State = types.StringValue(jsonv.State)
+
 	data.Label = types.StringNull()
 	if jsonv.Label != nil {
 		label := types.StringValue(*jsonv.Label)
 		data.Label = label
 	}
 
-	data.State = types.StringValue(jsonv.State)
 	data.GroupKey = types.StringNull()
 	if jsonv.GroupKey != nil {
 		group := types.StringValue(*jsonv.GroupKey)
 		data.GroupKey = group
+	}
+
+	data.IsSudoEnabled = types.BoolNull()
+	if jsonv.IsSudoEnabled != nil {
+		isSudoEnabled := types.BoolValue(*jsonv.IsSudoEnabled)
+		data.IsSudoEnabled = isSudoEnabled
 	}
 
 	return &data
@@ -157,6 +173,11 @@ func (r *sshAwsIamWrite) toJson(data any) any {
 	if !datav.GroupKey.IsNull() {
 		group := datav.GroupKey.ValueString()
 		json.GroupKey = &group
+	}
+
+	if !datav.IsSudoEnabled.IsNull() {
+		isSudoEnabled := datav.IsSudoEnabled.ValueBool()
+		json.IsSudoEnabled = &isSudoEnabled
 	}
 
 	// can omit state here as it's filled by the backend

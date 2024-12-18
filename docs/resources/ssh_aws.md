@@ -32,6 +32,7 @@ resource "p0_ssh_aws" "example" {
 ### Optional
 
 - `group_key` (String) If present, AWS instances will be grouped by the value of this tag. Access can be requested, in one request, to all instances with a shared tag value
+- `is_sudo_enabled` (Boolean) If true, users will be able to request sudo access to the instances
 - `label` (String) The AWS account's alias (if available)
 
 ### Read-Only
