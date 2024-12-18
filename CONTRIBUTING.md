@@ -47,8 +47,11 @@ terraform plan
 ```
 
 If you are using a local build of the P0 API server, you can also set that in your
-environment:
+`main.tf`:
 
-```bash
-export P0_HOST=...
+```
+provider "p0" {
+  org = "p0-nathan"
+  host = "http://localhost:8088/"
+}
 ```
