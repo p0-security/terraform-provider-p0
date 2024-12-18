@@ -9,7 +9,6 @@ resource "p0_aws_iam_write" "example" {
     type = "federated"
     provider = {
       type              = "okta"
-      app_id            = "0oabbhzczltTlpEBf697"
       app_id            = "0abcdefghijKlmNOp123"
       identity_provider = "p0_example_okta"
       method = {
