@@ -272,6 +272,8 @@ func (r *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnostics,
 	data.Rule = latest.Workflow.Rule
 	data.Version = types.StringValue(*latest.Workflow.Version)
 
+	tflog.Debug(ctx, fmt.Sprintf("Updating state to: %+v", data))
+
 	// Save updated data into Terraform state
 	diags.Append(state.Set(ctx, data)...)
 }
@@ -281,16 +283,23 @@ func (r *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnostics,
 func (r *RoutingRules) postVersion(ctx context.Context, data RoutingRulesModel, diag *diag.Diagnostics, state *tfsdk.State) {
 	tflog.Debug(ctx, fmt.Sprintf("Update Data: %+v", data))
 
-	var current WorkflowLatestApi
-	_, getErr := r.data.Get("workflow/latest", &current)
-	if getErr != nil {
-		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to read routing rules, got error:\n%s", getErr))
+	var current RoutingRulesModel
+	diag.Append(state.Get(ctx, &current)...)
+	if diag.HasError() {
 		return
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Latest workflow version pre-update: %+v", current))
+	tflog.Debug(ctx, fmt.Sprintf("Current workflow state: %+v", current))
 
-	workflowUpdate := WorkflowUpdateApi{Workflow: UpdateRoutingRule{Rule: data.Rule}, CurrentVersion: current.Workflow.Version}
+	var currentVersionPtr *string
+
+	if !current.Version.IsUnknown() && !current.Version.IsNull() {
+		currentVersion := current.Version.ValueString()
+		tflog.Debug(ctx, fmt.Sprintf("Current version: %s", currentVersion))
+		currentVersionPtr = &currentVersion
+	}
+
+	workflowUpdate := WorkflowUpdateApi{Workflow: UpdateRoutingRule{Rule: data.Rule}, CurrentVersion: currentVersionPtr}
 
 	tflog.Debug(ctx, fmt.Sprintf("Posting new workflow version: %+v", workflowUpdate))
 
@@ -301,7 +310,7 @@ func (r *RoutingRules) postVersion(ctx context.Context, data RoutingRulesModel, 
 		return
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Latest workflow version post-update: %+v", updated))
+	tflog.Debug(ctx, fmt.Sprintf("Latest workflow version: %+v", updated))
 
 	r.updateState(ctx, diag, state, data, updated)
 }
