@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/p0-security/terraform-provider-p0/internal"
 )
 
@@ -77,17 +78,26 @@ type RoutingRulesModel struct {
 // Need a separate representation for JSON data as version handling is different:
 // - In TF state, it may be present, unknown (during update), or null
 // - In JSON state, it is either present or null.
-type RoutingRulesRepr struct {
+type LatestRoutingRule struct {
 	Rule    []RoutingRuleModel `json:"rules"`
 	Version *string            `json:"version"`
 }
 
 type WorkflowLatestApi struct {
-	Workflow RoutingRulesRepr `json:"workflow"`
+	Workflow LatestRoutingRule `json:"workflow"`
+}
+
+type UpdateRoutingRule struct {
+	Rule []RoutingRuleModel `json:"rules"`
+}
+
+type WorkflowUpdateApi struct {
+	Workflow       UpdateRoutingRule `json:"workflow"`
+	CurrentVersion *string           `json:"currentVersion"`
 }
 
 var False = false
-var DefaultRoutingRules = RoutingRulesRepr{
+var DefaultRoutingRules = LatestRoutingRule{
 	Rule: []RoutingRuleModel{{
 		Requestor: RequestorModel{Type: "any"},
 		Resource:  ResourceModel{Type: "any"},
@@ -262,23 +272,47 @@ func (r *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnostics,
 	data.Rule = latest.Workflow.Rule
 	data.Version = types.StringValue(*latest.Workflow.Version)
 
+	tflog.Debug(ctx, fmt.Sprintf("Updating state to: %+v", data))
+
 	// Save updated data into Terraform state
 	diags.Append(state.Set(ctx, data)...)
 }
 
-// Posts a new routing-rules version to P0. This is used for create, update, and delete. Note that delete does not delete, but
-// rather posts a default routing-rules set.
+// Posts a new routing-rules version to P0. This is used for create, update, and delete.
+// Note that delete does not delete, but rather posts a default routing-rules set.
 func (r *RoutingRules) postVersion(ctx context.Context, data RoutingRulesModel, diag *diag.Diagnostics, state *tfsdk.State) {
-	workflowUpdate := WorkflowLatestApi{Workflow: RoutingRulesRepr{Rule: data.Rule}}
+	tflog.Debug(ctx, fmt.Sprintf("Update Data: %+v", data))
 
-	var latest WorkflowLatestApi
-	_, postErr := r.data.Post("workflow", &workflowUpdate, &latest)
-	if postErr != nil {
-		diag.AddError("Could not update routing rules", fmt.Sprintf("Encountered error: %s", postErr))
+	var current RoutingRulesModel
+	diag.Append(state.Get(ctx, &current)...)
+	if diag.HasError() {
 		return
 	}
 
-	r.updateState(ctx, diag, state, data, latest)
+	tflog.Debug(ctx, fmt.Sprintf("Current workflow state: %+v", current))
+
+	var currentVersionPtr *string
+
+	if !current.Version.IsUnknown() && !current.Version.IsNull() {
+		currentVersion := current.Version.ValueString()
+		tflog.Debug(ctx, fmt.Sprintf("Current version: %s", currentVersion))
+		currentVersionPtr = &currentVersion
+	}
+
+	workflowUpdate := WorkflowUpdateApi{Workflow: UpdateRoutingRule{Rule: data.Rule}, CurrentVersion: currentVersionPtr}
+
+	tflog.Debug(ctx, fmt.Sprintf("Posting new workflow version: %+v", workflowUpdate))
+
+	var updated WorkflowLatestApi
+	_, postErr := r.data.Post("workflow", &workflowUpdate, &updated)
+	if postErr != nil {
+		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to update routing rules, got error:\n%s", postErr))
+		return
+	}
+
+	tflog.Debug(ctx, fmt.Sprintf("Latest workflow version: %+v", updated))
+
+	r.updateState(ctx, diag, state, data, updated)
 }
 
 func (r *RoutingRules) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -301,11 +335,13 @@ func (r *RoutingRules) Read(ctx context.Context, req resource.ReadRequest, resp 
 	var latest WorkflowLatestApi
 	_, httpErr := r.data.Get("workflow/latest", &latest)
 	if httpErr != nil {
-		resp.Diagnostics.AddError("Error communicationg with P0", fmt.Sprintf("Unable to read routing rules, got error:\n%s", httpErr))
+		resp.Diagnostics.AddError("Error communicating with P0", fmt.Sprintf("Unable to read routing rules, got error:\n%s", httpErr))
 		return
 	}
 
 	r.updateState(ctx, &resp.Diagnostics, &resp.State, data, latest)
+
+	tflog.Debug(ctx, fmt.Sprintf("Reading latest workflow: %+v", latest))
 }
 
 func (r *RoutingRules) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
