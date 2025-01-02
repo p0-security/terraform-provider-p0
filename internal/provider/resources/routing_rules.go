@@ -41,6 +41,7 @@ type ResourceFilterModel struct {
 	Effect  string  `json:"effect" tfsdk:"effect"`
 	Key     *string `json:"key" tfsdk:"key"`
 	Pattern *string `json:"pattern" tfsdk:"pattern"`
+	Value   *bool   `json:"value" tfsdk:"value"`
 }
 
 type ResourceModel struct {
@@ -55,13 +56,14 @@ type ApprovalOptionsModel struct {
 }
 
 type ApprovalModel struct {
-	Directory   *string               `json:"directory" tfsdk:"directory"`
-	Id          *string               `json:"id" tfsdk:"id"`
-	Integration *string               `json:"integration" tfsdk:"integration"`
-	Label       *string               `json:"label" tfsdk:"label"`
-	Options     *ApprovalOptionsModel `json:"options" tfsdk:"options"`
-	Services    *[]string             `json:"services" tfsdk:"services"`
-	Type        string                `json:"type" tfsdk:"type"`
+	Directory       *string               `json:"directory" tfsdk:"directory"`
+	Id              *string               `json:"id" tfsdk:"id"`
+	Integration     *string               `json:"integration" tfsdk:"integration"`
+	Label           *string               `json:"label" tfsdk:"label"`
+	ProfileProperty *string               `json:"profileProperty" tfsdk:"profile_property"`
+	Options         *ApprovalOptionsModel `json:"options" tfsdk:"options"`
+	Services        *[]string             `json:"services" tfsdk:"services"`
+	Type            string                `json:"type" tfsdk:"type"`
 }
 
 type RoutingRuleModel struct {
@@ -165,6 +167,10 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 See [docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for available values.`,
 												Optional: true,
 											},
+											"value": schema.BoolAttribute{
+												MarkdownDescription: `The sudo value being filtered. Required if the filter is 'sudo'`,
+												Optional:            true,
+											},
 											"pattern": schema.StringAttribute{
 												MarkdownDescription: `Filter patterns. Patterns are unanchored.`,
 												Optional:            true,
@@ -193,7 +199,7 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"directory": schema.StringAttribute{
-										MarkdownDescription: `May only be used if 'type' is 'group'. One of "azure-ad", "okta", or "workspace".`,
+										MarkdownDescription: `May only be used if 'type' is 'group' or 'requestor-profile'. One of "azure-ad", "okta", or "workspace".`,
 										Optional:            true,
 									},
 									"id": schema.StringAttribute{
@@ -223,6 +229,10 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 										},
 										Optional: true,
 									},
+									"profile_property": schema.StringAttribute{
+										MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.`,
+										Optional:            true,
+									},
 									"services": schema.ListAttribute{
 										MarkdownDescription: `May only be used if 'type' is 'escalation'. Defines which services to page on escalation.`,
 										ElementType:         types.StringType,
@@ -235,6 +245,7 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
     - 'escalation': Access may be approved by on-call members of the specified services, who are paged when access is manually escalated by the requestor
     - 'group': Access may be granted by any member of the defined directory group
     - 'persistent': Access is always granted
+	- 'requestor-profile': Allows approval by a user specified by a field in the requestor's IDP profile
     - 'p0': Access may be granted by any user with the P0 "approver" role (defined in the P0 app)`,
 										Required: true,
 									},

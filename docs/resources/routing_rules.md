@@ -114,8 +114,7 @@ Optional:
 - `key` (String) The value being filtered. Required if the filter effect is 'keep' or 'remove'.
 See [docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for available values.
 - `pattern` (String) Filter patterns. Patterns are unanchored.
-
-
+- `value` (Boolean) The sudo value being filtered. Required if the filter is 'sudo'
 
 <a id="nestedblock--rule--approval"></a>
 ### Nested Schema for `rule.approval`
@@ -139,6 +138,7 @@ Optional:
 - `label` (String) May only be used if 'type' is 'group'. This is any human-readable name for the directory group specified in the 'id' attribute.
 - `options` (Attributes) If present, determines additional trust requirements. (see [below for nested schema](#nestedatt--rule--approval--options))
 - `services` (List of String) May only be used if 'type' is 'escalation'. Defines which services to page on escalation.
+- `profile_property` (String) May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.
 
 <a id="nestedatt--rule--approval--options"></a>
 ### Nested Schema for `rule.approval.options`
