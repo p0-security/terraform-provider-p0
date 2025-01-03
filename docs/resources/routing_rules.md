@@ -114,7 +114,7 @@ Optional:
 - `key` (String) The value being filtered. Required if the filter effect is 'keep' or 'remove'.
 See [docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for available values.
 - `pattern` (String) Filter patterns. Patterns are unanchored.
-- `value` (Boolean) The sudo value being filtered. Required if the filter is 'sudo'
+- `value` (Boolean) The value being filtered. Required if it's a boolean filter
 
 
 
