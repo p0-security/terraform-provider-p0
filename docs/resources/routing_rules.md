@@ -114,6 +114,7 @@ Optional:
 - `key` (String) The value being filtered. Required if the filter effect is 'keep' or 'remove'.
 See [docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for available values.
 - `pattern` (String) Filter patterns. Patterns are unanchored.
+- `value` (Boolean) The value being filtered. Required if it's a boolean filter.
 
 
 
@@ -128,16 +129,18 @@ Required:
     - 'escalation': Access may be approved by on-call members of the specified services, who are paged when access is manually escalated by the requestor
     - 'group': Access may be granted by any member of the defined directory group
     - 'persistent': Access is always granted
+    - 'requestor-profile': Allows approval by a user specified by a field in the requestor's IDP profile
     - 'p0': Access may be granted by any user with the P0 "approver" role (defined in the P0 app)
 
 Optional:
 
-- `directory` (String) May only be used if 'type' is 'group'. One of "azure-ad", "okta", or "workspace".
+- `directory` (String) May only be used if 'type' is 'group' or 'requestor-profile'. One of "azure-ad", "okta", or "workspace".
 - `id` (String) May only be used if 'type' is 'group'. This is the directory's internal group identifier for matching approvers.
 - `integration` (String) May only be used if 'type' is 'auto' or 'escalation'. Possible values:
     - 'pagerduty': Access is granted if the requestor is on-call.
 - `label` (String) May only be used if 'type' is 'group'. This is any human-readable name for the directory group specified in the 'id' attribute.
 - `options` (Attributes) If present, determines additional trust requirements. (see [below for nested schema](#nestedatt--rule--approval--options))
+- `profile_property` (String) May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.
 - `services` (List of String) May only be used if 'type' is 'escalation'. Defines which services to page on escalation.
 
 <a id="nestedatt--rule--approval--options"></a>
