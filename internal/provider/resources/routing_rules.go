@@ -168,7 +168,7 @@ See [docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for
 												Optional: true,
 											},
 											"value": schema.BoolAttribute{
-												MarkdownDescription: `The value being filtered. Required if it's a boolean filter`,
+												MarkdownDescription: `The value being filtered. Required if it's a boolean filter.`,
 												Optional:            true,
 											},
 											"pattern": schema.StringAttribute{
