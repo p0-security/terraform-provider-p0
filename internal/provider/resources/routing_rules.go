@@ -245,7 +245,7 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
     - 'escalation': Access may be approved by on-call members of the specified services, who are paged when access is manually escalated by the requestor
     - 'group': Access may be granted by any member of the defined directory group
     - 'persistent': Access is always granted
-	- 'requestor-profile': Allows approval by a user specified by a field in the requestor's IDP profile
+    - 'requestor-profile': Allows approval by a user specified by a field in the requestor's IDP profile
     - 'p0': Access may be granted by any user with the P0 "approver" role (defined in the P0 app)`,
 										Required: true,
 									},
