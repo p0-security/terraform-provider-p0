@@ -8,8 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
@@ -55,17 +53,8 @@ For instructions on using this resource, see the documentation for ` + "`p0_gcp_
 		Attributes: map[string]schema.Attribute{
 			// In P0 we would name this 'id' or 'project_id'; it is named 'project' here to align with Terraform's naming for
 			// Google Cloud resources
-			"project": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "The ID of the Google Cloud project to manage with P0",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"state": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: installresources.StateMarkdownDescription,
-			},
+			"project":         projectAttribute,
+			"state":           stateAttribute,
 			"permissions":     permissions("IAM management"),
 			"predefined_role": predefinedRole,
 			"custom_role":     customRole,

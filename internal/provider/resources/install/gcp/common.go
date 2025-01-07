@@ -50,8 +50,10 @@ const (
 	OrgAccessLogs      = "org-access-logs"
 	OrgIamAssessment   = "org-iam-assessment"
 	SharingRestriction = "sharing-restriction"
+	SecurityPerimeter  = "iam-write-security-perimeter"
 )
 
+var GcpCloudRunUrlRegex = regexp.MustCompile(`^https:\/\/[\w.-]+\.run\.app$`)
 var GcpProjectIdRegex = regexp.MustCompile(`^[\w-]+$`)
 var GcpOrganizationIdRegex = regexp.MustCompile(`^[\d]+$`)
 
@@ -77,6 +79,14 @@ var predefinedRole = schema.StringAttribute{
 
 var projectValidators = []validator.String{
 	stringvalidator.RegexMatches(GcpProjectIdRegex, "GCP project IDs should consist only of alphanumeric characters and hyphens"),
+}
+
+var projectAttribute = schema.StringAttribute{
+	Required:            true,
+	MarkdownDescription: "The ID of the Google Cloud project to manage with P0",
+	PlanModifiers: []planmodifier.String{
+		stringplanmodifier.RequiresReplace(),
+	},
 }
 
 var stateAttribute = schema.StringAttribute{
