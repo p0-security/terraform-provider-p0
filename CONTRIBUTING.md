@@ -1,4 +1,6 @@
-## Local testing
+# Contribution Guide
+
+## Running the P0 Terraform Provider Locally
 
 To test with the P0 Terraform provider, add the following to your `.terraformrc`:
 
@@ -29,7 +31,7 @@ terraform {
 }
 
 provider "p0" {
-  org = "p0-nathan"
+  org = "org-id"
 }
 ```
 
@@ -54,4 +56,14 @@ provider "p0" {
   org = "org-id"
   host = "http://my-custom-host/"
 }
+```
+
+## Debugging the P0 Terraform Provider with VS Code
+
+Start a new debugging session using the `Debug Terraform Plugin` configuration. Running this configuration will output an environment variable `TF_REATTACH_PROVIDERS` to your `DEBUG_CONSOLE` which must be used to attach the debugger to the running `terraform apply` process. Afterwards you can set breakpoints in the provider code and they will be hit when the terraform process is executed.
+
+Example:
+
+```bash
+TF_REATTACH_PROVIDERS='{"registry.terraform.io/p0-security/p0":{"Protocol":"grpc","ProtocolVersion":6,"Pid":63519,"Test":true,"Addr":{"Network":"unix","String":"path-to-socket"}}}' terraform apply
 ```
