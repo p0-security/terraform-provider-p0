@@ -17,7 +17,7 @@ resource "p0_gcp_iam_write" "example" {
 # Follow instructions for creating Terraform for Deploy the P0 security perimeter in p0_gcp_security_perimeter documentation
 # ...
 resource "p0_gcp_security_perimeter" "example" {
-  project = locals.project
-  url     = google_project_iam_member.example_security_perimeter.url
+  project       = locals.project
+  cloud_run_url = google_project_iam_member.example_security_perimeter.url
 }
 
