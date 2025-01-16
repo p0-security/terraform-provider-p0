@@ -7,5 +7,5 @@ resource "p0_okta_group_assignment" "example" {
   depends_on = [
     p0_okta_directory_listing.example
   ]
-  domain = "example.okta.com"
+  domain = p0_okta_directory_listing.example.domain
 }
