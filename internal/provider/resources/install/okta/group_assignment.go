@@ -44,11 +44,11 @@ func (r *OktaGroupAssignment) Metadata(ctx context.Context, req resource.Metadat
 
 func (r *OktaGroupAssignment) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `Final resource for Okta group assignment.
+		MarkdownDescription: `Installation of P0 for Okta group assignment.
 
-To use this resource, you must also:
-- install the ` + "`p0_okta_group_assignment_staged`" + ` resource,
-- Grant the P0 Okta application the "Group Membership Administrator" role assignment,
+To use this resource, you must first:
+- Create the + ` + "`p0_okta_directory_listing`" + ` resource 
+- Grant the P0 Okta application the "Group Membership Administrator" role assignment
 
 See the example usage for the recommended pattern to define this infrastructure.`,
 		Attributes: map[string]schema.Attribute{
@@ -112,6 +112,7 @@ func (r *OktaGroupAssignment) toJson(data any) any {
 func (r *OktaGroupAssignment) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json oktaGroupAssignmentApi
 	var data oktaGroupAssignmentModel
+	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
@@ -129,7 +130,7 @@ func (r *OktaGroupAssignment) Update(ctx context.Context, req resource.UpdateReq
 
 func (r *OktaGroupAssignment) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var data oktaGroupAssignmentModel
-	r.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &data)
+	r.installer.Delete(ctx, &resp.Diagnostics, &req.State, &data)
 }
 
 func (r *OktaGroupAssignment) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

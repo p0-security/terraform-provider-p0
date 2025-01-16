@@ -126,7 +126,6 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installssh.NewSshGcpIamWrite,
 		installokta.NewOktaDirectoryListingStaged,
 		installokta.NewOktaDirectoryListing,
-		installokta.NewOktaGroupAssignmentStaged,
 		installokta.NewOktaGroupAssignment,
 	}
 }

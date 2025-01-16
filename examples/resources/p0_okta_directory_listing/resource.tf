@@ -33,13 +33,8 @@ resource "p0_okta_directory_listing" "example" {
   depends_on = [
     p0_okta_directory_listing_staged.example
   ]
-  client = p0_okta_directory_listing_staged.example.client
+  client = okta_app_oauth.p0_api_integration.client_id
   domain = p0_okta_directory_listing_staged.example.domain
-  jwk = {
-    kty = p0_okta_directory_listing_staged.example.jwk.kty
-    e   = p0_okta_directory_listing_staged.example.jwk.e
-    kid = p0_okta_directory_listing_staged.example.jwk.kid
-    n   = p0_okta_directory_listing_staged.example.jwk.n
-  }
+  jwk    = p0_okta_directory_listing_staged.example.jwk
 }
 

@@ -68,12 +68,13 @@ See the example usage for the recommended pattern to define this infrastructure.
 				},
 			},
 			"client": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "The client ID for the Okta application",
+				Required: true,
+				MarkdownDescription: `The client ID for the Okta application, shown in the Okta admin console "Applications" page
+or as the ` + "`client_id`" + ` attribute of the ` + "`okta_app_oauth`" + ` resource`,
 			},
 			"jwk": schema.ObjectAttribute{
 				Required:            true,
-				MarkdownDescription: "The JSON Web Key (JWK) for the Okta directory",
+				MarkdownDescription: "The JSON Web Key (JWK) for the Okta application",
 				AttributeTypes: map[string]attr.Type{
 					"kty": types.StringType,
 					"kid": types.StringType,
@@ -126,17 +127,11 @@ func (r *OktaDirectoryListing) fromJson(ctx context.Context, diags *diag.Diagnos
 		diags.AddError("Error parsing JWK", err.Error())
 		return nil
 	}
-	jwkObj, jwkDiags := types.ObjectValueFrom(ctx, map[string]attr.Type{
-		"kty": types.StringType,
-		"kid": types.StringType,
-		"e":   types.StringType,
-		"n":   types.StringType,
-	}, jwk)
-	if jwkDiags.HasError() {
-		diags.Append(jwkDiags...)
+	jwkObj := GetJwkObject(ctx, diags, jwk)
+	if jwkObj == nil {
 		return nil
 	}
-	data.Jwk = jwkObj
+	data.Jwk = *jwkObj
 	data.Domain = id
 	data.Client = api.ClientId
 	return &data

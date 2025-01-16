@@ -101,17 +101,11 @@ func (r *OktaDirectoryListingStaged) fromJson(ctx context.Context, diags *diag.D
 		return nil
 	}
 
-	jwkAttr, jwkDiags := types.ObjectValueFrom(ctx, map[string]attr.Type{
-		"kty": types.StringType,
-		"kid": types.StringType,
-		"e":   types.StringType,
-		"n":   types.StringType,
-	}, jwk)
-	if jwkDiags.HasError() {
-		diags.Append(jwkDiags...)
+	jwkObj := GetJwkObject(ctx, diags, jwk)
+	if jwkObj == nil {
 		return nil
 	}
-	data.Jwk = jwkAttr
+	data.Jwk = *jwkObj
 
 	return &data
 }
