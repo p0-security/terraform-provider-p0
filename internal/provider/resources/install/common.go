@@ -16,6 +16,8 @@ const (
 	Verify                   = "verify"
 	IamAssessment            = "iam-assessment"
 	IamWrite                 = "iam-write"
+	DirectoryListing         = "listing"
+	GroupAssignment          = "group-assignment"
 	SingletonKey             = "_"
 	StateMarkdownDescription = `This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
