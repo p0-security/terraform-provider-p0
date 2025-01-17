@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
@@ -23,7 +24,7 @@ func NewGcpIamWriteStaged() resource.Resource {
 }
 
 type GcpIamWriteStaged struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 type gcpIamWriteStagedModel struct {
@@ -112,7 +113,7 @@ func (r *GcpIamWriteStaged) toJson(data any) any {
 
 func (r *GcpIamWriteStaged) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
+	r.installer = &common.Install{
 		Integration:  GcpKey,
 		Component:    installresources.IamWrite,
 		ProviderData: providerData,

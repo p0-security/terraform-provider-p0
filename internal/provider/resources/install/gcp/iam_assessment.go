@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
@@ -22,7 +23,7 @@ func NewGcpIamAssessment() resource.Resource {
 }
 
 type GcpIamAssessment struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 func (r *GcpIamAssessment) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -54,7 +55,7 @@ P0 recommends defining this infrastructure according to the pattern in the examp
 			},
 			"state": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: installresources.StateMarkdownDescription,
+				MarkdownDescription: common.StateMarkdownDescription,
 			},
 		},
 	}

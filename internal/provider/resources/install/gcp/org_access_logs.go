@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
-	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -22,7 +22,7 @@ func NewGcpOrgAccessLogs() resource.Resource {
 }
 
 type GcpOrgAccessLogs struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 type gcpOrgAccessLogsModel struct {
@@ -101,7 +101,7 @@ func (r *GcpOrgAccessLogs) toJson(data any) any {
 
 func (r *GcpOrgAccessLogs) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
+	r.installer = &common.Install{
 		Integration:  GcpKey,
 		Component:    OrgAccessLogs,
 		ProviderData: providerData,

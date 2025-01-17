@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
@@ -25,7 +26,7 @@ func NewGcpIamAssessmentStaged() resource.Resource {
 }
 
 type GcpIamAssessmentStaged struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 type gcpIamAssessmentStagedModel struct {
@@ -63,7 +64,7 @@ For instructions on using this resource, see the documentation for ` + "`p0_gcp_
 			},
 			"state": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: installresources.StateMarkdownDescription,
+				MarkdownDescription: common.StateMarkdownDescription,
 			},
 			"permissions": permissions("IAM assessment"),
 			"custom_role": customRole,
@@ -120,7 +121,7 @@ func (r *GcpIamAssessmentStaged) toJson(data any) any {
 
 func (r *GcpIamAssessmentStaged) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
+	r.installer = &common.Install{
 		Integration:  GcpKey,
 		Component:    installresources.IamAssessment,
 		ProviderData: providerData,

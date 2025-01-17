@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
@@ -26,7 +27,7 @@ var _ resource.ResourceWithConfigure = &sshGcpIamWrite{}
 var _ resource.ResourceWithImportState = &sshGcpIamWrite{}
 
 type sshGcpIamWrite struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 type sshGcpIamWriteModel struct {
@@ -89,7 +90,7 @@ Installing SSH allows you to manage access to your servers on Google Cloud.`,
 			},
 			"state": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: installresources.StateMarkdownDescription,
+				MarkdownDescription: common.StateMarkdownDescription,
 			},
 		},
 	}
@@ -97,7 +98,7 @@ Installing SSH allows you to manage access to your servers on Google Cloud.`,
 
 func (r *sshGcpIamWrite) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	data := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
+	r.installer = &common.Install{
 		Integration:  SshKey,
 		Component:    installresources.IamWrite,
 		ProviderData: data,

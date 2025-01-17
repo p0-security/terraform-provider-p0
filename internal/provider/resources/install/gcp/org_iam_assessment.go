@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
-	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -22,7 +22,7 @@ func NewGcpOrgIamAssessment() resource.Resource {
 }
 
 type GcpOrgIamAssessment struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 type gcpOrgIamAssessmentModel struct {
@@ -64,7 +64,7 @@ func (r *GcpOrgIamAssessment) fromJson(ctx context.Context, diags *diag.Diagnost
 
 func (r *GcpOrgIamAssessment) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
+	r.installer = &common.Install{
 		Integration:  GcpKey,
 		Component:    OrgIamAssessment,
 		ProviderData: providerData,
