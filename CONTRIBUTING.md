@@ -8,7 +8,7 @@ To test with the P0 Terraform provider, add the following to your `.terraformrc`
 provider_installation {
 
   dev_overrides {
-      "registry.terraform.io/p0-security/p0" = "/path/to/godir/go/bin"
+      "p0-security/p0" = "/path/to/godir/go/bin"
   }
 
   # For all other providers, install them directly from their origin provider
@@ -25,7 +25,7 @@ repository (this path is permanently added to `.gitignore`), and add a `main.tf`
 terraform {
   required_providers {
     p0 = {
-      source = "registry.terraform.io/p0-security/p0"
+      source = "p0-security/p0"
     }
   }
 }
