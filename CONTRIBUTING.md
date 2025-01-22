@@ -60,7 +60,13 @@ provider "p0" {
 
 ## Debugging the P0 Terraform Provider with VS Code
 
-Start a new debugging session using the `Debug Terraform Plugin` configuration. Running this configuration will output an environment variable `TF_REATTACH_PROVIDERS` to your `DEBUG_CONSOLE` which must be used to attach the debugger to the running `terraform apply` process. Afterwards you can set breakpoints in the provider code and they will be hit when the terraform process is executed.
+Create a file `.env` in the home directory and add your api token and any other environment variables terraform should consume. Environment variables from the shell where `terraform plan/apply` is run will not be used when the debugger is in use.
+
+```bash
+P0_API_TOKEN=...
+```
+
+Start a new debugging session using the `Debug Terraform Plugin` configuration. Running this configuration will output an environment variable `TF_REATTACH_PROVIDERS` to your `DEBUG_CONSOLE` which must be used to attach the debugger to the running `terraform apply` process. These variables are set in the shell where the `terraform apply` process is run, not the .env file. Afterwards you can set breakpoints in the provider code and they will be hit when the terraform process is executed.
 
 Example:
 
