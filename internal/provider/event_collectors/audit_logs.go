@@ -3,6 +3,7 @@ package installeventcollectors
 import (
 	"context"
 	"regexp"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -189,16 +190,16 @@ func (r *AuditLogs) getId(data any) *string {
 func (r *AuditLogs) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
 
-	// var key string
+	var key string
 
-	// if providerData == nil {
-	// 	key = ""
-	// } else {
-	// 	key, _ = providerData.Features["audit_logs"].Metadata["install_key"].(string)
-	// }
+	if providerData == nil {
+		key = ""
+	} else {
+		key, _ = providerData.Features["audit_logs"].Metadata["install_key"].(string)
+	}
 
 	r.installer = &common.Install{
-		Integration:  "",
+		Integration:  strings.ToLower(key),
 		Component:    AuditLogsComponent,
 		ProviderData: providerData,
 		GetId:        r.getId,
