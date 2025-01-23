@@ -15,16 +15,16 @@ import (
 //   - handles authentication
 //   - converts to/from JSON
 //   - treats response codes 400 and higher as errors
-type P0ProviderData struct {
+type P0ProviderClient struct {
 	BaseUrl        string
 	Authentication string
 	Client         *http.Client
 }
 
-func (data *P0ProviderData) Do(req *http.Request, responseJson any) (*http.Response, error) {
+func (c *P0ProviderClient) Do(req *http.Request, responseJson any) (*http.Response, error) {
 	req.Header.Add("Accept", "application/json")
 
-	resp, errDo := data.Client.Do(req)
+	resp, errDo := c.Client.Do(req)
 	if errDo != nil {
 		return resp, errDo
 	}
@@ -61,24 +61,24 @@ func (data *P0ProviderData) Do(req *http.Request, responseJson any) (*http.Respo
 	return resp, nil
 }
 
-func (data *P0ProviderData) Get(path string, responseJson any) (*http.Response, error) {
-	req, errNew := http.NewRequest("GET", fmt.Sprintf("%s/%s", data.BaseUrl, path), nil)
+func (c *P0ProviderClient) Get(path string, responseJson any) (*http.Response, error) {
+	req, errNew := http.NewRequest("GET", fmt.Sprintf("%s/%s", c.BaseUrl, path), nil)
 	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Authorization", data.Authentication)
+	req.Header.Add("Authorization", c.Authentication)
 	if errNew != nil {
 		return nil, errNew
 	}
-	return data.Do(req, responseJson)
+	return c.Do(req, responseJson)
 }
 
-func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
-	req, errNew := http.NewRequest("DELETE", fmt.Sprintf("%s/%s", data.BaseUrl, path), nil)
-	req.Header.Add("Authorization", data.Authentication)
+func (c *P0ProviderClient) Delete(path string) (*http.Response, error) {
+	req, errNew := http.NewRequest("DELETE", fmt.Sprintf("%s/%s", c.BaseUrl, path), nil)
+	req.Header.Add("Authorization", c.Authentication)
 	if errNew != nil {
 		return nil, errNew
 	}
 
-	resp, errDo := data.Client.Do(req)
+	resp, errDo := c.Client.Do(req)
 	if errDo != nil {
 		return resp, errDo
 	}
@@ -92,7 +92,7 @@ func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
 	return resp, nil
 }
 
-func (data *P0ProviderData) doBody(method string, path string, requestJson any, responseJson any) (*http.Response, error) {
+func (c *P0ProviderClient) doBody(method string, path string, requestJson any, responseJson any) (*http.Response, error) {
 	buf, marshalErr := json.Marshal(&requestJson)
 	if marshalErr != nil {
 		return nil, marshalErr
@@ -100,20 +100,20 @@ func (data *P0ProviderData) doBody(method string, path string, requestJson any, 
 
 	reader := bytes.NewReader(buf)
 
-	req, errNew := http.NewRequest(method, fmt.Sprintf("%s/%s", data.BaseUrl, path), reader)
+	req, errNew := http.NewRequest(method, fmt.Sprintf("%s/%s", c.BaseUrl, path), reader)
 	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Authorization", data.Authentication)
+	req.Header.Add("Authorization", c.Authentication)
 	req.Header.Add("Content-Type", "application/json")
 	if errNew != nil {
 		return nil, errNew
 	}
-	return data.Do(req, responseJson)
+	return c.Do(req, responseJson)
 }
 
-func (data *P0ProviderData) Post(path string, requestJson any, responseJson any) (*http.Response, error) {
-	return data.doBody("POST", path, requestJson, responseJson)
+func (c *P0ProviderClient) Post(path string, requestJson any, responseJson any) (*http.Response, error) {
+	return c.doBody("POST", path, requestJson, responseJson)
 }
 
-func (data *P0ProviderData) Put(path string, requestJson any, responseJson any) (*http.Response, error) {
-	return data.doBody("PUT", path, requestJson, responseJson)
+func (c *P0ProviderClient) Put(path string, requestJson any, responseJson any) (*http.Response, error) {
+	return c.doBody("PUT", path, requestJson, responseJson)
 }
