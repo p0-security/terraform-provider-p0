@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
@@ -23,7 +24,7 @@ func NewOktaGroupAssignment() resource.Resource {
 }
 
 type OktaGroupAssignment struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 type oktaGroupAssignmentModel struct {
@@ -65,7 +66,7 @@ See the example usage for the recommended pattern to define this infrastructure.
 
 func (r *OktaGroupAssignment) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
+	r.installer = &common.Install{
 		Integration:  "okta",
 		Component:    installresources.GroupAssignment,
 		ProviderData: providerData,

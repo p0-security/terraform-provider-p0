@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
@@ -26,7 +27,7 @@ func NewOktaDirectoryListing() resource.Resource {
 }
 
 type OktaDirectoryListing struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 type oktaDirectoryListingModel struct {
@@ -88,7 +89,7 @@ or as the ` + "`client_id`" + ` attribute of the ` + "`okta_app_oauth`" + ` reso
 
 func (r *OktaDirectoryListing) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
+	r.installer = &common.Install{
 		Integration:  "okta",
 		Component:    installresources.DirectoryListing,
 		ProviderData: providerData,
