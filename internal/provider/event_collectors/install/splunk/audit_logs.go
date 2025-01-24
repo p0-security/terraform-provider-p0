@@ -138,7 +138,6 @@ func (r *AuditLogs) fromJson(ctx context.Context, diags *diag.Diagnostics, id st
 		data.HecEndpoint = hecEndpoint
 	}
 
-	// data.HecTokenClearText = types.StringNull()
 	data.HecTokenHash = types.StringNull()
 	if jsonv.HecToken != nil {
 		hecToken := types.StringValue(*jsonv.HecToken.Hash)
