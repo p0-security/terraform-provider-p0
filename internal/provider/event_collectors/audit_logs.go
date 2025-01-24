@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -79,7 +80,7 @@ func (r *AuditLogs) Schema(ctx context.Context, req resource.SchemaRequest, resp
 		Attributes: map[string]schema.Attribute{
 			"state": stateAttribute,
 			"token": schema.StringAttribute{
-				Required:            true,
+				Computed:            true,
 				MarkdownDescription: `The token ID of the HTTP event collector`,
 			},
 			"hec_endpoint": schema.StringAttribute{
@@ -223,6 +224,17 @@ func (s *AuditLogs) Create(ctx context.Context, req resource.CreateRequest, resp
 	var plan auditLogsModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
+
+	// Generate a UUID identifier for the token
+	u, err := uuid.GenerateUUID()
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"UUID Generation Error",
+			"Failed to generate a UUID for the token.",
+		)
+		return
+	}
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -238,6 +250,9 @@ func (s *AuditLogs) Create(ctx context.Context, req resource.CreateRequest, resp
 
 	var api auditLogsApiReadWrite
 	var model auditLogsModel
+
+	plan.Token = types.StringValue(u)
+	req.Plan.SetAttribute(ctx, path.Root("token"), types.StringValue(u))
 
 	s.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &model)
 	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &api, &model)
@@ -280,6 +295,11 @@ func (s *AuditLogs) Update(ctx context.Context, req resource.UpdateRequest, resp
 	var plan auditLogsModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
+
+	var u types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("token"), &u)...)
+	resp.Diagnostics.Append(req.Plan.SetAttribute(ctx, path.Root("token"), u)...)
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
