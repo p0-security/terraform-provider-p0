@@ -23,6 +23,7 @@ type P0ProviderData struct {
 
 func (data *P0ProviderData) Do(req *http.Request, responseJson any) (*http.Response, error) {
 	req.Header.Add("Accept", "application/json")
+
 	resp, errDo := data.Client.Do(req)
 	if errDo != nil {
 		return resp, errDo
@@ -69,12 +70,14 @@ func (data *P0ProviderData) Get(path string, responseJson any) (*http.Response, 
 	}
 	return data.Do(req, responseJson)
 }
+
 func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
 	req, errNew := http.NewRequest("DELETE", fmt.Sprintf("%s/%s", data.BaseUrl, path), nil)
 	req.Header.Add("Authorization", data.Authentication)
 	if errNew != nil {
 		return nil, errNew
 	}
+
 	resp, errDo := data.Client.Do(req)
 	if errDo != nil {
 		return resp, errDo
@@ -88,12 +91,15 @@ func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
 	}
 	return resp, nil
 }
+
 func (data *P0ProviderData) doBody(method string, path string, requestJson any, responseJson any) (*http.Response, error) {
 	buf, marshalErr := json.Marshal(&requestJson)
 	if marshalErr != nil {
 		return nil, marshalErr
 	}
+
 	reader := bytes.NewReader(buf)
+
 	req, errNew := http.NewRequest(method, fmt.Sprintf("%s/%s", data.BaseUrl, path), reader)
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Authorization", data.Authentication)
@@ -103,9 +109,11 @@ func (data *P0ProviderData) doBody(method string, path string, requestJson any, 
 	}
 	return data.Do(req, responseJson)
 }
+
 func (data *P0ProviderData) Post(path string, requestJson any, responseJson any) (*http.Response, error) {
 	return data.doBody("POST", path, requestJson, responseJson)
 }
+
 func (data *P0ProviderData) Put(path string, requestJson any, responseJson any) (*http.Response, error) {
 	return data.doBody("PUT", path, requestJson, responseJson)
 }
