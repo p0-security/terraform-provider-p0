@@ -9,13 +9,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -36,19 +34,12 @@ type P0Provider struct {
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
 	version string
-
-	// Indicates which features are enabled and their metadata.
-	Features map[string]internal.Feature
 }
 
 // P0ProviderModel describes the provider data model.
 type P0ProviderModel struct {
-	Host      types.String `tfsdk:"host"`
-	Org       types.String `tfsdk:"org"`
-	AuditLogs struct {
-		Enabled    types.Bool   `tfsdk:"enabled"`
-		InstallKey types.String `tfsdk:"install_key"`
-	} `tfsdk:"audit_logs"`
+	Host types.String `tfsdk:"host"`
+	Org  types.String `tfsdk:"org"`
 }
 
 func (p *P0Provider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -70,23 +61,6 @@ the P0_API_TOKEN environment variable.`,
 			"org": schema.StringAttribute{
 				MarkdownDescription: "Your P0 organization identifier",
 				Required:            true,
-			},
-			"audit_logs": schema.SingleNestedAttribute{
-				MarkdownDescription: "Configure the P0 audit logs feature",
-				Optional:            true,
-				Attributes: map[string]schema.Attribute{
-					"enabled": schema.BoolAttribute{
-						MarkdownDescription: "Enable the P0 audit logs feature",
-						Optional:            true,
-					},
-					"install_key": schema.StringAttribute{
-						MarkdownDescription: "The installation key for the P0 audit logs feature",
-						Optional:            true,
-						Validators: []validator.String{
-							stringvalidator.LengthAtLeast(1),
-						},
-					},
-				},
 			},
 		},
 	}
@@ -120,32 +94,9 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		p0_host = "https://api.p0.app"
 	}
 
-	auditLogsEnabled := model.AuditLogs.Enabled.ValueBool() // returns false if unknown or null
-	auditLogsInstallKey := model.AuditLogs.InstallKey.ValueString()
-
-	if auditLogsEnabled && (model.AuditLogs.InstallKey.IsNull() || model.AuditLogs.InstallKey.IsUnknown()) {
-		resp.Diagnostics.AddError(
-			"P0 audit logs feature enabled but no installation key provided",
-			"An installation key is required when enabling the P0 audit logs feature.",
-		)
-	}
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	auditLogsFeature := internal.Feature{
-		Name:    "audit_logs",
-		Enabled: auditLogsEnabled,
-		Metadata: map[string]any{
-			"install_key": auditLogsInstallKey,
-		},
-	}
-
-	features := map[string]internal.Feature{
-		"audit_logs": auditLogsFeature,
-	}
-	p.Features = features
 
 	data := internal.P0ProviderData{
 		Client: internal.P0ProviderClient{
@@ -153,7 +104,6 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 			Client:         http.DefaultClient,
 			BaseUrl:        fmt.Sprintf("%s/o/%s", p0_host, model.Org.ValueString()),
 		},
-		Features: features,
 	}
 	resp.DataSourceData = data
 	resp.ResourceData = data

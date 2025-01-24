@@ -3,7 +3,6 @@ package installeventcollectors
 import (
 	"context"
 	"regexp"
-	"strings"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -20,6 +19,7 @@ import (
 )
 
 const (
+	SplunkIntegration  = "splunk"
 	AuditLogsComponent = "audit-log"
 	DisabledError      = "Feature Disabled"
 	DisabledMessage    = "The audit logs feature is disabled."
@@ -191,16 +191,8 @@ func (r *AuditLogs) getId(data any) *string {
 func (r *AuditLogs) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
 
-	var key string
-
-	if providerData == nil {
-		key = ""
-	} else {
-		key, _ = providerData.Features["audit_logs"].Metadata["install_key"].(string)
-	}
-
 	r.installer = &common.Install{
-		Integration:  strings.ToLower(key),
+		Integration:  SplunkIntegration,
 		Component:    AuditLogsComponent,
 		ProviderData: providerData,
 		GetId:        r.getId,
@@ -210,16 +202,7 @@ func (r *AuditLogs) Configure(ctx context.Context, req resource.ConfigureRequest
 	}
 }
 
-func (s *AuditLogs) isEnabled() bool {
-	enabled := s.installer.ProviderData.Features["audit_logs"].Enabled
-	return enabled
-}
-
 func (s *AuditLogs) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	if !s.isEnabled() {
-		resp.Diagnostics.AddError(DisabledError, DisabledMessage)
-		return
-	}
 
 	var plan auditLogsModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -268,11 +251,6 @@ func (s *AuditLogs) Create(ctx context.Context, req resource.CreateRequest, resp
 }
 
 func (s *AuditLogs) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	if !s.isEnabled() {
-		resp.Diagnostics.AddError(DisabledError, DisabledMessage)
-		return
-	}
-
 	s.installer.Read(ctx, &resp.Diagnostics, &resp.State, &auditLogsApiReadWrite{}, &auditLogsModel{})
 
 	var currentTokenId types.String
@@ -287,18 +265,10 @@ func (s *AuditLogs) Read(ctx context.Context, req resource.ReadRequest, resp *re
 }
 
 func (s *AuditLogs) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	if !s.isEnabled() {
-		resp.Diagnostics.AddError(DisabledError, DisabledMessage)
-		return
-	}
 	s.installer.Delete(ctx, &resp.Diagnostics, &req.State, &auditLogsModel{})
 }
 
 func (s *AuditLogs) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	if !s.isEnabled() {
-		resp.Diagnostics.AddError(DisabledError, DisabledMessage)
-		return
-	}
 
 	var plan auditLogsModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -326,10 +296,5 @@ func (s *AuditLogs) Update(ctx context.Context, req resource.UpdateRequest, resp
 }
 
 func (s *AuditLogs) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	if !s.isEnabled() {
-		resp.Diagnostics.AddError(DisabledError, DisabledMessage)
-		return
-	}
-
 	resource.ImportStatePassthroughID(ctx, path.Root("token"), req, resp)
 }
