@@ -69,7 +69,7 @@ type auditLogsApiReadWrite struct {
 }
 
 func (r *AuditLogs) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_audit_logs"
+	resp.TypeName = req.ProviderTypeName + "_splunk_audit_logs"
 }
 
 func (r *AuditLogs) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
