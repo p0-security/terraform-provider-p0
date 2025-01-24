@@ -21,6 +21,7 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal/provider/resources"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
+	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
 )
 
@@ -125,6 +126,9 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installssh.NewSshAwsIamWrite,
 		installssh.NewSshGcpIamWrite,
 		installsplunk.NewAuditLogs,
+		installokta.NewOktaDirectoryListingStaged,
+		installokta.NewOktaDirectoryListing,
+		installokta.NewOktaGroupAssignment,
 	}
 }
 
