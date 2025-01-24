@@ -99,11 +99,9 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 	}
 
 	data := internal.P0ProviderData{
-		Client: internal.P0ProviderClient{
-			Authentication: fmt.Sprintf("Bearer %s", api_token),
-			Client:         http.DefaultClient,
-			BaseUrl:        fmt.Sprintf("%s/o/%s", p0_host, model.Org.ValueString()),
-		},
+		Authentication: fmt.Sprintf("Bearer %s", api_token),
+		Client:         http.DefaultClient,
+		BaseUrl:        fmt.Sprintf("%s/o/%s", p0_host, model.Org.ValueString()),
 	}
 	resp.DataSourceData = data
 	resp.ResourceData = data
