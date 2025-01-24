@@ -74,7 +74,7 @@ func (r *AuditLogs) Metadata(ctx context.Context, req resource.MetadataRequest, 
 
 func (r *AuditLogs) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `An installation of the HTTP Event Collector`,
+		MarkdownDescription: `An installation of the Splunk HTTP Event Collector`,
 		Attributes: map[string]schema.Attribute{
 			"state": stateAttribute,
 			"token": schema.StringAttribute{
