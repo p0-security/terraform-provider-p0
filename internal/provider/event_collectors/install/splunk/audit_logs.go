@@ -1,4 +1,4 @@
-package installeventcollectors
+package installsplunk
 
 import (
 	"context"
@@ -21,8 +21,6 @@ import (
 const (
 	SplunkIntegration  = "splunk"
 	AuditLogsComponent = "audit-log"
-	DisabledError      = "Feature Disabled"
-	DisabledMessage    = "The audit logs feature is disabled."
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
