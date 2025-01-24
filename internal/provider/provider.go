@@ -125,10 +125,10 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installgcp.NewGcpSharingRestriction,
 		installssh.NewSshAwsIamWrite,
 		installssh.NewSshGcpIamWrite,
-		installsplunk.NewAuditLogs,
 		installokta.NewOktaDirectoryListingStaged,
 		installokta.NewOktaDirectoryListing,
 		installokta.NewOktaGroupAssignment,
+		installsplunk.NewAuditLogs,
 	}
 }
 
