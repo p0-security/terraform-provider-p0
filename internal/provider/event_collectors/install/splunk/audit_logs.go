@@ -232,7 +232,7 @@ func (s *AuditLogs) Create(ctx context.Context, req resource.CreateRequest, resp
 	var model auditLogsModel
 
 	plan.Token = types.StringValue(u)
-	req.Plan.SetAttribute(ctx, path.Root("token"), types.StringValue(u))
+	resp.Diagnostics.Append(req.Plan.SetAttribute(ctx, path.Root("token"), types.StringValue(u))...)
 
 	s.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &model)
 	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &api, &model)
