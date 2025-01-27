@@ -41,7 +41,7 @@ func (i *RootInstall) Create(ctx context.Context, diags *diag.Diagnostics, plan 
 
 	item := i.FromJson(ctx, diags, json)
 	if item == nil {
-		ReportConversionError("Bad API response", "Could not read resource data from", json, diags)
+		reportConversionError("Bad API response", "Could not read resource data from", json, diags)
 		return
 	}
 
@@ -67,7 +67,7 @@ func (i *RootInstall) Read(ctx context.Context, diags *diag.Diagnostics, state *
 
 	item := i.FromJson(ctx, diags, json)
 	if item == nil {
-		ReportConversionError("Bad API response", "Could not read resource data from", json, diags)
+		reportConversionError("Bad API response", "Could not read resource data from", json, diags)
 		return
 	}
 

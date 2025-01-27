@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
-func ReportConversionError(header string, subheader string, value any, diags *diag.Diagnostics) {
+func reportConversionError(header string, subheader string, value any, diags *diag.Diagnostics) {
 	marshalled, marshallErr := json.MarshalIndent(value, "", "  ")
 	if marshallErr != nil {
 		marshalled = []byte("<An unparseable entity>")
