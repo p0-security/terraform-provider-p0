@@ -14,6 +14,7 @@ An installation of the Splunk HTTP Event Collector
 
 ```terraform
 resource "p0_splunk_audit_logs" "example" {
+  token_id            = "token_id"
   hec_token_cleartext = sensitive("12345678-1234-1234-1234-123456789012")
   hec_endpoint        = "https://www.example.com"
 }
@@ -26,6 +27,7 @@ resource "p0_splunk_audit_logs" "example" {
 
 - `hec_endpoint` (String) The endpoint of the HTTP event collector
 - `hec_token_cleartext` (String, Sensitive) The cleartext token of the HTTP event collector
+- `token_id` (String) A user-specified token ID of the HTTP event collector
 
 ### Read-Only
 
@@ -34,4 +36,3 @@ resource "p0_splunk_audit_logs" "example" {
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured
 	- 'installed': The item is fully installed
-- `token` (String) The token ID of the HTTP event collector
