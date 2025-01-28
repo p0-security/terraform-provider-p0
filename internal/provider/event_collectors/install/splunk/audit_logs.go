@@ -227,27 +227,19 @@ func (s *AuditLogs) Create(ctx context.Context, req resource.CreateRequest, resp
 	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &api, &model)
 	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &api, &model)
 
-	var currentTokenId types.String
-	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("token_id"), &currentTokenId)...)
-	if currentTokenId.ValueString() != "" {
-		// manually set the token cleartext attribute
-		// this is needed because the cleartext token is not returned by the API
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(HecTokenClearTextKey), plan.HecTokenClearText)...)
-	}
+	// manually set the token cleartext attribute
+	// this is needed because the cleartext token is not returned by the API
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(HecTokenClearTextKey), plan.HecTokenClearText)...)
 }
 
 func (s *AuditLogs) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	s.installer.Read(ctx, &resp.Diagnostics, &resp.State, &auditLogsApiReadWrite{}, &auditLogsModel{})
 
-	var currentTokenId types.String
-	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("token_id"), &currentTokenId)...)
-	if currentTokenId.ValueString() != "" {
-		// manually set the token cleartext attribute
-		// this is needed because the cleartext token is not returned by the API
-		var currTokenClearText types.String
-		resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root(HecTokenClearTextKey), &currTokenClearText)...)
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(HecTokenClearTextKey), currTokenClearText)...)
-	}
+	// manually set the token cleartext attribute
+	// this is needed because the cleartext token is not returned by the API
+	var currTokenClearText types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root(HecTokenClearTextKey), &currTokenClearText)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(HecTokenClearTextKey), currTokenClearText)...)
 }
 
 func (s *AuditLogs) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -266,15 +258,11 @@ func (s *AuditLogs) Update(ctx context.Context, req resource.UpdateRequest, resp
 
 	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &auditLogsApiReadWrite{}, &auditLogsModel{})
 
-	var currentTokenId types.String
-	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("token_id"), &currentTokenId)...)
-	if currentTokenId.ValueString() != "" {
-		// manually set the token cleartext attribute
-		// this is needed because the cleartext token is not returned by the API
-		var currTokenClearText types.String
-		resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root(HecTokenClearTextKey), &currTokenClearText)...)
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(HecTokenClearTextKey), currTokenClearText)...)
-	}
+	// manually set the token cleartext attribute
+	// this is needed because the cleartext token is not returned by the API
+	var currTokenClearText types.String
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root(HecTokenClearTextKey), &currTokenClearText)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(HecTokenClearTextKey), currTokenClearText)...)
 }
 
 func (s *AuditLogs) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
