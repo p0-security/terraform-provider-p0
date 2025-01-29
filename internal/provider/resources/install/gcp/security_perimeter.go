@@ -56,7 +56,7 @@ func (r *GcpSecurityPerimeter) Schema(ctx context.Context, req resource.SchemaRe
 which creates a security boundary for P0.
 
 To use this resource, you must also:
-- install the ` + "`p0_gcp_security_perimeter_staged`" + ` resource.
+- Install the ` + "`p0_gcp_security_perimeter_staged`" + ` resource.
 - Install the ` + "`p0_gcp_iam_write`" + ` resource.
 - Deploy the P0 Security Perimeter cloud run service and the corresponding service account.`,
 		Attributes: map[string]schema.Attribute{
