@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 )
@@ -29,7 +30,7 @@ var _ resource.ResourceWithConfigure = &sshAwsIamWrite{}
 var _ resource.ResourceWithImportState = &sshAwsIamWrite{}
 
 type sshAwsIamWrite struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 type sshAwsIamWriteModel struct {
@@ -90,7 +91,7 @@ Installing SSH allows you to manage access to your servers on AWS.`,
 				Default:             booldefault.StaticBool(false),
 			},
 			"state": schema.StringAttribute{
-				MarkdownDescription: installresources.StateMarkdownDescription,
+				MarkdownDescription: common.StateMarkdownDescription,
 				Computed:            true,
 			},
 			"label": schema.StringAttribute{
@@ -104,7 +105,7 @@ Installing SSH allows you to manage access to your servers on AWS.`,
 
 func (r *sshAwsIamWrite) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	data := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
+	r.installer = &common.Install{
 		Integration:  SshKey,
 		Component:    installresources.IamWrite,
 		ProviderData: data,

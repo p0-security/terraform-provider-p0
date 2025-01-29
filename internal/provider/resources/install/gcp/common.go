@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
-	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 )
 
 type gcpRoleMetadata struct {
@@ -91,7 +91,7 @@ var projectAttribute = schema.StringAttribute{
 
 var stateAttribute = schema.StringAttribute{
 	Computed:            true,
-	MarkdownDescription: installresources.StateMarkdownDescription,
+	MarkdownDescription: common.StateMarkdownDescription,
 }
 
 var itemAttributes = map[string]schema.Attribute{
@@ -153,8 +153,8 @@ func itemToJson(data any) any {
 	return json
 }
 
-func newItemInstaller(component string, providerData *internal.P0ProviderData) *installresources.Install {
-	return &installresources.Install{
+func newItemInstaller(component string, providerData *internal.P0ProviderData) *common.Install {
+	return &common.Install{
 		Integration:  GcpKey,
 		Component:    component,
 		ProviderData: providerData,
@@ -166,6 +166,6 @@ func newItemInstaller(component string, providerData *internal.P0ProviderData) *
 }
 
 func singletonGetId(data any) *string {
-	key := installresources.SingletonKey
+	key := common.SingletonKey
 	return &key
 }

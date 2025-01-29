@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
-	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -27,7 +27,7 @@ func NewGcp() resource.Resource {
 }
 
 type Gcp struct {
-	installer *installresources.RootInstall
+	installer *common.RootInstall
 }
 
 type gcpModel struct {
@@ -130,7 +130,7 @@ func (r *Gcp) Schema(ctx context.Context, req resource.SchemaRequest, resp *reso
 
 func (r *Gcp) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
-	r.installer = &installresources.RootInstall{
+	r.installer = &common.RootInstall{
 		Integration:  GcpKey,
 		ProviderData: providerData,
 		FromJson:     r.fromJson,

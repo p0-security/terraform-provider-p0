@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
@@ -25,7 +26,7 @@ func NewOktaDirectoryListingStaged() resource.Resource {
 }
 
 type OktaDirectoryListingStaged struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 type oktaDirectoryListingStagedModel struct {
@@ -117,7 +118,7 @@ func (r *OktaDirectoryListingStaged) toJson(data any) any {
 
 func (r *OktaDirectoryListingStaged) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
+	r.installer = &common.Install{
 		Integration:  OktaKey,
 		Component:    installresources.DirectoryListing,
 		ProviderData: providerData,

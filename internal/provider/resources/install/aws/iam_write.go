@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
@@ -30,7 +31,7 @@ func NewAwsIamWrite() resource.Resource {
 }
 
 type AwsIamWrite struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 type awsIamWriteLoginIdentityModel struct {
@@ -127,7 +128,7 @@ resource "p0_aws_iam_write" "installed_account" {
 			},
 			"state": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: installresources.StateMarkdownDescription,
+				MarkdownDescription: common.StateMarkdownDescription,
 			},
 			"login": schema.SingleNestedAttribute{
 				Required:            true,
@@ -341,7 +342,7 @@ func (r *AwsIamWrite) toJson(data any) any {
 
 func (r *AwsIamWrite) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
+	r.installer = &common.Install{
 		Integration:  Aws,
 		Component:    installresources.IamWrite,
 		ProviderData: providerData,

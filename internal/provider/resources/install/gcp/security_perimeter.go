@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
-	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -24,7 +24,7 @@ func NewGcpSecurityPerimeter() resource.Resource {
 }
 
 type GcpSecurityPerimeter struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 type gcpSecurityPerimeterModel struct {
@@ -163,7 +163,7 @@ func (r *GcpSecurityPerimeter) getId(data any) *string {
 
 func (r *GcpSecurityPerimeter) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
+	r.installer = &common.Install{
 		Integration:  GcpKey,
 		Component:    SecurityPerimeter,
 		ProviderData: providerData,

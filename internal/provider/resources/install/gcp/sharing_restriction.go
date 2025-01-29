@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/p0-security/terraform-provider-p0/internal"
-	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -20,7 +20,7 @@ func NewGcpSharingRestriction() resource.Resource {
 }
 
 type GcpSharingRestriction struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 func (r *GcpSharingRestriction) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {

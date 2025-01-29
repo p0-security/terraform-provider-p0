@@ -1,8 +1,7 @@
-package installresources
+package common
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -14,10 +13,6 @@ import (
 const (
 	Config                   = "configure"
 	Verify                   = "verify"
-	IamAssessment            = "iam-assessment"
-	IamWrite                 = "iam-write"
-	DirectoryListing         = "listing"
-	GroupAssignment          = "group-assignment"
 	SingletonKey             = "_"
 	StateMarkdownDescription = `This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
@@ -27,14 +22,6 @@ const (
 
 // Order matters here; components installed in this order.
 var InstallSteps = []string{Verify, Config}
-
-func OperationPath(base_path string, step string) string {
-	return fmt.Sprintf("%s/%s", base_path, step)
-}
-
-type ReadResponse struct {
-	Item *any
-}
 
 type Install struct {
 	// This Integration's key
@@ -52,14 +39,6 @@ type Install struct {
 	FromJson func(ctx context.Context, diags *diag.Diagnostics, id string, json any) any
 	// Convert a pointer to the TF state model to a pointer to an item's JSON model
 	ToJson func(data any) any
-}
-
-func reportConversionError(header string, subheader string, value any, diags *diag.Diagnostics) {
-	marshalled, marshallErr := json.MarshalIndent(value, "", "  ")
-	if marshallErr != nil {
-		marshalled = []byte("<An unparseable entity>")
-	}
-	diags.AddError(header, fmt.Sprintf("%s:\n%s", subheader, marshalled))
 }
 
 func (i *Install) itemPath(id string) string {

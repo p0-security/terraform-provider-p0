@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
@@ -28,7 +29,7 @@ func NewIamWriteStagedAws() resource.Resource {
 }
 
 type AwsIamWriteStaged struct {
-	installer *installresources.Install
+	installer *common.Install
 }
 
 type awsIamWriteStagedApi struct {
@@ -106,7 +107,7 @@ func (r *AwsIamWriteStaged) Schema(ctx context.Context, req resource.SchemaReque
 
 func (r *AwsIamWriteStaged) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
-	r.installer = &installresources.Install{
+	r.installer = &common.Install{
 		Integration:  Aws,
 		Component:    installresources.IamWrite,
 		ProviderData: providerData,

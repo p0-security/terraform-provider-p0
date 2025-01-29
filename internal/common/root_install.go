@@ -1,4 +1,4 @@
-package installresources
+package common
 
 import (
 	"context"
