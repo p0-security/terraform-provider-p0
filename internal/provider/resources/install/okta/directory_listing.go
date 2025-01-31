@@ -31,16 +31,16 @@ type OktaDirectoryListing struct {
 }
 
 type oktaDirectoryListingModel struct {
-	Client string       `tfsdk:"client"`
-	Domain string       `tfsdk:"domain"`
-	Jwk    types.Object `tfsdk:"jwk"`
+	Client basetypes.StringValue `tfsdk:"client"`
+	Domain string                `tfsdk:"domain"`
+	Jwk    types.Object          `tfsdk:"jwk"`
 }
 
 type oktaDirectoryListingJson struct {
-	KeyId     string `json:"keyId"`
-	PublicKey string `json:"publicKey"`
-	State     string `json:"state"`
-	ClientId  string `json:"clientId"`
+	KeyId     string  `json:"keyId"`
+	PublicKey *string `json:"publicKey"`
+	State     string  `json:"state"`
+	ClientId  *string `json:"clientId"`
 }
 
 type oktaDirectoryListingApi struct {
@@ -124,7 +124,7 @@ func (r *OktaDirectoryListing) fromJson(ctx context.Context, diags *diag.Diagnos
 	}
 
 	var jwk Jwk
-	if err := json.Unmarshal([]byte(api.PublicKey), &jwk); err != nil {
+	if err := json.Unmarshal([]byte(*api.PublicKey), &jwk); err != nil {
 		diags.AddError("Error parsing JWK", err.Error())
 		return nil
 	}
@@ -134,7 +134,7 @@ func (r *OktaDirectoryListing) fromJson(ctx context.Context, diags *diag.Diagnos
 	}
 	data.Jwk = *jwkObj
 	data.Domain = id
-	data.Client = api.ClientId
+	data.Client = basetypes.NewStringPointerValue(api.ClientId)
 	return &data
 }
 
@@ -150,10 +150,11 @@ func (r *OktaDirectoryListing) toJson(data any) any {
 		return nil
 	}
 	jwkBytes, _ := json.Marshal(jwk)
-	out.Item.PublicKey = string(jwkBytes)
+	jwkString := string(jwkBytes)
+	out.Item.PublicKey = &jwkString
 	out.Item.KeyId = jwk.Kid
 	out.Item.State = "configure"
-	out.Item.ClientId = datav.Client
+	out.Item.ClientId = datav.Client.ValueStringPointer()
 	return &out.Item
 }
 
