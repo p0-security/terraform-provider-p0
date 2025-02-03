@@ -89,6 +89,23 @@ resource "google_cloud_run_service_iam_member" "invoker_access" {
   member   = "serviceAccount:customer-p0-gcp-sa@p0-gcp-project.iam.gserviceaccount.com"
 }
 
+# Create the p0 security perimeter invoker role, this is assumed by p0 service account
+resource "google_project_iam_custom_role" "p0_security_perimeter_invoker_role" {
+  role_id     = p0_gcp_security_perimeter_staged.p0-dev-account.custom_role.id
+  title       = p0_gcp_security_perimeter_staged.p0-dev-account.custom_role.name
+  description = "P0 IAM cloud run invoker role"
+  project     = var.project_id
+  permissions = p0_gcp_security_perimeter_staged.p0-dev-account.required_permissions
+}
+
+# Grants the p0 service account access to the role just created
+resource "google_cloud_run_service_iam_member" "invoker_access" {
+  service  = google_cloud_run_service.p0_security_perimeter.name
+  location = google_cloud_run_service.p0_security_perimeter.location
+  role     = "projects/p0-gcp-project/roles/p0SecurityPerimeterInvoker"
+  member   = "serviceAccount:customer-p0-gcp-sa@p0-gcp-project.iam.gserviceaccount.com"
+}
+
 resource "p0_gcp_security_perimeter" "p0-dev-account" {
   project         = var.project_id
   allowed_domains = p0_gcp_security_perimeter_staged.p0-dev-account.allowed_domains

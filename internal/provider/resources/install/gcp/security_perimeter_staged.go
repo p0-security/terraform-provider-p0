@@ -27,17 +27,24 @@ type GcpSecurityPerimeterStage struct {
 }
 
 type gcpSecurityPerimeterStageModel struct {
-	State          types.String `tfsdk:"state"`
-	Project        types.String `tfsdk:"project"`
-	AllowedDomains types.String `tfsdk:"allowed_domains"`
-	ImageDigest    types.String `tfsdk:"image_digest"`
-	CustomRole     types.Object `tfsdk:"custom_role"`
-	Permissions    types.List   `tfsdk:"required_permissions"`
+	State             types.String `tfsdk:"state"`
+	Project           types.String `tfsdk:"project"`
+	AllowedDomains    types.String `tfsdk:"allowed_domains"`
+	ImageDigest       types.String `tfsdk:"image_digest"`
+	CustomRole        types.Object `tfsdk:"custom_role"`
+	Permissions       types.List   `tfsdk:"required_permissions"`
+	ProjectReaderRole types.Object `tfsdk:"project_reader_role"`
+}
+
+type gcpProjectReaderRoleMetadata struct {
+	CustomRole  gcpRoleMetadata `json:"customRole" tfsdk:"custom_role"`
+	Permissions []string        `json:"requiredPermissions" tfsdk:"required_permissions"`
 }
 
 type gcpSecurityPerimeterStageMetadata struct {
-	CustomRole  gcpRoleMetadata `json:"customRole" tfsdk:"custom_role"`
-	Permissions []string        `json:"requiredPermissions" tfsdk:"permissions"`
+	CustomRole        gcpRoleMetadata              `json:"customRole" tfsdk:"custom_role"`
+	Permissions       []string                     `json:"requiredPermissions" tfsdk:"required_permissions"`
+	ProjectReaderRole gcpProjectReaderRoleMetadata `json:"projectReaderRole" tfsdk:"project_reader_role"`
 }
 
 type gcpSecurityPerimeterStageApi struct {
@@ -47,6 +54,17 @@ type gcpSecurityPerimeterStageApi struct {
 		ImageDigest    *string `json:"imageDigest,omitempty"`
 	} `json:"item"`
 	Metadata gcpSecurityPerimeterStageMetadata `json:"metadata"`
+}
+
+var customRoleAttrTypes = map[string]attr.Type{"id": types.StringType, "name": types.StringType}
+
+var projectReaderRoleAttrTypes = types.ObjectType{
+	AttrTypes: map[string]attr.Type{
+		"custom_role": types.ObjectType{
+			AttrTypes: customRoleAttrTypes,
+		},
+		"required_permissions": types.ListType{ElemType: types.StringType},
+	},
 }
 
 func (r *GcpSecurityPerimeterStage) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -78,6 +96,18 @@ To use this resource, you must also:
 				ElementType:         types.StringType,
 				Computed:            true,
 				MarkdownDescription: `A list of permissions required by the security perimeter invoker role.`,
+			},
+			"project_reader_role": schema.SingleNestedAttribute{
+				Computed:    true,
+				Description: `Describes the project reader role that should be created and assigned to P0's service account`,
+				Attributes: map[string]schema.Attribute{
+					"custom_role": customRole,
+					"required_permissions": schema.ListAttribute{
+						ElementType:         types.StringType,
+						Computed:            true,
+						MarkdownDescription: "Described the permissions that the project reader role should contain.",
+					},
+				},
 			},
 		},
 	}
@@ -113,10 +143,7 @@ func (r *GcpSecurityPerimeterStage) fromJson(ctx context.Context, diags *diag.Di
 		data.ImageDigest = imageDigest
 	}
 
-	customRole, objErr := types.ObjectValueFrom(ctx, map[string]attr.Type{
-		"id":   types.StringType,
-		"name": types.StringType,
-	}, jsonv.Metadata.CustomRole)
+	customRole, objErr := types.ObjectValueFrom(ctx, customRoleAttrTypes, jsonv.Metadata.CustomRole)
 	if objErr.HasError() {
 		diags.Append(objErr...)
 		return nil
@@ -129,6 +156,13 @@ func (r *GcpSecurityPerimeterStage) fromJson(ctx context.Context, diags *diag.Di
 		return nil
 	}
 	data.Permissions = permissions
+
+	projectReaderRole, objErr := types.ObjectValueFrom(ctx, projectReaderRoleAttrTypes.AttrTypes, jsonv.Metadata.ProjectReaderRole)
+	if objErr.HasError() {
+		diags.Append(objErr...)
+		return nil
+	}
+	data.ProjectReaderRole = projectReaderRole
 
 	return &data
 }

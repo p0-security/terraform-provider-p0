@@ -33,6 +33,7 @@ To use this resource, you must also:
 - `allowed_domains` (String) The list of domains that are allowed to access the Cloud Run service.
 - `custom_role` (Attributes) Describes the custom role that should be created and assigned to P0's service account (see [below for nested schema](#nestedatt--custom_role))
 - `image_digest` (String) The hash value of the image that is deployed to the Cloud Run service.
+- `project_reader_role` (Attributes) Describes the project reader role that should be created and assigned to P0's service account (see [below for nested schema](#nestedatt--project_reader_role))
 - `required_permissions` (List of String) A list of permissions required by the security perimeter invoker role.
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
@@ -41,6 +42,23 @@ To use this resource, you must also:
 
 <a id="nestedatt--custom_role"></a>
 ### Nested Schema for `custom_role`
+
+Read-Only:
+
+- `id` (String) The custom role expected identifier
+- `name` (String) The custom role's expected title
+
+
+<a id="nestedatt--project_reader_role"></a>
+### Nested Schema for `project_reader_role`
+
+Read-Only:
+
+- `custom_role` (Attributes) Describes the custom role that should be created and assigned to P0's service account (see [below for nested schema](#nestedatt--project_reader_role--custom_role))
+- `required_permissions` (List of String) Described the permissions that the project reader role should contain.
+
+<a id="nestedatt--project_reader_role--custom_role"></a>
+### Nested Schema for `project_reader_role.custom_role`
 
 Read-Only:
 
