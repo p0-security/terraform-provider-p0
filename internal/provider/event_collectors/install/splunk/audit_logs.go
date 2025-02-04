@@ -47,6 +47,7 @@ type AuditLogs struct {
 type auditLogsModel struct {
 	State             types.String `tfsdk:"state"`
 	Token             types.String `tfsdk:"token_id"`
+	Index             types.String `tfsdk:"index"`
 	HecEndpoint       types.String `tfsdk:"hec_endpoint"`
 	HecTokenClearText types.String `tfsdk:"hec_token_cleartext"`
 	HecTokenHash      types.String `tfsdk:"hec_token_hash"`
@@ -58,6 +59,7 @@ type TokenReadWrite struct {
 }
 
 type auditLogsJsonReadWrite struct {
+	Index       *string         `json:"index,omitempty"`
 	State       *string         `json:"state,omitempty"`
 	HecEndpoint *string         `json:"endpoint,omitempty"`
 	HecToken    *TokenReadWrite `json:"token,omitempty"`
@@ -82,6 +84,10 @@ func (r *AuditLogs) Schema(ctx context.Context, req resource.SchemaRequest, resp
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+			},
+			"index": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: `The index of the HTTP event collector to use`,
 			},
 			"hec_endpoint": schema.StringAttribute{
 				Required:            true,
@@ -128,6 +134,13 @@ func (r *AuditLogs) fromJson(ctx context.Context, diags *diag.Diagnostics, id st
 	}
 
 	data.Token = types.StringValue(id)
+
+	data.Index = types.StringNull()
+	if jsonv.Index != nil {
+		index := types.StringValue(*jsonv.Index)
+		data.Index = index
+	}
+
 	data.State = types.StringNull()
 	if jsonv.State != nil {
 		state := types.StringValue(*jsonv.State)
@@ -154,6 +167,11 @@ func (r *AuditLogs) toJson(data any) any {
 	datav, ok := data.(*auditLogsModel)
 	if !ok {
 		return nil
+	}
+
+	if !datav.Index.IsNull() && !datav.Index.IsUnknown() {
+		index := datav.Index.ValueString()
+		json.Index = &index
 	}
 
 	if !datav.HecEndpoint.IsNull() && !datav.HecEndpoint.IsUnknown() {
