@@ -29,6 +29,10 @@ resource "p0_splunk_audit_logs" "example" {
 - `hec_token_cleartext` (String, Sensitive) The cleartext token of the HTTP event collector
 - `token_id` (String) A user-specified token ID of the HTTP event collector
 
+### Optional
+
+- `index` (String) The index of the HTTP event collector to use
+
 ### Read-Only
 
 - `hec_token_hash` (String) The hash of the token of the HTTP event collector
