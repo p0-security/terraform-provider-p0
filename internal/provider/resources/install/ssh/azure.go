@@ -31,25 +31,25 @@ type sshAzureIamWrite struct {
 }
 
 type sshAzureIamWriteModel struct {
-	AdminAccessRoleId types.String `tfsdk:"admin_access_role_id" json:"adminAccessRoleId,omitempty"`
-	BastionId		 types.String `tfsdk:"bastion_id" json:"bastionId,omitempty"`
-	GroupKey      types.String `tfsdk:"group_key" json:"groupKey,omitempty"`
-	IsSudoEnabled types.Bool   `tfsdk:"is_sudo_enabled" json:"isSudoEnabled,omitempty"`
-	Label         types.String `tfsdk:"label" json:"label,omitempty"`
-	ManagementGroupId types.String `tfsdk:"management_group_id" json:"managementGroupId,omitempty"`
+	AdminAccessRoleId    types.String `tfsdk:"admin_access_role_id" json:"adminAccessRoleId,omitempty"`
+	BastionId            types.String `tfsdk:"bastion_id" json:"bastionId,omitempty"`
+	GroupKey             types.String `tfsdk:"group_key" json:"groupKey,omitempty"`
+	IsSudoEnabled        types.Bool   `tfsdk:"is_sudo_enabled" json:"isSudoEnabled,omitempty"`
+	Label                types.String `tfsdk:"label" json:"label,omitempty"`
+	ManagementGroupId    types.String `tfsdk:"management_group_id" json:"managementGroupId,omitempty"`
 	StandardAccessRoleId types.String `tfsdk:"standard_access_role_id" json:"standardAccessRoleId,omitempty"`
-	State         types.String `tfsdk:"state" json:"state,omitempty"`
+	State                types.String `tfsdk:"state" json:"state,omitempty"`
 }
 
 type sshAzureIamWriteJson struct {
-	AdminAccessRoleId *string `json:"adminAccessRoleId"`
-	BastionId		 *string `json:"bastionId"`
-	GroupKey      *string `json:"groupKey"`
-	IsSudoEnabled *bool   `json:"isSudoEnabled,omitempty"`
-	Label         *string `json:"label,omitempty"`
-	ManagementGroupId *string `json:"managementGroupId"`
+	AdminAccessRoleId    *string `json:"adminAccessRoleId"`
+	BastionId            *string `json:"bastionId"`
+	GroupKey             *string `json:"groupKey"`
+	IsSudoEnabled        *bool   `json:"isSudoEnabled,omitempty"`
+	Label                *string `json:"label,omitempty"`
+	ManagementGroupId    *string `json:"managementGroupId"`
 	StandardAccessRoleId *string `json:"standardAccessRoleId"`
-	State         string  `json:"state"`
+	State                string  `json:"state"`
 }
 
 type sshAzureIamWriteApi struct {
@@ -76,7 +76,7 @@ Installing SSH allows you to manage access to your virtual machines on Microsoft
 			},
 			"bastion_id": schema.StringAttribute{
 				MarkdownDescription: `The ID of the Azure Bastion that provides secure RDP and SSH access to the virtual machines`,
-				Required: true,
+				Required:            true,
 			},
 			"group_key": schema.StringAttribute{
 				MarkdownDescription: `If present, virtual machines on Azure will be grouped by the value of this tag. Access can be requested, in one request, to all instances with a shared tag value`,
@@ -172,7 +172,7 @@ func (r *sshAzureIamWrite) fromJson(ctx context.Context, diags *diag.Diagnostics
 	if jsonv.StandardAccessRoleId != nil {
 		data.StandardAccessRoleId = types.StringValue(*jsonv.StandardAccessRoleId)
 	}
-		
+
 	data.AdminAccessRoleId = types.StringNull()
 	if jsonv.AdminAccessRoleId != nil {
 		data.AdminAccessRoleId = types.StringValue(*jsonv.AdminAccessRoleId)
@@ -208,17 +208,17 @@ func (r *sshAzureIamWrite) toJson(data any) any {
 		json.IsSudoEnabled = &isSudoEnabled
 	}
 
-	if(!datav.AdminAccessRoleId.IsNull() && !datav.AdminAccessRoleId.IsUnknown()) {
+	if !datav.AdminAccessRoleId.IsNull() && !datav.AdminAccessRoleId.IsUnknown() {
 		adminAccessRoleId := datav.AdminAccessRoleId.ValueString()
 		json.AdminAccessRoleId = &adminAccessRoleId
 	}
 
-	if(!datav.StandardAccessRoleId.IsNull() && !datav.StandardAccessRoleId.IsUnknown()) {
+	if !datav.StandardAccessRoleId.IsNull() && !datav.StandardAccessRoleId.IsUnknown() {
 		standardAccessRoleId := datav.StandardAccessRoleId.ValueString()
 		json.StandardAccessRoleId = &standardAccessRoleId
 	}
 
-	if(!datav.BastionId.IsNull() && !datav.BastionId.IsUnknown()) {
+	if !datav.BastionId.IsNull() && !datav.BastionId.IsUnknown() {
 		bastionId := datav.BastionId.ValueString()
 		json.BastionId = &bastionId
 	}
