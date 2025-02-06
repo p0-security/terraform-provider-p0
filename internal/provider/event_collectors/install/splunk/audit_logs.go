@@ -27,13 +27,7 @@ var _ resource.Resource = &AuditLogs{}
 var _ resource.ResourceWithImportState = &AuditLogs{}
 var _ resource.ResourceWithConfigure = &AuditLogs{}
 
-var stateAttribute = schema.StringAttribute{
-	Computed:            true,
-	MarkdownDescription: common.StateMarkdownDescription,
-}
-
 var HttpsPrefixRegex = regexp.MustCompile(`^https:`)
-var UuidRegex = regexp.MustCompile(`^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$`)
 var HecTokenClearTextKey = "hec_token_cleartext"
 
 func NewAuditLogs() resource.Resource {
@@ -77,7 +71,7 @@ func (r *AuditLogs) Schema(ctx context.Context, req resource.SchemaRequest, resp
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `An installation of the Splunk HTTP Event Collector`,
 		Attributes: map[string]schema.Attribute{
-			"state": stateAttribute,
+			"state": common.StateAttribute,
 			"token_id": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `A user-specified token ID of the HTTP event collector`,
@@ -104,7 +98,7 @@ func (r *AuditLogs) Schema(ctx context.Context, req resource.SchemaRequest, resp
 				Sensitive:           true,
 				MarkdownDescription: `The cleartext token of the HTTP event collector`,
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(UuidRegex, "Token must be a valid UUID"),
+					stringvalidator.RegexMatches(common.UuidRegex, "Token must be a valid UUID"),
 				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),

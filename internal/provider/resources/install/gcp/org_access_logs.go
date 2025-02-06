@@ -56,7 +56,7 @@ Use the read-only attributes defined on ` + "`p0_gcp`" + ` to create the requisi
 
 P0 recommends defining this infrastructure according to the example usage pattern.`,
 		Attributes: map[string]schema.Attribute{
-			"state": stateAttribute,
+			"state": common.StateAttribute,
 			"topic_project_id": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The project identifier where the access-logs Pub/Sub topic should reside`,
