@@ -89,11 +89,6 @@ var projectAttribute = schema.StringAttribute{
 	},
 }
 
-var stateAttribute = schema.StringAttribute{
-	Computed:            true,
-	MarkdownDescription: common.StateMarkdownDescription,
-}
-
 var itemAttributes = map[string]schema.Attribute{
 	// In P0 we would name this 'id' or 'project_id'; it is named 'project' here to align with Terraform's naming for
 	// Google Cloud resources
@@ -105,7 +100,7 @@ var itemAttributes = map[string]schema.Attribute{
 		},
 		Validators: projectValidators,
 	},
-	"state": stateAttribute,
+	"state": common.StateAttribute,
 }
 
 func permissions(name string) schema.ListAttribute {

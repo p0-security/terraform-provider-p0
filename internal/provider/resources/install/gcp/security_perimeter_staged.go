@@ -82,7 +82,7 @@ To use this resource, you must also:
 - install the ` + "`p0_gcp_security_perimeter`" + ` resource.`,
 		Attributes: map[string]schema.Attribute{
 			"project": projectAttribute,
-			"state":   stateAttribute,
+			"state":   common.StateAttribute,
 			"allowed_domains": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: `The list of domains that are allowed to access the Cloud Run service.`,

@@ -61,7 +61,7 @@ To use this resource, you must also:
 - Deploy the P0 Security Perimeter cloud run service and the corresponding service account.`,
 		Attributes: map[string]schema.Attribute{
 			"project": projectAttribute,
-			"state":   stateAttribute,
+			"state":   common.StateAttribute,
 			"cloud_run_url": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The URL of the Cloud Run service that will be used to enforce the security perimeter.`,

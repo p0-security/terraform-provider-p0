@@ -55,7 +55,7 @@ For instructions on using this resource, see the documentation for ` + "`p0_gcp_
 			// In P0 we would name this 'id' or 'project_id'; it is named 'project' here to align with Terraform's naming for
 			// Google Cloud resources
 			"project":         projectAttribute,
-			"state":           stateAttribute,
+			"state":           common.StateAttribute,
 			"permissions":     permissions("IAM management"),
 			"predefined_role": predefinedRole,
 			"custom_role":     customRole,

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/p0-security/terraform-provider-p0/internal"
 )
@@ -19,6 +20,11 @@ const (
 	- 'configure': The item is available to be added to P0, and may be configured
 	- 'installed': The item is fully installed`
 )
+
+var StateAttribute = schema.StringAttribute{
+	Computed:            true,
+	MarkdownDescription: StateMarkdownDescription,
+}
 
 // Order matters here; components installed in this order.
 var InstallSteps = []string{Verify, Config}
