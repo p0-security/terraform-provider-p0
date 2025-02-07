@@ -31,7 +31,7 @@ type Azure struct {
 
 type azureModel struct {
 	ClientId            types.String `tfsdk:"client_id"`
-	DirectoryId         types.String `tfsdk:"directory_id"`
+	DirectoryId         types.String `tfsdk:"tenant_id"`
 	ServiceAccountEmail types.String `tfsdk:"service_account_email"`
 	ServiceAccountId    types.String `tfsdk:"service_account_id"`
 	State               types.String `tfsdk:"state"`
@@ -65,7 +65,9 @@ func (r *Azure) Schema(ctx context.Context, req resource.SchemaRequest, resp *re
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Microsoft Azure installation.`,
 		Attributes: map[string]schema.Attribute{
-			"directory_id": schema.StringAttribute{
+			// Azure tenant_id is also called directory_id, in our backend we call it directory_id.
+			// We call it tenant_id here to match the Azure Terraform Provider.
+			"tenant_id": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The Microsoft Azure Directory ID`,
 				PlanModifiers: []planmodifier.String{
