@@ -14,8 +14,8 @@ A Microsoft Azure installation.
 
 ```terraform
 resource "p0_azure" "example" {
-  directory_id = "12345678-1234-1234-1234-123456789012"
-  client_id    = "12345678-1234-1234-1234-123456789012"
+  tenant_id = "12345678-1234-1234-1234-123456789012"
+  client_id = "12345678-1234-1234-1234-123456789012"
 }
 ```
 
@@ -25,7 +25,7 @@ resource "p0_azure" "example" {
 ### Required
 
 - `client_id` (String) The Microsoft Azure Service Account Client ID.
-- `directory_id` (String) The Microsoft Azure Directory ID
+- `tenant_id` (String) The Microsoft Azure Directory ID
 
 ### Read-Only
 
