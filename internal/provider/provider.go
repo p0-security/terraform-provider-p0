@@ -20,6 +20,7 @@ import (
 	installsplunk "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/splunk"
 	"github.com/p0-security/terraform-provider-p0/internal/provider/resources"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
+	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
@@ -113,6 +114,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		resources.NewRoutingRules,
 		installaws.NewAwsIamWrite,
 		installaws.NewIamWriteStagedAws,
+		installazure.NewAzure,
 		installgcp.NewGcp,
 		installgcp.NewGcpAccessLogs,
 		installgcp.NewGcpIamAssessment,
