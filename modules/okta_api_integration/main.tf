@@ -5,8 +5,8 @@ terraform {
       version = "4.8.0"
     }
     p0 = {
-      source  = "registry.terraform.io/p0-security/p0"
-      version = "0.13.0"
+      source  = "p0-security/p0"
+      version = "0.14.0"
     }
   }
 }
