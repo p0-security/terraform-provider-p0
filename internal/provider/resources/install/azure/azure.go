@@ -165,5 +165,5 @@ func (r *Azure) Delete(ctx context.Context, req resource.DeleteRequest, resp *re
 }
 
 func (r *Azure) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("directory_id"), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("tenant_id"), req, resp)
 }
