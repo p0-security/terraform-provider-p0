@@ -289,51 +289,90 @@ func (r *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnostics,
 	diags.Append(state.Set(ctx, data)...)
 }
 
-// Posts a new routing-rules version to P0. This is used for create, update, and delete.
+// Posts a new routing-rules version to P0. This is used for update and delete.
 // Note that delete does not delete, but rather posts a default routing-rules set.
-func (r *RoutingRules) postVersion(ctx context.Context, data RoutingRulesModel, diag *diag.Diagnostics, state *tfsdk.State) {
-	tflog.Debug(ctx, fmt.Sprintf("Update Data: %+v", data))
+func (r *RoutingRules) postVersion(ctx context.Context, model RoutingRulesModel, diag *diag.Diagnostics, state *tfsdk.State) {
+	tflog.Debug(ctx, fmt.Sprintf("Routing rules to update: %+v", model))
 
-	var current RoutingRulesModel
-	diag.Append(state.Get(ctx, &current)...)
+	// Read the current routing rules from the Terraform state
+	var currentModel RoutingRulesModel
+	diag.Append(state.Get(ctx, &currentModel)...)
 	if diag.HasError() {
 		return
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Current workflow state: %+v", current))
+	tflog.Debug(ctx, fmt.Sprintf("Current routing rules state: %+v", currentModel))
 
+	// Grab the current version number from the model
 	var currentVersionPtr *string
-
-	if !current.Version.IsUnknown() && !current.Version.IsNull() {
-		currentVersion := current.Version.ValueString()
-		tflog.Debug(ctx, fmt.Sprintf("Current version: %s", currentVersion))
+	if !currentModel.Version.IsUnknown() && !currentModel.Version.IsNull() {
+		currentVersion := currentModel.Version.ValueString()
+		tflog.Debug(ctx, fmt.Sprintf("Current routing rules version: %s", currentVersion))
 		currentVersionPtr = &currentVersion
 	}
 
-	workflowUpdate := WorkflowUpdateApi{Workflow: UpdateRoutingRule{Rule: data.Rule}, CurrentVersion: currentVersionPtr}
+	// Convert the model to the API format
+	toUpdate := WorkflowUpdateApi{Workflow: UpdateRoutingRule{Rule: model.Rule}, CurrentVersion: currentVersionPtr}
 
-	tflog.Debug(ctx, fmt.Sprintf("Posting new workflow version: %+v", workflowUpdate))
+	tflog.Debug(ctx, fmt.Sprintf("Updated routing rules: %+v", toUpdate))
 
+	// Update the routing rules
 	var updated WorkflowLatestApi
-	_, postErr := r.data.Post("routing", &workflowUpdate, &updated)
+	_, postErr := r.data.Post("routing", &toUpdate, &updated)
 	if postErr != nil {
 		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to update routing rules, got error:\n%s", postErr))
 		return
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Latest workflow version: %+v", updated))
+	tflog.Debug(ctx, fmt.Sprintf("Latest routing rules: %+v", updated))
 
-	r.updateState(ctx, diag, state, data, updated)
+	// Update the Terraform state to reflect the updated routing rules
+	r.updateState(ctx, diag, state, model, updated)
 }
 
 func (r *RoutingRules) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data RoutingRulesModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	var diag = &resp.Diagnostics
+
+	var model RoutingRulesModel
+
+	// Load the data from the plan into the model
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &model)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	r.postVersion(ctx, data, &resp.Diagnostics, &resp.State)
+	tflog.Debug(ctx, fmt.Sprintf("Routing rules to create: %+v", model))
+
+	// Even if we are replacing the rules, it is technically an update, so retrieve the current routing rules
+	var current WorkflowLatestApi
+	_, httpErr := r.data.Get("routing/latest", &current)
+	if httpErr != nil {
+		resp.Diagnostics.AddError("Error communicating with P0", fmt.Sprintf("Unable to read routing rules, got error:\n%s", httpErr))
+		return
+	}
+
+	// ... and grab the current version
+	var currentVersionPtr = current.Workflow.Version
+
+	tflog.Debug(ctx, fmt.Sprintf("Current routing rules version: %s", *currentVersionPtr))
+
+	// Convert the model to the API format
+	toUpdate := WorkflowUpdateApi{Workflow: UpdateRoutingRule{Rule: model.Rule}, CurrentVersion: currentVersionPtr}
+
+	tflog.Debug(ctx, fmt.Sprintf("Updated routing rules: %+v", toUpdate))
+
+	// Update the routing rules
+	var updated WorkflowLatestApi
+	_, postErr := r.data.Post("routing", &toUpdate, &updated)
+	if postErr != nil {
+		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to update routing rules, got error:\n%s", postErr))
+		return
+	}
+
+	tflog.Debug(ctx, fmt.Sprintf("Latest routing rules: %+v", updated))
+
+	// Update the Terraform state to reflect the newly created routing rules
+	r.updateState(ctx, diag, &resp.State, model, updated)
 }
 
 func (r *RoutingRules) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
