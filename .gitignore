@@ -37,3 +37,6 @@ website/vendor
 
 # Do not commit manual testing
 examples/provider-install-verification
+
+# Binary from go build
+terraform-provider-p0
