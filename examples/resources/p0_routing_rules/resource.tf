@@ -17,12 +17,12 @@ resource "p0_routing_rules" "example" {
         }
       }
     }
-    approval {
+    approval = [{
       type        = "auto"
       integration = "pagerduty"
       options = {
         require_reason = true
       }
-    }
+    }]
   }
 }
