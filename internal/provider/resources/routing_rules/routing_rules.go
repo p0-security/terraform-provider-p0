@@ -1,7 +1,7 @@
 // Copyright (c) 2024 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package resources
+package routingrules
 
 import (
 	"context"
@@ -29,49 +29,6 @@ type RoutingRules struct {
 	data *internal.P0ProviderData
 }
 
-type RequestorModel struct {
-	Directory *string `json:"directory" tfsdk:"directory"`
-	Id        *string `json:"id" tfsdk:"id"`
-	Label     *string `json:"label" tfsdk:"label"`
-	Type      string  `json:"type" tfsdk:"type"`
-	Uid       *string `json:"uid" tfsdk:"uid"`
-}
-
-type ResourceFilterModel struct {
-	Effect  string  `json:"effect" tfsdk:"effect"`
-	Key     *string `json:"key" tfsdk:"key"`
-	Pattern *string `json:"pattern" tfsdk:"pattern"`
-	Value   *bool   `json:"value" tfsdk:"value"`
-}
-
-type ResourceModel struct {
-	Filters *map[string]ResourceFilterModel `json:"filters" tfsdk:"filters"`
-	Service *string                         `json:"service" tfsdk:"service"`
-	Type    string                          `json:"type" tfsdk:"type"`
-}
-
-type ApprovalOptionsModel struct {
-	AllowOneParty *bool `json:"allowOneParty" tfsdk:"allow_one_party"`
-	RequireReason *bool `json:"requireReason" tfsdk:"require_reason"`
-}
-
-type ApprovalModel struct {
-	Directory       *string               `json:"directory" tfsdk:"directory"`
-	Id              *string               `json:"id" tfsdk:"id"`
-	Integration     *string               `json:"integration" tfsdk:"integration"`
-	Label           *string               `json:"label" tfsdk:"label"`
-	ProfileProperty *string               `json:"profileProperty" tfsdk:"profile_property"`
-	Options         *ApprovalOptionsModel `json:"options" tfsdk:"options"`
-	Services        *[]string             `json:"services" tfsdk:"services"`
-	Type            string                `json:"type" tfsdk:"type"`
-}
-
-type RoutingRuleModel struct {
-	Requestor RequestorModel  `json:"requestor" tfsdk:"requestor"`
-	Resource  ResourceModel   `json:"resource" tfsdk:"resource"`
-	Approval  []ApprovalModel `json:"approval" tfsdk:"approval"`
-}
-
 type RoutingRulesModel struct {
 	Rule    []RoutingRuleModel `tfsdk:"rule"`
 	Version types.String       `tfsdk:"version"`
@@ -80,26 +37,25 @@ type RoutingRulesModel struct {
 // Need a separate representation for JSON data as version handling is different:
 // - In TF state, it may be present, unknown (during update), or null
 // - In JSON state, it is either present or null.
-type LatestRoutingRule struct {
+type LatestRoutingRules struct {
 	Rule    []RoutingRuleModel `json:"rules"`
 	Version *string            `json:"version"`
 }
 
 type WorkflowLatestApi struct {
-	Workflow LatestRoutingRule `json:"workflow"`
+	Workflow LatestRoutingRules `json:"workflow"`
 }
 
-type UpdateRoutingRule struct {
+type UpdateRoutingRules struct {
 	Rule []RoutingRuleModel `json:"rules"`
 }
 
 type WorkflowUpdateApi struct {
-	Workflow       UpdateRoutingRule `json:"workflow"`
-	CurrentVersion *string           `json:"currentVersion"`
+	Workflow       UpdateRoutingRules `json:"workflow"`
+	CurrentVersion *string            `json:"currentVersion"`
 }
 
-var False = false
-var DefaultRoutingRules = LatestRoutingRule{
+var defaultRoutingRules = LatestRoutingRules{
 	Rule: []RoutingRuleModel{{
 		Requestor: RequestorModel{Type: "any"},
 		Resource:  ResourceModel{Type: "any"},
@@ -312,7 +268,7 @@ func (r *RoutingRules) postVersion(ctx context.Context, model RoutingRulesModel,
 	}
 
 	// Convert the model to the API format
-	toUpdate := WorkflowUpdateApi{Workflow: UpdateRoutingRule{Rule: model.Rule}, CurrentVersion: currentVersionPtr}
+	toUpdate := WorkflowUpdateApi{Workflow: UpdateRoutingRules{Rule: model.Rule}, CurrentVersion: currentVersionPtr}
 
 	tflog.Debug(ctx, fmt.Sprintf("Updated routing rules: %+v", toUpdate))
 
@@ -357,7 +313,7 @@ func (r *RoutingRules) Create(ctx context.Context, req resource.CreateRequest, r
 	tflog.Debug(ctx, fmt.Sprintf("Current routing rules version: %s", *currentVersionPtr))
 
 	// Convert the model to the API format
-	toUpdate := WorkflowUpdateApi{Workflow: UpdateRoutingRule{Rule: model.Rule}, CurrentVersion: currentVersionPtr}
+	toUpdate := WorkflowUpdateApi{Workflow: UpdateRoutingRules{Rule: model.Rule}, CurrentVersion: currentVersionPtr}
 
 	tflog.Debug(ctx, fmt.Sprintf("Updated routing rules: %+v", toUpdate))
 
@@ -418,7 +374,7 @@ These rules allow all principals to request access to all resources, with manual
 	)
 
 	// Set workflow to default rules
-	data.Rule = DefaultRoutingRules.Rule
+	data.Rule = defaultRoutingRules.Rule
 
 	r.postVersion(ctx, data, &resp.Diagnostics, &resp.State)
 }
