@@ -50,7 +50,6 @@ type RoutingRuleModel struct {
 	Requestor RequestorModel  `json:"requestor" tfsdk:"requestor"`
 	Resource  ResourceModel   `json:"resource" tfsdk:"resource"`
 	Approval  []ApprovalModel `json:"approval" tfsdk:"approval"`
-	Version   *string         `json:"version" tfsdk:"version"`
 }
 
 var False = false
@@ -75,9 +74,9 @@ var routingRuleAttributes = map[string]schema.Attribute{
 				Optional:            true},
 			"type": schema.StringAttribute{
 				MarkdownDescription: `How P0 matches requestors:
-- 'any': Any requestor will match
-- 'group': Members of a directory group will match
-- 'user': Only match a single user`,
+    - 'any': Any requestor will match
+    - 'group': Members of a directory group will match
+    - 'user': Only match a single user`,
 				Required: true,
 			},
 			"uid": schema.StringAttribute{MarkdownDescription: `May only be used if 'type' is 'user'. This is the user's email address.`, Optional: true},
@@ -94,9 +93,9 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 					Attributes: map[string]schema.Attribute{
 						"effect": schema.StringAttribute{
 							MarkdownDescription: `The filter effect. May be one of:
-- 'keep': Access rule only applies to items matching this filter
-- 'remove': Access rule only applies to items _not_ matching this filter
-- 'removeAll': Access rule does not apply to any item with this filter key`,
+    - 'keep': Access rule only applies to items matching this filter
+    - 'remove': Access rule only applies to items _not_ matching this filter
+    - 'removeAll': Access rule does not apply to any item with this filter key`,
 							Required: true,
 						},
 						"key": schema.StringAttribute{
@@ -123,8 +122,8 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 			},
 			"type": schema.StringAttribute{
 				MarkdownDescription: `How P0 matches resources:
-- 'any': Any resource
-- 'integration': Only resources within a specified integration`,
+    - 'any': Any resource
+    - 'integration': Only resources within a specified integration`,
 				Required: true,
 			},
 		},
@@ -146,7 +145,7 @@ var routingRuleBlocks = map[string]schema.Block{
 				},
 				"integration": schema.StringAttribute{
 					MarkdownDescription: `May only be used if 'type' is 'auto' or 'escalation'. Possible values:
-- 'pagerduty': Access is granted if the requestor is on-call.`,
+    - 'pagerduty': Access is granted if the requestor is on-call.`,
 					Optional: true,
 				},
 				"label": schema.StringAttribute{
@@ -178,13 +177,13 @@ var routingRuleBlocks = map[string]schema.Block{
 				},
 				"type": schema.StringAttribute{
 					MarkdownDescription: `Determines trust requirements for access. If empty, access is disallowed. Except for 'deny', meeting any requirement is sufficient to grant access. Possible values:
-- 'auto': Access is granted according to the requirements of the specified 'integration'
-- 'deny': Access is always denied
-- 'escalation': Access may be approved by on-call members of the specified services, who are paged when access is manually escalated by the requestor
-- 'group': Access may be granted by any member of the defined directory group
-- 'persistent': Access is always granted
-- 'requestor-profile': Allows approval by a user specified by a field in the requestor's IDP profile
-- 'p0': Access may be granted by any user with the P0 "approver" role (defined in the P0 app)`,
+    - 'auto': Access is granted according to the requirements of the specified 'integration'
+    - 'deny': Access is always denied
+    - 'escalation': Access may be approved by on-call members of the specified services, who are paged when access is manually escalated by the requestor
+    - 'group': Access may be granted by any member of the defined directory group
+    - 'persistent': Access is always granted
+    - 'requestor-profile': Allows approval by a user specified by a field in the requestor's IDP profile
+    - 'p0': Access may be granted by any user with the P0 "approver" role (defined in the P0 app)`,
 					Required: true,
 				},
 			},

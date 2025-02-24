@@ -164,8 +164,8 @@ func (r *RoutingRules) Create(ctx context.Context, req resource.CreateRequest, r
 	var model RoutingRulesModel
 
 	// Load the data from the plan into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &model)...)
-	if resp.Diagnostics.HasError() {
+	diag.Append(req.Plan.Get(ctx, &model)...)
+	if diag.HasError() {
 		return
 	}
 
@@ -204,20 +204,22 @@ func (r *RoutingRules) Create(ctx context.Context, req resource.CreateRequest, r
 }
 
 func (r *RoutingRules) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var diag = &resp.Diagnostics
+
 	var data RoutingRulesModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
-	if resp.Diagnostics.HasError() {
+	diag.Append(req.State.Get(ctx, &data)...)
+	if diag.HasError() {
 		return
 	}
 
 	var latest WorkflowLatestApi
 	_, httpErr := r.data.Get("routing/latest", &latest)
 	if httpErr != nil {
-		resp.Diagnostics.AddError("Error communicating with P0", fmt.Sprintf("Unable to read routing rules, got error:\n%s", httpErr))
+		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to read routing rules, got error:\n%s", httpErr))
 		return
 	}
 
-	r.updateState(ctx, &resp.Diagnostics, &resp.State, data, latest)
+	r.updateState(ctx, diag, &resp.State, data, latest)
 
 	tflog.Debug(ctx, fmt.Sprintf("Reading latest workflow: %+v", latest))
 }
@@ -233,13 +235,15 @@ func (r *RoutingRules) Update(ctx context.Context, req resource.UpdateRequest, r
 }
 
 func (r *RoutingRules) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var diag = &resp.Diagnostics
+
 	var data RoutingRulesModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
-	if resp.Diagnostics.HasError() {
+	diag.Append(req.State.Get(ctx, &data)...)
+	if diag.HasError() {
 		return
 	}
 
-	resp.Diagnostics.AddWarning(
+	diag.AddWarning(
 		"Routing rules are not deleted",
 		`Routing rules can not be deleted. Deleting the routing_rules resource instead restores rules to the P0 default rules.
 These rules allow all principals to request access to all resources, with manual approval by P0 approvers.`,
@@ -248,7 +252,7 @@ These rules allow all principals to request access to all resources, with manual
 	// Set workflow to default rules
 	data.Rule = defaultRoutingRules.Rule
 
-	r.postVersion(ctx, data, &resp.Diagnostics, &resp.State)
+	r.postVersion(ctx, data, diag, &resp.State)
 }
 
 func (r *RoutingRules) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
