@@ -58,6 +58,7 @@ resource "p0_routing_rules" "example" {
 
 Required:
 
+- `name` (String) The name of the rule
 - `requestor` (Attributes) Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor). (see [below for nested schema](#nestedatt--rule--requestor))
 - `resource` (Attributes) Controls what is accessed. See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource). (see [below for nested schema](#nestedatt--rule--resource))
 
