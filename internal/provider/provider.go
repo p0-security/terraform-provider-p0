@@ -111,6 +111,7 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 
 func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		routingrules.NewRoutingRule,
 		routingrules.NewRoutingRules,
 		installaws.NewAwsIamWrite,
 		installaws.NewIamWriteStagedAws,
