@@ -34,6 +34,13 @@ type RoutingRulesModel struct {
 	Version types.String       `tfsdk:"version"`
 }
 
+type RoutingRuleModel struct {
+	Name      *string         `json:"name" tfsdk:"name"`
+	Requestor RequestorModel  `json:"requestor" tfsdk:"requestor"`
+	Resource  ResourceModel   `json:"resource" tfsdk:"resource"`
+	Approval  []ApprovalModel `json:"approval" tfsdk:"approval"`
+}
+
 // Need a separate representation for JSON data as version handling is different:
 // - In TF state, it may be present, unknown (during update), or null
 // - In JSON state, it is either present or null.
@@ -65,11 +72,11 @@ var defaultRoutingRules = LatestRoutingRules{
 	}},
 }
 
-func (r *RoutingRules) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (rules *RoutingRules) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_routing_rules"
 }
 
-func (r *RoutingRules) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (rules *RoutingRules) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
 		MarkdownDescription: `The rules that control who can request access to what, and access requirements.
@@ -78,8 +85,17 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 			"rule": schema.SetNestedBlock{
 				MarkdownDescription: "All access rules",
 				NestedObject: schema.NestedBlockObject{
-					Attributes: routingRuleAttributes,
-					Blocks:     routingRuleBlocks,
+					Attributes: map[string]schema.Attribute{
+						"name": schema.StringAttribute{
+							MarkdownDescription: "The name of the rule",
+							Required:            true,
+						},
+						"requestor": requestorAttributes,
+						"resource":  resourceAttributes,
+					},
+					Blocks: map[string]schema.Block{
+						"approval": approvalBlock,
+					},
 				},
 			},
 		},
@@ -93,16 +109,16 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 	}
 }
 
-func (r *RoutingRules) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (rules *RoutingRules) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	data := internal.Configure(&req, resp)
 	if data != nil {
-		r.data = data
+		rules.data = data
 	}
 }
 
 // Updates TF state based on current state and P0 routing-rules API response.
-func (r *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, data RoutingRulesModel, latest WorkflowLatestApi) {
+func (rules *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, data RoutingRulesModel, latest WorkflowLatestApi) {
 	if latest.Workflow.Version == nil {
 		diags.AddError("Missing routing rules version", "P0 did not return a version for routing rules; please report this to support@p0.dev.")
 		return
@@ -119,7 +135,7 @@ func (r *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnostics,
 
 // Posts a new routing-rules version to P0. This is used for update and delete.
 // Note that delete does not delete, but rather posts a default routing-rules set.
-func (r *RoutingRules) postVersion(ctx context.Context, model RoutingRulesModel, diag *diag.Diagnostics, state *tfsdk.State) {
+func (rules *RoutingRules) postVersion(ctx context.Context, model RoutingRulesModel, diag *diag.Diagnostics, state *tfsdk.State) {
 	tflog.Debug(ctx, fmt.Sprintf("Routing rules to update: %+v", model))
 
 	// Read the current routing rules from the Terraform state
@@ -146,7 +162,7 @@ func (r *RoutingRules) postVersion(ctx context.Context, model RoutingRulesModel,
 
 	// Update the routing rules
 	var updated WorkflowLatestApi
-	_, postErr := r.data.Post("routing", &toUpdate, &updated)
+	_, postErr := rules.data.Post("routing", &toUpdate, &updated)
 	if postErr != nil {
 		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to update routing rules, got error:\n%s", postErr))
 		return
@@ -155,10 +171,10 @@ func (r *RoutingRules) postVersion(ctx context.Context, model RoutingRulesModel,
 	tflog.Debug(ctx, fmt.Sprintf("Latest routing rules: %+v", updated))
 
 	// Update the Terraform state to reflect the updated routing rules
-	r.updateState(ctx, diag, state, model, updated)
+	rules.updateState(ctx, diag, state, model, updated)
 }
 
-func (r *RoutingRules) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (rules *RoutingRules) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var diag = &resp.Diagnostics
 
 	var model RoutingRulesModel
@@ -173,7 +189,7 @@ func (r *RoutingRules) Create(ctx context.Context, req resource.CreateRequest, r
 
 	// Even if we are replacing the rules, it is technically an update, so retrieve the current routing rules
 	var current WorkflowLatestApi
-	_, httpErr := r.data.Get("routing/latest", &current)
+	_, httpErr := rules.data.Get("routing/latest", &current)
 	if httpErr != nil {
 		resp.Diagnostics.AddError("Error communicating with P0", fmt.Sprintf("Unable to read routing rules, got error:\n%s", httpErr))
 		return
@@ -191,7 +207,7 @@ func (r *RoutingRules) Create(ctx context.Context, req resource.CreateRequest, r
 
 	// Update the routing rules
 	var updated WorkflowLatestApi
-	_, postErr := r.data.Post("routing", &toUpdate, &updated)
+	_, postErr := rules.data.Post("routing", &toUpdate, &updated)
 	if postErr != nil {
 		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to update routing rules, got error:\n%s", postErr))
 		return
@@ -200,10 +216,10 @@ func (r *RoutingRules) Create(ctx context.Context, req resource.CreateRequest, r
 	tflog.Debug(ctx, fmt.Sprintf("Latest routing rules: %+v", updated))
 
 	// Update the Terraform state to reflect the newly created routing rules
-	r.updateState(ctx, diag, &resp.State, model, updated)
+	rules.updateState(ctx, diag, &resp.State, model, updated)
 }
 
-func (r *RoutingRules) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (rules *RoutingRules) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var diag = &resp.Diagnostics
 
 	var data RoutingRulesModel
@@ -213,28 +229,28 @@ func (r *RoutingRules) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 
 	var latest WorkflowLatestApi
-	_, httpErr := r.data.Get("routing/latest", &latest)
+	_, httpErr := rules.data.Get("routing/latest", &latest)
 	if httpErr != nil {
 		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to read routing rules, got error:\n%s", httpErr))
 		return
 	}
 
-	r.updateState(ctx, diag, &resp.State, data, latest)
+	rules.updateState(ctx, diag, &resp.State, data, latest)
 
 	tflog.Debug(ctx, fmt.Sprintf("Reading latest workflow: %+v", latest))
 }
 
-func (r *RoutingRules) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (rules *RoutingRules) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data RoutingRulesModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	r.postVersion(ctx, data, &resp.Diagnostics, &resp.State)
+	rules.postVersion(ctx, data, &resp.Diagnostics, &resp.State)
 }
 
-func (r *RoutingRules) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (rules *RoutingRules) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var diag = &resp.Diagnostics
 
 	var data RoutingRulesModel
@@ -252,9 +268,9 @@ These rules allow all principals to request access to all resources, with manual
 	// Set workflow to default rules
 	data.Rule = defaultRoutingRules.Rule
 
-	r.postVersion(ctx, data, diag, &resp.State)
+	rules.postVersion(ctx, data, diag, &resp.State)
 }
 
-func (r *RoutingRules) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (rules *RoutingRules) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("version"), req, resp)
 }
