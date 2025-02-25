@@ -97,14 +97,12 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 			},
 			"requestor": requestorAttributes,
 			"resource":  resourceAttributes,
+			"approval":  approvalAttribute,
 			"version": schema.StringAttribute{
 				Computed:            true,
 				Optional:            true,
 				MarkdownDescription: "Routing rule version",
 			},
-		},
-		Blocks: map[string]schema.Block{
-			"approval": approvalBlock,
 		},
 	}
 }
