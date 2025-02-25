@@ -118,9 +118,10 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 	},
 }
 
-var approvalBlock = schema.ListNestedBlock{
+var approvalAttribute = schema.ListNestedAttribute{
 	MarkdownDescription: `Determines access requirements. See [the Approval docs](https://docs.p0.dev/just-in-time-access/request-routing#approval).`,
-	NestedObject: schema.NestedBlockObject{
+	Required:            true,
+	NestedObject: schema.NestedAttributeObject{
 		Attributes: map[string]schema.Attribute{
 			"directory": schema.StringAttribute{
 				MarkdownDescription: `May only be used if 'type' is 'group' or 'requestor-profile'. One of "azure-ad", "okta", or "workspace".`,
@@ -132,7 +133,7 @@ var approvalBlock = schema.ListNestedBlock{
 			},
 			"integration": schema.StringAttribute{
 				MarkdownDescription: `May only be used if 'type' is 'auto' or 'escalation'. Possible values:
-    - 'pagerduty': Access is granted if the requestor is on-call.`,
+- 'pagerduty': Access is granted if the requestor is on-call.`,
 				Optional: true,
 			},
 			"label": schema.StringAttribute{
