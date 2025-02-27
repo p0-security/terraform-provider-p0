@@ -34,13 +34,6 @@ type RoutingRulesModel struct {
 	Version types.String       `tfsdk:"version"`
 }
 
-type RoutingRuleModel struct {
-	Name      *string         `json:"name" tfsdk:"name"`
-	Requestor RequestorModel  `json:"requestor" tfsdk:"requestor"`
-	Resource  ResourceModel   `json:"resource" tfsdk:"resource"`
-	Approval  []ApprovalModel `json:"approval" tfsdk:"approval"`
-}
-
 // Need a separate representation for JSON data as version handling is different:
 // - In TF state, it may be present, unknown (during update), or null
 // - In JSON state, it is either present or null.
@@ -64,8 +57,8 @@ type WorkflowUpdateApi struct {
 
 var defaultRoutingRules = LatestRoutingRules{
 	Rule: []RoutingRuleModel{{
-		Requestor: RequestorModel{Type: "any"},
-		Resource:  ResourceModel{Type: "any"},
+		Requestor: &RequestorModel{Type: "any"},
+		Resource:  &ResourceModel{Type: "any"},
 		Approval: []ApprovalModel{{
 			Type:    "p0",
 			Options: &ApprovalOptionsModel{AllowOneParty: &False, RequireReason: &False}}},
@@ -90,8 +83,8 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 							MarkdownDescription: "The name of the rule",
 							Required:            true,
 						},
-						"requestor": requestorAttributes,
-						"resource":  resourceAttributes,
+						"requestor": requestorAttribute,
+						"resource":  resourceAttribute,
 						"approval":  approvalAttribute,
 					},
 				},

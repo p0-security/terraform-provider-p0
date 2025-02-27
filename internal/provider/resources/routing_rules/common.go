@@ -45,9 +45,16 @@ type ApprovalModel struct {
 	Type            string                `json:"type" tfsdk:"type"`
 }
 
+type RoutingRuleModel struct {
+	Name      *string         `json:"name" tfsdk:"name"`
+	Requestor *RequestorModel `json:"requestor" tfsdk:"requestor"`
+	Resource  *ResourceModel  `json:"resource" tfsdk:"resource"`
+	Approval  []ApprovalModel `json:"approval" tfsdk:"approval"`
+}
+
 var False = false
 
-var requestorAttributes = schema.SingleNestedAttribute{
+var requestorAttribute = schema.SingleNestedAttribute{
 	Required:            true,
 	MarkdownDescription: `Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor).`,
 	Attributes: map[string]schema.Attribute{
@@ -71,7 +78,7 @@ var requestorAttributes = schema.SingleNestedAttribute{
 	},
 }
 
-var resourceAttributes = schema.SingleNestedAttribute{
+var resourceAttribute = schema.SingleNestedAttribute{
 	Required:            true,
 	MarkdownDescription: `Controls what is accessed. See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource).`,
 	Attributes: map[string]schema.Attribute{

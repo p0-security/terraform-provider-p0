@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/p0-security/terraform-provider-p0/internal"
 )
@@ -26,14 +25,6 @@ type RoutingRule struct {
 	data *internal.P0ProviderData
 }
 
-type VersionedRoutingRuleModel struct {
-	Name      *string         `json:"name" tfsdk:"name"`
-	Requestor *RequestorModel `json:"requestor" tfsdk:"requestor"`
-	Resource  *ResourceModel  `json:"resource" tfsdk:"resource"`
-	Approval  []ApprovalModel `json:"approval" tfsdk:"approval"`
-	Version   types.String    `json:"version" tfsdk:"version"`
-}
-
 // Need a separate representation for JSON data as version handling is different:
 // - In TF state, it may be present, unknown (during update), or null
 // - In JSON state, it is either present or null.
@@ -42,11 +33,10 @@ type RoutingRuleJson struct {
 	Requestor RequestorModel  `json:"requestor" tfsdk:"requestor"`
 	Resource  ResourceModel   `json:"resource" tfsdk:"resource"`
 	Approval  []ApprovalModel `json:"approval" tfsdk:"approval"`
-	Version   *string         `json:"version" tfsdk:"version"`
 }
 
 type UpdateRoutingRule struct {
-	Rule VersionedRoutingRuleModel `json:"rule"`
+	Rule RoutingRuleModel `json:"rule"`
 }
 
 func NewRoutingRule() resource.Resource {
@@ -58,23 +48,20 @@ func getPath(name string) string {
 	return fmt.Sprintf("routing/name/%s", encodedName)
 }
 
-func toJson(model VersionedRoutingRuleModel, version *string) RoutingRuleJson {
+func toJson(model RoutingRuleModel) RoutingRuleJson {
 	return RoutingRuleJson{
 		Name:      model.Name,
 		Requestor: *model.Requestor,
 		Resource:  *model.Resource,
-		Approval:  model.Approval,
-		Version:   version,
-	}
+		Approval:  model.Approval}
 }
 
-func toModel(json RoutingRuleJson) VersionedRoutingRuleModel {
-	return VersionedRoutingRuleModel{
+func toModel(json RoutingRuleJson) RoutingRuleModel {
+	return RoutingRuleModel{
 		Name:      json.Name,
 		Requestor: &json.Requestor,
 		Resource:  &json.Resource,
 		Approval:  json.Approval,
-		Version:   types.StringValue(*json.Version),
 	}
 }
 
@@ -95,14 +82,9 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"requestor": requestorAttributes,
-			"resource":  resourceAttributes,
+			"requestor": requestorAttribute,
+			"resource":  resourceAttribute,
 			"approval":  approvalAttribute,
-			"version": schema.StringAttribute{
-				Computed:            true,
-				Optional:            true,
-				MarkdownDescription: "Routing rule version",
-			},
 		},
 	}
 }
@@ -119,7 +101,7 @@ func (rule *RoutingRule) Create(ctx context.Context, req resource.CreateRequest,
 	var diag = &resp.Diagnostics
 
 	// Load the plan into the model
-	var model VersionedRoutingRuleModel
+	var model RoutingRuleModel
 	diag.Append(req.Plan.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -128,7 +110,7 @@ func (rule *RoutingRule) Create(ctx context.Context, req resource.CreateRequest,
 	tflog.Debug(ctx, fmt.Sprintf("Routing rule to create: %+v", model))
 
 	// Create the routing rule
-	var updated VersionedRoutingRuleModel
+	var updated RoutingRuleModel
 	_, postErr := rule.data.Post(getPath(*model.Name), &model, &updated)
 	if postErr != nil {
 		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to create routing rule:\n%s", postErr))
@@ -138,6 +120,7 @@ func (rule *RoutingRule) Create(ctx context.Context, req resource.CreateRequest,
 	tflog.Debug(ctx, fmt.Sprintf("Latest routing rule: %+v", updated))
 
 	// Update the Terraform state to reflect the newly created routing rule
+	diag.Append(resp.State.SetAttribute(ctx, path.Root("name"), updated.Name)...)
 	diag.Append(resp.State.Set(ctx, updated)...)
 }
 
@@ -145,7 +128,7 @@ func (rule *RoutingRule) Read(ctx context.Context, req resource.ReadRequest, res
 	var diag = &resp.Diagnostics
 
 	// Load the state into the model
-	var model VersionedRoutingRuleModel
+	var model RoutingRuleModel
 	diag.Append(req.State.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -170,6 +153,7 @@ func (rule *RoutingRule) Read(ctx context.Context, req resource.ReadRequest, res
 	model = toModel(json)
 
 	// Update the Terraform state to match the routing rule returned by the API
+	diag.Append(resp.State.SetAttribute(ctx, path.Root("name"), model.Name)...)
 	diag.Append(resp.State.Set(ctx, model)...)
 
 	tflog.Debug(ctx, fmt.Sprintf("Reading routing rule: %+v", model))
@@ -179,7 +163,7 @@ func (rule *RoutingRule) Update(ctx context.Context, req resource.UpdateRequest,
 	var diag = &resp.Diagnostics
 
 	// Load the plan into the model
-	var model VersionedRoutingRuleModel
+	var model RoutingRuleModel
 	diag.Append(req.Plan.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -188,7 +172,7 @@ func (rule *RoutingRule) Update(ctx context.Context, req resource.UpdateRequest,
 	tflog.Debug(ctx, fmt.Sprintf("Routing rule to update: %+v", model))
 
 	// Read the current routing rule from the Terraform state
-	var currentModel VersionedRoutingRuleModel
+	var currentModel RoutingRuleModel
 	diag.Append(req.State.Get(ctx, &currentModel)...)
 	if diag.HasError() {
 		return
@@ -196,14 +180,7 @@ func (rule *RoutingRule) Update(ctx context.Context, req resource.UpdateRequest,
 
 	tflog.Debug(ctx, fmt.Sprintf("Current routing rule state: %+v", currentModel))
 
-	// Grab the current version number from the model
-	var currentVersionPtr *string
-	if !currentModel.Version.IsUnknown() && !currentModel.Version.IsNull() {
-		currentVersion := currentModel.Version.ValueString()
-		currentVersionPtr = &currentVersion
-	}
-
-	json := toJson(model, currentVersionPtr)
+	json := toJson(model)
 
 	// Update the routing rule
 	var updatedJson RoutingRuleJson
@@ -218,6 +195,7 @@ func (rule *RoutingRule) Update(ctx context.Context, req resource.UpdateRequest,
 	updatedModel := toModel(updatedJson)
 
 	// Update the Terraform state to reflect the updated routing rule
+	diag.Append(resp.State.SetAttribute(ctx, path.Root("name"), updatedModel.Name)...)
 	diag.Append(resp.State.Set(ctx, updatedModel)...)
 }
 
@@ -225,7 +203,7 @@ func (rule *RoutingRule) Delete(ctx context.Context, req resource.DeleteRequest,
 	var diag = &resp.Diagnostics
 
 	// Load the state into the model
-	var model VersionedRoutingRuleModel
+	var model RoutingRuleModel
 	diag.Append(req.State.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
