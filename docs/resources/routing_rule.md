@@ -53,10 +53,6 @@ resource "p0_routing_rule" "example" {
 - `requestor` (Attributes) Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor). (see [below for nested schema](#nestedatt--requestor))
 - `resource` (Attributes) Controls what is accessed. See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource). (see [below for nested schema](#nestedatt--resource))
 
-### Optional
-
-- `version` (String) Routing rule version
-
 <a id="nestedatt--approval"></a>
 ### Nested Schema for `approval`
 
