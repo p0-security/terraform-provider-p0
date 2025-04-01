@@ -17,10 +17,12 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 ```terraform
 resource "p0_routing_rule" "example" {
   requestor = {
-    type      = "group"
-    directory = "okta"
-    id        = "00abcdefghijklmno697"
-    label     = "AWS Developers"
+    type = "group"
+    groups = [{
+      directory = "okta"
+      id        = "00abcdefghijklmno697"
+      label     = "AWS Developers"
+    }]
   }
   resource = {
     type    = "integration"
@@ -69,14 +71,26 @@ Required:
 
 Optional:
 
-- `directory` (String) May only be used if 'type' is 'group' or 'requestor-profile'. One of "azure-ad", "okta", or "workspace".
-- `id` (String) May only be used if 'type' is 'group'. This is the directory's internal group identifier for matching approvers.
+- `directory` (String) May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "okta", or "workspace".
+- `groups` (Attributes List) May only be used if 'type' is 'group'. This is the list of groups that the approver must be a member of to match. (see [below for nested schema](#nestedatt--approval--groups))
 - `integration` (String) May only be used if 'type' is 'auto' or 'escalation'. Possible values:
 - 'pagerduty': Access is granted if the requestor is on-call.
-- `label` (String) May only be used if 'type' is 'group'. This is any human-readable name for the directory group specified in the 'id' attribute.
 - `options` (Attributes) If present, determines additional trust requirements. (see [below for nested schema](#nestedatt--approval--options))
 - `profile_property` (String) May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.
 - `services` (List of String) May only be used if 'type' is 'escalation'. Defines which services to page on escalation.
+
+<a id="nestedatt--approval--groups"></a>
+### Nested Schema for `approval.groups`
+
+Required:
+
+- `directory` (String) One of "azure-ad", "okta", or "workspace".
+- `id` (String) This is the directory's internal group identifier for matching approvers.
+
+Optional:
+
+- `label` (String) This is any human-readable name for the directory group specified in the 'id' attribute.
+
 
 <a id="nestedatt--approval--options"></a>
 ### Nested Schema for `approval.options`
@@ -100,10 +114,21 @@ Required:
 
 Optional:
 
-- `directory` (String) May only be used if 'type' is 'group'. One of "azure-ad", "okta", or "workspace".
-- `id` (String) May only be used if 'type' is 'group'. This is the directory's internal group identifier for matching requestors.
-- `label` (String) May only be used if 'type' is 'group'. This is any human-readable name for the directory group specified in the 'id' attribute.
+- `groups` (Attributes List) May only be used if 'type' is 'group'. This is the list of groups that the requestor must be a member of to match. (see [below for nested schema](#nestedatt--requestor--groups))
 - `uid` (String) May only be used if 'type' is 'user'. This is the user's email address.
+
+<a id="nestedatt--requestor--groups"></a>
+### Nested Schema for `requestor.groups`
+
+Required:
+
+- `directory` (String) One of "azure-ad", "okta", or "workspace".
+- `id` (String) This is the directory's internal group identifier for matching approvers.
+
+Optional:
+
+- `label` (String) This is any human-readable name for the directory group specified in the 'id' attribute.
+
 
 
 <a id="nestedatt--resource"></a>

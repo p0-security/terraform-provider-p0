@@ -8,12 +8,16 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-type RequestorModel struct {
+type GroupModel struct {
 	Directory *string `json:"directory" tfsdk:"directory"`
 	Id        *string `json:"id" tfsdk:"id"`
 	Label     *string `json:"label" tfsdk:"label"`
-	Type      string  `json:"type" tfsdk:"type"`
-	Uid       *string `json:"uid" tfsdk:"uid"`
+}
+
+type RequestorModel struct {
+	Type   string       `json:"type" tfsdk:"type"`
+	Groups []GroupModel `json:"groups" tfsdk:"groups"`
+	Uid    *string      `json:"uid" tfsdk:"uid"`
 }
 
 type ResourceFilterModel struct {
@@ -36,9 +40,8 @@ type ApprovalOptionsModel struct {
 
 type ApprovalModel struct {
 	Directory       *string               `json:"directory" tfsdk:"directory"`
-	Id              *string               `json:"id" tfsdk:"id"`
 	Integration     *string               `json:"integration" tfsdk:"integration"`
-	Label           *string               `json:"label" tfsdk:"label"`
+	Groups          []GroupModel          `json:"groups" tfsdk:"groups"`
 	ProfileProperty *string               `json:"profileProperty" tfsdk:"profile_property"`
 	Options         *ApprovalOptionsModel `json:"options" tfsdk:"options"`
 	Services        *[]string             `json:"services" tfsdk:"services"`
@@ -54,19 +57,32 @@ type RoutingRuleModel struct {
 
 var False = false
 
+var groupAttribute = schema.NestedAttributeObject{
+	Attributes: map[string]schema.Attribute{
+		"directory": schema.StringAttribute{
+			MarkdownDescription: `One of "azure-ad", "okta", or "workspace".`,
+			Required:            true,
+		},
+		"id": schema.StringAttribute{
+			MarkdownDescription: `This is the directory's internal group identifier for matching approvers.`,
+			Required:            true,
+		},
+		"label": schema.StringAttribute{
+			MarkdownDescription: `This is any human-readable name for the directory group specified in the 'id' attribute.`,
+			Optional:            true,
+		},
+	},
+}
+
 var requestorAttribute = schema.SingleNestedAttribute{
 	Required:            true,
 	MarkdownDescription: `Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor).`,
 	Attributes: map[string]schema.Attribute{
-		"directory": schema.StringAttribute{
-			MarkdownDescription: `May only be used if 'type' is 'group'. One of "azure-ad", "okta", or "workspace".`,
-			Optional:            true},
-		"id": schema.StringAttribute{
-			MarkdownDescription: `May only be used if 'type' is 'group'. This is the directory's internal group identifier for matching requestors.`,
-			Optional:            true},
-		"label": schema.StringAttribute{
-			MarkdownDescription: `May only be used if 'type' is 'group'. This is any human-readable name for the directory group specified in the 'id' attribute.`,
-			Optional:            true},
+		"groups": schema.ListNestedAttribute{
+			MarkdownDescription: `May only be used if 'type' is 'group'. This is the list of groups that the requestor must be a member of to match.`,
+			Optional:            true,
+			NestedObject:        groupAttribute,
+		},
 		"type": schema.StringAttribute{
 			MarkdownDescription: `How P0 matches requestors:
     - 'any': Any requestor will match
@@ -131,11 +147,7 @@ var approvalAttribute = schema.ListNestedAttribute{
 	NestedObject: schema.NestedAttributeObject{
 		Attributes: map[string]schema.Attribute{
 			"directory": schema.StringAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'group' or 'requestor-profile'. One of "azure-ad", "okta", or "workspace".`,
-				Optional:            true,
-			},
-			"id": schema.StringAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'group'. This is the directory's internal group identifier for matching approvers.`,
+				MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "okta", or "workspace".`,
 				Optional:            true,
 			},
 			"integration": schema.StringAttribute{
@@ -143,9 +155,10 @@ var approvalAttribute = schema.ListNestedAttribute{
 - 'pagerduty': Access is granted if the requestor is on-call.`,
 				Optional: true,
 			},
-			"label": schema.StringAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'group'. This is any human-readable name for the directory group specified in the 'id' attribute.`,
+			"groups": schema.ListNestedAttribute{
+				MarkdownDescription: `May only be used if 'type' is 'group'. This is the list of groups that the approver must be a member of to match.`,
 				Optional:            true,
+				NestedObject:        groupAttribute,
 			},
 			"options": schema.SingleNestedAttribute{
 				MarkdownDescription: `If present, determines additional trust requirements.`,
