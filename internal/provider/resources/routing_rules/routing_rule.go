@@ -20,6 +20,7 @@ import (
 // Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.Resource = &RoutingRule{}
 var _ resource.ResourceWithImportState = &RoutingRule{}
+var _ resource.ResourceWithUpgradeState = &RoutingRule{}
 
 type RoutingRule struct {
 	data *internal.P0ProviderData
@@ -65,12 +66,9 @@ func toModel(json RoutingRuleJson) RoutingRuleModel {
 	}
 }
 
-func (rule *RoutingRule) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_routing_rule"
-}
-
-func (rule *RoutingRule) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{
+func newSingleRuleSchema(version int64) schema.Schema {
+	return schema.Schema{
+		Version: currentSchemaVersion,
 		// This description is used by the documentation generator and the language server.
 		MarkdownDescription: `A routing rule that controls who can request access to what, and access requirements.
 See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/request-routing).`,
@@ -82,11 +80,19 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"requestor": requestorAttribute,
+			"requestor": requestorAttribute(version),
 			"resource":  resourceAttribute,
-			"approval":  approvalAttribute,
+			"approval":  approvalAttribute(version),
 		},
 	}
+}
+
+func (rule *RoutingRule) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_routing_rule"
+}
+
+func (rule *RoutingRule) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = newSingleRuleSchema(currentSchemaVersion)
 }
 
 func (rule *RoutingRule) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -218,4 +224,16 @@ func (rule *RoutingRule) Delete(ctx context.Context, req resource.DeleteRequest,
 
 func (rule *RoutingRule) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("name"), req, resp)
+}
+
+func (rule *RoutingRule) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	var schemaV0 = newSingleRuleSchema(0)
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema: &schemaV0,
+			StateUpgrader: func(context.Context, resource.UpgradeStateRequest, *resource.UpgradeStateResponse) {
+				// No-op
+			},
+		},
+	}
 }

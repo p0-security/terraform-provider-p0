@@ -55,43 +55,26 @@ type RoutingRuleModel struct {
 	Approval  []ApprovalModel `json:"approval" tfsdk:"approval"`
 }
 
+const currentSchemaVersion int64 = 1
+
 var False = false
 
-var groupAttribute = schema.NestedAttributeObject{
-	Attributes: map[string]schema.Attribute{
-		"directory": schema.StringAttribute{
-			MarkdownDescription: `One of "azure-ad", "okta", or "workspace".`,
-			Required:            true,
-		},
-		"id": schema.StringAttribute{
-			MarkdownDescription: `This is the directory's internal group identifier for matching approvers.`,
-			Required:            true,
-		},
-		"label": schema.StringAttribute{
-			MarkdownDescription: `This is any human-readable name for the directory group specified in the 'id' attribute.`,
-			Optional:            true,
-		},
-	},
-}
-
-var requestorAttribute = schema.SingleNestedAttribute{
-	Required:            true,
-	MarkdownDescription: `Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor).`,
-	Attributes: map[string]schema.Attribute{
-		"groups": schema.ListNestedAttribute{
-			MarkdownDescription: `May only be used if 'type' is 'group'. This is the list of groups that the requestor must be a member of to match.`,
-			Optional:            true,
-			NestedObject:        groupAttribute,
-		},
-		"type": schema.StringAttribute{
-			MarkdownDescription: `How P0 matches requestors:
-    - 'any': Any requestor will match
-    - 'group': Members of a directory group will match
-    - 'user': Only match a single user`,
-			Required: true,
-		},
-		"uid": schema.StringAttribute{MarkdownDescription: `May only be used if 'type' is 'user'. This is the user's email address.`, Optional: true},
-	},
+func requestorAttribute(version int64) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Required:            true,
+		MarkdownDescription: `Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor).`,
+		Attributes: AttachGroupAttributes(version,
+			map[string]schema.Attribute{
+				"type": schema.StringAttribute{
+					MarkdownDescription: `How P0 matches requestors:
+			- 'any': Any requestor will match
+			- 'group': Members of a directory group will match
+			- 'user': Only match a single user`,
+					Required: true,
+				},
+				"uid": schema.StringAttribute{MarkdownDescription: `May only be used if 'type' is 'user'. This is the user's email address.`, Optional: true},
+			}),
+	}
 }
 
 var resourceAttribute = schema.SingleNestedAttribute{
@@ -141,50 +124,46 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 	},
 }
 
-var approvalAttribute = schema.ListNestedAttribute{
-	MarkdownDescription: `Determines access requirements. See [the Approval docs](https://docs.p0.dev/just-in-time-access/request-routing#approval).`,
-	Required:            true,
-	NestedObject: schema.NestedAttributeObject{
-		Attributes: map[string]schema.Attribute{
-			"directory": schema.StringAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "okta", or "workspace".`,
-				Optional:            true,
-			},
-			"integration": schema.StringAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'auto' or 'escalation'. Possible values:
-- 'pagerduty': Access is granted if the requestor is on-call.`,
-				Optional: true,
-			},
-			"groups": schema.ListNestedAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'group'. This is the list of groups that the approver must be a member of to match.`,
-				Optional:            true,
-				NestedObject:        groupAttribute,
-			},
-			"options": schema.SingleNestedAttribute{
-				MarkdownDescription: `If present, determines additional trust requirements.`,
-				Attributes: map[string]schema.Attribute{
-					"allow_one_party": schema.BoolAttribute{
-						MarkdownDescription: `If true, allows requestors to approve their own requests.`,
-						Optional:            true,
-					},
-					"require_reason": schema.BoolAttribute{
-						MarkdownDescription: `If true, requires access requests to include a reason.`,
-						Optional:            true,
-					},
+func approvalAttribute(version int64) schema.ListNestedAttribute {
+	return schema.ListNestedAttribute{
+		MarkdownDescription: `Determines access requirements. See [the Approval docs](https://docs.p0.dev/just-in-time-access/request-routing#approval).`,
+		Required:            true,
+		NestedObject: schema.NestedAttributeObject{
+			Attributes: AttachGroupAttributes(version, map[string]schema.Attribute{
+				"directory": schema.StringAttribute{
+					MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "okta", or "workspace".`,
+					Optional:            true,
 				},
-				Optional: true,
-			},
-			"profile_property": schema.StringAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.`,
-				Optional:            true,
-			},
-			"services": schema.ListAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'escalation'. Defines which services to page on escalation.`,
-				ElementType:         types.StringType,
-				Optional:            true,
-			},
-			"type": schema.StringAttribute{
-				MarkdownDescription: `Determines trust requirements for access. If empty, access is disallowed. Except for 'deny', meeting any requirement is sufficient to grant access. Possible values:
+				"integration": schema.StringAttribute{
+					MarkdownDescription: `May only be used if 'type' is 'auto' or 'escalation'. Possible values:
+- 'pagerduty': Access is granted if the requestor is on-call.`,
+					Optional: true,
+				},
+				"options": schema.SingleNestedAttribute{
+					MarkdownDescription: `If present, determines additional trust requirements.`,
+					Attributes: map[string]schema.Attribute{
+						"allow_one_party": schema.BoolAttribute{
+							MarkdownDescription: `If true, allows requestors to approve their own requests.`,
+							Optional:            true,
+						},
+						"require_reason": schema.BoolAttribute{
+							MarkdownDescription: `If true, requires access requests to include a reason.`,
+							Optional:            true,
+						},
+					},
+					Optional: true,
+				},
+				"profile_property": schema.StringAttribute{
+					MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.`,
+					Optional:            true,
+				},
+				"services": schema.ListAttribute{
+					MarkdownDescription: `May only be used if 'type' is 'escalation'. Defines which services to page on escalation.`,
+					ElementType:         types.StringType,
+					Optional:            true,
+				},
+				"type": schema.StringAttribute{
+					MarkdownDescription: `Determines trust requirements for access. If empty, access is disallowed. Except for 'deny', meeting any requirement is sufficient to grant access. Possible values:
     - 'auto': Access is granted according to the requirements of the specified 'integration'
     - 'deny': Access is always denied
     - 'escalation': Access may be approved by on-call members of the specified services, who are paged when access is manually escalated by the requestor
@@ -192,8 +171,9 @@ var approvalAttribute = schema.ListNestedAttribute{
     - 'persistent': Access is always granted
     - 'requestor-profile': Allows approval by a user specified by a field in the requestor's IDP profile
     - 'p0': Access may be granted by any user with the P0 "approver" role (defined in the P0 app)`,
-				Required: true,
-			},
+					Required: true,
+				},
+			}),
 		},
-	},
+	}
 }

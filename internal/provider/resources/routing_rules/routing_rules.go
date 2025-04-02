@@ -65,12 +65,8 @@ var defaultRoutingRules = LatestRoutingRules{
 	}},
 }
 
-func (rules *RoutingRules) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_routing_rules"
-}
-
-func (rules *RoutingRules) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{
+func newMultiRuleSchema(version int64) schema.Schema {
+	return schema.Schema{
 		// This description is used by the documentation generator and the language server.
 		MarkdownDescription: `The rules that control who can request access to what, and access requirements.
 See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/request-routing).`,
@@ -83,9 +79,9 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 							MarkdownDescription: "The name of the rule",
 							Required:            true,
 						},
-						"requestor": requestorAttribute,
+						"requestor": requestorAttribute(version),
 						"resource":  resourceAttribute,
-						"approval":  approvalAttribute,
+						"approval":  approvalAttribute(version),
 					},
 				},
 			},
@@ -98,6 +94,14 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 			},
 		},
 	}
+}
+
+func (rules *RoutingRules) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_routing_rules"
+}
+
+func (rules *RoutingRules) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = newMultiRuleSchema(currentSchemaVersion)
 }
 
 func (rules *RoutingRules) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
