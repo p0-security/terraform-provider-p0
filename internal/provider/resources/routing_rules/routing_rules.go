@@ -30,16 +30,16 @@ type RoutingRules struct {
 }
 
 type RoutingRulesModel struct {
-	Rule    []RoutingRuleModel `tfsdk:"rule"`
-	Version types.String       `tfsdk:"version"`
+	Rule    []RoutingRuleModelV1 `tfsdk:"rule"`
+	Version types.String         `tfsdk:"version"`
 }
 
 // Need a separate representation for JSON data as version handling is different:
 // - In TF state, it may be present, unknown (during update), or null
 // - In JSON state, it is either present or null.
 type LatestRoutingRules struct {
-	Rule    []RoutingRuleModel `json:"rules"`
-	Version *string            `json:"version"`
+	Rule    []RoutingRuleModelV1 `json:"rules"`
+	Version *string              `json:"version"`
 }
 
 type WorkflowLatestApi struct {
@@ -47,7 +47,7 @@ type WorkflowLatestApi struct {
 }
 
 type UpdateRoutingRules struct {
-	Rule []RoutingRuleModel `json:"rules"`
+	Rule []RoutingRuleModelV1 `json:"rules"`
 }
 
 type WorkflowUpdateApi struct {
@@ -56,10 +56,10 @@ type WorkflowUpdateApi struct {
 }
 
 var defaultRoutingRules = LatestRoutingRules{
-	Rule: []RoutingRuleModel{{
-		Requestor: &RequestorModel{Type: "any"},
+	Rule: []RoutingRuleModelV1{{
+		Requestor: &RequestorModelV1{Type: "any"},
 		Resource:  &ResourceModel{Type: "any"},
-		Approval: []ApprovalModel{{
+		Approval: []ApprovalModelV1{{
 			Type:    "p0",
 			Options: &ApprovalOptionsModel{AllowOneParty: &False, RequireReason: &False}}},
 	}},

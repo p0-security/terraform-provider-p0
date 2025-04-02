@@ -8,16 +8,24 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-type GroupModel struct {
+type GroupModelV1 struct {
 	Directory *string `json:"directory" tfsdk:"directory"`
 	Id        *string `json:"id" tfsdk:"id"`
 	Label     *string `json:"label" tfsdk:"label"`
 }
 
-type RequestorModel struct {
-	Type   string       `json:"type" tfsdk:"type"`
-	Groups []GroupModel `json:"groups" tfsdk:"groups"`
-	Uid    *string      `json:"uid" tfsdk:"uid"`
+type RequestorModelV0 struct {
+	Directory *string `json:"directory" tfsdk:"directory"`
+	Id        *string `json:"id" tfsdk:"id"`
+	Label     *string `json:"label" tfsdk:"label"`
+	Type      string  `json:"type" tfsdk:"type"`
+	Uid       *string `json:"uid" tfsdk:"uid"`
+}
+
+type RequestorModelV1 struct {
+	Type   string         `json:"type" tfsdk:"type"`
+	Groups []GroupModelV1 `json:"groups" tfsdk:"groups"`
+	Uid    *string        `json:"uid" tfsdk:"uid"`
 }
 
 type ResourceFilterModel struct {
@@ -38,21 +46,39 @@ type ApprovalOptionsModel struct {
 	RequireReason *bool `json:"requireReason" tfsdk:"require_reason"`
 }
 
-type ApprovalModel struct {
+type ApprovalModelV0 struct {
 	Directory       *string               `json:"directory" tfsdk:"directory"`
+	Id              *string               `json:"id" tfsdk:"id"`
 	Integration     *string               `json:"integration" tfsdk:"integration"`
-	Groups          []GroupModel          `json:"groups" tfsdk:"groups"`
+	Label           *string               `json:"label" tfsdk:"label"`
 	ProfileProperty *string               `json:"profileProperty" tfsdk:"profile_property"`
 	Options         *ApprovalOptionsModel `json:"options" tfsdk:"options"`
 	Services        *[]string             `json:"services" tfsdk:"services"`
 	Type            string                `json:"type" tfsdk:"type"`
 }
 
-type RoutingRuleModel struct {
-	Name      *string         `json:"name" tfsdk:"name"`
-	Requestor *RequestorModel `json:"requestor" tfsdk:"requestor"`
-	Resource  *ResourceModel  `json:"resource" tfsdk:"resource"`
-	Approval  []ApprovalModel `json:"approval" tfsdk:"approval"`
+type ApprovalModelV1 struct {
+	Directory       *string               `json:"directory" tfsdk:"directory"`
+	Integration     *string               `json:"integration" tfsdk:"integration"`
+	Groups          []GroupModelV1        `json:"groups" tfsdk:"groups"`
+	ProfileProperty *string               `json:"profileProperty" tfsdk:"profile_property"`
+	Options         *ApprovalOptionsModel `json:"options" tfsdk:"options"`
+	Services        *[]string             `json:"services" tfsdk:"services"`
+	Type            string                `json:"type" tfsdk:"type"`
+}
+
+type RoutingRuleModelV0 struct {
+	Name      *string           `json:"name" tfsdk:"name"`
+	Requestor *RequestorModelV0 `json:"requestor" tfsdk:"requestor"`
+	Resource  *ResourceModel    `json:"resource" tfsdk:"resource"`
+	Approval  []ApprovalModelV0 `json:"approval" tfsdk:"approval"`
+}
+
+type RoutingRuleModelV1 struct {
+	Name      *string           `json:"name" tfsdk:"name"`
+	Requestor *RequestorModelV1 `json:"requestor" tfsdk:"requestor"`
+	Resource  *ResourceModel    `json:"resource" tfsdk:"resource"`
+	Approval  []ApprovalModelV1 `json:"approval" tfsdk:"approval"`
 }
 
 const currentSchemaVersion int64 = 1
