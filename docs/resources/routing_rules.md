@@ -80,7 +80,7 @@ Required:
 Optional:
 
 - `directory` (String) May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "okta", or "workspace".
-- `groups` (Attributes List) May only be used if 'type' is 'group'. This is the list of groups that the approver must be a member of to match. (see [below for nested schema](#nestedatt--rule--approval--groups))
+- `groups` (Attributes List) May only be used if 'type' is 'group'. If the user is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--rule--approval--groups))
 - `integration` (String) May only be used if 'type' is 'auto' or 'escalation'. Possible values:
 - 'pagerduty': Access is granted if the requestor is on-call.
 - `options` (Attributes) If present, determines additional trust requirements. (see [below for nested schema](#nestedatt--rule--approval--options))
@@ -93,7 +93,7 @@ Optional:
 Required:
 
 - `directory` (String) One of "azure-ad", "okta", or "workspace".
-- `id` (String) This is the directory's internal group identifier for matching approvers.
+- `id` (String) This is the directory's internal group identifier.
 
 Optional:
 
@@ -122,7 +122,7 @@ Required:
 
 Optional:
 
-- `groups` (Attributes List) May only be used if 'type' is 'group'. This is the list of groups that the requestor must be a member of to match. (see [below for nested schema](#nestedatt--rule--requestor--groups))
+- `groups` (Attributes List) May only be used if 'type' is 'group'. If the user is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--rule--requestor--groups))
 - `uid` (String) May only be used if 'type' is 'user'. This is the user's email address.
 
 <a id="nestedatt--rule--requestor--groups"></a>
@@ -131,7 +131,7 @@ Optional:
 Required:
 
 - `directory` (String) One of "azure-ad", "okta", or "workspace".
-- `id` (String) This is the directory's internal group identifier for matching approvers.
+- `id` (String) This is the directory's internal group identifier.
 
 Optional:
 

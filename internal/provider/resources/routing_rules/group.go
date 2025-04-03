@@ -35,20 +35,6 @@ func LabelAttribute(version int) schema.StringAttribute {
 	}
 }
 
-// var GroupAttribute = schema.NestedAttributeObject{
-// 	Attributes: map[string]schema.Attribute{
-// 		"directory": DirectoryAttribute(1),
-// 		"id":        IdAttribute(1),
-// 		"label":     LabelAttribute(1),
-// 	},
-// }
-
-// var GroupsAttribute = schema.ListNestedAttribute{
-// 	MarkdownDescription: `May only be used if 'type' is 'group'. This is the list of groups that the requestor must be a member of to match.`,
-// 	Optional:            true,
-// 	NestedObject:        GroupAttribute,
-// }
-
 func AttachGroupAttributes(version int64, attributes map[string]schema.Attribute) map[string]schema.Attribute {
 	switch version {
 	case 0:

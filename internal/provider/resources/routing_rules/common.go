@@ -93,9 +93,9 @@ func requestorAttribute(version int64) schema.SingleNestedAttribute {
 			map[string]schema.Attribute{
 				"type": schema.StringAttribute{
 					MarkdownDescription: `How P0 matches requestors:
-			- 'any': Any requestor will match
-			- 'group': Members of a directory group will match
-			- 'user': Only match a single user`,
+    - 'any': Any requestor will match
+    - 'group': Members of a directory group will match
+    - 'user': Only match a single user`,
 					Required: true,
 				},
 				"uid": schema.StringAttribute{MarkdownDescription: `May only be used if 'type' is 'user'. This is the user's email address.`, Optional: true},
