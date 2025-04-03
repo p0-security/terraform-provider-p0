@@ -29,17 +29,22 @@ type RoutingRules struct {
 	data *internal.P0ProviderData
 }
 
-type RoutingRulesModel struct {
-	Rule    []RoutingRuleModel `tfsdk:"rule"`
-	Version types.String       `tfsdk:"version"`
+type RoutingRulesModelV0 struct {
+	Rule    []RoutingRuleModelV0 `tfsdk:"rule"`
+	Version types.String         `tfsdk:"version"`
+}
+
+type RoutingRulesModelV1 struct {
+	Rule    []RoutingRuleModelV1 `tfsdk:"rule"`
+	Version types.String         `tfsdk:"version"`
 }
 
 // Need a separate representation for JSON data as version handling is different:
 // - In TF state, it may be present, unknown (during update), or null
 // - In JSON state, it is either present or null.
 type LatestRoutingRules struct {
-	Rule    []RoutingRuleModel `json:"rules"`
-	Version *string            `json:"version"`
+	Rule    []RoutingRuleModelV1 `json:"rules"`
+	Version *string              `json:"version"`
 }
 
 type WorkflowLatestApi struct {
@@ -47,7 +52,7 @@ type WorkflowLatestApi struct {
 }
 
 type UpdateRoutingRules struct {
-	Rule []RoutingRuleModel `json:"rules"`
+	Rule []RoutingRuleModelV1 `json:"rules"`
 }
 
 type WorkflowUpdateApi struct {
@@ -56,21 +61,18 @@ type WorkflowUpdateApi struct {
 }
 
 var defaultRoutingRules = LatestRoutingRules{
-	Rule: []RoutingRuleModel{{
-		Requestor: &RequestorModel{Type: "any"},
+	Rule: []RoutingRuleModelV1{{
+		Requestor: &RequestorModelV1{Type: "any"},
 		Resource:  &ResourceModel{Type: "any"},
-		Approval: []ApprovalModel{{
+		Approval: []ApprovalModelV1{{
 			Type:    "p0",
 			Options: &ApprovalOptionsModel{AllowOneParty: &False, RequireReason: &False}}},
 	}},
 }
 
-func (rules *RoutingRules) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_routing_rules"
-}
-
-func (rules *RoutingRules) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{
+func newMultiRuleSchema(version int64) schema.Schema {
+	return schema.Schema{
+		Version: currentSchemaVersion,
 		// This description is used by the documentation generator and the language server.
 		MarkdownDescription: `The rules that control who can request access to what, and access requirements.
 See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/request-routing).`,
@@ -83,9 +85,9 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 							MarkdownDescription: "The name of the rule",
 							Required:            true,
 						},
-						"requestor": requestorAttribute,
+						"requestor": requestorAttribute(version),
 						"resource":  resourceAttribute,
-						"approval":  approvalAttribute,
+						"approval":  approvalAttribute(version),
 					},
 				},
 			},
@@ -100,6 +102,14 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 	}
 }
 
+func (rules *RoutingRules) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_routing_rules"
+}
+
+func (rules *RoutingRules) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = newMultiRuleSchema(currentSchemaVersion)
+}
+
 func (rules *RoutingRules) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	data := internal.Configure(&req, resp)
@@ -109,7 +119,7 @@ func (rules *RoutingRules) Configure(ctx context.Context, req resource.Configure
 }
 
 // Updates TF state based on current state and P0 routing-rules API response.
-func (rules *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, data RoutingRulesModel, latest WorkflowLatestApi) {
+func (rules *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, data RoutingRulesModelV1, latest WorkflowLatestApi) {
 	if latest.Workflow.Version == nil {
 		diags.AddError("Missing routing rules version", "P0 did not return a version for routing rules; please report this to support@p0.dev.")
 		return
@@ -126,11 +136,11 @@ func (rules *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnost
 
 // Posts a new routing-rules version to P0. This is used for update and delete.
 // Note that delete does not delete, but rather posts a default routing-rules set.
-func (rules *RoutingRules) postVersion(ctx context.Context, model RoutingRulesModel, diag *diag.Diagnostics, state *tfsdk.State) {
+func (rules *RoutingRules) postVersion(ctx context.Context, model RoutingRulesModelV1, diag *diag.Diagnostics, state *tfsdk.State) {
 	tflog.Debug(ctx, fmt.Sprintf("Routing rules to update: %+v", model))
 
 	// Read the current routing rules from the Terraform state
-	var currentModel RoutingRulesModel
+	var currentModel RoutingRulesModelV1
 	diag.Append(state.Get(ctx, &currentModel)...)
 	if diag.HasError() {
 		return
@@ -168,7 +178,7 @@ func (rules *RoutingRules) postVersion(ctx context.Context, model RoutingRulesMo
 func (rules *RoutingRules) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var diag = &resp.Diagnostics
 
-	var model RoutingRulesModel
+	var model RoutingRulesModelV1
 
 	// Load the data from the plan into the model
 	diag.Append(req.Plan.Get(ctx, &model)...)
@@ -213,7 +223,7 @@ func (rules *RoutingRules) Create(ctx context.Context, req resource.CreateReques
 func (rules *RoutingRules) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var diag = &resp.Diagnostics
 
-	var data RoutingRulesModel
+	var data RoutingRulesModelV1
 	diag.Append(req.State.Get(ctx, &data)...)
 	if diag.HasError() {
 		return
@@ -232,7 +242,7 @@ func (rules *RoutingRules) Read(ctx context.Context, req resource.ReadRequest, r
 }
 
 func (rules *RoutingRules) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data RoutingRulesModel
+	var data RoutingRulesModelV1
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -244,7 +254,7 @@ func (rules *RoutingRules) Update(ctx context.Context, req resource.UpdateReques
 func (rules *RoutingRules) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var diag = &resp.Diagnostics
 
-	var data RoutingRulesModel
+	var data RoutingRulesModelV1
 	diag.Append(req.State.Get(ctx, &data)...)
 	if diag.HasError() {
 		return
@@ -264,4 +274,38 @@ These rules allow all principals to request access to all resources, with manual
 
 func (rules *RoutingRules) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("version"), req, resp)
+}
+
+func (rule *RoutingRules) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	var schemaV0 = newMultiRuleSchema(0)
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema: &schemaV0,
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				var prior RoutingRulesModelV0
+				resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+				upgradedRules := make([]RoutingRuleModelV1, len(prior.Rule))
+
+				for i, rule := range prior.Rule {
+					requestor := upgradeRequestor(rule.Requestor)
+					upgradedRules[i] = RoutingRuleModelV1{
+						Name:      rule.Name,
+						Requestor: &requestor,
+						Resource:  rule.Resource,
+						Approval:  upgradeApproval(rule.Approval),
+					}
+				}
+
+				upgraded := RoutingRulesModelV1{
+					Rule:    upgradedRules,
+					Version: prior.Version,
+				}
+
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgraded)...)
+			},
+		},
+	}
 }

@@ -8,12 +8,24 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-type RequestorModel struct {
+type GroupModelV1 struct {
+	Directory *string `json:"directory" tfsdk:"directory"`
+	Id        *string `json:"id" tfsdk:"id"`
+	Label     *string `json:"label" tfsdk:"label"`
+}
+
+type RequestorModelV0 struct {
 	Directory *string `json:"directory" tfsdk:"directory"`
 	Id        *string `json:"id" tfsdk:"id"`
 	Label     *string `json:"label" tfsdk:"label"`
 	Type      string  `json:"type" tfsdk:"type"`
 	Uid       *string `json:"uid" tfsdk:"uid"`
+}
+
+type RequestorModelV1 struct {
+	Type   string         `json:"type" tfsdk:"type"`
+	Groups []GroupModelV1 `json:"groups" tfsdk:"groups"`
+	Uid    *string        `json:"uid" tfsdk:"uid"`
 }
 
 type ResourceFilterModel struct {
@@ -34,7 +46,7 @@ type ApprovalOptionsModel struct {
 	RequireReason *bool `json:"requireReason" tfsdk:"require_reason"`
 }
 
-type ApprovalModel struct {
+type ApprovalModelV0 struct {
 	Directory       *string               `json:"directory" tfsdk:"directory"`
 	Id              *string               `json:"id" tfsdk:"id"`
 	Integration     *string               `json:"integration" tfsdk:"integration"`
@@ -45,37 +57,50 @@ type ApprovalModel struct {
 	Type            string                `json:"type" tfsdk:"type"`
 }
 
-type RoutingRuleModel struct {
-	Name      *string         `json:"name" tfsdk:"name"`
-	Requestor *RequestorModel `json:"requestor" tfsdk:"requestor"`
-	Resource  *ResourceModel  `json:"resource" tfsdk:"resource"`
-	Approval  []ApprovalModel `json:"approval" tfsdk:"approval"`
+type ApprovalModelV1 struct {
+	Directory       *string               `json:"directory" tfsdk:"directory"`
+	Integration     *string               `json:"integration" tfsdk:"integration"`
+	Groups          []GroupModelV1        `json:"groups" tfsdk:"groups"`
+	ProfileProperty *string               `json:"profileProperty" tfsdk:"profile_property"`
+	Options         *ApprovalOptionsModel `json:"options" tfsdk:"options"`
+	Services        *[]string             `json:"services" tfsdk:"services"`
+	Type            string                `json:"type" tfsdk:"type"`
 }
+
+type RoutingRuleModelV0 struct {
+	Name      *string           `json:"name" tfsdk:"name"`
+	Requestor *RequestorModelV0 `json:"requestor" tfsdk:"requestor"`
+	Resource  *ResourceModel    `json:"resource" tfsdk:"resource"`
+	Approval  []ApprovalModelV0 `json:"approval" tfsdk:"approval"`
+}
+
+type RoutingRuleModelV1 struct {
+	Name      *string           `json:"name" tfsdk:"name"`
+	Requestor *RequestorModelV1 `json:"requestor" tfsdk:"requestor"`
+	Resource  *ResourceModel    `json:"resource" tfsdk:"resource"`
+	Approval  []ApprovalModelV1 `json:"approval" tfsdk:"approval"`
+}
+
+const currentSchemaVersion int64 = 1
 
 var False = false
 
-var requestorAttribute = schema.SingleNestedAttribute{
-	Required:            true,
-	MarkdownDescription: `Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor).`,
-	Attributes: map[string]schema.Attribute{
-		"directory": schema.StringAttribute{
-			MarkdownDescription: `May only be used if 'type' is 'group'. One of "azure-ad", "okta", or "workspace".`,
-			Optional:            true},
-		"id": schema.StringAttribute{
-			MarkdownDescription: `May only be used if 'type' is 'group'. This is the directory's internal group identifier for matching requestors.`,
-			Optional:            true},
-		"label": schema.StringAttribute{
-			MarkdownDescription: `May only be used if 'type' is 'group'. This is any human-readable name for the directory group specified in the 'id' attribute.`,
-			Optional:            true},
-		"type": schema.StringAttribute{
-			MarkdownDescription: `How P0 matches requestors:
+func requestorAttribute(version int64) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Required:            true,
+		MarkdownDescription: `Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor).`,
+		Attributes: AttachGroupAttributes(version,
+			map[string]schema.Attribute{
+				"type": schema.StringAttribute{
+					MarkdownDescription: `How P0 matches requestors:
     - 'any': Any requestor will match
     - 'group': Members of a directory group will match
     - 'user': Only match a single user`,
-			Required: true,
-		},
-		"uid": schema.StringAttribute{MarkdownDescription: `May only be used if 'type' is 'user'. This is the user's email address.`, Optional: true},
-	},
+					Required: true,
+				},
+				"uid": schema.StringAttribute{MarkdownDescription: `May only be used if 'type' is 'user'. This is the user's email address.`, Optional: true},
+			}),
+	}
 }
 
 var resourceAttribute = schema.SingleNestedAttribute{
@@ -125,53 +150,46 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 	},
 }
 
-var approvalAttribute = schema.ListNestedAttribute{
-	MarkdownDescription: `Determines access requirements. See [the Approval docs](https://docs.p0.dev/just-in-time-access/request-routing#approval).`,
-	Required:            true,
-	NestedObject: schema.NestedAttributeObject{
-		Attributes: map[string]schema.Attribute{
-			"directory": schema.StringAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'group' or 'requestor-profile'. One of "azure-ad", "okta", or "workspace".`,
-				Optional:            true,
-			},
-			"id": schema.StringAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'group'. This is the directory's internal group identifier for matching approvers.`,
-				Optional:            true,
-			},
-			"integration": schema.StringAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'auto' or 'escalation'. Possible values:
-- 'pagerduty': Access is granted if the requestor is on-call.`,
-				Optional: true,
-			},
-			"label": schema.StringAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'group'. This is any human-readable name for the directory group specified in the 'id' attribute.`,
-				Optional:            true,
-			},
-			"options": schema.SingleNestedAttribute{
-				MarkdownDescription: `If present, determines additional trust requirements.`,
-				Attributes: map[string]schema.Attribute{
-					"allow_one_party": schema.BoolAttribute{
-						MarkdownDescription: `If true, allows requestors to approve their own requests.`,
-						Optional:            true,
-					},
-					"require_reason": schema.BoolAttribute{
-						MarkdownDescription: `If true, requires access requests to include a reason.`,
-						Optional:            true,
-					},
+func approvalAttribute(version int64) schema.ListNestedAttribute {
+	return schema.ListNestedAttribute{
+		MarkdownDescription: `Determines access requirements. See [the Approval docs](https://docs.p0.dev/just-in-time-access/request-routing#approval).`,
+		Required:            true,
+		NestedObject: schema.NestedAttributeObject{
+			Attributes: AttachGroupAttributes(version, map[string]schema.Attribute{
+				"directory": schema.StringAttribute{
+					MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "okta", or "workspace".`,
+					Optional:            true,
 				},
-				Optional: true,
-			},
-			"profile_property": schema.StringAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.`,
-				Optional:            true,
-			},
-			"services": schema.ListAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'escalation'. Defines which services to page on escalation.`,
-				ElementType:         types.StringType,
-				Optional:            true,
-			},
-			"type": schema.StringAttribute{
-				MarkdownDescription: `Determines trust requirements for access. If empty, access is disallowed. Except for 'deny', meeting any requirement is sufficient to grant access. Possible values:
+				"integration": schema.StringAttribute{
+					MarkdownDescription: `May only be used if 'type' is 'auto' or 'escalation'. Possible values:
+- 'pagerduty': Access is granted if the requestor is on-call.`,
+					Optional: true,
+				},
+				"options": schema.SingleNestedAttribute{
+					MarkdownDescription: `If present, determines additional trust requirements.`,
+					Attributes: map[string]schema.Attribute{
+						"allow_one_party": schema.BoolAttribute{
+							MarkdownDescription: `If true, allows requestors to approve their own requests.`,
+							Optional:            true,
+						},
+						"require_reason": schema.BoolAttribute{
+							MarkdownDescription: `If true, requires access requests to include a reason.`,
+							Optional:            true,
+						},
+					},
+					Optional: true,
+				},
+				"profile_property": schema.StringAttribute{
+					MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.`,
+					Optional:            true,
+				},
+				"services": schema.ListAttribute{
+					MarkdownDescription: `May only be used if 'type' is 'escalation'. Defines which services to page on escalation.`,
+					ElementType:         types.StringType,
+					Optional:            true,
+				},
+				"type": schema.StringAttribute{
+					MarkdownDescription: `Determines trust requirements for access. If empty, access is disallowed. Except for 'deny', meeting any requirement is sufficient to grant access. Possible values:
     - 'auto': Access is granted according to the requirements of the specified 'integration'
     - 'deny': Access is always denied
     - 'escalation': Access may be approved by on-call members of the specified services, who are paged when access is manually escalated by the requestor
@@ -179,8 +197,9 @@ var approvalAttribute = schema.ListNestedAttribute{
     - 'persistent': Access is always granted
     - 'requestor-profile': Allows approval by a user specified by a field in the requestor's IDP profile
     - 'p0': Access may be granted by any user with the P0 "approver" role (defined in the P0 app)`,
-				Required: true,
-			},
+					Required: true,
+				},
+			}),
 		},
-	},
+	}
 }

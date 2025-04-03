@@ -1,9 +1,11 @@
 resource "p0_routing_rule" "example" {
   requestor = {
-    type      = "group"
-    directory = "okta"
-    id        = "00abcdefghijklmno697"
-    label     = "AWS Developers"
+    type = "group"
+    groups = [{
+      directory = "okta"
+      id        = "00abcdefghijklmno697"
+      label     = "AWS Developers"
+    }]
   }
   resource = {
     type    = "integration"
