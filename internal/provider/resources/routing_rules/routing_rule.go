@@ -226,9 +226,9 @@ func (rule *RoutingRule) ImportState(ctx context.Context, req resource.ImportSta
 	resource.ImportStatePassthroughID(ctx, path.Root("name"), req, resp)
 }
 
-func upgradeRequestor(prior *RequestorModelV0) *RequestorModelV1 {
+func upgradeRequestor(prior *RequestorModelV0) RequestorModelV1 {
 	if prior.Type == "group" {
-		return &RequestorModelV1{
+		return RequestorModelV1{
 			Type: prior.Type,
 			Groups: []GroupModelV1{{
 				Directory: prior.Directory,
@@ -238,7 +238,7 @@ func upgradeRequestor(prior *RequestorModelV0) *RequestorModelV1 {
 			Uid: prior.Uid,
 		}
 	}
-	return &RequestorModelV1{
+	return RequestorModelV1{
 		Type:   prior.Type,
 		Groups: nil,
 		Uid:    prior.Uid,
@@ -284,9 +284,10 @@ func (rule *RoutingRule) UpgradeState(ctx context.Context) map[int64]resource.St
 				if resp.Diagnostics.HasError() {
 					return
 				}
+				requestor := upgradeRequestor(prior.Requestor)
 				upgraded := RoutingRuleModelV1{
 					Name:      prior.Name,
-					Requestor: upgradeRequestor(prior.Requestor),
+					Requestor: &requestor,
 					Resource:  prior.Resource,
 					Approval:  upgradeApproval(prior.Approval),
 				}
