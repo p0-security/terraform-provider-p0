@@ -48,12 +48,20 @@ type gcpIamAssessmentMetadata struct {
 	OrganizationPermissions []string `json:"orgLevelPermissions" tfsdk:"organization"`
 }
 
+type gcpConfig struct {
+	Root struct {
+		Singleton struct {
+			OrganizationId string `json:"organizationId"`
+		} `json:"_"`
+	} `json:"root"`
+}
+
 type gcpApi struct {
 	Config struct {
 		Root struct {
 			Singleton struct {
 				OrganizationId      string  `json:"organizationId"`
-				ServiceAccountEmail *string `json:"serviceAccountEmail"`
+				ServiceAccountEmail *string `json:"serviceAccountEmail,omitempty"`
 			} `json:"_"`
 		} `json:"root"`
 	} `json:"config"`
@@ -210,16 +218,16 @@ func (r *Gcp) fromJson(ctx context.Context, diags *diag.Diagnostics, json any) a
 }
 
 func (r *Gcp) toJson(data any) any {
-	json := gcpApi{}
+	json := gcpConfig{}
 
 	datav, ok := data.(*gcpModel)
 	if !ok {
 		return nil
 	}
 
-	json.Config.Root.Singleton.OrganizationId = datav.OrganizationId.ValueString()
+	json.Root.Singleton.OrganizationId = datav.OrganizationId.ValueString()
 
-	return &json.Config
+	return &json
 }
 
 func (r *Gcp) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
