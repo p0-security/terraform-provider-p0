@@ -61,7 +61,7 @@ type gcpApi struct {
 		Root struct {
 			Singleton struct {
 				OrganizationId      string  `json:"organizationId"`
-				ServiceAccountEmail *string `json:"serviceAccountEmail,omitempty"`
+				ServiceAccountEmail *string `json:"serviceAccountEmail"`
 			} `json:"_"`
 		} `json:"root"`
 	} `json:"config"`
