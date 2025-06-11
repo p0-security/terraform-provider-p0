@@ -28,6 +28,13 @@ type RequestorModelV1 struct {
 	Uid    *string        `json:"uid" tfsdk:"uid"`
 }
 
+type RequestorModelV2 struct {
+	Type   string         `json:"type" tfsdk:"type"`
+	Groups []GroupModelV1 `json:"groups" tfsdk:"groups"`
+	Uid    *string        `json:"uid" tfsdk:"uid"`
+	Effect *string        `json:"effect" tfsdk:"effect"`
+}
+
 type ResourceFilterModel struct {
 	Effect  string  `json:"effect" tfsdk:"effect"`
 	Key     *string `json:"key" tfsdk:"key"`
@@ -67,6 +74,17 @@ type ApprovalModelV1 struct {
 	Type            string                `json:"type" tfsdk:"type"`
 }
 
+type ApprovalModelV2 struct {
+	Directory       *string               `json:"directory" tfsdk:"directory"`
+	Integration     *string               `json:"integration" tfsdk:"integration"`
+	Groups          []GroupModelV1        `json:"groups" tfsdk:"groups"`
+	ProfileProperty *string               `json:"profileProperty" tfsdk:"profile_property"`
+	Options         *ApprovalOptionsModel `json:"options" tfsdk:"options"`
+	Services        *[]string             `json:"services" tfsdk:"services"`
+	Type            string                `json:"type" tfsdk:"type"`
+	Effect          *string               `json:"effect" tfsdk:"effect"`
+}
+
 type RoutingRuleModelV0 struct {
 	Name      *string           `json:"name" tfsdk:"name"`
 	Requestor *RequestorModelV0 `json:"requestor" tfsdk:"requestor"`
@@ -81,7 +99,14 @@ type RoutingRuleModelV1 struct {
 	Approval  []ApprovalModelV1 `json:"approval" tfsdk:"approval"`
 }
 
-const currentSchemaVersion int64 = 1
+type RoutingRuleModelV2 struct {
+	Name      *string           `json:"name" tfsdk:"name"`
+	Requestor *RequestorModelV2 `json:"requestor" tfsdk:"requestor"`
+	Resource  *ResourceModel    `json:"resource" tfsdk:"resource"`
+	Approval  []ApprovalModelV2 `json:"approval" tfsdk:"approval"`
+}
+
+const currentSchemaVersion int64 = 2
 
 var False = false
 
@@ -89,7 +114,7 @@ func requestorAttribute(version int64) schema.SingleNestedAttribute {
 	return schema.SingleNestedAttribute{
 		Required:            true,
 		MarkdownDescription: `Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor).`,
-		Attributes: AttachGroupAttributes(version,
+		Attributes: AttachGroupFilterEffectAttribute(version, AttachGroupAttributes(version,
 			map[string]schema.Attribute{
 				"type": schema.StringAttribute{
 					MarkdownDescription: `How P0 matches requestors:
@@ -99,7 +124,7 @@ func requestorAttribute(version int64) schema.SingleNestedAttribute {
 					Required: true,
 				},
 				"uid": schema.StringAttribute{MarkdownDescription: `May only be used if 'type' is 'user'. This is the user's email address.`, Optional: true},
-			}),
+			})),
 	}
 }
 
@@ -155,7 +180,7 @@ func approvalAttribute(version int64) schema.ListNestedAttribute {
 		MarkdownDescription: `Determines access requirements. See [the Approval docs](https://docs.p0.dev/just-in-time-access/request-routing#approval).`,
 		Required:            true,
 		NestedObject: schema.NestedAttributeObject{
-			Attributes: AttachGroupAttributes(version, map[string]schema.Attribute{
+			Attributes: AttachGroupFilterEffectAttribute(version, AttachGroupAttributes(version, map[string]schema.Attribute{
 				"directory": schema.StringAttribute{
 					MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "okta", or "workspace".`,
 					Optional:            true,
@@ -199,7 +224,7 @@ func approvalAttribute(version int64) schema.ListNestedAttribute {
     - 'p0': Access may be granted by any user with the P0 "approver" role (defined in the P0 app)`,
 					Required: true,
 				},
-			}),
+			})),
 		},
 	}
 }

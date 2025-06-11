@@ -31,13 +31,13 @@ type RoutingRule struct {
 // - In JSON state, it is either present or null.
 type RoutingRuleJson struct {
 	Name      *string           `json:"name" tfsdk:"name"`
-	Requestor RequestorModelV1  `json:"requestor" tfsdk:"requestor"`
+	Requestor RequestorModelV2  `json:"requestor" tfsdk:"requestor"`
 	Resource  ResourceModel     `json:"resource" tfsdk:"resource"`
-	Approval  []ApprovalModelV1 `json:"approval" tfsdk:"approval"`
+	Approval  []ApprovalModelV2 `json:"approval" tfsdk:"approval"`
 }
 
 type UpdateRoutingRule struct {
-	Rule RoutingRuleModelV1 `json:"rule"`
+	Rule RoutingRuleModelV2 `json:"rule"`
 }
 
 func NewRoutingRule() resource.Resource {
@@ -49,7 +49,7 @@ func getPath(name string) string {
 	return fmt.Sprintf("routing/name/%s", encodedName)
 }
 
-func toJson(model RoutingRuleModelV1) RoutingRuleJson {
+func toJson(model RoutingRuleModelV2) RoutingRuleJson {
 	return RoutingRuleJson{
 		Name:      model.Name,
 		Requestor: *model.Requestor,
@@ -57,8 +57,8 @@ func toJson(model RoutingRuleModelV1) RoutingRuleJson {
 		Approval:  model.Approval}
 }
 
-func toModel(json RoutingRuleJson) RoutingRuleModelV1 {
-	return RoutingRuleModelV1{
+func toModel(json RoutingRuleJson) RoutingRuleModelV2 {
+	return RoutingRuleModelV2{
 		Name:      json.Name,
 		Requestor: &json.Requestor,
 		Resource:  &json.Resource,
@@ -68,7 +68,7 @@ func toModel(json RoutingRuleJson) RoutingRuleModelV1 {
 
 func newSingleRuleSchema(version int64) schema.Schema {
 	return schema.Schema{
-		Version: currentSchemaVersion,
+		Version: version,
 		// This description is used by the documentation generator and the language server.
 		MarkdownDescription: `A routing rule that controls who can request access to what, and access requirements.
 See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/request-routing).`,
@@ -107,7 +107,7 @@ func (rule *RoutingRule) Create(ctx context.Context, req resource.CreateRequest,
 	var diag = &resp.Diagnostics
 
 	// Load the plan into the model
-	var model RoutingRuleModelV1
+	var model RoutingRuleModelV2
 	diag.Append(req.Plan.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -116,7 +116,7 @@ func (rule *RoutingRule) Create(ctx context.Context, req resource.CreateRequest,
 	tflog.Debug(ctx, fmt.Sprintf("Routing rule to create: %+v", model))
 
 	// Create the routing rule
-	var updated RoutingRuleModelV1
+	var updated RoutingRuleModelV2
 	_, postErr := rule.data.Post(getPath(*model.Name), &model, &updated)
 	if postErr != nil {
 		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to create routing rule:\n%s", postErr))
@@ -134,7 +134,7 @@ func (rule *RoutingRule) Read(ctx context.Context, req resource.ReadRequest, res
 	var diag = &resp.Diagnostics
 
 	// Load the state into the model
-	var model RoutingRuleModelV1
+	var model RoutingRuleModelV2
 	diag.Append(req.State.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -169,7 +169,7 @@ func (rule *RoutingRule) Update(ctx context.Context, req resource.UpdateRequest,
 	var diag = &resp.Diagnostics
 
 	// Load the plan into the model
-	var model RoutingRuleModelV1
+	var model RoutingRuleModelV2
 	diag.Append(req.Plan.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -178,7 +178,7 @@ func (rule *RoutingRule) Update(ctx context.Context, req resource.UpdateRequest,
 	tflog.Debug(ctx, fmt.Sprintf("Routing rule to update: %+v", model))
 
 	// Read the current routing rule from the Terraform state
-	var currentModel RoutingRuleModelV1
+	var currentModel RoutingRuleModelV2
 	diag.Append(req.State.Get(ctx, &currentModel)...)
 	if diag.HasError() {
 		return
@@ -209,7 +209,7 @@ func (rule *RoutingRule) Delete(ctx context.Context, req resource.DeleteRequest,
 	var diag = &resp.Diagnostics
 
 	// Load the state into the model
-	var model RoutingRuleModelV1
+	var model RoutingRuleModelV2
 	diag.Append(req.State.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -226,7 +226,7 @@ func (rule *RoutingRule) ImportState(ctx context.Context, req resource.ImportSta
 	resource.ImportStatePassthroughID(ctx, path.Root("name"), req, resp)
 }
 
-func upgradeRequestor(prior *RequestorModelV0) RequestorModelV1 {
+func upgradeRequestorV0(prior *RequestorModelV0) RequestorModelV1 {
 	if prior.Type == "group" {
 		return RequestorModelV1{
 			Type: prior.Type,
@@ -245,7 +245,25 @@ func upgradeRequestor(prior *RequestorModelV0) RequestorModelV1 {
 	}
 }
 
-func upgradeApproval(prior []ApprovalModelV0) []ApprovalModelV1 {
+func upgradeRequestorV1(prior *RequestorModelV1) RequestorModelV2 {
+	if prior.Type == "group" {
+		keepStr := "keep"
+		return RequestorModelV2{
+			Type:   prior.Type,
+			Groups: prior.Groups,
+			Uid:    prior.Uid,
+			Effect: &keepStr,
+		}
+	}
+	return RequestorModelV2{
+		Type:   prior.Type,
+		Groups: nil,
+		Uid:    prior.Uid,
+		Effect: nil,
+	}
+}
+
+func upgradeApprovalV0(prior []ApprovalModelV0) []ApprovalModelV1 {
 	upgraded := make([]ApprovalModelV1, len(prior))
 	for i, approvalV0 := range prior {
 		if approvalV0.Type == "group" {
@@ -273,8 +291,40 @@ func upgradeApproval(prior []ApprovalModelV0) []ApprovalModelV1 {
 	return upgraded
 }
 
+func upgradeApprovalV1(prior []ApprovalModelV1) []ApprovalModelV2 {
+	upgraded := make([]ApprovalModelV2, len(prior))
+	for i, approvalV1 := range prior {
+		if approvalV1.Type == "group" {
+			keepStr := "keep"
+			upgraded[i] = ApprovalModelV2{
+				Directory:       approvalV1.Directory,
+				Integration:     approvalV1.Integration,
+				Groups:          approvalV1.Groups,
+				ProfileProperty: approvalV1.ProfileProperty,
+				Options:         approvalV1.Options,
+				Services:        approvalV1.Services,
+				Type:            approvalV1.Type,
+				Effect:          &keepStr,
+			}
+			continue
+		}
+		upgraded[i] = ApprovalModelV2{
+			Directory:       approvalV1.Directory,
+			Integration:     approvalV1.Integration,
+			Groups:          nil,
+			ProfileProperty: approvalV1.ProfileProperty,
+			Options:         approvalV1.Options,
+			Services:        approvalV1.Services,
+			Type:            approvalV1.Type,
+			Effect:          nil,
+		}
+	}
+	return upgraded
+}
+
 func (rule *RoutingRule) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
 	var schemaV0 = newSingleRuleSchema(0)
+	var schemaV1 = newSingleRuleSchema(1)
 	return map[int64]resource.StateUpgrader{
 		0: {
 			PriorSchema: &schemaV0,
@@ -284,12 +334,31 @@ func (rule *RoutingRule) UpgradeState(ctx context.Context) map[int64]resource.St
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				requestor := upgradeRequestor(prior.Requestor)
+				requestor := upgradeRequestorV0(prior.Requestor)
 				upgraded := RoutingRuleModelV1{
 					Name:      prior.Name,
 					Requestor: &requestor,
 					Resource:  prior.Resource,
-					Approval:  upgradeApproval(prior.Approval),
+					Approval:  upgradeApprovalV0(prior.Approval),
+				}
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgraded)...)
+			},
+		},
+		1: {
+			PriorSchema: &schemaV1,
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				var prior RoutingRuleModelV1
+				resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+
+				requestor := upgradeRequestorV1(prior.Requestor)
+				upgraded := RoutingRuleModelV2{
+					Name:      prior.Name,
+					Requestor: &requestor,
+					Resource:  prior.Resource,
+					Approval:  upgradeApprovalV1(prior.Approval),
 				}
 				resp.Diagnostics.Append(resp.State.Set(ctx, upgraded)...)
 			},

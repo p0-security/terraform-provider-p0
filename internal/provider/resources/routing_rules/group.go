@@ -60,3 +60,21 @@ func AttachGroupAttributes(version int64, attributes map[string]schema.Attribute
 	}
 	return attributes
 }
+
+func AttachGroupFilterEffectAttribute(version int64, attributes map[string]schema.Attribute) map[string]schema.Attribute {
+	switch version {
+	case 0:
+	case 1:
+		return attributes
+	default:
+		{
+			attributes["effect"] = schema.StringAttribute{
+				MarkdownDescription: `The filter effect. May be one of:
+	 - 'keep': Access rule only applies when a requestor is a member of any of the specified groups
+	 - 'remove': Access rule only applies when a requestor is _not_ a member of any of the specified groups`,
+				Optional: true,
+			}
+		}
+	}
+	return attributes
+}
