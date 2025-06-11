@@ -72,6 +72,9 @@ Required:
 Optional:
 
 - `directory` (String) May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "okta", or "workspace".
+- `effect` (String) The filter effect. May be one of:
+	 - 'keep': Access rule only applies when a requestor is a member of any of the specified groups
+	 - 'remove': Access rule only applies when a requestor is _not_ a member of any of the specified groups
 - `groups` (Attributes List) May only be used if 'type' is 'group'. If the user is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--approval--groups))
 - `integration` (String) May only be used if 'type' is 'auto' or 'escalation'. Possible values:
 - 'pagerduty': Access is granted if the requestor is on-call.
@@ -114,6 +117,9 @@ Required:
 
 Optional:
 
+- `effect` (String) The filter effect. May be one of:
+	 - 'keep': Access rule only applies when a requestor is a member of any of the specified groups
+	 - 'remove': Access rule only applies when a requestor is _not_ a member of any of the specified groups
 - `groups` (Attributes List) May only be used if 'type' is 'group'. If the user is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--requestor--groups))
 - `uid` (String) May only be used if 'type' is 'user'. This is the user's email address.
 

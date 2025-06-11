@@ -39,11 +39,16 @@ type RoutingRulesModelV1 struct {
 	Version types.String         `tfsdk:"version"`
 }
 
+type RoutingRulesModelV2 struct {
+	Rule    []RoutingRuleModelV2 `tfsdk:"rule"`
+	Version types.String         `tfsdk:"version"`
+}
+
 // Need a separate representation for JSON data as version handling is different:
 // - In TF state, it may be present, unknown (during update), or null
 // - In JSON state, it is either present or null.
 type LatestRoutingRules struct {
-	Rule    []RoutingRuleModelV1 `json:"rules"`
+	Rule    []RoutingRuleModelV2 `json:"rules"`
 	Version *string              `json:"version"`
 }
 
@@ -52,7 +57,7 @@ type WorkflowLatestApi struct {
 }
 
 type UpdateRoutingRules struct {
-	Rule []RoutingRuleModelV1 `json:"rules"`
+	Rule []RoutingRuleModelV2 `json:"rules"`
 }
 
 type WorkflowUpdateApi struct {
@@ -61,10 +66,10 @@ type WorkflowUpdateApi struct {
 }
 
 var defaultRoutingRules = LatestRoutingRules{
-	Rule: []RoutingRuleModelV1{{
-		Requestor: &RequestorModelV1{Type: "any"},
+	Rule: []RoutingRuleModelV2{{
+		Requestor: &RequestorModelV2{Type: "any"},
 		Resource:  &ResourceModel{Type: "any"},
-		Approval: []ApprovalModelV1{{
+		Approval: []ApprovalModelV2{{
 			Type:    "p0",
 			Options: &ApprovalOptionsModel{AllowOneParty: &False, RequireReason: &False}}},
 	}},
@@ -119,7 +124,7 @@ func (rules *RoutingRules) Configure(ctx context.Context, req resource.Configure
 }
 
 // Updates TF state based on current state and P0 routing-rules API response.
-func (rules *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, data RoutingRulesModelV1, latest WorkflowLatestApi) {
+func (rules *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnostics, state *tfsdk.State, data RoutingRulesModelV2, latest WorkflowLatestApi) {
 	if latest.Workflow.Version == nil {
 		diags.AddError("Missing routing rules version", "P0 did not return a version for routing rules; please report this to support@p0.dev.")
 		return
@@ -136,11 +141,11 @@ func (rules *RoutingRules) updateState(ctx context.Context, diags *diag.Diagnost
 
 // Posts a new routing-rules version to P0. This is used for update and delete.
 // Note that delete does not delete, but rather posts a default routing-rules set.
-func (rules *RoutingRules) postVersion(ctx context.Context, model RoutingRulesModelV1, diag *diag.Diagnostics, state *tfsdk.State) {
+func (rules *RoutingRules) postVersion(ctx context.Context, model RoutingRulesModelV2, diag *diag.Diagnostics, state *tfsdk.State) {
 	tflog.Debug(ctx, fmt.Sprintf("Routing rules to update: %+v", model))
 
 	// Read the current routing rules from the Terraform state
-	var currentModel RoutingRulesModelV1
+	var currentModel RoutingRulesModelV2
 	diag.Append(state.Get(ctx, &currentModel)...)
 	if diag.HasError() {
 		return
@@ -178,7 +183,7 @@ func (rules *RoutingRules) postVersion(ctx context.Context, model RoutingRulesMo
 func (rules *RoutingRules) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var diag = &resp.Diagnostics
 
-	var model RoutingRulesModelV1
+	var model RoutingRulesModelV2
 
 	// Load the data from the plan into the model
 	diag.Append(req.Plan.Get(ctx, &model)...)
@@ -223,7 +228,7 @@ func (rules *RoutingRules) Create(ctx context.Context, req resource.CreateReques
 func (rules *RoutingRules) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var diag = &resp.Diagnostics
 
-	var data RoutingRulesModelV1
+	var data RoutingRulesModelV2
 	diag.Append(req.State.Get(ctx, &data)...)
 	if diag.HasError() {
 		return
@@ -242,7 +247,7 @@ func (rules *RoutingRules) Read(ctx context.Context, req resource.ReadRequest, r
 }
 
 func (rules *RoutingRules) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data RoutingRulesModelV1
+	var data RoutingRulesModelV2
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -254,7 +259,7 @@ func (rules *RoutingRules) Update(ctx context.Context, req resource.UpdateReques
 func (rules *RoutingRules) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var diag = &resp.Diagnostics
 
-	var data RoutingRulesModelV1
+	var data RoutingRulesModelV2
 	diag.Append(req.State.Get(ctx, &data)...)
 	if diag.HasError() {
 		return
@@ -278,6 +283,7 @@ func (rules *RoutingRules) ImportState(ctx context.Context, req resource.ImportS
 
 func (rule *RoutingRules) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
 	var schemaV0 = newMultiRuleSchema(0)
+	var schemaV1 = newMultiRuleSchema(1)
 	return map[int64]resource.StateUpgrader{
 		0: {
 			PriorSchema: &schemaV0,
@@ -290,16 +296,44 @@ func (rule *RoutingRules) UpgradeState(ctx context.Context) map[int64]resource.S
 				upgradedRules := make([]RoutingRuleModelV1, len(prior.Rule))
 
 				for i, rule := range prior.Rule {
-					requestor := upgradeRequestor(rule.Requestor)
+					requestor := upgradeRequestorV0(rule.Requestor)
 					upgradedRules[i] = RoutingRuleModelV1{
 						Name:      rule.Name,
 						Requestor: &requestor,
 						Resource:  rule.Resource,
-						Approval:  upgradeApproval(rule.Approval),
+						Approval:  upgradeApprovalV0(rule.Approval),
 					}
 				}
 
 				upgraded := RoutingRulesModelV1{
+					Rule:    upgradedRules,
+					Version: prior.Version,
+				}
+
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgraded)...)
+			},
+		},
+		1: {
+			PriorSchema: &schemaV1,
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				var prior RoutingRulesModelV1
+				resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+
+				upgradedRules := make([]RoutingRuleModelV2, len(prior.Rule))
+				for i, rule := range prior.Rule {
+					requestor := upgradeRequestorV1(rule.Requestor)
+					upgradedRules[i] = RoutingRuleModelV2{
+						Name:      rule.Name,
+						Requestor: &requestor,
+						Resource:  rule.Resource,
+						Approval:  upgradeApprovalV1(rule.Approval),
+					}
+				}
+
+				upgraded := RoutingRulesModelV2{
 					Rule:    upgradedRules,
 					Version: prior.Version,
 				}
