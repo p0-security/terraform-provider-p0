@@ -3,23 +3,24 @@
 page_title: "p0_azure_iam_write Resource - p0"
 subcategory: ""
 description: |-
-  An installation of P0, on a single Microsoft Azure Cloud Management Group, for IAM management.
+  An installation of P0, on a single Microsoft Azure Cloud Subscription, for IAM management.
   To use this resource, you must also:
-  create an app registration in Azure for P0,create federated credentials for P0 to communicate with Azure through the app registration,create a custom role allowing IAM operations,assign this custom role to P0's app registration at the Management Group level,(optional) constraint role assignment to specific roles or principals,install the p0_azure resource,install the p0_azure_iam_write_staged resource,
+  create an app registration in Azure for P0,create federated credentials for P0 to communicate with Azure through the app registration,create a custom role allowing IAM operations,assign this custom role to P0's app registration at the subscription level,(optional) constraint role assignment to specific roles or principals,install the p0_azure resource,install the p0_azure_app resource,install the p0_azure_iam_write_staged resource,
   See the example usage for the recommended pattern to define this infrastructure.
 ---
 
 # p0_azure_iam_write (Resource)
 
-An installation of P0, on a single Microsoft Azure Cloud Management Group, for IAM management.
+An installation of P0, on a single Microsoft Azure Cloud Subscription, for IAM management.
 
 To use this resource, you must also:
 - create an app registration in Azure for P0,
 - create federated credentials for P0 to communicate with Azure through the app registration,
 - create a custom role allowing IAM operations,
-- assign this custom role to P0's app registration at the Management Group level,
+- assign this custom role to P0's app registration at the subscription level,
 - (optional) constraint role assignment to specific roles or principals,
 - install the `p0_azure` resource,
+- install the `p0_azure_app` resource,
 - install the `p0_azure_iam_write_staged` resource,
 
 See the example usage for the recommended pattern to define this infrastructure.
@@ -105,11 +106,11 @@ resource "p0_azure_iam_write" "example" {
 
 ### Required
 
-- `management_group_id` (String) The ID of the Azure Management Group.
+- `subscription_id` (String) The ID of the Azure Subscription.
 
 ### Read-Only
 
-- `label` (String) The label of the Azure Management Group.
+- `label` (String) The label of the Azure Subscription.
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured

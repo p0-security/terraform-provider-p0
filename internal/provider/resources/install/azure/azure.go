@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -16,7 +17,6 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 )
 
-// Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.Resource = &Azure{}
 var _ resource.ResourceWithImportState = &Azure{}
 var _ resource.ResourceWithConfigure = &Azure{}
@@ -30,31 +30,42 @@ type Azure struct {
 }
 
 type azureModel struct {
-	ClientId            types.String `tfsdk:"client_id"`
 	DirectoryId         types.String `tfsdk:"tenant_id"`
 	ServiceAccountEmail types.String `tfsdk:"service_account_email"`
 	ServiceAccountId    types.String `tfsdk:"service_account_id"`
-	State               types.String `tfsdk:"state"`
+	AppName             types.String `tfsdk:"app_name"`
+	CredentialInfo      types.Object `tfsdk:"credential_info"`
+}
+
+type azureRequestApi struct {
+	Root struct {
+		Singleton struct {
+			DirectoryId string `json:"directoryId"`
+		} `json:"_"`
+	} `json:"root"`
+}
+
+type azureCredentialMetadata struct {
+	DisplayName string   `json:"name" tfsdk:"name"`
+	Description string   `json:"description" tfsdk:"description"`
+	Issuer      string   `json:"issuer" tfsdk:"issuer"`
+	Audiences   []string `json:"audiences" tfsdk:"audiences"`
 }
 
 type azureApi struct {
-	Config azureConfig `json:"config"`
-}
-
-type azureConfig struct {
-	Root azureRoot `json:"root"`
-}
-
-type azureRoot struct {
-	Singleton azureSingleton `json:"_"`
-}
-
-type azureSingleton struct {
-	ClientId            *string `json:"clientId"`
-	DirectoryId         *string `json:"directoryId"`
-	ServiceAccountEmail *string `json:"serviceAccountEmail,omitempty"`
-	ServiceAccountId    *string `json:"serviceAccountId,omitempty"`
-	State               *string `json:"state,omitempty"`
+	Config struct {
+		Root struct {
+			Singleton struct {
+				DirectoryId         string  `json:"directoryId"`
+				ServiceAccountEmail *string `json:"serviceAccountEmail"`
+				ServiceAccountId    *string `json:"serviceAccountId"`
+			} `json:"_"`
+		} `json:"root"`
+	} `json:"config"`
+	Metadata struct {
+		AppName        string                  `json:"appName"`
+		CredentialInfo azureCredentialMetadata `json:"credentialInfo"`
+	} `json:"metadata"`
 }
 
 func (r *Azure) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -77,25 +88,41 @@ func (r *Azure) Schema(ctx context.Context, req resource.SchemaRequest, resp *re
 					stringvalidator.RegexMatches(common.UuidRegex, "Azure Directory ID must be a valid UUID"),
 				},
 			},
-			"client_id": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The Microsoft Azure Service Account Client ID.`,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(common.UuidRegex, "Azure Client ID must be a valid UUID"),
-				},
-			},
 			"service_account_email": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The identity that P0 uses to communicate with your Microsoft Azure organization`,
+				MarkdownDescription: `The service identity email that P0 uses to communicate with your Microsoft Azure organization`,
 			},
 			"service_account_id": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The ID of the service account that P0 uses to communicate with your Microsoft Azure organization`,
+				MarkdownDescription: `The service identity ID that P0 uses to communicate with your Microsoft Azure organization`,
 			},
-			"state": common.StateAttribute,
+			"app_name": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The name of the Azure application P0 uses to communicate with your Microsoft Azure organization. This name is used to identify the app in the Azure portal.",
+			},
+			"credential_info": schema.SingleNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: "The credential information to setup Azure application federated credentials. This is used to authenticate P0 with your Microsoft Azure organization.",
+				Attributes: map[string]schema.Attribute{
+					"name": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "The display name of the Azure application federated credential.",
+					},
+					"description": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "The description of the Azure application federated credential.",
+					},
+					"issuer": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "The issuer of the Azure application federated credential.",
+					},
+					"audiences": schema.ListAttribute{
+						Computed:            true,
+						ElementType:         types.StringType,
+						MarkdownDescription: "The audience of the Azure application federated credential. This is used to establish a connection between external workload identities",
+					},
+				},
+			},
 		},
 	}
 }
@@ -120,27 +147,38 @@ func (r *Azure) fromJson(ctx context.Context, diags *diag.Diagnostics, json any)
 
 	root := jsonv.Config.Root.Singleton
 
-	data.DirectoryId = types.StringPointerValue(root.DirectoryId)
-	data.ClientId = types.StringPointerValue(root.ClientId)
+	data.DirectoryId = types.StringValue(root.DirectoryId)
 	data.ServiceAccountEmail = types.StringPointerValue(root.ServiceAccountEmail)
 	data.ServiceAccountId = types.StringPointerValue(root.ServiceAccountId)
-	data.State = types.StringPointerValue(jsonv.Config.Root.Singleton.State)
+	metadata := jsonv.Metadata
+
+	data.AppName = types.StringValue(metadata.AppName)
+	credentialInfo, alDiags := types.ObjectValueFrom(ctx, map[string]attr.Type{
+		"name":        types.StringType,
+		"description": types.StringType,
+		"issuer":      types.StringType,
+		"audiences":   types.ListType{ElemType: types.StringType},
+	}, metadata.CredentialInfo)
+	if alDiags.HasError() {
+		diags.Append(alDiags...)
+		return nil
+	}
+	data.CredentialInfo = credentialInfo
 
 	return &data
 }
 
 func (r *Azure) toJson(data any) any {
-	json := azureApi{}
+	json := azureRequestApi{}
 
 	datav, ok := data.(*azureModel)
 	if !ok {
 		return nil
 	}
 
-	json.Config.Root.Singleton.DirectoryId = datav.DirectoryId.ValueStringPointer()
-	json.Config.Root.Singleton.ClientId = datav.ClientId.ValueStringPointer()
+	json.Root.Singleton.DirectoryId = datav.DirectoryId.ValueString()
 
-	return &json.Config
+	return &json
 }
 
 func (r *Azure) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

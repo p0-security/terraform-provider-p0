@@ -24,14 +24,21 @@ resource "p0_azure" "example" {
 
 ### Required
 
-- `client_id` (String) The Microsoft Azure Service Account Client ID.
 - `tenant_id` (String) The Microsoft Azure Directory ID
 
 ### Read-Only
 
-- `service_account_email` (String) The identity that P0 uses to communicate with your Microsoft Azure organization
-- `service_account_id` (String) The ID of the service account that P0 uses to communicate with your Microsoft Azure organization
-- `state` (String) This item's install progress in the P0 application:
-	- 'stage': The item has been staged for installation
-	- 'configure': The item is available to be added to P0, and may be configured
-	- 'installed': The item is fully installed
+- `app_name` (String) The name of the Azure application P0 uses to communicate with your Microsoft Azure organization. This name is used to identify the app in the Azure portal.
+- `credential_info` (Attributes) The credential information to setup Azure application federated credentials. This is used to authenticate P0 with your Microsoft Azure organization. (see [below for nested schema](#nestedatt--credential_info))
+- `service_account_email` (String) The service identity email that P0 uses to communicate with your Microsoft Azure organization
+- `service_account_id` (String) The service identity ID that P0 uses to communicate with your Microsoft Azure organization
+
+<a id="nestedatt--credential_info"></a>
+### Nested Schema for `credential_info`
+
+Read-Only:
+
+- `audiences` (List of String) The audience of the Azure application federated credential. This is used to establish a connection between external workload identities
+- `description` (String) The description of the Azure application federated credential.
+- `issuer` (String) The issuer of the Azure application federated credential.
+- `name` (String) The display name of the Azure application federated credential.
