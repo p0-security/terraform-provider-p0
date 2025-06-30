@@ -23,9 +23,9 @@ func NewAzureIamWrite() resource.Resource {
 }
 
 type azureIamWriteModel struct {
-	ManagementGroupId types.String `tfsdk:"management_group_id"`
-	Label             types.String `tfsdk:"label"`
-	State             types.String `tfsdk:"state"`
+	SubscriptionId types.String `tfsdk:"subscription_id"`
+	Label          types.String `tfsdk:"label"`
+	State          types.String `tfsdk:"state"`
 }
 
 type azureIamWriteJson struct {
@@ -47,22 +47,23 @@ func (r *azureIamWrite) Metadata(ctx context.Context, req resource.MetadataReque
 
 func (r *azureIamWrite) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `An installation of P0, on a single Microsoft Azure Cloud Management Group, for IAM management.
+		MarkdownDescription: `An installation of P0, on a single Microsoft Azure Cloud Subscription, for IAM management.
 
 To use this resource, you must also:
 - create an app registration in Azure for P0,
 - create federated credentials for P0 to communicate with Azure through the app registration,
 - create a custom role allowing IAM operations,
-- assign this custom role to P0's app registration at the Management Group level,
+- assign this custom role to P0's app registration at the subscription level,
 - (optional) constraint role assignment to specific roles or principals,
 - install the ` + "`p0_azure`" + ` resource,
+- install the ` + "`p0_azure_app`" + ` resource,
 - install the ` + "`p0_azure_iam_write_staged`" + ` resource,
 
 See the example usage for the recommended pattern to define this infrastructure.`,
 		Attributes: map[string]schema.Attribute{
-			"management_group_id": managementGroupIdAttribute,
-			"label":               labelAttribute,
-			"state":               common.StateAttribute,
+			"subscription_id": subscriptionIdAttribute,
+			"label":           labelAttribute,
+			"state":           common.StateAttribute,
 		},
 	}
 }
@@ -72,7 +73,7 @@ func (r *azureIamWrite) getId(data any) *string {
 	if !ok {
 		return nil
 	}
-	return model.ManagementGroupId.ValueStringPointer()
+	return model.SubscriptionId.ValueStringPointer()
 }
 
 func (r *azureIamWrite) getItemJson(json any) any {
@@ -90,7 +91,7 @@ func (r *azureIamWrite) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 		return nil
 	}
 
-	data.ManagementGroupId = types.StringValue(id)
+	data.SubscriptionId = types.StringValue(id)
 	data.State = types.StringValue(jsonv.State)
 	data.Label = types.StringValue(jsonv.Label)
 
@@ -138,5 +139,5 @@ func (s *azureIamWrite) Update(ctx context.Context, req resource.UpdateRequest, 
 }
 
 func (s *azureIamWrite) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("management_group_id"), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("subscription_id"), req, resp)
 }

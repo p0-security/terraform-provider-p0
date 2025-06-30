@@ -3,13 +3,24 @@
 page_title: "p0_azure_iam_write_staged Resource - p0"
 subcategory: ""
 description: |-
-  An installation of P0, on a single Microsoft Azure Management Group, for IAM management.
+  An installation of P0, on a single Azure subscription, for IAM management.
+  To use this resource, you must also:
+  create an app registration in Azure for P0,create federated credentials for P0 to communicate with Azure through the app registration,create a custom role allowing IAM operations,assign this custom role to P0's app registration at the subscription level,(optional) constraint role assignment to specific roles or principals,install the p0_azure resource,install the p0_azure_app resource,
   For instructions on using this resource, see the documentation for p0_azure_iam_write.
 ---
 
 # p0_azure_iam_write_staged (Resource)
 
-An installation of P0, on a single Microsoft Azure Management Group, for IAM management.
+An installation of P0, on a single Azure subscription, for IAM management.
+		
+To use this resource, you must also:
+- create an app registration in Azure for P0,
+- create federated credentials for P0 to communicate with Azure through the app registration,
+- create a custom role allowing IAM operations,
+- assign this custom role to P0's app registration at the subscription level,
+- (optional) constraint role assignment to specific roles or principals,
+- install the `p0_azure` resource,
+- install the `p0_azure_app` resource,
 
 For instructions on using this resource, see the documentation for `p0_azure_iam_write`.
 
@@ -32,11 +43,24 @@ resource "p0_azure_iam_write_staged" "example" {
 
 ### Required
 
-- `management_group_id` (String) The ID of the Azure Management Group.
+- `subscription_id` (String) The ID of the Azure Subscription.
 
 ### Read-Only
 
+- `custom_role` (Attributes) The custom role created for the Azure IAM Management. (see [below for nested schema](#nestedatt--custom_role))
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured
 	- 'installed': The item is fully installed
+
+<a id="nestedatt--custom_role"></a>
+### Nested Schema for `custom_role`
+
+Read-Only:
+
+- `actions` (List of String) The actions allowed for the Azure custom role.
+- `assignable_scope` (String) The assignable scope of the Azure custom role.
+- `condition` (String) The condition of the Azure custom role assignment, if any.
+- `description` (String) The description of the Azure custom role.
+- `is_custom` (Boolean) Indicates if the role is a custom role.
+- `name` (String) The name of the Azure custom role.

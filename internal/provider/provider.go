@@ -116,6 +116,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installaws.NewAwsIamWrite,
 		installaws.NewIamWriteStagedAws,
 		installazure.NewAzure,
+		installazure.NewAzureApp,
 		installazure.NewAzureIamWrite,
 		installazure.NewAzureIamWriteStaged,
 		installgcp.NewGcp,

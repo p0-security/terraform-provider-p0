@@ -3,6 +3,7 @@ package installazure
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -13,7 +14,6 @@ import (
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
-// Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.Resource = &AzureIamWriteStaged{}
 var _ resource.ResourceWithImportState = &AzureIamWriteStaged{}
 var _ resource.ResourceWithConfigure = &AzureIamWriteStaged{}
@@ -27,14 +27,27 @@ type AzureIamWriteStaged struct {
 }
 
 type AzureIamWriteStagedModel struct {
-	ManagementGroupId string       `tfsdk:"management_group_id"`
-	State             types.String `tfsdk:"state"`
+	SubscriptionId string       `tfsdk:"subscription_id"`
+	State          types.String `tfsdk:"state"`
+	CustomRole     types.Object `tfsdk:"custom_role"`
+}
+
+type azureCustomRoleMetadata struct {
+	Name            string   `json:"name" tfsdk:"name"`
+	Description     string   `json:"description" tfsdk:"description"`
+	Actions         []string `json:"actions" tfsdk:"actions"`
+	IsCustom        bool     `json:"isCustom" tfsdk:"is_custom"`
+	AssignableScope string   `json:"assignableScope" tfsdk:"assignable_scope"`
+	Condition       string   `json:"condition" tfsdk:"condition"`
 }
 
 type AzureIamWriteStagedApi struct {
 	Item struct {
 		State string `json:"state"`
 	} `json:"item"`
+	Metadata struct {
+		CustomRole azureCustomRoleMetadata `json:"customRole"`
+	} `json:"metadata"`
 }
 
 func (r *AzureIamWriteStaged) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -43,12 +56,52 @@ func (r *AzureIamWriteStaged) Metadata(ctx context.Context, req resource.Metadat
 
 func (r *AzureIamWriteStaged) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `An installation of P0, on a single Microsoft Azure Management Group, for IAM management.
+		MarkdownDescription: `An installation of P0, on a single Azure subscription, for IAM management.
+		
+To use this resource, you must also:
+- create an app registration in Azure for P0,
+- create federated credentials for P0 to communicate with Azure through the app registration,
+- create a custom role allowing IAM operations,
+- assign this custom role to P0's app registration at the subscription level,
+- (optional) constraint role assignment to specific roles or principals,
+- install the ` + "`p0_azure`" + ` resource,
+- install the ` + "`p0_azure_app`" + ` resource,
 
 For instructions on using this resource, see the documentation for ` + "`p0_azure_iam_write`.",
 		Attributes: map[string]schema.Attribute{
-			"management_group_id": managementGroupIdAttribute,
-			"state":               common.StateAttribute,
+			"subscription_id": subscriptionIdAttribute,
+			"state":           common.StateAttribute,
+			"custom_role": schema.SingleNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: "The custom role created for the Azure IAM Management.",
+				Attributes: map[string]schema.Attribute{
+					"name": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "The name of the Azure custom role.",
+					},
+					"description": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "The description of the Azure custom role.",
+					},
+					"actions": schema.ListAttribute{
+						Computed:            true,
+						ElementType:         types.StringType,
+						MarkdownDescription: "The actions allowed for the Azure custom role.",
+					},
+					"is_custom": schema.BoolAttribute{
+						Computed:            true,
+						MarkdownDescription: "Indicates if the role is a custom role.",
+					},
+					"assignable_scope": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "The assignable scope of the Azure custom role.",
+					},
+					"condition": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "The condition of the Azure custom role assignment, if any.",
+					},
+				},
+			},
 		},
 	}
 }
@@ -58,7 +111,7 @@ func (r *AzureIamWriteStaged) getId(data any) *string {
 	if !ok {
 		return nil
 	}
-	return &model.ManagementGroupId
+	return &model.SubscriptionId
 }
 
 func (r *AzureIamWriteStaged) getItemJson(json any) any {
@@ -72,8 +125,22 @@ func (r *AzureIamWriteStaged) fromJson(ctx context.Context, diags *diag.Diagnost
 		return nil
 	}
 
-	data.ManagementGroupId = id
+	data.SubscriptionId = id
 	data.State = types.StringValue(jsonv.Item.State)
+	metadata := jsonv.Metadata
+	customRole, alDiags := types.ObjectValueFrom(ctx, map[string]attr.Type{
+		"name":             types.StringType,
+		"description":      types.StringType,
+		"actions":          types.ListType{ElemType: types.StringType},
+		"is_custom":        types.BoolType,
+		"assignable_scope": types.StringType,
+		"condition":        types.StringType,
+	}, metadata.CustomRole)
+	if alDiags.HasError() {
+		diags.Append(alDiags...)
+		return nil
+	}
+	data.CustomRole = customRole
 
 	return &data
 }
@@ -106,7 +173,6 @@ func (s *AzureIamWriteStaged) Read(ctx context.Context, req resource.ReadRequest
 	s.installer.Read(ctx, &resp.Diagnostics, &resp.State, &AzureIamWriteStagedApi{}, &AzureIamWriteStagedModel{})
 }
 
-// Skips the unstaging step, as it is not needed for ssh integrations and instead performs a full delete.
 func (s *AzureIamWriteStaged) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	s.installer.Delete(ctx, &resp.Diagnostics, &req.State, &AzureIamWriteStagedModel{})
 }
@@ -117,5 +183,5 @@ func (s *AzureIamWriteStaged) Update(ctx context.Context, req resource.UpdateReq
 }
 
 func (s *AzureIamWriteStaged) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("management_group_id"), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("subscription_id"), req, resp)
 }
