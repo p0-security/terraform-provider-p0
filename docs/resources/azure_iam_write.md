@@ -31,13 +31,13 @@ See the example usage for the recommended pattern to define this infrastructure.
 locals {
   management_group_id = "my-management-group"
   # The tenant or directory ID for the Azure Installation
-  tenant_id = "12345678-1234-1234-1234-123456789012"
+  directory_id = "12345678-1234-1234-1234-123456789012"
   # The billing subscription ID
   subscription_id = "12345678-1234-1234-1234-123456789012"
 }
 
 provider "azuread" {
-  tenant_id = local.tenant_id
+  tenant_id = local.directory_id
 }
 
 provider "azurerm" {
@@ -70,9 +70,8 @@ resource "azuread_application_registration" "example" {
 }
 
 resource "p0_azure" "example" {
-  depends_on = [azuread_application_registration.example]
-  tenant_id  = local.tenant_id
-  client_id  = azuread_application_registration.example.client_id
+  depends_on   = [azuread_application_registration.example]
+  directory_id = local.directory_id
 }
 
 resource "azuread_application_federated_identity_credential" "p0_integration" {
@@ -88,16 +87,6 @@ resource "azuread_application_federated_identity_credential" "p0_integration" {
 resource "azuread_service_principal" "example" {
   depends_on = [azuread_application_registration.example]
   client_id  = azuread_application_registration.example.client_id
-}
-
-resource "p0_azure_iam_write_staged" "example" {
-  depends_on          = [p0_azure.example]
-  management_group_id = local.management_group_id
-}
-
-resource "p0_azure_iam_write" "example" {
-  depends_on          = [p0_azure_iam_write_staged.example, azurerm_role_assignment.example, azuread_service_principal.example]
-  management_group_id = local.management_group_id
 }
 ```
 

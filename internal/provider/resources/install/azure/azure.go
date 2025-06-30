@@ -30,7 +30,8 @@ type Azure struct {
 }
 
 type azureModel struct {
-	DirectoryId         types.String `tfsdk:"tenant_id"`
+	DirectoryId         types.String `tfsdk:"directory_id"`
+	State               types.String `tfsdk:"state"`
 	ServiceAccountEmail types.String `tfsdk:"service_account_email"`
 	ServiceAccountId    types.String `tfsdk:"service_account_id"`
 	AppName             types.String `tfsdk:"app_name"`
@@ -59,6 +60,7 @@ type azureApi struct {
 				DirectoryId         string  `json:"directoryId"`
 				ServiceAccountEmail *string `json:"serviceAccountEmail"`
 				ServiceAccountId    *string `json:"serviceAccountId"`
+				State               string  `json:"state"`
 			} `json:"_"`
 		} `json:"root"`
 	} `json:"config"`
@@ -76,9 +78,7 @@ func (r *Azure) Schema(ctx context.Context, req resource.SchemaRequest, resp *re
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Microsoft Azure installation.`,
 		Attributes: map[string]schema.Attribute{
-			// Azure tenant_id is also called directory_id, in our backend we call it directory_id.
-			// We call it tenant_id here to match the Azure Terraform Provider.
-			"tenant_id": schema.StringAttribute{
+			"directory_id": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The Microsoft Azure Directory ID`,
 				PlanModifiers: []planmodifier.String{
@@ -88,6 +88,7 @@ func (r *Azure) Schema(ctx context.Context, req resource.SchemaRequest, resp *re
 					stringvalidator.RegexMatches(common.UuidRegex, "Azure Directory ID must be a valid UUID"),
 				},
 			},
+			"state": common.StateAttribute,
 			"service_account_email": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: `The service identity email that P0 uses to communicate with your Microsoft Azure organization`,
@@ -119,7 +120,7 @@ func (r *Azure) Schema(ctx context.Context, req resource.SchemaRequest, resp *re
 					"audiences": schema.ListAttribute{
 						Computed:            true,
 						ElementType:         types.StringType,
-						MarkdownDescription: "The audience of the Azure application federated credential. This is used to establish a connection between external workload identities",
+						MarkdownDescription: "The audience of the Azure application federated credential. This is used to establish a connection with the P0 service account",
 					},
 				},
 			},
@@ -203,5 +204,5 @@ func (r *Azure) Delete(ctx context.Context, req resource.DeleteRequest, resp *re
 }
 
 func (r *Azure) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("tenant_id"), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("directory_id"), req, resp)
 }
