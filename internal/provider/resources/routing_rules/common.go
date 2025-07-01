@@ -43,9 +43,10 @@ type ResourceFilterModel struct {
 }
 
 type ResourceModel struct {
-	Filters *map[string]ResourceFilterModel `json:"filters" tfsdk:"filters"`
-	Service *string                         `json:"service" tfsdk:"service"`
-	Type    string                          `json:"type" tfsdk:"type"`
+	Type       string                          `json:"type" tfsdk:"type"`
+	Service    *string                         `json:"service" tfsdk:"service"`
+	AccessType *string                         `json:"accessType" tfsdk:"access_type"`
+	Filters    *map[string]ResourceFilterModel `json:"filters" tfsdk:"filters"`
 }
 
 type ApprovalOptionsModel struct {
@@ -171,6 +172,10 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
     - 'any': Any resource
     - 'integration': Only resources within a specified integration`,
 			Required: true,
+		},
+		"access_type": schema.StringAttribute{
+			MarkdownDescription: `May only be used if 'type' is 'integration' and must be a valid access type for a given service integration or 'any'. Defaults to 'any' if not specified.`,
+			Optional:            true,
 		},
 	},
 }

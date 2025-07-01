@@ -148,6 +148,7 @@ Required:
 
 Optional:
 
+- `access_type` (String) May only be used if 'type' is 'integration' and must be a valid access type for a given service integration or 'any'. Defaults to 'any' if not specified.
 - `filters` (Attributes Map) May only be used if 'type' is 'integration'. Available filters depend on the value of 'service'.
 See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for a list of available filters. (see [below for nested schema](#nestedatt--resource--filters))
 - `service` (String) May only be used if 'type' is 'integration'.
