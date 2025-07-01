@@ -174,7 +174,7 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 			Required: true,
 		},
 		"access_type": schema.StringAttribute{
-			MarkdownDescription: `May only be used if 'type' is 'integration' and must be a valid access type for a given service integration. Defaults to 'any' if not specified.`,
+			MarkdownDescription: `May only be used if 'type' is 'integration' and must be a valid access type for a given service integration or 'any'. Defaults to 'any' if not specified.`,
 			Optional:            true,
 		},
 	},
