@@ -268,7 +268,7 @@ func (rules *RoutingRules) Delete(ctx context.Context, req resource.DeleteReques
 	diag.AddWarning(
 		"Routing rules are not deleted",
 		`Routing rules can not be deleted. Deleting the routing_rules resource instead restores rules to the P0 default rules.
-These rules allow all principals to request access to all resources, with manual approval by P0 approvers.`,
+These rules allow all principals to request access to all resources, with manual approval by users defined as 'security reviewers' in P0.`,
 	)
 
 	// Set workflow to default rules
