@@ -101,6 +101,7 @@ Optional:
 Optional:
 
 - `allow_one_party` (Boolean) If true, allows requestors to approve their own requests.
+- `break_glass_approver` (Boolean) If true, allows the approver to approve break-glass requests.
 - `require_reason` (Boolean) If true, requires access requests to include a reason.
 
 
