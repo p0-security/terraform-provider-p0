@@ -32,10 +32,15 @@ type AwsIamWriteStaged struct {
 	installer *common.Install
 }
 
+type AwsPartition struct {
+	Type *string `json:"type"`
+}
+
 type awsIamWriteStagedApi struct {
 	Item struct {
-		Label *string `json:"label"`
-		State *string `json:"state"`
+		Label        *string       `json:"label"`
+		State        *string       `json:"state"`
+		AwsPartition *AwsPartition `json:"awsPartition"`
 	} `json:"item"`
 	Metadata struct {
 		InlinePolicy     string `json:"inlinePolicy"`
@@ -48,6 +53,7 @@ type awsIamWriteStagedApi struct {
 
 type awsIamWriteStagedModel struct {
 	Id               string       `tfsdk:"id"`
+	Partition        types.String `tfsdk:"partition"`
 	Label            types.String `tfsdk:"label"`
 	ServiceAccountId types.String `tfsdk:"service_account_id"`
 	Role             types.Object `tfsdk:"role"`
@@ -69,6 +75,13 @@ func (r *AwsIamWriteStaged) Schema(ctx context.Context, req resource.SchemaReque
 				MarkdownDescription: `The AWS account ID`,
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
+				},
+			},
+			"partition": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: `The AWS partition (aws or aws-us-gov). Defaults to aws if not specified.`,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(AwsPartitionRegex, "AWS partition must be one of: aws, aws-us-gov."),
 				},
 			},
 			"label": schema.StringAttribute{
@@ -146,6 +159,11 @@ func (r *AwsIamWriteStaged) fromJson(ctx context.Context, diags *diag.Diagnostic
 	if jsonv.Item.Label != nil {
 		data.Label = types.StringValue(*jsonv.Item.Label)
 	}
+
+	if jsonv.Item.AwsPartition != nil && jsonv.Item.AwsPartition.Type != nil {
+		data.Partition = types.StringValue(*jsonv.Item.AwsPartition.Type)
+	}
+
 	data.ServiceAccountId = types.StringValue(jsonv.Metadata.ServiceAccountId)
 
 	role, objErr := types.ObjectValue(
@@ -184,6 +202,11 @@ func (r *AwsIamWriteStaged) toJson(data any) any {
 		json.Item.Label = &label
 	}
 
+	if !datav.Partition.IsNull() && !datav.Partition.IsUnknown() {
+		partition := datav.Partition.ValueString()
+		json.Item.AwsPartition = &AwsPartition{Type: &partition}
+	}
+
 	// can omit state here as it's filled by the backend
 	return &json
 }
@@ -191,8 +214,17 @@ func (r *AwsIamWriteStaged) toJson(data any) any {
 func (r *AwsIamWriteStaged) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json awsIamWriteStagedApi
 	var data awsIamWriteStagedModel
+
+	var inputData awsIamWriteStagedModel
+	req.Config.Get(ctx, &inputData)
+	inputJson, ok := r.toJson(&inputData).(*awsIamWriteStagedApi)
+	if !ok {
+		// TODO throw?
+		return
+	}
+
 	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, inputJson.Item)
 }
 
 func (r *AwsIamWriteStaged) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -204,8 +236,17 @@ func (r *AwsIamWriteStaged) Read(ctx context.Context, req resource.ReadRequest, 
 func (r *AwsIamWriteStaged) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var json awsIamWriteStagedApi
 	var data awsIamWriteStagedModel
+
+	var inputData awsIamWriteStagedModel
+	req.Config.Get(ctx, &inputData)
+	inputJson, ok := r.toJson(&inputData).(*awsIamWriteStagedApi)
+	if !ok {
+		// TODO throw?
+		return
+	}
+
 	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, inputJson.Item)
 }
 
 func (r *AwsIamWriteStaged) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

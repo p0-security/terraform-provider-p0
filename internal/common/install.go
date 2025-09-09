@@ -29,6 +29,10 @@ var StateAttribute = schema.StringAttribute{
 // Order matters here; components installed in this order.
 var InstallSteps = []string{Verify, Config}
 
+type AwsPartition struct {
+	Type *string `json:"type"`
+}
+
 type Install struct {
 	// This Integration's key
 	Integration string
@@ -78,7 +82,7 @@ func (i *Install) EnsureConfig(ctx context.Context, diags *diag.Diagnostics, pla
 //
 //	var data ItemConfigurationModel
 //	var json ConfigurationApiResponseJson
-func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any) {
+func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any, inputJson any) {
 	diags.Append(plan.Get(ctx, model)...)
 	if diags.HasError() {
 		return
@@ -90,7 +94,7 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 		return
 	}
 
-	_, err := i.ProviderData.Put(i.itemPath(*id), &struct{}{}, json)
+	_, err := i.ProviderData.Put(i.itemPath(*id), inputJson, json)
 	if err != nil {
 		diags.AddError(fmt.Sprintf("Could not stage %s component", i.Component), fmt.Sprintf("Error: %s", err))
 	}

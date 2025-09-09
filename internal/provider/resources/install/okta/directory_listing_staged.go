@@ -132,7 +132,7 @@ func (r *OktaDirectoryListingStaged) Configure(ctx context.Context, req resource
 func (s *OktaDirectoryListingStaged) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json oktaDirectoryListingStagedApi
 	var data oktaDirectoryListingStagedModel
-	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &struct{}{})
 }
 
 func (s *OktaDirectoryListingStaged) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

@@ -78,7 +78,7 @@ func (r *GcpOrgIamAssessment) Configure(ctx context.Context, req resource.Config
 func (s *GcpOrgIamAssessment) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var model gcpOrgIamAssessmentModel
 	var json gcpItemApi
-	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &model)
+	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &model, &struct{}{})
 	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &model)
 }
 

@@ -127,7 +127,7 @@ func (r *GcpIamWriteStaged) Configure(ctx context.Context, req resource.Configur
 func (s *GcpIamWriteStaged) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json gcpIamWriteStagedApi
 	var data gcpIamWriteStagedModel
-	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &struct{}{})
 }
 
 func (s *GcpIamWriteStaged) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

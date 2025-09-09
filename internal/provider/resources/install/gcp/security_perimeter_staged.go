@@ -214,7 +214,7 @@ func (s *GcpSecurityPerimeterStage) Create(ctx context.Context, req resource.Cre
 	var api gcpSecurityPerimeterStageApi
 	var model gcpSecurityPerimeterStageModel
 	s.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &model)
-	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &api, &model)
+	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &api, &model, &struct{}{})
 }
 
 func (s *GcpSecurityPerimeterStage) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

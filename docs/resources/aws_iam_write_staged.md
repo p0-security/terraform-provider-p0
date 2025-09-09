@@ -28,6 +28,10 @@ resource "p0_aws_iam_write_staged" "example" {
 
 - `id` (String) The AWS account ID
 
+### Optional
+
+- `partition` (String) The AWS partition (aws or aws-us-gov). Defaults to aws if not specified.
+
 ### Read-Only
 
 - `label` (String) The AWS account's alias (if available)

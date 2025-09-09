@@ -166,7 +166,7 @@ func (r *AzureIamWriteStaged) Configure(ctx context.Context, req resource.Config
 func (s *AzureIamWriteStaged) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json AzureIamWriteStagedApi
 	var data AzureIamWriteStagedModel
-	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &struct{}{})
 }
 
 func (s *AzureIamWriteStaged) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

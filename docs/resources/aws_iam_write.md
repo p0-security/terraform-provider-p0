@@ -84,6 +84,7 @@ resource "p0_aws_iam_write" "example" {
 ### Optional
 
 - `label` (String) The AWS account's alias (if available)
+- `partition` (String) The AWS partition (aws or aws-us-gov). Defaults to aws if not specified.
 
 ### Read-Only
 

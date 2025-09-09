@@ -113,7 +113,7 @@ func (r *OktaGroupAssignment) toJson(data any) any {
 func (r *OktaGroupAssignment) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json oktaGroupAssignmentApi
 	var data oktaGroupAssignmentModel
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &struct{}{})
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
