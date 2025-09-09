@@ -115,7 +115,7 @@ func (r *GcpOrgAccessLogs) Configure(ctx context.Context, req resource.Configure
 func (s *GcpOrgAccessLogs) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json gcpOrgAccessLogsApi
 	var data gcpOrgAccessLogsModel
-	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &struct{}{})
 	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 

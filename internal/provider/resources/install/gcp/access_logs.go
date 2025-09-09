@@ -52,7 +52,7 @@ func (r *GcpAccessLogs) Configure(ctx context.Context, req resource.ConfigureReq
 func (s *GcpAccessLogs) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json gcpItemApi
 	var data gcpItemModel
-	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &struct{}{})
 	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 

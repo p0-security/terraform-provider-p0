@@ -236,7 +236,7 @@ func (s *AuditLogs) Create(ctx context.Context, req resource.CreateRequest, resp
 	var model auditLogsModel
 
 	s.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &model)
-	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &api, &model)
+	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &api, &model, &struct{}{})
 	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &api, &model)
 
 	// manually set the token cleartext attribute

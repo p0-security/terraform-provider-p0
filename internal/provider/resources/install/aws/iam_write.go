@@ -62,16 +62,18 @@ type awsIamWriteLoginModel struct {
 }
 
 type awsIamWriteModel struct {
-	Id    string                 `tfsdk:"id"`
-	Label basetypes.StringValue  `tfsdk:"label"`
-	State basetypes.StringValue  `tfsdk:"state"`
-	Login *awsIamWriteLoginModel `tfsdk:"login"`
+	Id        string                 `tfsdk:"id"`
+	Partition basetypes.StringValue  `tfsdk:"partition"`
+	Label     basetypes.StringValue  `tfsdk:"label"`
+	State     basetypes.StringValue  `tfsdk:"state"`
+	Login     *awsIamWriteLoginModel `tfsdk:"login"`
 }
 
 type awsIamWriteJson struct {
-	Label *string                `json:"label"`
-	State string                 `json:"state"`
-	Login *awsIamWriteLoginModel `json:"login"`
+	Label        *string                `json:"label"`
+	State        string                 `json:"state"`
+	AwsPartition *AwsPartition          `json:"awsPartition"`
+	Login        *awsIamWriteLoginModel `json:"login"`
 }
 
 type awsIamWriteApi struct {
@@ -119,6 +121,13 @@ resource "p0_aws_iam_write" "installed_account" {
 				MarkdownDescription: `The AWS account ID`,
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
+				},
+			},
+			"partition": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: `The AWS partition (aws or aws-us-gov). Defaults to aws if not specified.`,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(AwsPartitionRegex, "AWS partition must be one of: aws, aws-us-gov."),
 				},
 			},
 			"label": schema.StringAttribute{
@@ -310,9 +319,15 @@ func (r *AwsIamWrite) fromJson(ctx context.Context, diags *diag.Diagnostics, id 
 	}
 
 	data.Id = id
+
 	data.Label = types.StringNull()
 	if jsonv.Label != nil {
 		data.Label = types.StringValue(*jsonv.Label)
+	}
+
+	data.Partition = types.StringNull()
+	if jsonv.AwsPartition != nil && jsonv.AwsPartition.Type != nil {
+		data.Partition = types.StringValue(*jsonv.AwsPartition.Type)
 	}
 
 	data.State = types.StringValue(jsonv.State)
@@ -332,6 +347,11 @@ func (r *AwsIamWrite) toJson(data any) any {
 	if !datav.Label.IsNull() && !datav.Label.IsUnknown() {
 		label := datav.Label.ValueString()
 		json.Label = &label
+	}
+
+	if !datav.Partition.IsNull() && !datav.Partition.IsUnknown() {
+		partition := datav.Partition.ValueString()
+		json.AwsPartition = &AwsPartition{Type: &partition}
 	}
 
 	// can omit state here as it's filled by the backend
@@ -356,6 +376,7 @@ func (r *AwsIamWrite) Configure(ctx context.Context, req resource.ConfigureReque
 func (r *AwsIamWrite) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json awsIamWriteApi
 	var data awsIamWriteModel
+	req.Config.Get(ctx, &data)
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
@@ -368,6 +389,7 @@ func (r *AwsIamWrite) Read(ctx context.Context, req resource.ReadRequest, resp *
 func (r *AwsIamWrite) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var json awsIamWriteApi
 	var data awsIamWriteModel
+	req.Config.Get(ctx, &data)
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 

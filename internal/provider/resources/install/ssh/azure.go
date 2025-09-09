@@ -232,7 +232,7 @@ func (s *sshAzureIamWrite) Create(ctx context.Context, req resource.CreateReques
 	var json sshAzureIamWriteApi
 	var data sshAzureIamWriteModel
 	s.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
-	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &struct{}{})
 	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 

@@ -126,7 +126,7 @@ func (r *AzureApp) Configure(ctx context.Context, req resource.ConfigureRequest,
 func (s *AzureApp) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json azureAppJsonApi
 	var data azureAppModel
-	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &struct{}{})
 	s.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
