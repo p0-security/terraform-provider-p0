@@ -132,6 +132,8 @@ func (r *OktaDirectoryListingStaged) Configure(ctx context.Context, req resource
 func (s *OktaDirectoryListingStaged) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var json oktaDirectoryListingStagedApi
 	var data oktaDirectoryListingStagedModel
+
+	s.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
 	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &struct{}{})
 }
 
