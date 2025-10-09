@@ -125,6 +125,8 @@ resource "p0_aws_iam_write" "installed_account" {
 			},
 			"partition": schema.StringAttribute{
 				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString("aws"),
 				MarkdownDescription: `The AWS partition (aws or aws-us-gov). Defaults to aws if not specified.`,
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(AwsPartitionRegex, "AWS partition must be one of: aws, aws-us-gov."),
