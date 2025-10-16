@@ -115,19 +115,23 @@ func (rule *RoutingRule) Create(ctx context.Context, req resource.CreateRequest,
 
 	tflog.Debug(ctx, fmt.Sprintf("Routing rule to create: %+v", model))
 
+	json := toJson(model)
+
 	// Create the routing rule
-	var updated RoutingRuleModelV2
-	_, postErr := rule.data.Post(getPath(*model.Name), &model, &updated)
+	var updatedJson RoutingRuleJson
+	_, postErr := rule.data.Post(getPath(*model.Name), &json, &updatedJson)
 	if postErr != nil {
 		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to create routing rule:\n%s", postErr))
 		return
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Latest routing rule: %+v", updated))
+	tflog.Debug(ctx, fmt.Sprintf("Latest routing rule: %+v", updatedJson))
+
+	updatedModel := toModel(updatedJson)
 
 	// Update the Terraform state to reflect the newly created routing rule
-	diag.Append(resp.State.SetAttribute(ctx, path.Root("name"), updated.Name)...)
-	diag.Append(resp.State.Set(ctx, updated)...)
+	diag.Append(resp.State.SetAttribute(ctx, path.Root("name"), updatedModel.Name)...)
+	diag.Append(resp.State.Set(ctx, updatedModel)...)
 }
 
 func (rule *RoutingRule) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
