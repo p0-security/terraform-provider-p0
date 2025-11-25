@@ -63,6 +63,10 @@ Required:
 - `requestor` (Attributes) Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor). (see [below for nested schema](#nestedatt--rule--requestor))
 - `resource` (Attributes) Controls what is accessed. See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource). (see [below for nested schema](#nestedatt--rule--resource))
 
+Optional:
+
+- `disabled` (Boolean) Whether or not the routing rule should be evaluated; if false or undefined, the rule will be evaluated
+
 <a id="nestedatt--rule--approval"></a>
 ### Nested Schema for `rule.approval`
 

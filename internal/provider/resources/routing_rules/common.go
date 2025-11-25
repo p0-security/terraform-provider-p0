@@ -103,6 +103,7 @@ type RoutingRuleModelV1 struct {
 
 type RoutingRuleModelV2 struct {
 	Name      *string           `json:"name" tfsdk:"name"`
+	Disabled  *bool             `json:"disabled,omitempty" tfsdk:"disabled"`
 	Requestor *RequestorModelV2 `json:"requestor" tfsdk:"requestor"`
 	Resource  *ResourceModel    `json:"resource" tfsdk:"resource"`
 	Approval  []ApprovalModelV2 `json:"approval" tfsdk:"approval"`
