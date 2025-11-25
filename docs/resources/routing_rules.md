@@ -65,7 +65,7 @@ Required:
 
 Optional:
 
-- `disabled` (Boolean) Whether or not the routing rule should be evaluated; if false or undefined, the rule will be evaluated
+- `disabled` (Boolean) Whether or not the routing rule should be evaluated; if false or not defined, the rule will be evaluated
 
 <a id="nestedatt--rule--approval"></a>
 ### Nested Schema for `rule.approval`
