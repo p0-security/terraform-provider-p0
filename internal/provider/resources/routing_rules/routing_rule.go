@@ -31,6 +31,7 @@ type RoutingRule struct {
 // - In JSON state, it is either present or null.
 type RoutingRuleJson struct {
 	Name      *string           `json:"name" tfsdk:"name"`
+	Disabled  *bool             `json:"disabled,omitempty" tfsdk:"disabled"`
 	Requestor RequestorModelV2  `json:"requestor" tfsdk:"requestor"`
 	Resource  ResourceModel     `json:"resource" tfsdk:"resource"`
 	Approval  []ApprovalModelV2 `json:"approval" tfsdk:"approval"`
@@ -52,6 +53,7 @@ func getPath(name string) string {
 func toJson(model RoutingRuleModelV2) RoutingRuleJson {
 	return RoutingRuleJson{
 		Name:      model.Name,
+		Disabled:  model.Disabled,
 		Requestor: *model.Requestor,
 		Resource:  *model.Resource,
 		Approval:  model.Approval}
@@ -60,6 +62,7 @@ func toJson(model RoutingRuleModelV2) RoutingRuleJson {
 func toModel(json RoutingRuleJson) RoutingRuleModelV2 {
 	return RoutingRuleModelV2{
 		Name:      json.Name,
+		Disabled:  json.Disabled,
 		Requestor: &json.Requestor,
 		Resource:  &json.Resource,
 		Approval:  json.Approval,
@@ -79,6 +82,10 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+			},
+			"disabled": schema.BoolAttribute{
+				MarkdownDescription: "Whether or not the routing rule should be evaluated; if false or not defined, the rule will be evaluated",
+				Optional:            true,
 			},
 			"requestor": requestorAttribute(version),
 			"resource":  resourceAttribute,
@@ -149,7 +156,7 @@ func (rule *RoutingRule) Read(ctx context.Context, req resource.ReadRequest, res
 	httpResponse, httpErr := rule.data.Get(getPath(*model.Name), &json)
 	if httpErr != nil {
 		// Check if the error indicates that the resource was not found (404)
-		if httpResponse.StatusCode == 404 {
+		if httpResponse != nil && httpResponse.StatusCode == 404 {
 			tflog.Debug(ctx, "Routing rule not found (404), removing from state")
 			// Remove the resource from state by calling RemoveResource.
 			resp.State.RemoveResource(ctx)

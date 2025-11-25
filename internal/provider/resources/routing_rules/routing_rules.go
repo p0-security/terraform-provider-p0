@@ -90,6 +90,10 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 							MarkdownDescription: "The name of the rule",
 							Required:            true,
 						},
+						"disabled": schema.BoolAttribute{
+							MarkdownDescription: "Whether or not the routing rule should be evaluated; if false or not defined, the rule will be evaluated",
+							Optional:            true,
+						},
 						"requestor": requestorAttribute(version),
 						"resource":  resourceAttribute,
 						"approval":  approvalAttribute(version),
