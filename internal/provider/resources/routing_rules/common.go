@@ -52,6 +52,7 @@ type ResourceModel struct {
 type ApprovalOptionsModel struct {
 	AllowOneParty      *bool `json:"allowOneParty" tfsdk:"allow_one_party"`
 	BreakGlassApprover *bool `json:"breakGlassApprover" tfsdk:"break_glass_approver"`
+	RequirePreapproval *bool `json:"requirePreapproval" tfsdk:"require_preapproval"`
 	RequireReason      *bool `json:"requireReason" tfsdk:"require_reason"`
 }
 
@@ -206,6 +207,10 @@ func approvalAttribute(version int64) schema.ListNestedAttribute {
 						},
 						"require_reason": schema.BoolAttribute{
 							MarkdownDescription: `If true, requires access requests to include a reason.`,
+							Optional:            true,
+						},
+						"require_preapproval": schema.BoolAttribute{
+							MarkdownDescription: `If true, requires access requests to be pre-approved.`,
 							Optional:            true,
 						},
 						"break_glass_approver": schema.BoolAttribute{
