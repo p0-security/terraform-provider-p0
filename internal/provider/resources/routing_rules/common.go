@@ -54,6 +54,7 @@ type ApprovalOptionsModel struct {
 	BreakGlassApprover *bool `json:"breakGlassApprover" tfsdk:"break_glass_approver"`
 	RequirePreapproval *bool `json:"requirePreapproval" tfsdk:"require_preapproval"`
 	RequireReason      *bool `json:"requireReason" tfsdk:"require_reason"`
+	RequireDuration    *bool `json:"requireDuration" tfsdk:"require_duration"`
 }
 
 type ApprovalModelV0 struct {
@@ -207,6 +208,10 @@ func approvalAttribute(version int64) schema.ListNestedAttribute {
 						},
 						"require_reason": schema.BoolAttribute{
 							MarkdownDescription: `If true, requires access requests to include a reason.`,
+							Optional:            true,
+						},
+						"require_duration": schema.BoolAttribute{
+							MarkdownDescription: `If true, requires access requests to include a duration.`,
 							Optional:            true,
 						},
 						"require_preapproval": schema.BoolAttribute{
