@@ -117,6 +117,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installaws.NewIamWriteStagedAws,
 		installaws.NewAwsInventory,
 		installaws.NewAwsInventoryStaged,
+		installaws.NewAwsKubernetes,
+		installaws.NewKubernetesStagedAws,
 		installazure.NewAzure,
 		installazure.NewAzureApp,
 		installazure.NewAzureIamWrite,

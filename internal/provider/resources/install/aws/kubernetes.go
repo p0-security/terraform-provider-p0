@@ -1,0 +1,294 @@
+// Copyright (c) 2024 P0 Security, Inc
+// SPDX-License-Identifier: MPL-2.0
+
+package installaws
+
+import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
+	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
+)
+
+// Ensure provider defined types fully satisfy framework interfaces.
+var _ resource.Resource = &AwsKubernetes{}
+var _ resource.ResourceWithImportState = &AwsKubernetes{}
+var _ resource.ResourceWithConfigure = &AwsKubernetes{}
+
+func NewAwsKubernetes() resource.Resource {
+	return &AwsKubernetes{}
+}
+
+type AwsKubernetes struct {
+	installer *common.Install
+}
+
+type awsKubernetesLoginModel struct {
+	Type string `json:"type" tfsdk:"type"`
+}
+
+type awsKubernetesModel struct {
+	Id        string                   `tfsdk:"id"`
+	AccountId basetypes.StringValue    `tfsdk:"account_id"`
+	Partition basetypes.StringValue    `tfsdk:"partition"`
+	Region    basetypes.StringValue    `tfsdk:"region"`
+	Namespace basetypes.StringValue    `tfsdk:"namespace"`
+	Label     basetypes.StringValue    `tfsdk:"label"`
+	State     basetypes.StringValue    `tfsdk:"state"`
+	Login     *awsKubernetesLoginModel `tfsdk:"login"`
+}
+
+type awsKubernetesJson struct {
+	Label        *string                  `json:"label"`
+	State        string                   `json:"state"`
+	AccountId    *string                  `json:"accountId"`
+	Region       *string                  `json:"region"`
+	Namespace    *string                  `json:"namespace"`
+	AwsPartition *AwsPartition            `json:"awsPartition"`
+	Login        *awsKubernetesLoginModel `json:"login"`
+}
+
+type awsKubernetesApi struct {
+	Item *awsKubernetesJson `json:"item"`
+}
+
+func (r *AwsKubernetes) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_aws_kubernetes"
+}
+
+func (r *AwsKubernetes) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		MarkdownDescription: `An AWS EKS (Kubernetes) installation.
+
+**Important**: This resource should be used together with the 'aws_kubernetes_staged' resource, with a dependency chain
+requiring this resource to be updated after the 'aws_kubernetes_staged' resource.
+
+P0 recommends you use these resources according to the following pattern:
+
+` + "```" +
+			`
+resource "p0_aws_kubernetes_staged" "staged_cluster" {
+  id         = "my-cluster"
+  account_id = "123456789012"
+  region     = "us-west-2"
+}
+
+resource "kubernetes_manifest" "p0_resources" {
+  manifest = yamldecode(p0_aws_kubernetes_staged.staged_cluster.manifests.manifest)
+}
+
+resource "p0_aws_kubernetes" "installed_cluster" {
+  id         = p0_aws_kubernetes_staged.staged_cluster.id
+  account_id = p0_aws_kubernetes_staged.staged_cluster.account_id
+  region     = p0_aws_kubernetes_staged.staged_cluster.region
+  depends_on = [kubernetes_manifest.p0_resources]
+
+  login {
+    type = "iam"
+  }
+}
+` + "```",
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The EKS cluster name`,
+			},
+			"account_id": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The AWS account ID that owns the EKS cluster`,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
+				},
+			},
+			"partition": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString("aws"),
+				MarkdownDescription: `The AWS partition (aws or aws-us-gov). Defaults to aws if not specified.`,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(AwsPartitionRegex, "AWS partition must be one of: aws, aws-us-gov."),
+				},
+			},
+			"region": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The AWS region where the EKS cluster is located`,
+			},
+			"namespace": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString("p0-system"),
+				MarkdownDescription: `The Kubernetes namespace where P0 resources are deployed. Defaults to p0-system if not specified.`,
+			},
+			"label": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: `The cluster's display label`,
+			},
+			"state": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: common.StateMarkdownDescription,
+			},
+			"login": schema.SingleNestedAttribute{
+				Required:            true,
+				MarkdownDescription: `How users authenticate to this Kubernetes cluster`,
+				Attributes: map[string]schema.Attribute{
+					"type": schema.StringAttribute{
+						Required: true,
+						MarkdownDescription: `The authentication method:
+    - 'iam': Users authenticate via AWS IAM (typical for EKS)`,
+						Validators: []validator.String{
+							stringvalidator.OneOf("iam"),
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func (r *AwsKubernetes) getId(data any) *string {
+	model, ok := data.(*awsKubernetesModel)
+	if !ok {
+		return nil
+	}
+	return &model.Id
+}
+
+func (r *AwsKubernetes) getItemJson(json any) any {
+	inner, ok := json.(*awsKubernetesApi)
+	if !ok {
+		return nil
+	}
+	return inner.Item
+}
+
+func (r *AwsKubernetes) fromJson(ctx context.Context, diags *diag.Diagnostics, id string, json any) any {
+	data := awsKubernetesModel{}
+	jsonv, ok := json.(*awsKubernetesJson)
+	if !ok {
+		return nil
+	}
+
+	data.Id = id
+
+	data.Label = types.StringNull()
+	if jsonv.Label != nil {
+		data.Label = types.StringValue(*jsonv.Label)
+	}
+
+	data.AccountId = types.StringNull()
+	if jsonv.AccountId != nil {
+		data.AccountId = types.StringValue(*jsonv.AccountId)
+	}
+
+	data.Partition = types.StringNull()
+	if jsonv.AwsPartition != nil && jsonv.AwsPartition.Type != nil {
+		data.Partition = types.StringValue(*jsonv.AwsPartition.Type)
+	}
+
+	data.Region = types.StringNull()
+	if jsonv.Region != nil {
+		data.Region = types.StringValue(*jsonv.Region)
+	}
+
+	data.Namespace = types.StringNull()
+	if jsonv.Namespace != nil {
+		data.Namespace = types.StringValue(*jsonv.Namespace)
+	}
+
+	data.State = types.StringValue(jsonv.State)
+	data.Login = jsonv.Login
+
+	return &data
+}
+
+func (r *AwsKubernetes) toJson(data any) any {
+	json := awsKubernetesJson{}
+
+	datav, ok := data.(*awsKubernetesModel)
+	if !ok {
+		return nil
+	}
+
+	if !datav.Label.IsNull() && !datav.Label.IsUnknown() {
+		label := datav.Label.ValueString()
+		json.Label = &label
+	}
+
+	if !datav.AccountId.IsNull() && !datav.AccountId.IsUnknown() {
+		accountId := datav.AccountId.ValueString()
+		json.AccountId = &accountId
+	}
+
+	if !datav.Partition.IsNull() && !datav.Partition.IsUnknown() {
+		partition := datav.Partition.ValueString()
+		json.AwsPartition = &AwsPartition{Type: &partition}
+	}
+
+	if !datav.Region.IsNull() && !datav.Region.IsUnknown() {
+		region := datav.Region.ValueString()
+		json.Region = &region
+	}
+
+	if !datav.Namespace.IsNull() && !datav.Namespace.IsUnknown() {
+		namespace := datav.Namespace.ValueString()
+		json.Namespace = &namespace
+	}
+
+	// can omit state here as it's filled by the backend
+	json.Login = datav.Login
+
+	return &json
+}
+
+func (r *AwsKubernetes) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	providerData := internal.Configure(&req, resp)
+	r.installer = &common.Install{
+		Integration:  Aws,
+		Component:    installresources.Kubernetes,
+		ProviderData: providerData,
+		GetId:        r.getId,
+		GetItemJson:  r.getItemJson,
+		FromJson:     r.fromJson,
+		ToJson:       r.toJson,
+	}
+}
+
+func (r *AwsKubernetes) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var json awsKubernetesApi
+	var data awsKubernetesModel
+	req.Config.Get(ctx, &data)
+	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+}
+
+func (r *AwsKubernetes) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var json awsKubernetesApi
+	var data awsKubernetesModel
+	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &json, &data)
+}
+
+func (r *AwsKubernetes) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var json awsKubernetesApi
+	var data awsKubernetesModel
+	req.Config.Get(ctx, &data)
+	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+}
+
+func (r *AwsKubernetes) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var data awsKubernetesModel
+	r.installer.Rollback(ctx, &resp.Diagnostics, &resp.State, &data)
+}
+
+func (r *AwsKubernetes) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
