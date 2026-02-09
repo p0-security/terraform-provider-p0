@@ -6,4 +6,5 @@ const (
 	Inventory        = "inventory"
 	DirectoryListing = "listing"
 	GroupAssignment  = "group-assignment"
+	Kubernetes       = "k8s"
 )
