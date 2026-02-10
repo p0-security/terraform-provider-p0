@@ -6,13 +6,11 @@ package installk8s
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -34,12 +32,15 @@ type AwsKubernetesStaged struct {
 
 type awsKubernetesStagedApi struct {
 	Item struct {
-		Label                *string `json:"label"`
-		State                *string `json:"state"`
-		Region               *string `json:"region"`
-		AccountId            *string `json:"accountId"`
-		ClusterEndpoint      *string `json:"clusterEndpoint"`
-		CertificateAuthority *string `json:"certificateAuthority"`
+		Connectivity struct {
+			ConnectivityType *string `json:"type"`
+		} `json:"connectivity"`
+		Hosting struct {
+			HostingType *string `json:"type"`
+			ClusterArn  *string `json:"arn"`
+		}
+		ClusterEndpoint      *string `json:"endpoint"`
+		CertificateAuthority *string `json:"ca"`
 	} `json:"item"`
 	Metadata struct {
 		Manifest string `json:"manifest"`
@@ -48,11 +49,11 @@ type awsKubernetesStagedApi struct {
 
 type awsKubernetesStagedModel struct {
 	Id                   string       `tfsdk:"id"`
-	AccountId            types.String `tfsdk:"account_id"`
-	Region               types.String `tfsdk:"region"`
+	ConnectivityType     string       `tfsdk:"connectivity_type"`
+	HostingType          string       `tfsdk:"hosting_type"`
+	ClusterArn           string       `tfsdk:"cluster_arn"`
 	ClusterEndpoint      types.String `tfsdk:"cluster_endpoint"`
 	CertificateAuthority types.String `tfsdk:"certificate_authority"`
-	Label                types.String `tfsdk:"label"`
 	Manifests            types.Object `tfsdk:"manifests"`
 }
 
@@ -66,21 +67,23 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 
 **Important** Before using this resource, please read the instructions for the 'aws_kubernetes' resource. This resource currently only supports installing integrations against EKS-based kubernetes clusters.
 `,
+		// TODO: add additional validation/regexes for these fields
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The EKS cluster name`,
 			},
-			"account_id": schema.StringAttribute{
+			"connectivity_type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The AWS account ID that owns the EKS cluster`,
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
-				},
+				MarkdownDescription: `The connectivity type for the cluster (e.g., 'public', 'private')`,
 			},
-			"region": schema.StringAttribute{
+			"hosting_type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The AWS region where the EKS cluster is located`,
+				MarkdownDescription: `The hosting type for the cluster (e.g., 'eks')`,
+			},
+			"cluster_arn": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The ARN of the EKS cluster`,
 			},
 			"cluster_endpoint": schema.StringAttribute{
 				Required:            true,
@@ -89,10 +92,6 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 			"certificate_authority": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The base-64 encoded certificate authority for the cluster`,
-			},
-			"label": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: `The cluster's display label`,
 			},
 			"manifests": schema.SingleNestedAttribute{
 				Computed:            true,
@@ -146,16 +145,17 @@ func (r *AwsKubernetesStaged) fromJson(ctx context.Context, diags *diag.Diagnost
 	}
 
 	data.Id = id
-	if jsonv.Item.Label != nil {
-		data.Label = types.StringValue(*jsonv.Item.Label)
+
+	if jsonv.Item.Connectivity.ConnectivityType != nil {
+		data.ConnectivityType = *jsonv.Item.Connectivity.ConnectivityType
 	}
 
-	if jsonv.Item.AccountId != nil {
-		data.AccountId = types.StringValue(*jsonv.Item.AccountId)
+	if jsonv.Item.Hosting.HostingType != nil {
+		data.HostingType = *jsonv.Item.Hosting.HostingType
 	}
 
-	if jsonv.Item.Region != nil {
-		data.Region = types.StringValue(*jsonv.Item.Region)
+	if jsonv.Item.Hosting.ClusterArn != nil {
+		data.ClusterArn = *jsonv.Item.Hosting.ClusterArn
 	}
 
 	if jsonv.Item.ClusterEndpoint != nil {
@@ -191,20 +191,9 @@ func (r *AwsKubernetesStaged) toJson(data any) any {
 		return nil
 	}
 
-	if !datav.Label.IsNull() && !datav.Label.IsUnknown() {
-		label := datav.Label.ValueString()
-		json.Item.Label = &label
-	}
-
-	if !datav.AccountId.IsNull() && !datav.AccountId.IsUnknown() {
-		accountId := datav.AccountId.ValueString()
-		json.Item.AccountId = &accountId
-	}
-
-	if !datav.Region.IsNull() && !datav.Region.IsUnknown() {
-		region := datav.Region.ValueString()
-		json.Item.Region = &region
-	}
+	json.Item.Connectivity.ConnectivityType = &datav.ConnectivityType
+	json.Item.Hosting.HostingType = &datav.HostingType
+	json.Item.Hosting.ClusterArn = &datav.ClusterArn
 
 	if !datav.ClusterEndpoint.IsNull() && !datav.ClusterEndpoint.IsUnknown() {
 		clusterEndpoint := datav.ClusterEndpoint.ValueString()
