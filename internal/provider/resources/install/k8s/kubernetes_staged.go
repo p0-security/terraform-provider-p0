@@ -111,7 +111,7 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 func (r *AwsKubernetesStaged) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
 	r.installer = &common.Install{
-		Integration:  Aws,
+		Integration:  K8s,
 		Component:    installresources.Kubernetes,
 		ProviderData: providerData,
 		GetId:        r.getId,

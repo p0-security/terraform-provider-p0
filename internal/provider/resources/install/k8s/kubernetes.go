@@ -1,7 +1,7 @@
 // Copyright (c) 2024 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package installaws
+package installk8s
 
 import (
 	"context"
@@ -254,7 +254,7 @@ func (r *AwsKubernetes) toJson(data any) any {
 func (r *AwsKubernetes) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
 	r.installer = &common.Install{
-		Integration:  Aws,
+		Integration:  K8s,
 		Component:    installresources.Kubernetes,
 		ProviderData: providerData,
 		GetId:        r.getId,
