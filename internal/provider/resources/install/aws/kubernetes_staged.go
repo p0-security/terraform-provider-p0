@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -35,31 +34,24 @@ type AwsKubernetesStaged struct {
 
 type awsKubernetesStagedApi struct {
 	Item struct {
-		Label        *string       `json:"label"`
-		State        *string       `json:"state"`
-		Namespace    *string       `json:"namespace"`
-		Region       *string       `json:"region"`
-		AccountId    *string       `json:"accountId"`
-		AwsPartition *AwsPartition `json:"awsPartition"`
-		ApiServerUrl *string       `json:"apiServerUrl"`
+		Label        *string `json:"label"`
+		State        *string `json:"state"`
+		Region       *string `json:"region"`
+		AccountId    *string `json:"accountId"`
+		ApiServerUrl *string `json:"apiServerUrl"`
 	} `json:"item"`
 	Metadata struct {
-		ServiceAccountId string `json:"serviceAccountId"`
-		Manifest         string `json:"manifest"`
-		Namespace        string `json:"namespace"`
+		Manifest string `json:"manifest"`
 	} `json:"metadata"`
 }
 
 type awsKubernetesStagedModel struct {
-	Id               string       `tfsdk:"id"`
-	AccountId        types.String `tfsdk:"account_id"`
-	Partition        types.String `tfsdk:"partition"`
-	Region           types.String `tfsdk:"region"`
-	ApiServerUrl     types.String `tfsdk:"api_server_url"`
-	Namespace        types.String `tfsdk:"namespace"`
-	Label            types.String `tfsdk:"label"`
-	ServiceAccountId types.String `tfsdk:"service_account_id"`
-	Manifests        types.Object `tfsdk:"manifests"`
+	Id           string       `tfsdk:"id"`
+	AccountId    types.String `tfsdk:"account_id"`
+	Region       types.String `tfsdk:"region"`
+	ApiServerUrl types.String `tfsdk:"api_server_url"`
+	Label        types.String `tfsdk:"label"`
+	Manifests    types.Object `tfsdk:"manifests"`
 }
 
 func (r *AwsKubernetesStaged) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -84,15 +76,6 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 					stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
 				},
 			},
-			"partition": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString("aws"),
-				MarkdownDescription: `The AWS partition (aws or aws-us-gov). Defaults to aws if not specified.`,
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(AwsPartitionRegex, "AWS partition must be one of: aws, aws-us-gov."),
-				},
-			},
 			"region": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The AWS region where the EKS cluster is located`,
@@ -101,21 +84,9 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 				Required:            true,
 				MarkdownDescription: `The Kubernetes API server URL for the EKS cluster`,
 			},
-			"namespace": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString("p0-security"),
-				MarkdownDescription: `The Kubernetes namespace where P0 resources will be deployed. Defaults to p0-security if not specified.`,
-			},
 			"label": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: `The cluster's display label`,
-			},
-			"service_account_id": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString("p0-service-account"),
-				MarkdownDescription: `The audience ID of the service account to include in this cluster's P0 service account configuration`,
 			},
 			"manifests": schema.SingleNestedAttribute{
 				Computed:            true,
@@ -124,10 +95,6 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 					"manifest": schema.StringAttribute{
 						Computed:            true,
 						MarkdownDescription: `The combined Kubernetes YAML manifest that should be applied to the cluster`,
-					},
-					"namespace": schema.StringAttribute{
-						Computed:            true,
-						MarkdownDescription: `The namespace where the manifest should be applied`,
 					},
 				},
 			},
@@ -181,10 +148,6 @@ func (r *AwsKubernetesStaged) fromJson(ctx context.Context, diags *diag.Diagnost
 		data.AccountId = types.StringValue(*jsonv.Item.AccountId)
 	}
 
-	if jsonv.Item.AwsPartition != nil && jsonv.Item.AwsPartition.Type != nil {
-		data.Partition = types.StringValue(*jsonv.Item.AwsPartition.Type)
-	}
-
 	if jsonv.Item.Region != nil {
 		data.Region = types.StringValue(*jsonv.Item.Region)
 	}
@@ -193,20 +156,12 @@ func (r *AwsKubernetesStaged) fromJson(ctx context.Context, diags *diag.Diagnost
 		data.ApiServerUrl = types.StringValue(*jsonv.Item.ApiServerUrl)
 	}
 
-	if jsonv.Item.Namespace != nil {
-		data.Namespace = types.StringValue(*jsonv.Item.Namespace)
-	}
-
-	data.ServiceAccountId = types.StringValue(jsonv.Metadata.ServiceAccountId)
-
 	manifests, objErr := types.ObjectValue(
 		map[string]attr.Type{
-			"manifest":  types.StringType,
-			"namespace": types.StringType,
+			"manifest": types.StringType,
 		},
 		map[string]attr.Value{
-			"manifest":  types.StringValue(jsonv.Metadata.Manifest),
-			"namespace": types.StringValue(jsonv.Metadata.Namespace),
+			"manifest": types.StringValue(jsonv.Metadata.Manifest),
 		},
 	)
 	if objErr.HasError() {
@@ -236,11 +191,6 @@ func (r *AwsKubernetesStaged) toJson(data any) any {
 		json.Item.AccountId = &accountId
 	}
 
-	if !datav.Partition.IsNull() && !datav.Partition.IsUnknown() {
-		partition := datav.Partition.ValueString()
-		json.Item.AwsPartition = &AwsPartition{Type: &partition}
-	}
-
 	if !datav.Region.IsNull() && !datav.Region.IsUnknown() {
 		region := datav.Region.ValueString()
 		json.Item.Region = &region
@@ -249,11 +199,6 @@ func (r *AwsKubernetesStaged) toJson(data any) any {
 	if !datav.ApiServerUrl.IsNull() && !datav.ApiServerUrl.IsUnknown() {
 		apiServerUrl := datav.ApiServerUrl.ValueString()
 		json.Item.ApiServerUrl = &apiServerUrl
-	}
-
-	if !datav.Namespace.IsNull() && !datav.Namespace.IsUnknown() {
-		namespace := datav.Namespace.ValueString()
-		json.Item.Namespace = &namespace
 	}
 
 	return &json
