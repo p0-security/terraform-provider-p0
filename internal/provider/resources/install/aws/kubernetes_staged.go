@@ -41,6 +41,7 @@ type awsKubernetesStagedApi struct {
 		Region       *string       `json:"region"`
 		AccountId    *string       `json:"accountId"`
 		AwsPartition *AwsPartition `json:"awsPartition"`
+		ApiServerUrl *string       `json:"apiServerUrl"`
 	} `json:"item"`
 	Metadata struct {
 		ServiceAccountId string `json:"serviceAccountId"`
@@ -54,6 +55,7 @@ type awsKubernetesStagedModel struct {
 	AccountId        types.String `tfsdk:"account_id"`
 	Partition        types.String `tfsdk:"partition"`
 	Region           types.String `tfsdk:"region"`
+	ApiServerUrl     types.String `tfsdk:"api_server_url"`
 	Namespace        types.String `tfsdk:"namespace"`
 	Label            types.String `tfsdk:"label"`
 	ServiceAccountId types.String `tfsdk:"service_account_id"`
@@ -94,6 +96,10 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 			"region": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The AWS region where the EKS cluster is located`,
+			},
+			"api_server_url": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The Kubernetes API server URL for the EKS cluster`,
 			},
 			"namespace": schema.StringAttribute{
 				Optional:            true,
@@ -183,6 +189,10 @@ func (r *AwsKubernetesStaged) fromJson(ctx context.Context, diags *diag.Diagnost
 		data.Region = types.StringValue(*jsonv.Item.Region)
 	}
 
+	if jsonv.Item.ApiServerUrl != nil {
+		data.ApiServerUrl = types.StringValue(*jsonv.Item.ApiServerUrl)
+	}
+
 	if jsonv.Item.Namespace != nil {
 		data.Namespace = types.StringValue(*jsonv.Item.Namespace)
 	}
@@ -234,6 +244,11 @@ func (r *AwsKubernetesStaged) toJson(data any) any {
 	if !datav.Region.IsNull() && !datav.Region.IsUnknown() {
 		region := datav.Region.ValueString()
 		json.Item.Region = &region
+	}
+
+	if !datav.ApiServerUrl.IsNull() && !datav.ApiServerUrl.IsUnknown() {
+		apiServerUrl := datav.ApiServerUrl.ValueString()
+		json.Item.ApiServerUrl = &apiServerUrl
 	}
 
 	if !datav.Namespace.IsNull() && !datav.Namespace.IsUnknown() {
