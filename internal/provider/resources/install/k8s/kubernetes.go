@@ -37,24 +37,25 @@ type kubernetesLoginModel struct {
 }
 
 type awsKubernetesModel struct {
-	Id                   string                `tfsdk:"id"`
-	AccountId            basetypes.StringValue `tfsdk:"account_id"`
-	Region               basetypes.StringValue `tfsdk:"region"`
-	Label                basetypes.StringValue `tfsdk:"label"`
-	ServiceAccountSecret basetypes.StringValue `tfsdk:"service_account_secret"`
-	JWKPublicToken       basetypes.StringValue `tfsdk:"jwk_public_token"`
-	State                basetypes.StringValue `tfsdk:"state"`
-	Login                *kubernetesLoginModel `tfsdk:"login"`
+	Id        string                `tfsdk:"id"`
+	Label     basetypes.StringValue `tfsdk:"label"`
+	Token     basetypes.StringValue `tfsdk:"token"`
+	PublicJwk basetypes.StringValue `tfsdk:"public_jwk"`
+	State     basetypes.StringValue `tfsdk:"state"`
+	Login     *kubernetesLoginModel `tfsdk:"login"`
 }
 
 type awsKubernetesJson struct {
-	Label                *string               `json:"label"`
-	State                string                `json:"state"`
-	AccountId            *string               `json:"accountId"`
-	Region               *string               `json:"region"`
-	ServiceAccountSecret *string               `json:"serviceAccountSecret"`
-	JWKPublicToken       *string               `json:"jwkPublicToken"`
-	Login                *kubernetesLoginModel `json:"login"`
+	Label        *string `json:"label"`
+	Connectivity struct {
+		PublicJwk *string `json:"publicJwk"`
+	} `json:"connectivity"`
+	Token struct {
+		ClearText *string `json:"clearText"`
+	} `json:"token"`
+
+	Login *kubernetesLoginModel `json:"login"`
+	State string                `json:"state"`
 }
 
 type awsKubernetesApi struct {
@@ -68,59 +69,26 @@ func (r *AwsKubernetes) Metadata(ctx context.Context, req resource.MetadataReque
 func (r *AwsKubernetes) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `An AWS EKS (Kubernetes) installation.
-
-**Important**: This resource should be used together with the 'aws_kubernetes_staged' resource, with a dependency chain
-requiring this resource to be updated after the 'aws_kubernetes_staged' resource.
-
-P0 recommends you use these resources according to the following pattern:
-
-` + "```" +
-			`
-resource "p0_aws_kubernetes_staged" "staged_cluster" {
-  id         = "my-cluster"
-  account_id = "123456789012"
-  region     = "us-west-2"
-}
-
-resource "kubernetes_manifest" "p0_resources" {
-  manifest = yamldecode(p0_aws_kubernetes_staged.staged_cluster.manifests.manifest)
-}
-
-resource "p0_aws_kubernetes" "installed_cluster" {
-  id         = p0_aws_kubernetes_staged.staged_cluster.id
-  account_id = p0_aws_kubernetes_staged.staged_cluster.account_id
-  region     = p0_aws_kubernetes_staged.staged_cluster.region
-  depends_on = [kubernetes_manifest.p0_resources]
-
-  login {
-    type = "iam"
-  }
-}
-` + "```",
+**Important**: This resource should be used together with the 'kubernetes_staged' resource, with a dependency chain
+requiring this resource to be updated after the 'kubernetes_staged' resource.
+`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The EKS cluster name`,
 			},
-			"account_id": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The AWS account ID that owns the EKS cluster`,
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
-				},
-			},
-			"region": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The AWS region where the EKS cluster is located`,
-			},
-			"service_account_secret": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The secret used by P0's service account`,
-			},
 			"label": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: `The cluster's display label`,
+			},
+			"token": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The value of the p0-service-account-secret`,
+			},
+			"public_jwk": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The public JWK token of the braekhus service`,
 			},
 			"state": schema.StringAttribute{
 				Computed:            true,
@@ -174,19 +142,14 @@ func (r *AwsKubernetes) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 		data.Label = types.StringValue(*jsonv.Label)
 	}
 
-	data.AccountId = types.StringNull()
-	if jsonv.AccountId != nil {
-		data.AccountId = types.StringValue(*jsonv.AccountId)
+	data.Token = types.StringNull()
+	if jsonv.Token.ClearText != nil {
+		data.Token = types.StringValue(*jsonv.Token.ClearText)
 	}
 
-	data.Region = types.StringNull()
-	if jsonv.Region != nil {
-		data.Region = types.StringValue(*jsonv.Region)
-	}
-
-	data.ServiceAccountSecret = types.StringNull()
-	if jsonv.ServiceAccountSecret != nil {
-		data.ServiceAccountSecret = types.StringValue(*jsonv.ServiceAccountSecret)
+	data.PublicJwk = types.StringNull()
+	if jsonv.Connectivity.PublicJwk != nil {
+		data.PublicJwk = types.StringValue(*jsonv.Connectivity.PublicJwk)
 	}
 
 	data.State = types.StringValue(jsonv.State)
@@ -208,19 +171,14 @@ func (r *AwsKubernetes) toJson(data any) any {
 		json.Label = &label
 	}
 
-	if !datav.AccountId.IsNull() && !datav.AccountId.IsUnknown() {
-		accountId := datav.AccountId.ValueString()
-		json.AccountId = &accountId
+	if !datav.Token.IsNull() && !datav.Token.IsUnknown() {
+		token := datav.Token.ValueString()
+		json.Token.ClearText = &token
 	}
 
-	if !datav.Region.IsNull() && !datav.Region.IsUnknown() {
-		region := datav.Region.ValueString()
-		json.Region = &region
-	}
-
-	if !datav.ServiceAccountSecret.IsNull() && !datav.ServiceAccountSecret.IsUnknown() {
-		saSecret := datav.ServiceAccountSecret.ValueString()
-		json.ServiceAccountSecret = &saSecret
+	if !datav.PublicJwk.IsNull() && !datav.PublicJwk.IsUnknown() {
+		publicJwk := datav.PublicJwk.ValueString()
+		json.Connectivity.PublicJwk = &publicJwk
 	}
 
 	// can omit state here as it's filled by the backend
