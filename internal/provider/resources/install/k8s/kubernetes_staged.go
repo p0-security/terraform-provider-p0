@@ -39,7 +39,7 @@ type awsKubernetesStagedApi struct {
 		Hosting struct {
 			HostingType *string `json:"type"`
 			ClusterArn  *string `json:"arn"`
-		}
+		} `json:"hosting"`
 		ClusterEndpoint      *string `json:"endpoint"`
 		CertificateAuthority *string `json:"ca"`
 		AutoModeEnabled      *bool   `json:"autoModeEnabled"`
@@ -120,7 +120,7 @@ func (r *AwsKubernetesStaged) Configure(ctx context.Context, req resource.Config
 	providerData := internal.Configure(&req, resp)
 	r.installer = &common.Install{
 		Integration:  K8s,
-		Component:    installresources.Kubernetes,
+		Component:    installresources.IamWrite,
 		ProviderData: providerData,
 		GetId:        r.getId,
 		GetItemJson:  r.getItemJson,
