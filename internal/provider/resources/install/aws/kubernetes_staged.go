@@ -34,11 +34,12 @@ type AwsKubernetesStaged struct {
 
 type awsKubernetesStagedApi struct {
 	Item struct {
-		Label        *string `json:"label"`
-		State        *string `json:"state"`
-		Region       *string `json:"region"`
-		AccountId    *string `json:"accountId"`
-		ApiServerUrl *string `json:"apiServerUrl"`
+		Label                *string `json:"label"`
+		State                *string `json:"state"`
+		Region               *string `json:"region"`
+		AccountId            *string `json:"accountId"`
+		ClusterEndpoint      *string `json:"clusterEndpoint"`
+		CertificateAuthority *string `json:"certificateAuthority"`
 	} `json:"item"`
 	Metadata struct {
 		Manifest string `json:"manifest"`
@@ -46,12 +47,13 @@ type awsKubernetesStagedApi struct {
 }
 
 type awsKubernetesStagedModel struct {
-	Id           string       `tfsdk:"id"`
-	AccountId    types.String `tfsdk:"account_id"`
-	Region       types.String `tfsdk:"region"`
-	ApiServerUrl types.String `tfsdk:"api_server_url"`
-	Label        types.String `tfsdk:"label"`
-	Manifests    types.Object `tfsdk:"manifests"`
+	Id                   string       `tfsdk:"id"`
+	AccountId            types.String `tfsdk:"account_id"`
+	Region               types.String `tfsdk:"region"`
+	ClusterEndpoint      types.String `tfsdk:"cluster_endpoint"`
+	CertificateAuthority types.String `tfsdk:"certificate_authority"`
+	Label                types.String `tfsdk:"label"`
+	Manifests            types.Object `tfsdk:"manifests"`
 }
 
 func (r *AwsKubernetesStaged) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -60,9 +62,9 @@ func (r *AwsKubernetesStaged) Metadata(ctx context.Context, req resource.Metadat
 
 func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A staged AWS EKS (Kubernetes) installation. Staged resources are used to generate Kubernetes manifests.
+		MarkdownDescription: `A staged kubernetes (EKS) installation. Staged resources are used to configure the integration and generate Kubernetes manifests.
 
-**Important** Before using this resource, please read the instructions for the 'aws_kubernetes' resource.
+**Important** Before using this resource, please read the instructions for the 'aws_kubernetes' resource. This resource currently only supports installing integrations against EKS-based kubernetes clusters.
 `,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -80,9 +82,13 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 				Required:            true,
 				MarkdownDescription: `The AWS region where the EKS cluster is located`,
 			},
-			"api_server_url": schema.StringAttribute{
+			"cluster_endpoint": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The Kubernetes API server URL for the EKS cluster`,
+				MarkdownDescription: `The EKS API server endpoint for the cluster`,
+			},
+			"certificate_authority": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The base-64 encoded certificate authority for the cluster`,
 			},
 			"label": schema.StringAttribute{
 				Computed:            true,
@@ -152,8 +158,12 @@ func (r *AwsKubernetesStaged) fromJson(ctx context.Context, diags *diag.Diagnost
 		data.Region = types.StringValue(*jsonv.Item.Region)
 	}
 
-	if jsonv.Item.ApiServerUrl != nil {
-		data.ApiServerUrl = types.StringValue(*jsonv.Item.ApiServerUrl)
+	if jsonv.Item.ClusterEndpoint != nil {
+		data.ClusterEndpoint = types.StringValue(*jsonv.Item.ClusterEndpoint)
+	}
+
+	if jsonv.Item.CertificateAuthority != nil {
+		data.CertificateAuthority = types.StringValue(*jsonv.Item.CertificateAuthority)
 	}
 
 	manifests, objErr := types.ObjectValue(
@@ -196,9 +206,14 @@ func (r *AwsKubernetesStaged) toJson(data any) any {
 		json.Item.Region = &region
 	}
 
-	if !datav.ApiServerUrl.IsNull() && !datav.ApiServerUrl.IsUnknown() {
-		apiServerUrl := datav.ApiServerUrl.ValueString()
-		json.Item.ApiServerUrl = &apiServerUrl
+	if !datav.ClusterEndpoint.IsNull() && !datav.ClusterEndpoint.IsUnknown() {
+		clusterEndpoint := datav.ClusterEndpoint.ValueString()
+		json.Item.ClusterEndpoint = &clusterEndpoint
+	}
+
+	if !datav.CertificateAuthority.IsNull() && !datav.CertificateAuthority.IsUnknown() {
+		certificateAuthority := datav.CertificateAuthority.ValueString()
+		json.Item.CertificateAuthority = &certificateAuthority
 	}
 
 	return &json
