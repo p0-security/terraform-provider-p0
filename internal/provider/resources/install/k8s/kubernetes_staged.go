@@ -1,7 +1,7 @@
 // Copyright (c) 2024 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package installaws
+package installk8s
 
 import (
 	"context"
