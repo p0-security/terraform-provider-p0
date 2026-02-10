@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -41,6 +42,7 @@ type awsKubernetesStagedApi struct {
 		}
 		ClusterEndpoint      *string `json:"endpoint"`
 		CertificateAuthority *string `json:"ca"`
+		AutoModeEnabled      *bool   `json:"autoModeEnabled"`
 	} `json:"item"`
 	Metadata struct {
 		Manifest string `json:"manifest"`
@@ -54,6 +56,7 @@ type awsKubernetesStagedModel struct {
 	ClusterArn           string       `tfsdk:"cluster_arn"`
 	ClusterEndpoint      types.String `tfsdk:"cluster_endpoint"`
 	CertificateAuthority types.String `tfsdk:"certificate_authority"`
+	AutoModeEnabled      types.Bool   `tfsdk:"auto_mode_enabled"`
 	Manifests            types.Object `tfsdk:"manifests"`
 }
 
@@ -92,6 +95,12 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 			"certificate_authority": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The base-64 encoded certificate authority for the cluster`,
+			},
+			"auto_mode_enabled": schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+				MarkdownDescription: `Indicates if auto-mode is enabled for the cluster (defaults to false).`,
 			},
 			"manifests": schema.SingleNestedAttribute{
 				Computed:            true,
@@ -166,6 +175,10 @@ func (r *AwsKubernetesStaged) fromJson(ctx context.Context, diags *diag.Diagnost
 		data.CertificateAuthority = types.StringValue(*jsonv.Item.CertificateAuthority)
 	}
 
+	if jsonv.Item.AutoModeEnabled != nil {
+		data.AutoModeEnabled = types.BoolValue(*jsonv.Item.AutoModeEnabled)
+	}
+
 	manifests, objErr := types.ObjectValue(
 		map[string]attr.Type{
 			"manifest": types.StringType,
@@ -203,6 +216,11 @@ func (r *AwsKubernetesStaged) toJson(data any) any {
 	if !datav.CertificateAuthority.IsNull() && !datav.CertificateAuthority.IsUnknown() {
 		certificateAuthority := datav.CertificateAuthority.ValueString()
 		json.Item.CertificateAuthority = &certificateAuthority
+	}
+
+	if !datav.AutoModeEnabled.IsNull() && !datav.AutoModeEnabled.IsUnknown() {
+		autoModeEnabled := datav.AutoModeEnabled.ValueBool()
+		json.Item.AutoModeEnabled = &autoModeEnabled
 	}
 
 	return &json
