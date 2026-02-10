@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -33,29 +32,29 @@ type AwsKubernetes struct {
 	installer *common.Install
 }
 
-type awsKubernetesLoginModel struct {
+type kubernetesLoginModel struct {
 	Type string `json:"type" tfsdk:"type"`
 }
 
 type awsKubernetesModel struct {
-	Id        string                   `tfsdk:"id"`
-	AccountId basetypes.StringValue    `tfsdk:"account_id"`
-	Partition basetypes.StringValue    `tfsdk:"partition"`
-	Region    basetypes.StringValue    `tfsdk:"region"`
-	Namespace basetypes.StringValue    `tfsdk:"namespace"`
-	Label     basetypes.StringValue    `tfsdk:"label"`
-	State     basetypes.StringValue    `tfsdk:"state"`
-	Login     *awsKubernetesLoginModel `tfsdk:"login"`
+	Id                   string                `tfsdk:"id"`
+	AccountId            basetypes.StringValue `tfsdk:"account_id"`
+	Region               basetypes.StringValue `tfsdk:"region"`
+	Label                basetypes.StringValue `tfsdk:"label"`
+	ServiceAccountSecret basetypes.StringValue `tfsdk:"service_account_secret"`
+	JWKPublicToken       basetypes.StringValue `tfsdk:"jwk_public_token"`
+	State                basetypes.StringValue `tfsdk:"state"`
+	Login                *kubernetesLoginModel `tfsdk:"login"`
 }
 
 type awsKubernetesJson struct {
-	Label        *string                  `json:"label"`
-	State        string                   `json:"state"`
-	AccountId    *string                  `json:"accountId"`
-	Region       *string                  `json:"region"`
-	Namespace    *string                  `json:"namespace"`
-	AwsPartition *AwsPartition            `json:"awsPartition"`
-	Login        *awsKubernetesLoginModel `json:"login"`
+	Label                *string               `json:"label"`
+	State                string                `json:"state"`
+	AccountId            *string               `json:"accountId"`
+	Region               *string               `json:"region"`
+	ServiceAccountSecret *string               `json:"serviceAccountSecret"`
+	JWKPublicToken       *string               `json:"jwkPublicToken"`
+	Login                *kubernetesLoginModel `json:"login"`
 }
 
 type awsKubernetesApi struct {
@@ -110,24 +109,13 @@ resource "p0_aws_kubernetes" "installed_cluster" {
 					stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
 				},
 			},
-			"partition": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString("aws"),
-				MarkdownDescription: `The AWS partition (aws or aws-us-gov). Defaults to aws if not specified.`,
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(AwsPartitionRegex, "AWS partition must be one of: aws, aws-us-gov."),
-				},
-			},
 			"region": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The AWS region where the EKS cluster is located`,
 			},
-			"namespace": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString("p0-system"),
-				MarkdownDescription: `The Kubernetes namespace where P0 resources are deployed. Defaults to p0-system if not specified.`,
+			"service_account_secret": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The secret used by P0's service account`,
 			},
 			"label": schema.StringAttribute{
 				Optional:            true,
@@ -191,19 +179,14 @@ func (r *AwsKubernetes) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 		data.AccountId = types.StringValue(*jsonv.AccountId)
 	}
 
-	data.Partition = types.StringNull()
-	if jsonv.AwsPartition != nil && jsonv.AwsPartition.Type != nil {
-		data.Partition = types.StringValue(*jsonv.AwsPartition.Type)
-	}
-
 	data.Region = types.StringNull()
 	if jsonv.Region != nil {
 		data.Region = types.StringValue(*jsonv.Region)
 	}
 
-	data.Namespace = types.StringNull()
-	if jsonv.Namespace != nil {
-		data.Namespace = types.StringValue(*jsonv.Namespace)
+	data.ServiceAccountSecret = types.StringNull()
+	if jsonv.ServiceAccountSecret != nil {
+		data.ServiceAccountSecret = types.StringValue(*jsonv.ServiceAccountSecret)
 	}
 
 	data.State = types.StringValue(jsonv.State)
@@ -230,19 +213,14 @@ func (r *AwsKubernetes) toJson(data any) any {
 		json.AccountId = &accountId
 	}
 
-	if !datav.Partition.IsNull() && !datav.Partition.IsUnknown() {
-		partition := datav.Partition.ValueString()
-		json.AwsPartition = &AwsPartition{Type: &partition}
-	}
-
 	if !datav.Region.IsNull() && !datav.Region.IsUnknown() {
 		region := datav.Region.ValueString()
 		json.Region = &region
 	}
 
-	if !datav.Namespace.IsNull() && !datav.Namespace.IsUnknown() {
-		namespace := datav.Namespace.ValueString()
-		json.Namespace = &namespace
+	if !datav.ServiceAccountSecret.IsNull() && !datav.ServiceAccountSecret.IsUnknown() {
+		saSecret := datav.ServiceAccountSecret.ValueString()
+		json.ServiceAccountSecret = &saSecret
 	}
 
 	// can omit state here as it's filled by the backend
