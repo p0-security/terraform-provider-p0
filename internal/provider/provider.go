@@ -115,6 +115,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		routingrules.NewRoutingRules,
 		installaws.NewAwsIamWrite,
 		installaws.NewIamWriteStagedAws,
+		installaws.NewAwsInventory,
+		installaws.NewAwsInventoryStaged,
 		installazure.NewAzure,
 		installazure.NewAzureApp,
 		installazure.NewAzureIamWrite,
