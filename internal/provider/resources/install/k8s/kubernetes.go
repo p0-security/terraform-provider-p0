@@ -6,12 +6,10 @@ package installk8s
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -32,21 +30,14 @@ type AwsKubernetes struct {
 	installer *common.Install
 }
 
-type kubernetesLoginModel struct {
-	Type string `json:"type" tfsdk:"type"`
-}
-
 type awsKubernetesModel struct {
 	Id        string                `tfsdk:"id"`
-	Label     basetypes.StringValue `tfsdk:"label"`
 	Token     basetypes.StringValue `tfsdk:"token"`
 	PublicJwk basetypes.StringValue `tfsdk:"public_jwk"`
 	State     basetypes.StringValue `tfsdk:"state"`
-	Login     *kubernetesLoginModel `tfsdk:"login"`
 }
 
 type awsKubernetesJson struct {
-	Label        *string `json:"label"`
 	Connectivity struct {
 		PublicJwk *string `json:"publicJwk"`
 	} `json:"connectivity"`
@@ -54,8 +45,7 @@ type awsKubernetesJson struct {
 		ClearText *string `json:"clearText"`
 	} `json:"token"`
 
-	Login *kubernetesLoginModel `json:"login"`
-	State string                `json:"state"`
+	State string `json:"state"`
 }
 
 type awsKubernetesApi struct {
@@ -63,7 +53,7 @@ type awsKubernetesApi struct {
 }
 
 func (r *AwsKubernetes) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_aws_kubernetes"
+	resp.TypeName = req.ProviderTypeName + "_kubernetes"
 }
 
 func (r *AwsKubernetes) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -77,11 +67,6 @@ requiring this resource to be updated after the 'kubernetes_staged' resource.
 				Required:            true,
 				MarkdownDescription: `The EKS cluster name`,
 			},
-			"label": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				MarkdownDescription: `The cluster's display label`,
-			},
 			"token": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The value of the p0-service-account-secret`,
@@ -93,20 +78,6 @@ requiring this resource to be updated after the 'kubernetes_staged' resource.
 			"state": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: common.StateMarkdownDescription,
-			},
-			"login": schema.SingleNestedAttribute{
-				Required:            true,
-				MarkdownDescription: `How users authenticate to this Kubernetes cluster`,
-				Attributes: map[string]schema.Attribute{
-					"type": schema.StringAttribute{
-						Required: true,
-						MarkdownDescription: `The authentication method:
-    - 'iam': Users authenticate via AWS IAM (typical for EKS)`,
-						Validators: []validator.String{
-							stringvalidator.OneOf("iam"),
-						},
-					},
-				},
 			},
 		},
 	}
@@ -137,11 +108,6 @@ func (r *AwsKubernetes) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 
 	data.Id = id
 
-	data.Label = types.StringNull()
-	if jsonv.Label != nil {
-		data.Label = types.StringValue(*jsonv.Label)
-	}
-
 	data.Token = types.StringNull()
 	if jsonv.Token.ClearText != nil {
 		data.Token = types.StringValue(*jsonv.Token.ClearText)
@@ -153,7 +119,6 @@ func (r *AwsKubernetes) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 	}
 
 	data.State = types.StringValue(jsonv.State)
-	data.Login = jsonv.Login
 
 	return &data
 }
@@ -164,11 +129,6 @@ func (r *AwsKubernetes) toJson(data any) any {
 	datav, ok := data.(*awsKubernetesModel)
 	if !ok {
 		return nil
-	}
-
-	if !datav.Label.IsNull() && !datav.Label.IsUnknown() {
-		label := datav.Label.ValueString()
-		json.Label = &label
 	}
 
 	if !datav.Token.IsNull() && !datav.Token.IsUnknown() {
@@ -182,7 +142,6 @@ func (r *AwsKubernetes) toJson(data any) any {
 	}
 
 	// can omit state here as it's filled by the backend
-	json.Login = datav.Login
 
 	return &json
 }
@@ -191,7 +150,7 @@ func (r *AwsKubernetes) Configure(ctx context.Context, req resource.ConfigureReq
 	providerData := internal.Configure(&req, resp)
 	r.installer = &common.Install{
 		Integration:  K8s,
-		Component:    installresources.Kubernetes,
+		Component:    installresources.IamWrite,
 		ProviderData: providerData,
 		GetId:        r.getId,
 		GetItemJson:  r.getItemJson,
