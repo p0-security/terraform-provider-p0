@@ -6,7 +6,6 @@ package installk8s
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -45,7 +44,9 @@ type awsKubernetesStagedApi struct {
 		AutoModeEnabled      *bool   `json:"autoModeEnabled"`
 	} `json:"item"`
 	Metadata struct {
-		Manifest string `json:"manifest"`
+		CaBundle   *string `json:"caBundle"`
+		ServerCert *string `json:"serverCert"`
+		ServerKey  *string `json:"serverKey"`
 	} `json:"metadata"`
 }
 
@@ -57,7 +58,9 @@ type awsKubernetesStagedModel struct {
 	ClusterEndpoint      types.String `tfsdk:"cluster_endpoint"`
 	CertificateAuthority types.String `tfsdk:"certificate_authority"`
 	AutoModeEnabled      types.Bool   `tfsdk:"auto_mode_enabled"`
-	Manifests            types.Object `tfsdk:"manifests"`
+	CaBundle             types.String `tfsdk:"ca_bundle"`
+	ServerCert           types.String `tfsdk:"server_cert"`
+	ServerKey            types.String `tfsdk:"server_key"`
 }
 
 func (r *AwsKubernetesStaged) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -102,15 +105,17 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 				Default:             booldefault.StaticBool(false),
 				MarkdownDescription: `Indicates if auto-mode is enabled for the cluster (defaults to false).`,
 			},
-			"manifests": schema.SingleNestedAttribute{
+			"ca_bundle": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `Kubernetes manifests that should be applied to the cluster`,
-				Attributes: map[string]schema.Attribute{
-					"manifest": schema.StringAttribute{
-						Computed:            true,
-						MarkdownDescription: `The combined Kubernetes YAML manifest that should be applied to the cluster`,
-					},
-				},
+				MarkdownDescription: `The generated certificate authority bundle used by the admission controller`,
+			},
+			"server_cert": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: `The generated certficate used by the admission controller`,
+			},
+			"server_key": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: `The generated private key used by the admission controller`,
 			},
 		},
 	}
@@ -179,19 +184,17 @@ func (r *AwsKubernetesStaged) fromJson(ctx context.Context, diags *diag.Diagnost
 		data.AutoModeEnabled = types.BoolValue(*jsonv.Item.AutoModeEnabled)
 	}
 
-	manifests, objErr := types.ObjectValue(
-		map[string]attr.Type{
-			"manifest": types.StringType,
-		},
-		map[string]attr.Value{
-			"manifest": types.StringValue(jsonv.Metadata.Manifest),
-		},
-	)
-	if objErr.HasError() {
-		diags.Append(objErr...)
-		return nil
+	if jsonv.Metadata.CaBundle != nil {
+		data.CaBundle = types.StringValue(*jsonv.Metadata.CaBundle)
 	}
-	data.Manifests = manifests
+
+	if jsonv.Metadata.ServerCert != nil {
+		data.ServerCert = types.StringValue(*jsonv.Metadata.ServerCert)
+	}
+
+	if jsonv.Metadata.ServerKey != nil {
+		data.ServerKey = types.StringValue(*jsonv.Metadata.ServerKey)
+	}
 
 	return &data
 }
