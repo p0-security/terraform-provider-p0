@@ -31,25 +31,32 @@ type AwsKubernetes struct {
 }
 
 type awsKubernetesModel struct {
-	Id        string                `tfsdk:"id"`
-	Token     basetypes.StringValue `tfsdk:"token"`
-	PublicJwk basetypes.StringValue `tfsdk:"public_jwk"`
-	State     basetypes.StringValue `tfsdk:"state"`
+	Id                   string                `tfsdk:"id"`
+	Token                basetypes.StringValue `tfsdk:"token"`
+	PublicJwk            basetypes.StringValue `tfsdk:"public_jwk"`
+	ConnectivityType     basetypes.StringValue `tfsdk:"connectivity_type"`
+	HostingType          basetypes.StringValue `tfsdk:"hosting_type"`
+	ClusterArn           basetypes.StringValue `tfsdk:"cluster_arn"`
+	ClusterEndpoint      basetypes.StringValue `tfsdk:"cluster_endpoint"`
+	CertificateAuthority basetypes.StringValue `tfsdk:"certificate_authority"`
+	State                basetypes.StringValue `tfsdk:"state"`
 }
 
-type awsKubernetesJson struct {
+type awsKubernetesApi struct {
 	Connectivity struct {
-		PublicJwk *string `json:"publicJwk"`
+		ConnectivityType *string `json:"type"`
+		PublicJwk        *string `json:"publicJwk"`
 	} `json:"connectivity"`
 	Token struct {
 		ClearText *string `json:"clearText"`
 	} `json:"token"`
-
-	State string `json:"state"`
-}
-
-type awsKubernetesApi struct {
-	Item *awsKubernetesJson `json:"item"`
+	Hosting struct {
+		HostingType *string `json:"type"`
+		ClusterArn  *string `json:"arn"`
+	} `json:"hosting"`
+	ClusterEndpoint      *string `json:"endpoint"`
+	CertificateAuthority *string `json:"ca"`
+	State                string  `json:"state"`
 }
 
 func (r *AwsKubernetes) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -75,6 +82,26 @@ requiring this resource to be updated after the 'kubernetes_staged' resource.
 				Required:            true,
 				MarkdownDescription: `The public JWK token of the braekhus service`,
 			},
+			"connectivity_type": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The connectivity type for the cluster (e.g., 'public', 'proxy')`,
+			},
+			"hosting_type": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The hosting type for the cluster (e.g., 'eks')`,
+			},
+			"cluster_arn": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The ARN of the EKS cluster`,
+			},
+			"cluster_endpoint": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The EKS API server endpoint for the cluster`,
+			},
+			"certificate_authority": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The base-64 encoded certificate authority for the cluster`,
+			},
 			"state": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: common.StateMarkdownDescription,
@@ -96,12 +123,12 @@ func (r *AwsKubernetes) getItemJson(json any) any {
 	if !ok {
 		return nil
 	}
-	return inner.Item
+	return inner
 }
 
 func (r *AwsKubernetes) fromJson(ctx context.Context, diags *diag.Diagnostics, id string, json any) any {
 	data := awsKubernetesModel{}
-	jsonv, ok := json.(*awsKubernetesJson)
+	jsonv, ok := json.(*awsKubernetesApi)
 	if !ok {
 		return nil
 	}
@@ -118,13 +145,38 @@ func (r *AwsKubernetes) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 		data.PublicJwk = types.StringValue(*jsonv.Connectivity.PublicJwk)
 	}
 
+	data.ConnectivityType = types.StringNull()
+	if jsonv.Connectivity.ConnectivityType != nil {
+		data.ConnectivityType = types.StringValue(*jsonv.Connectivity.ConnectivityType)
+	}
+
+	data.HostingType = types.StringNull()
+	if jsonv.Hosting.HostingType != nil {
+		data.HostingType = types.StringValue(*jsonv.Hosting.HostingType)
+	}
+
+	data.ClusterArn = types.StringNull()
+	if jsonv.Hosting.ClusterArn != nil {
+		data.ClusterArn = types.StringValue(*jsonv.Hosting.ClusterArn)
+	}
+
+	data.ClusterEndpoint = types.StringNull()
+	if jsonv.ClusterEndpoint != nil {
+		data.ClusterEndpoint = types.StringValue(*jsonv.ClusterEndpoint)
+	}
+
+	data.CertificateAuthority = types.StringNull()
+	if jsonv.CertificateAuthority != nil {
+		data.CertificateAuthority = types.StringValue(*jsonv.CertificateAuthority)
+	}
+
 	data.State = types.StringValue(jsonv.State)
 
 	return &data
 }
 
 func (r *AwsKubernetes) toJson(data any) any {
-	json := awsKubernetesJson{}
+	json := awsKubernetesApi{}
 
 	datav, ok := data.(*awsKubernetesModel)
 	if !ok {
@@ -139,6 +191,31 @@ func (r *AwsKubernetes) toJson(data any) any {
 	if !datav.PublicJwk.IsNull() && !datav.PublicJwk.IsUnknown() {
 		publicJwk := datav.PublicJwk.ValueString()
 		json.Connectivity.PublicJwk = &publicJwk
+	}
+
+	if !datav.ConnectivityType.IsNull() && !datav.ConnectivityType.IsUnknown() {
+		connectivityType := datav.ConnectivityType.ValueString()
+		json.Connectivity.ConnectivityType = &connectivityType
+	}
+
+	if !datav.HostingType.IsNull() && !datav.HostingType.IsUnknown() {
+		hostingType := datav.HostingType.ValueString()
+		json.Hosting.HostingType = &hostingType
+	}
+
+	if !datav.ClusterArn.IsNull() && !datav.ClusterArn.IsUnknown() {
+		clusterArn := datav.ClusterArn.ValueString()
+		json.Hosting.ClusterArn = &clusterArn
+	}
+
+	if !datav.ClusterEndpoint.IsNull() && !datav.ClusterEndpoint.IsUnknown() {
+		clusterEndpoint := datav.ClusterEndpoint.ValueString()
+		json.ClusterEndpoint = &clusterEndpoint
+	}
+
+	if !datav.CertificateAuthority.IsNull() && !datav.CertificateAuthority.IsUnknown() {
+		certificateAuthority := datav.CertificateAuthority.ValueString()
+		json.CertificateAuthority = &certificateAuthority
 	}
 
 	// can omit state here as it's filled by the backend
