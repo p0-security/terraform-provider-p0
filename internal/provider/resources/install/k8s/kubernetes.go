@@ -10,6 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -42,7 +44,7 @@ type awsKubernetesModel struct {
 	State                basetypes.StringValue `tfsdk:"state"`
 }
 
-type awsKubernetesApi struct {
+type awsKubernetesItemStruct struct {
 	Connectivity struct {
 		ConnectivityType *string `json:"type"`
 		PublicJwk        *string `json:"publicJwk"`
@@ -57,6 +59,10 @@ type awsKubernetesApi struct {
 	ClusterEndpoint      *string `json:"endpoint"`
 	CertificateAuthority *string `json:"ca"`
 	State                string  `json:"state"`
+}
+
+type awsKubernetesApi struct {
+	Item awsKubernetesItemStruct `json:"item"`
 }
 
 func (r *AwsKubernetes) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -76,7 +82,11 @@ requiring this resource to be updated after the 'kubernetes_staged' resource.
 			},
 			"token": schema.StringAttribute{
 				Required:            true,
+				Sensitive:           true,
 				MarkdownDescription: `The value of the p0-service-account-secret`,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"public_jwk": schema.StringAttribute{
 				Required:            true,
@@ -123,22 +133,22 @@ func (r *AwsKubernetes) getItemJson(json any) any {
 	if !ok {
 		return nil
 	}
-	return inner
+	return &inner.Item
 }
 
 func (r *AwsKubernetes) fromJson(ctx context.Context, diags *diag.Diagnostics, id string, json any) any {
 	data := awsKubernetesModel{}
-	jsonv, ok := json.(*awsKubernetesApi)
+
+	// json is actually a pointer to the Item field from awsKubernetesApi
+	jsonv, ok := json.(*awsKubernetesItemStruct)
 	if !ok {
 		return nil
 	}
 
 	data.Id = id
 
-	data.Token = types.StringNull()
-	if jsonv.Token.ClearText != nil {
-		data.Token = types.StringValue(*jsonv.Token.ClearText)
-	}
+	// Token is write-only and not returned by the API - don't read it from the response
+	// Terraform will use the value from the plan/config instead
 
 	data.PublicJwk = types.StringNull()
 	if jsonv.Connectivity.PublicJwk != nil {
@@ -176,7 +186,24 @@ func (r *AwsKubernetes) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 }
 
 func (r *AwsKubernetes) toJson(data any) any {
-	json := awsKubernetesApi{}
+	// Request format: fields at top level (no 'item' wrapper)
+	type awsKubernetesRequest struct {
+		Connectivity struct {
+			ConnectivityType *string `json:"type"`
+			PublicJwk        *string `json:"publicJwk"`
+		} `json:"connectivity"`
+		Token struct {
+			ClearText *string `json:"clearText"`
+		} `json:"token"`
+		Hosting struct {
+			HostingType *string `json:"type"`
+			ClusterArn  *string `json:"arn"`
+		} `json:"hosting"`
+		ClusterEndpoint      *string `json:"endpoint"`
+		CertificateAuthority *string `json:"ca"`
+	}
+
+	json := awsKubernetesRequest{}
 
 	datav, ok := data.(*awsKubernetesModel)
 	if !ok {
@@ -240,20 +267,64 @@ func (r *AwsKubernetes) Create(ctx context.Context, req resource.CreateRequest, 
 	var json awsKubernetesApi
 	var data awsKubernetesModel
 	req.Config.Get(ctx, &data)
+
+	// Save the token from the plan since it's write-only and won't be in the API response
+	plannedToken := data.Token
+
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Restore the token value from the plan
+	var stateData awsKubernetesModel
+	resp.State.Get(ctx, &stateData)
+	stateData.Token = plannedToken
+	resp.State.Set(ctx, &stateData)
 }
 
 func (r *AwsKubernetes) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var json awsKubernetesApi
 	var data awsKubernetesModel
+
+	// Save the token from current state since it's write-only and won't be in the API response
+	var currentState awsKubernetesModel
+	req.State.Get(ctx, &currentState)
+	currentToken := currentState.Token
+
 	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &json, &data)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Restore the token value from the previous state
+	var stateData awsKubernetesModel
+	resp.State.Get(ctx, &stateData)
+	stateData.Token = currentToken
+	resp.State.Set(ctx, &stateData)
 }
 
 func (r *AwsKubernetes) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var json awsKubernetesApi
 	var data awsKubernetesModel
 	req.Config.Get(ctx, &data)
+
+	// Save the token from the plan since it's write-only and won't be in the API response
+	plannedToken := data.Token
+
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Restore the token value from the plan
+	var stateData awsKubernetesModel
+	resp.State.Get(ctx, &stateData)
+	stateData.Token = plannedToken
+	resp.State.Set(ctx, &stateData)
 }
 
 func (r *AwsKubernetes) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
