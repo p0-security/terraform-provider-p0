@@ -21,6 +21,7 @@ import (
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
+	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
 	routingrules "github.com/p0-security/terraform-provider-p0/internal/provider/resources/routing_rules"
@@ -117,8 +118,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installaws.NewIamWriteStagedAws,
 		installaws.NewAwsInventory,
 		installaws.NewAwsInventoryStaged,
-		installaws.NewAwsKubernetes,
-		installaws.NewKubernetesStagedAws,
+		installk8s.NewAwsKubernetes,
+		installk8s.NewKubernetesStagedAws,
 		installazure.NewAzure,
 		installazure.NewAzureApp,
 		installazure.NewAzureIamWrite,
