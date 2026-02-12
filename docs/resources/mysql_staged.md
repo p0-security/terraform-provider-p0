@@ -3,15 +3,18 @@
 page_title: "p0_mysql_staged Resource - p0"
 subcategory: ""
 description: |-
-  A staged MySQL installation for AWS RDS.
-  Staged resources generate the infrastructure configuration needed to deploy the Lambda connector for MySQL database access management.
+  A staged MySQL installation for AWS RDS. Staged resources generate the infrastructure configuration needed to deploy the Lambda connector.
+  Important: Before using this resource, you must first install the p0_aws_rds resource for the VPC.
+  Use the read-only attributes defined on this resource to get the shell commands or Terraform configuration needed to create the Lambda connector infrastructure.
 ---
 
 # p0_mysql_staged (Resource)
 
-A staged MySQL installation for AWS RDS. Staged resources generate the infrastructure configuration needed to deploy the Lambda connector for MySQL database access management.
+A staged MySQL installation for AWS RDS. Staged resources generate the infrastructure configuration needed to deploy the Lambda connector.
 
-**Important:** Before using this resource, you must first install the `p0_aws_rds` resource for the VPC.
+**Important:** Before using this resource, you must first install the p0_aws_rds resource for the VPC.
+
+Use the read-only attributes defined on this resource to get the shell commands or Terraform configuration needed to create the Lambda connector infrastructure.
 
 ## Example Usage
 

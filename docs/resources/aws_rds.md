@@ -28,8 +28,8 @@ resource "p0_aws_rds" "example" {
 
 ### Required
 
-- `id` (String) The VPC ID for the RDS installation
 - `account_id` (String) The AWS account ID containing the RDS instances
+- `id` (String) The VPC ID for the RDS installation
 - `region` (String) The AWS region where the RDS instances are located
 
 ### Optional
