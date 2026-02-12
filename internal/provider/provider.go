@@ -22,7 +22,9 @@ import (
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
+	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
+	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
 	routingrules "github.com/p0-security/terraform-provider-p0/internal/provider/resources/routing_rules"
 )
@@ -138,9 +140,12 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installssh.NewSshAwsIamWrite,
 		installssh.NewSshGcpIamWrite,
 		installssh.NewSshAzureIamWrite,
+		installmysql.NewMysqlIamWriteStaged,
+		installmysql.NewMysqlIamWrite,
 		installokta.NewOktaDirectoryListingStaged,
 		installokta.NewOktaDirectoryListing,
 		installokta.NewOktaGroupAssignment,
+		installrds.NewRdsIamWrite,
 		installsplunk.NewAuditLogs,
 	}
 }
