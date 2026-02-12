@@ -39,12 +39,12 @@ type AuditLogs struct {
 }
 
 type auditLogsModel struct {
-	State            types.String `tfsdk:"state"`
-	Identifier       types.String `tfsdk:"identifier"`
-	IntakeUrl        types.String `tfsdk:"intake_url"`
-	ApiKeyClearText  types.String `tfsdk:"api_key_cleartext"`
-	ApiKeyHash       types.String `tfsdk:"api_key_hash"`
-	Service          types.String `tfsdk:"service"`
+	State           types.String `tfsdk:"state"`
+	Identifier      types.String `tfsdk:"identifier"`
+	IntakeUrl       types.String `tfsdk:"intake_url"`
+	ApiKeyClearText types.String `tfsdk:"api_key_cleartext"`
+	ApiKeyHash      types.String `tfsdk:"api_key_hash"`
+	Service         types.String `tfsdk:"service"`
 }
 
 type ApiKeyReadWrite struct {
