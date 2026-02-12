@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -41,7 +40,6 @@ type awsKubernetesStagedApi struct {
 		} `json:"hosting"`
 		ClusterEndpoint      *string `json:"endpoint"`
 		CertificateAuthority *string `json:"ca"`
-		AutoModeEnabled      *bool   `json:"autoModeEnabled"`
 	} `json:"item"`
 	Metadata struct {
 		CaBundle   *string `json:"caBundle"`
@@ -57,14 +55,13 @@ type awsKubernetesStagedModel struct {
 	ClusterArn           string       `tfsdk:"cluster_arn"`
 	ClusterEndpoint      types.String `tfsdk:"cluster_endpoint"`
 	CertificateAuthority types.String `tfsdk:"certificate_authority"`
-	AutoModeEnabled      types.Bool   `tfsdk:"auto_mode_enabled"`
 	CaBundle             types.String `tfsdk:"ca_bundle"`
 	ServerCert           types.String `tfsdk:"server_cert"`
 	ServerKey            types.String `tfsdk:"server_key"`
 }
 
 func (r *AwsKubernetesStaged) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_aws_kubernetes_staged"
+	resp.TypeName = req.ProviderTypeName + "_kubernetes_staged"
 }
 
 func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -81,7 +78,7 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 			},
 			"connectivity_type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The connectivity type for the cluster (e.g., 'public', 'private')`,
+				MarkdownDescription: `The connectivity type for the cluster (e.g., 'public', 'proxy')`,
 			},
 			"hosting_type": schema.StringAttribute{
 				Required:            true,
@@ -98,12 +95,6 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 			"certificate_authority": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The base-64 encoded certificate authority for the cluster`,
-			},
-			"auto_mode_enabled": schema.BoolAttribute{
-				Optional:            true,
-				Computed:            true,
-				Default:             booldefault.StaticBool(false),
-				MarkdownDescription: `Indicates if auto-mode is enabled for the cluster (defaults to false).`,
 			},
 			"ca_bundle": schema.StringAttribute{
 				Computed:            true,
@@ -180,10 +171,6 @@ func (r *AwsKubernetesStaged) fromJson(ctx context.Context, diags *diag.Diagnost
 		data.CertificateAuthority = types.StringValue(*jsonv.Item.CertificateAuthority)
 	}
 
-	if jsonv.Item.AutoModeEnabled != nil {
-		data.AutoModeEnabled = types.BoolValue(*jsonv.Item.AutoModeEnabled)
-	}
-
 	if jsonv.Metadata.CaBundle != nil {
 		data.CaBundle = types.StringValue(*jsonv.Metadata.CaBundle)
 	}
@@ -219,11 +206,6 @@ func (r *AwsKubernetesStaged) toJson(data any) any {
 	if !datav.CertificateAuthority.IsNull() && !datav.CertificateAuthority.IsUnknown() {
 		certificateAuthority := datav.CertificateAuthority.ValueString()
 		json.Item.CertificateAuthority = &certificateAuthority
-	}
-
-	if !datav.AutoModeEnabled.IsNull() && !datav.AutoModeEnabled.IsUnknown() {
-		autoModeEnabled := datav.AutoModeEnabled.ValueBool()
-		json.Item.AutoModeEnabled = &autoModeEnabled
 	}
 
 	return &json
