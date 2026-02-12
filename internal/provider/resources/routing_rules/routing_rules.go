@@ -71,7 +71,7 @@ var defaultRoutingRules = LatestRoutingRules{
 		Resource:  &ResourceModel{Type: "any"},
 		Approval: []ApprovalModelV2{{
 			Type:    "p0",
-			Options: &ApprovalOptionsModel{AllowOneParty: &False, BreakGlassApprover: &False, RequirePreapproval: &False, RequireReason: &False}}},
+			Options: &ApprovalOptionsModel{AllowOneParty: &False, BreakGlassApprover: &False, RequirePreapproval: &False, RequireReason: &False, RequireDuration: &False}}},
 	}},
 }
 
