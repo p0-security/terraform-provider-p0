@@ -274,8 +274,5 @@ func (s *AuditLogs) Update(ctx context.Context, req resource.UpdateRequest, resp
 }
 
 func (s *AuditLogs) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// Import by identifier
-	var model auditLogsModel
-	model.Identifier = types.StringValue(req.ID)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+	resource.ImportStatePassthroughID(ctx, path.Root("identifier"), req, resp)
 }
