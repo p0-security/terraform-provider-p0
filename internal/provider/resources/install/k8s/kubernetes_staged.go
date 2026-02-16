@@ -61,16 +61,15 @@ type awsKubernetesStagedModel struct {
 }
 
 func (r *AwsKubernetesStaged) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_kubernetes_staged"
+	resp.TypeName = req.ProviderTypeName + "_eks_kubernetes_staged"
 }
 
 func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A staged kubernetes (EKS) installation. Staged resources are used to configure the integration and generate Kubernetes manifests.
+		MarkdownDescription: `A staged K8s installation. Staged resources are used to generate configurations and PKI data.
+		**Important** Before using this resource, please read the instructions for the 'kubernetes' resource.
+		`,
 
-**Important** Before using this resource, please read the instructions for the 'aws_kubernetes' resource. This resource currently only supports installing integrations against EKS-based kubernetes clusters.
-`,
-		// TODO: add additional validation/regexes for these fields
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
