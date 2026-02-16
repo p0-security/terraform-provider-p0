@@ -71,46 +71,46 @@ func (r *AwsKubernetes) Metadata(ctx context.Context, req resource.MetadataReque
 
 func (r *AwsKubernetes) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `An AWS EKS (Kubernetes) installation.
-**Important**: This resource should be used together with the 'kubernetes_staged' resource, with a dependency chain
-requiring this resource to be updated after the 'kubernetes_staged' resource.
-`,
+		MarkdownDescription: `A fully installed K8s integration. This resource provides final configuration values for the installation and verifies integration setup. 
+
+**Important**: This resource only completes the final steps of the installation process, and assumes that a corresponding 'p0_eks_kubernetes_staged' resource has already
+been provisioned. Before using this resource, please read the instructions for the 'p0_eks_kubernetes_staged' resource.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The EKS cluster name`,
+				MarkdownDescription: `The cluster name`,
 			},
 			"token": schema.StringAttribute{
 				Required:            true,
 				Sensitive:           true,
-				MarkdownDescription: `The value of the p0-service-account-secret`,
+				MarkdownDescription: `The value of the p0-service-account-secret; see below for steps on obtaining this value.`,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"public_jwk": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The public JWK token of the braekhus service`,
+				MarkdownDescription: `The public JWK token of the braekhus service; see below for steps on obtaining this value.`,
 			},
 			"connectivity_type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The connectivity type for the cluster (e.g., 'public', 'proxy')`,
+				MarkdownDescription: `The connectivity type for the cluster (e.g., 'public', 'proxy')`, // TODO: needed?
 			},
 			"hosting_type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The hosting type for the cluster (e.g., 'eks')`,
+				MarkdownDescription: `The hosting type for the cluster (e.g., 'eks')`, // TODO: hardcode
 			},
 			"cluster_arn": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The ARN of the EKS cluster`,
+				MarkdownDescription: `The ARN of the cluster`,
 			},
 			"cluster_endpoint": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The EKS API server endpoint for the cluster`,
+				MarkdownDescription: `The Server API endpoint of the cluster`,
 			},
 			"certificate_authority": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The base-64 encoded certificate authority for the cluster`,
+				MarkdownDescription: `The base-64 encoded Certificate Authority of the cluster`,
 			},
 			"state": schema.StringAttribute{
 				Computed:            true,

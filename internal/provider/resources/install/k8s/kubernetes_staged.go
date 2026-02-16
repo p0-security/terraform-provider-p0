@@ -66,9 +66,11 @@ func (r *AwsKubernetesStaged) Metadata(ctx context.Context, req resource.Metadat
 
 func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A staged K8s installation. Staged resources are used to generate configurations and PKI values.
-		**Important** Before using this resource, please read the instructions for the 'kubernetes' resource.
-		`,
+		MarkdownDescription: `A staged K8s integration. Staged resources are used to generate configurations and PKI values.
+		
+**Important**: This resource only initiates the installation process for a k8s integration. It is intended to be used in conjunction with the 
+'p0_eks_kubernetes' resource, which completes the final steps of the installation. Before using this resource, please read the instructions 
+for the 'p0_eks_kubernetes' resource.`,
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
