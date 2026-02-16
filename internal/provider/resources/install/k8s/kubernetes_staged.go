@@ -66,7 +66,7 @@ func (r *AwsKubernetesStaged) Metadata(ctx context.Context, req resource.Metadat
 
 func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A staged K8s installation. Staged resources are used to generate configurations and PKI data.
+		MarkdownDescription: `A staged K8s installation. Staged resources are used to generate configurations and PKI values.
 		**Important** Before using this resource, please read the instructions for the 'kubernetes' resource.
 		`,
 
@@ -77,35 +77,35 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 			},
 			"connectivity_type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The connectivity type for the cluster (e.g., 'public', 'proxy')`,
+				MarkdownDescription: `The connectivity type for the cluster (options are 'public' or 'proxy')`,
 			},
 			"hosting_type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The hosting type for the cluster (e.g., 'eks')`,
+				MarkdownDescription: `The hosting type for the cluster (e.g. 'eks')`, // TODO: hardcode
 			},
 			"cluster_arn": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The ARN of the EKS cluster`,
+				MarkdownDescription: `The ARN of the cluster`,
 			},
 			"cluster_endpoint": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The EKS API server endpoint for the cluster`,
+				MarkdownDescription: `The Server API endpoint of the cluster`,
 			},
 			"certificate_authority": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The base-64 encoded certificate authority for the cluster`,
+				MarkdownDescription: `The base-64 encoded Certificate Authority of the cluster`,
 			},
 			"ca_bundle": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The generated certificate authority bundle used by the admission controller`,
+				MarkdownDescription: `The generated certificate authority bundle used by the integration; used by the p0_eks_kubernetes resource.`,
 			},
 			"server_cert": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The generated certficate used by the admission controller`,
+				MarkdownDescription: `The generated certficate used by the admission controller; used by the p0_eks_kubernetes resource.`,
 			},
 			"server_key": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The generated private key used by the admission controller`,
+				MarkdownDescription: `The generated private key used by the admission controller; used by the p0_eks_kubernetes resource.`,
 			},
 		},
 	}
