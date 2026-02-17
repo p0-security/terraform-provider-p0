@@ -109,8 +109,8 @@ been provisioned. Before using this resource, please read the instructions for t
 			"hosting_type": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString("eks"),
-				MarkdownDescription: `The hosting type for the cluster (e.g. 'eks').`,
+				Default:             stringdefault.StaticString("aws"),
+				MarkdownDescription: `The hosting type for the cluster (e.g. 'aws').`,
 			},
 			"cluster_arn": schema.StringAttribute{
 				Required:            true,

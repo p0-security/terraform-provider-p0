@@ -43,7 +43,7 @@ resource "p0_kubernetes_staged" "test" {
 - `connectivity_type` (String) One of:
 	- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
 	- 'public': The integration will connect to the cluster via the public internet.
-- `hosting_type` (String) The hosting type for the cluster (e.g. 'eks').
+- `hosting_type` (String) The hosting type for the cluster (e.g. 'aws').
 
 ### Read-Only
 
