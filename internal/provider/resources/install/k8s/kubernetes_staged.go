@@ -6,10 +6,13 @@ package installk8s
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -75,15 +78,24 @@ for the 'p0_eks_kubernetes' resource.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The EKS cluster name`,
+				MarkdownDescription: `The display name of the EKS cluster.`,
 			},
 			"connectivity_type": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The connectivity type for the cluster (options are 'public' or 'proxy')`,
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString("proxy"),
+				MarkdownDescription: `One of:
+				- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
+				- 'public': The integration will connect to the cluster via the public internet.`,
+				Validators: []validator.String{
+					stringvalidator.OneOf("public", "proxy"),
+				},
 			},
 			"hosting_type": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The hosting type for the cluster (e.g. 'eks')`, // TODO: hardcode
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString("eks"),
+				MarkdownDescription: `The hosting type for the cluster (e.g. 'eks').`,
 			},
 			"cluster_arn": schema.StringAttribute{
 				Required:            true,
@@ -99,15 +111,15 @@ for the 'p0_eks_kubernetes' resource.`,
 			},
 			"ca_bundle": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The generated certificate authority bundle used by the integration; used by the p0_eks_kubernetes resource.`,
+				MarkdownDescription: `The certificate authority bundle to be used by the integration; used by the p0_eks_kubernetes resource.`,
 			},
 			"server_cert": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The generated certficate used by the admission controller; used by the p0_eks_kubernetes resource.`,
+				MarkdownDescription: `The certficate to be used by the integration; used by the p0_eks_kubernetes resource.`,
 			},
 			"server_key": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The generated private key used by the admission controller; used by the p0_eks_kubernetes resource.`,
+				MarkdownDescription: `The private key to be used by the integration; used by the p0_eks_kubernetes resource.`,
 			},
 		},
 	}
