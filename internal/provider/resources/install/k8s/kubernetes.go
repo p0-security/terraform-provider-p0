@@ -122,7 +122,7 @@ been provisioned. Before using this resource, please read the instructions for t
 			},
 			"certificate_authority": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The base-64 encoded Certificate Authority of the cluster`,
+				MarkdownDescription: `The base-64 encoded certificate authority of the cluster`,
 			},
 			"state": schema.StringAttribute{
 				Computed:            true,
