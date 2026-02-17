@@ -6,10 +6,13 @@ package installk8s
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -66,35 +69,48 @@ func (r *AwsKubernetesStaged) Metadata(ctx context.Context, req resource.Metadat
 
 func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A staged kubernetes (EKS) installation. Staged resources are used to configure the integration and generate Kubernetes manifests.
+		MarkdownDescription: `A staged K8s integration. Staged resources are used to generate configurations and PKI values.
 
-**Important** Before using this resource, please read the instructions for the 'aws_kubernetes' resource. This resource currently only supports installing integrations against EKS-based kubernetes clusters.
-`,
-		// TODO: add additional validation/regexes for these fields
+**Disclaimer**: This resource currently only supports installation against an AWS EKS cluster. Support for Azure, GCP, and self-hosted clusters will
+be added in a future release.
+		
+**Important**: This resource only initiates the installation process for a k8s integration. It is intended to be used in conjunction with the 
+'p0_kubernetes' resource, which completes the final steps of the installation. Before using this resource, please read the instructions 
+for the 'p0_kubernetes' resource.`,
+
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The EKS cluster name`,
+				MarkdownDescription: `The display name of the cluster`,
 			},
 			"connectivity_type": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The connectivity type for the cluster (e.g., 'public', 'proxy')`,
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString("proxy"),
+				MarkdownDescription: `One of:
+	- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
+	- 'public': The integration will connect to the cluster via the public internet`,
+				Validators: []validator.String{
+					stringvalidator.OneOf("public", "proxy"),
+				},
 			},
 			"hosting_type": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The hosting type for the cluster (e.g., 'eks')`,
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString("aws"),
+				MarkdownDescription: `The hosting type for the cluster`,
 			},
 			"cluster_arn": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The ARN of the EKS cluster`,
+				MarkdownDescription: `The ARN of the cluster`,
 			},
 			"cluster_endpoint": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The EKS API server endpoint for the cluster`,
+				MarkdownDescription: `The server API endpoint of the cluster`,
 			},
 			"certificate_authority": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The base-64 encoded certificate authority for the cluster`,
+				MarkdownDescription: `The base-64 encoded certificate authority of the cluster`,
 			},
 			"ca_bundle": schema.StringAttribute{
 				Computed:            true,

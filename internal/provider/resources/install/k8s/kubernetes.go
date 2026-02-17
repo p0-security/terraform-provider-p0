@@ -6,12 +6,15 @@ package installk8s
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -71,14 +74,17 @@ func (r *AwsKubernetes) Metadata(ctx context.Context, req resource.MetadataReque
 
 func (r *AwsKubernetes) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `An AWS EKS (Kubernetes) installation.
-**Important**: This resource should be used together with the 'kubernetes_staged' resource, with a dependency chain
-requiring this resource to be updated after the 'kubernetes_staged' resource.
-`,
+		MarkdownDescription: `A fully installed K8s integration. This resource provides final configuration values for the installation and verifies integration setup. 
+
+**Disclaimer**: This resource currently only supports installation against an AWS EKS cluster. Support for Azure, GCP, and self-hosted clusters will
+be added in a future release.
+
+**Important**: This resource only completes the final steps of the installation process, and assumes that a corresponding 'p0_kubernetes_staged' resource has already
+been provisioned. Before using this resource, please read the instructions for the 'p0_kubernetes_staged' resource.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The EKS cluster name`,
+				MarkdownDescription: `The display name of the cluster`,
 			},
 			"token": schema.StringAttribute{
 				Required:            true,
@@ -90,27 +96,36 @@ requiring this resource to be updated after the 'kubernetes_staged' resource.
 			},
 			"public_jwk": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The public JWK token of the braekhus service`,
+				MarkdownDescription: `The public JWK token of the braekhus proxy service`,
 			},
 			"connectivity_type": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The connectivity type for the cluster (e.g., 'public', 'proxy')`,
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString("proxy"),
+				MarkdownDescription: `One of:
+	- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
+	- 'public': The integration will connect to the cluster via the public internet`,
+				Validators: []validator.String{
+					stringvalidator.OneOf("public", "proxy"),
+				},
 			},
 			"hosting_type": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The hosting type for the cluster (e.g., 'eks')`,
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString("aws"),
+				MarkdownDescription: `The hosting type for the cluster`,
 			},
 			"cluster_arn": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The ARN of the EKS cluster`,
+				MarkdownDescription: `The ARN of the cluster`,
 			},
 			"cluster_endpoint": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The EKS API server endpoint for the cluster`,
+				MarkdownDescription: `The server API endpoint of the cluster`,
 			},
 			"certificate_authority": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The base-64 encoded certificate authority for the cluster`,
+				MarkdownDescription: `The base-64 encoded certificate authority of the cluster`,
 			},
 			"state": schema.StringAttribute{
 				Computed:            true,
