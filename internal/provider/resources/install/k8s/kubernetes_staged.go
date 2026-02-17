@@ -78,7 +78,7 @@ for the 'p0_eks_kubernetes' resource.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The display name of the EKS cluster`,
+				MarkdownDescription: `The display name of the cluster`,
 			},
 			"connectivity_type": schema.StringAttribute{
 				Optional: true,
