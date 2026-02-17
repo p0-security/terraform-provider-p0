@@ -85,8 +85,8 @@ for the 'p0_eks_kubernetes' resource.`,
 				Computed: true,
 				Default:  stringdefault.StaticString("proxy"),
 				MarkdownDescription: `One of:
-				- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
-				- 'public': The integration will connect to the cluster via the public internet.`,
+	- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
+	- 'public': The integration will connect to the cluster via the public internet.`,
 				Validators: []validator.String{
 					stringvalidator.OneOf("public", "proxy"),
 				},
