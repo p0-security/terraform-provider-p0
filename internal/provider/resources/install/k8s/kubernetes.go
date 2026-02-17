@@ -81,7 +81,7 @@ been provisioned. Before using this resource, please read the instructions for t
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The display name of the EKS cluster.`,
+				MarkdownDescription: `The display name of the EKS cluster`,
 			},
 			"token": schema.StringAttribute{
 				Required:            true,
@@ -93,7 +93,7 @@ been provisioned. Before using this resource, please read the instructions for t
 			},
 			"public_jwk": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The public JWK token of the braekhus service.`,
+				MarkdownDescription: `The public JWK token of the braekhus service`,
 			},
 			"connectivity_type": schema.StringAttribute{
 				Optional: true,
@@ -101,7 +101,7 @@ been provisioned. Before using this resource, please read the instructions for t
 				Default:  stringdefault.StaticString("proxy"),
 				MarkdownDescription: `One of:
 	- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
-	- 'public': The integration will connect to the cluster via the public internet.`,
+	- 'public': The integration will connect to the cluster via the public internet`,
 				Validators: []validator.String{
 					stringvalidator.OneOf("public", "proxy"),
 				},
@@ -110,7 +110,7 @@ been provisioned. Before using this resource, please read the instructions for t
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString("aws"),
-				MarkdownDescription: `The hosting type for the cluster (e.g. 'aws').`,
+				MarkdownDescription: `The hosting type for the cluster (e.g. 'aws')`,
 			},
 			"cluster_arn": schema.StringAttribute{
 				Required:            true,

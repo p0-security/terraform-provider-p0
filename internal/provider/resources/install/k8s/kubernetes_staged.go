@@ -78,7 +78,7 @@ for the 'p0_eks_kubernetes' resource.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The display name of the EKS cluster.`,
+				MarkdownDescription: `The display name of the EKS cluster`,
 			},
 			"connectivity_type": schema.StringAttribute{
 				Optional: true,
@@ -86,7 +86,7 @@ for the 'p0_eks_kubernetes' resource.`,
 				Default:  stringdefault.StaticString("proxy"),
 				MarkdownDescription: `One of:
 	- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
-	- 'public': The integration will connect to the cluster via the public internet.`,
+	- 'public': The integration will connect to the cluster via the public internet`,
 				Validators: []validator.String{
 					stringvalidator.OneOf("public", "proxy"),
 				},
@@ -95,7 +95,7 @@ for the 'p0_eks_kubernetes' resource.`,
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString("aws"),
-				MarkdownDescription: `The hosting type for the cluster (e.g. 'aws').`,
+				MarkdownDescription: `The hosting type for the cluster (e.g. 'aws')`,
 			},
 			"cluster_arn": schema.StringAttribute{
 				Required:            true,
@@ -111,15 +111,15 @@ for the 'p0_eks_kubernetes' resource.`,
 			},
 			"ca_bundle": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The certificate authority bundle to be used by the integration; used by the p0_eks_kubernetes resource.`,
+				MarkdownDescription: `The certificate authority bundle to be used by the integration; used by the p0_eks_kubernetes resource`,
 			},
 			"server_cert": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The certficate to be used by the integration; used by the p0_eks_kubernetes resource.`,
+				MarkdownDescription: `The certficate to be used by the integration; used by the p0_eks_kubernetes resource`,
 			},
 			"server_key": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The private key to be used by the integration; used by the p0_eks_kubernetes resource.`,
+				MarkdownDescription: `The private key to be used by the integration; used by the p0_eks_kubernetes resource`,
 			},
 		},
 	}

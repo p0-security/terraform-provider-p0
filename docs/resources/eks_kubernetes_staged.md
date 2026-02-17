@@ -36,17 +36,17 @@ resource "p0_kubernetes_staged" "tf-test-cluster" {
 - `certificate_authority` (String) The base-64 encoded Certificate Authority of the cluster
 - `cluster_arn` (String) The ARN of the cluster
 - `cluster_endpoint` (String) The Server API endpoint of the cluster
-- `id` (String) The display name of the EKS cluster.
+- `id` (String) The display name of the EKS cluster
 
 ### Optional
 
 - `connectivity_type` (String) One of:
 	- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
-	- 'public': The integration will connect to the cluster via the public internet.
-- `hosting_type` (String) The hosting type for the cluster (e.g. 'aws').
+	- 'public': The integration will connect to the cluster via the public internet
+- `hosting_type` (String) The hosting type for the cluster (e.g. 'aws')
 
 ### Read-Only
 
-- `ca_bundle` (String) The certificate authority bundle to be used by the integration; used by the p0_eks_kubernetes resource.
-- `server_cert` (String) The certficate to be used by the integration; used by the p0_eks_kubernetes resource.
-- `server_key` (String) The private key to be used by the integration; used by the p0_eks_kubernetes resource.
+- `ca_bundle` (String) The certificate authority bundle to be used by the integration; used by the p0_eks_kubernetes resource
+- `server_cert` (String) The certficate to be used by the integration; used by the p0_eks_kubernetes resource
+- `server_key` (String) The private key to be used by the integration; used by the p0_eks_kubernetes resource

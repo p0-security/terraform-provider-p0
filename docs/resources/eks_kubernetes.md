@@ -36,16 +36,16 @@ resource "p0_kubernetes" "tf-test-cluster" {
 - `certificate_authority` (String) The base-64 encoded Certificate Authority of the cluster
 - `cluster_arn` (String) The ARN of the cluster
 - `cluster_endpoint` (String) The Server API endpoint of the cluster
-- `id` (String) The display name of the EKS cluster.
-- `public_jwk` (String) The public JWK token of the braekhus service.
+- `id` (String) The display name of the EKS cluster
+- `public_jwk` (String) The public JWK token of the braekhus service
 - `token` (String, Sensitive) The value of the p0-service-account-secret
 
 ### Optional
 
 - `connectivity_type` (String) One of:
 	- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
-	- 'public': The integration will connect to the cluster via the public internet.
-- `hosting_type` (String) The hosting type for the cluster (e.g. 'aws').
+	- 'public': The integration will connect to the cluster via the public internet
+- `hosting_type` (String) The hosting type for the cluster (e.g. 'aws')
 
 ### Read-Only
 
