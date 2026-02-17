@@ -95,7 +95,7 @@ for the 'p0_eks_kubernetes' resource.`,
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString("aws"),
-				MarkdownDescription: `The hosting type for the cluster (e.g. 'aws')`,
+				MarkdownDescription: `The hosting type for the cluster`,
 			},
 			"cluster_arn": schema.StringAttribute{
 				Required:            true,
@@ -103,11 +103,11 @@ for the 'p0_eks_kubernetes' resource.`,
 			},
 			"cluster_endpoint": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The Server API endpoint of the cluster`,
+				MarkdownDescription: `The server API endpoint of the cluster`,
 			},
 			"certificate_authority": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The base-64 encoded Certificate Authority of the cluster`,
+				MarkdownDescription: `The base-64 encoded certificate authority of the cluster`,
 			},
 			"ca_bundle": schema.StringAttribute{
 				Computed:            true,
