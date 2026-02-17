@@ -69,15 +69,18 @@ type awsKubernetesApi struct {
 }
 
 func (r *AwsKubernetes) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_eks_kubernetes"
+	resp.TypeName = req.ProviderTypeName + "_kubernetes"
 }
 
 func (r *AwsKubernetes) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A fully installed K8s integration. This resource provides final configuration values for the installation and verifies integration setup. 
 
-**Important**: This resource only completes the final steps of the installation process, and assumes that a corresponding 'p0_eks_kubernetes_staged' resource has already
-been provisioned. Before using this resource, please read the instructions for the 'p0_eks_kubernetes_staged' resource.`,
+**Disclaimer**: This resource currently only supports installation against an AWS EKS cluster. Support for Azure, GCP, and self-hosted clusters will
+be added in a future release.
+
+**Important**: This resource only completes the final steps of the installation process, and assumes that a corresponding 'p0_kubernetes_staged' resource has already
+been provisioned. Before using this resource, please read the instructions for the 'p0_kubernetes_staged' resource.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
