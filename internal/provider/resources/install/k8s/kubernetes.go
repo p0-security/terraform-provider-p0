@@ -6,12 +6,15 @@ package installk8s
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -78,27 +81,36 @@ been provisioned. Before using this resource, please read the instructions for t
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The cluster name`,
+				MarkdownDescription: `The display name of the EKS cluster.`,
 			},
 			"token": schema.StringAttribute{
 				Required:            true,
 				Sensitive:           true,
-				MarkdownDescription: `The value of the p0-service-account-secret; see below for steps on obtaining this value.`,
+				MarkdownDescription: `The value of the p0-service-account-secret`,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"public_jwk": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The public JWK token of the braekhus service; see below for steps on obtaining this value.`,
+				MarkdownDescription: `The public JWK token of the braekhus service.`,
 			},
 			"connectivity_type": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The connectivity type for the cluster (e.g., 'public', 'proxy')`, // TODO: needed?
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString("proxy"),
+				MarkdownDescription: `One of:
+	- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
+	- 'public': The integration will connect to the cluster via the public internet.`,
+				Validators: []validator.String{
+					stringvalidator.OneOf("public", "proxy"),
+				},
 			},
 			"hosting_type": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The hosting type for the cluster (e.g., 'eks')`, // TODO: hardcode
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString("eks"),
+				MarkdownDescription: `The hosting type for the cluster (e.g. 'eks').`,
 			},
 			"cluster_arn": schema.StringAttribute{
 				Required:            true,
