@@ -111,15 +111,15 @@ for the 'p0_eks_kubernetes' resource.`,
 			},
 			"ca_bundle": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The certificate authority bundle to be used by the integration; used by the p0_eks_kubernetes resource`,
+				MarkdownDescription: `The generated certificate authority bundle used by the admission controller`,
 			},
 			"server_cert": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The certficate to be used by the integration; used by the p0_eks_kubernetes resource`,
+				MarkdownDescription: `The generated certficate used by the admission controller`,
 			},
 			"server_key": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: `The private key to be used by the integration; used by the p0_eks_kubernetes resource`,
+				MarkdownDescription: `The generated private key used by the admission controller`,
 			},
 		},
 	}
