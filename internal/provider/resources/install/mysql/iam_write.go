@@ -28,29 +28,18 @@ type mysqlIamWrite struct {
 }
 
 type mysqlIamWriteModel struct {
-	Id           types.String `tfsdk:"id" json:"id,omitempty"`
-	InstanceArn  types.String `tfsdk:"instance_arn" json:"instanceArn,omitempty"`
-	VpcId        types.String `tfsdk:"vpc_id" json:"vpcId,omitempty"`
-	Hostname     types.String `tfsdk:"hostname" json:"hostname,omitempty"`
-	Port         types.String `tfsdk:"port" json:"port,omitempty"`
-	DefaultDb    types.String `tfsdk:"default_db" json:"defaultDb,omitempty"`
-	ConnectorArn types.String `tfsdk:"connector_arn" json:"connectorArn,omitempty"`
-	ResourceId   types.String `tfsdk:"resource_id" json:"resourceId,omitempty"`
-	State        types.String `tfsdk:"state" json:"state,omitempty"`
+	Id        types.String `tfsdk:"id" json:"id,omitempty"`
+	Hostname  types.String `tfsdk:"hostname" json:"hostname,omitempty"`
+	Port      types.String `tfsdk:"port" json:"port,omitempty"`
+	DefaultDb types.String `tfsdk:"default_db" json:"defaultDb,omitempty"`
+	State     types.String `tfsdk:"state" json:"state,omitempty"`
 }
 
 type mysqlIamWriteJson struct {
-	Hostname     *string `json:"hostname,omitempty"`
-	Port         *string `json:"port,omitempty"`
-	DefaultDb    *string `json:"defaultDb,omitempty"`
-	ConnectorArn *string `json:"connectorArn,omitempty"`
-	ResourceId   *string `json:"resourceId,omitempty"`
-	State        string  `json:"state"`
-	Hosting      *struct {
-		Type        string `json:"type"`
-		InstanceArn string `json:"instanceArn"`
-		VpcId       string `json:"vpcId"`
-	} `json:"hosting,omitempty"`
+	Hostname  *string `json:"hostname,omitempty"`
+	Port      *string `json:"port,omitempty"`
+	DefaultDb *string `json:"defaultDb,omitempty"`
+	State     string  `json:"state"`
 }
 
 type mysqlIamWriteApi struct {
@@ -80,25 +69,8 @@ Installing MySQL allows you to manage access to your MySQL database instances us
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"instance_arn": schema.StringAttribute{
-				MarkdownDescription: `The AWS RDS instance ARN (e.g., arn:aws:rds:us-east-1:123456789012:db:my-instance)`,
-				Required:            true,
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(AwsRdsArnRegex, "Must be a valid AWS RDS instance ARN"),
-				},
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"vpc_id": schema.StringAttribute{
-				MarkdownDescription: `The AWS RDS VPC installation ID (references an existing aws-rds integration)`,
-				Required:            true,
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(AwsVpcIdRegex, "Must be a valid AWS VPC ID"),
-				},
-			},
 			"hostname": schema.StringAttribute{
-				MarkdownDescription: `The hostname or IP address of the MySQL instance (computed from RDS instance)`,
+				MarkdownDescription: `The hostname or IP address of the MySQL instance`,
 				Computed:            true,
 			},
 			"port": schema.StringAttribute{
@@ -113,14 +85,6 @@ Installing MySQL allows you to manage access to your MySQL database instances us
 			"default_db": schema.StringAttribute{
 				MarkdownDescription: `Optional default database for access requests`,
 				Optional:            true,
-			},
-			"connector_arn": schema.StringAttribute{
-				MarkdownDescription: `The AWS Lambda connector ARN (computed)`,
-				Computed:            true,
-			},
-			"resource_id": schema.StringAttribute{
-				MarkdownDescription: `The RDS resource ID (computed)`,
-				Computed:            true,
 			},
 			"state": schema.StringAttribute{
 				MarkdownDescription: common.StateMarkdownDescription,
@@ -170,12 +134,6 @@ func (r *mysqlIamWrite) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 
 	data.Id = types.StringValue(id)
 	data.State = types.StringValue(jsonv.State)
-
-	if jsonv.Hosting != nil {
-		data.InstanceArn = types.StringValue(jsonv.Hosting.InstanceArn)
-		data.VpcId = types.StringValue(jsonv.Hosting.VpcId)
-	}
-
 	data.Hostname = types.StringNull()
 	if jsonv.Hostname != nil {
 		data.Hostname = types.StringValue(*jsonv.Hostname)
@@ -191,16 +149,6 @@ func (r *mysqlIamWrite) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 		data.DefaultDb = types.StringValue(*jsonv.DefaultDb)
 	}
 
-	data.ConnectorArn = types.StringNull()
-	if jsonv.ConnectorArn != nil {
-		data.ConnectorArn = types.StringValue(*jsonv.ConnectorArn)
-	}
-
-	data.ResourceId = types.StringNull()
-	if jsonv.ResourceId != nil {
-		data.ResourceId = types.StringValue(*jsonv.ResourceId)
-	}
-
 	return &data
 }
 
@@ -210,16 +158,6 @@ func (r *mysqlIamWrite) toJson(data any) any {
 	datav, ok := data.(*mysqlIamWriteModel)
 	if !ok {
 		return nil
-	}
-
-	json.Hosting = &struct {
-		Type        string `json:"type"`
-		InstanceArn string `json:"instanceArn"`
-		VpcId       string `json:"vpcId"`
-	}{
-		Type:        "aws-rds",
-		InstanceArn: datav.InstanceArn.ValueString(),
-		VpcId:       datav.VpcId.ValueString(),
 	}
 
 	if !datav.Hostname.IsNull() && !datav.Hostname.IsUnknown() {
@@ -259,7 +197,7 @@ func (s *mysqlIamWrite) Read(ctx context.Context, req resource.ReadRequest, resp
 }
 
 func (s *mysqlIamWrite) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	s.installer.Delete(ctx, &resp.Diagnostics, &req.State, &mysqlIamWriteModel{})
+	s.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &mysqlIamWriteModel{})
 }
 
 func (s *mysqlIamWrite) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
