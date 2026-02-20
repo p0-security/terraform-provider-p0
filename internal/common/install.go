@@ -97,6 +97,7 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 	_, err := i.ProviderData.Put(i.itemPath(*id), inputJson, json)
 	if err != nil {
 		diags.AddError(fmt.Sprintf("Could not stage %s component", i.Component), fmt.Sprintf("Error: %s", err))
+		return
 	}
 
 	itemJson := i.GetItemJson(json)

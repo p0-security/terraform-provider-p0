@@ -3,27 +3,30 @@
 page_title: "p0_mysql_staged Resource - p0"
 subcategory: ""
 description: |-
-  A staged MySQL installation for AWS RDS. Staged resources generate the infrastructure configuration needed to deploy the Lambda connector.
-  Important: Before using this resource, you must first install the p0_aws_rds resource for the VPC.
-  Use the read-only attributes defined on this resource to get the shell commands or Terraform configuration needed to create the Lambda connector infrastructure.
+  A staged MySQL installation. Staged resources generate the infrastructure configuration needed to deploy P0's MySQL connector.
+  Important: If using RDS hosting, you must first install the p0_aws_rds resource for the instance's VPC.
+  Use the read-only attributes defined on this resource to get the shell commands or Terraform configuration needed to create the P0 connector infrastructure.
 ---
 
 # p0_mysql_staged (Resource)
 
-A staged MySQL installation for AWS RDS. Staged resources generate the infrastructure configuration needed to deploy the Lambda connector.
+A staged MySQL installation. Staged resources generate the infrastructure configuration needed to deploy P0's MySQL connector.
 
-**Important:** Before using this resource, you must first install the p0_aws_rds resource for the VPC.
+**Important:** If using RDS hosting, you must first install the p0_aws_rds resource for the instance's VPC.
 
-Use the read-only attributes defined on this resource to get the shell commands or Terraform configuration needed to create the Lambda connector infrastructure.
+Use the read-only attributes defined on this resource to get the shell commands or Terraform configuration needed to create the P0 connector infrastructure.
 
 ## Example Usage
 
 ```terraform
 # Stage the MySQL installation
 resource "p0_mysql_staged" "example" {
-  id           = "my-mysql-instance"
-  instance_arn = "arn:aws:rds:us-east-1:123456789012:db:my-mysql-instance"
-  vpc_id       = "vpc-0123456789abcdef0"
+  id = "my-mysql-instance"
+  hosting = {
+    type         = "aws-rds"
+    instance_arn = "arn:aws:rds:us-east-1:123456789012:db:my-mysql-instance"
+    vpc_id       = "vpc-0123456789abcdef0"
+  }
 }
 
 # Deploy Lambda connector infrastructure
@@ -31,10 +34,9 @@ resource "p0_mysql_staged" "example" {
 
 # Complete the installation
 resource "p0_mysql" "example" {
-  id           = p0_mysql_staged.example.id
-  instance_arn = p0_mysql_staged.example.instance_arn
-  vpc_id       = p0_mysql_staged.example.vpc_id
-  depends_on   = [aws_lambda_function.mysql_connector]
+  id         = p0_mysql_staged.example.id
+  default_db = "demo-db"
+  depends_on = [aws_lambda_function.mysql_connector]
 }
 ```
 
@@ -43,15 +45,25 @@ resource "p0_mysql" "example" {
 
 ### Required
 
+- `hosting` (Attributes) How this instance (or cluster) is hosted (see [below for nested schema](#nestedatt--hosting))
 - `id` (String) A unique identifier for this MySQL installation (can be any string, e.g., "production-db" or "staging-mysql")
-- `instance_arn` (String) The AWS RDS instance ARN
-- `vpc_id` (String) The AWS VPC ID where the RDS instance is located (must reference an existing aws-rds integration)
 
 ### Read-Only
 
-- `account_id` (String) The AWS account ID (computed from RDS perimeter configuration)
-- `region` (String) The AWS region (computed from RDS perimeter configuration)
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured
 	- 'installed': The item is fully installed
+
+<a id="nestedatt--hosting"></a>
+### Nested Schema for `hosting`
+
+Required:
+
+- `instance_arn` (String) The AWS RDS instance ARN
+- `type` (String) The hosing environment
+- `vpc_id` (String) The AWS VPC ID where the RDS instance is located (must reference an existing aws-rds integration)
+
+Read-Only:
+
+- `connector_arn` (String) The AWS Lambda connector ARN

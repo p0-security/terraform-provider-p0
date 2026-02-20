@@ -1,8 +1,11 @@
 # Stage the MySQL installation
 resource "p0_mysql_staged" "example" {
-  id           = "my-mysql-instance"
-  instance_arn = "arn:aws:rds:us-east-1:123456789012:db:my-mysql-instance"
-  vpc_id       = "vpc-0123456789abcdef0"
+  id = "my-mysql-instance"
+  hosting = {
+    type         = "aws-rds"
+    instance_arn = "arn:aws:rds:us-east-1:123456789012:db:my-mysql-instance"
+    vpc_id       = "vpc-0123456789abcdef0"
+  }
 }
 
 # Deploy Lambda connector infrastructure
@@ -10,8 +13,7 @@ resource "p0_mysql_staged" "example" {
 
 # Complete the installation
 resource "p0_mysql" "example" {
-  id           = p0_mysql_staged.example.id
-  instance_arn = p0_mysql_staged.example.instance_arn
-  vpc_id       = p0_mysql_staged.example.vpc_id
-  depends_on   = [aws_lambda_function.mysql_connector]
+  id         = p0_mysql_staged.example.id
+  default_db = "demo-db"
+  depends_on = [aws_lambda_function.mysql_connector]
 }

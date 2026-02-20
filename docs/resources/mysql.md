@@ -20,12 +20,10 @@ Installing MySQL allows you to manage access to your MySQL database instances us
 
 ```terraform
 resource "p0_mysql" "example" {
-  id           = p0_mysql_staged.example.id
-  instance_arn = p0_mysql_staged.example.instance_arn
-  vpc_id       = p0_mysql_staged.example.vpc_id
-  port         = "3306"
-  default_db   = "myapp"
-  depends_on   = [aws_lambda_function.mysql_connector]
+  id         = p0_mysql_staged.example.id
+  port       = "3306"
+  default_db = "myapp"
+  depends_on = [aws_lambda_function.mysql_connector]
 }
 ```
 
@@ -35,8 +33,6 @@ resource "p0_mysql" "example" {
 ### Required
 
 - `id` (String) A unique identifier for this MySQL installation (can be any string, e.g., "production-db" or "staging-mysql")
-- `instance_arn` (String) The AWS RDS instance ARN (e.g., arn:aws:rds:us-east-1:123456789012:db:my-instance)
-- `vpc_id` (String) The AWS RDS VPC installation ID (references an existing aws-rds integration)
 
 ### Optional
 
@@ -45,9 +41,7 @@ resource "p0_mysql" "example" {
 
 ### Read-Only
 
-- `connector_arn` (String) The AWS Lambda connector ARN (computed)
-- `hostname` (String) The hostname or IP address of the MySQL instance (computed from RDS instance)
-- `resource_id` (String) The RDS resource ID (computed)
+- `hostname` (String) The hostname or IP address of the MySQL instance
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured

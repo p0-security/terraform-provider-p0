@@ -29,25 +29,33 @@ type MysqlIamWriteStaged struct {
 	installer *common.Install
 }
 
+type awsConnectorHostingJson struct {
+	Type         string  `json:"type" tfsdk:"type"`
+	InstanceArn  string  `json:"instanceArn" tfsdk:"instance_arn"`
+	ConnectorArn *string `json:"connectorArn" tfsdk:"connector_arn"`
+	VpcId        string  `json:"vpcId" tfsdk:"vpc_id"`
+}
+
+type awsConnectorHostingModel struct {
+	Type         string       `json:"type" tfsdk:"type"`
+	InstanceArn  string       `json:"instanceArn" tfsdk:"instance_arn"`
+	ConnectorArn types.String `json:"connectorArn" tfsdk:"connector_arn"`
+	VpcId        string       `json:"vpcId" tfsdk:"vpc_id"`
+}
+
+type mysqlIamWriteStagedJson struct {
+	State   *string                  `json:"state"`
+	Hosting *awsConnectorHostingJson `json:"hosting"`
+}
+
 type mysqlIamWriteStagedApi struct {
-	Item struct {
-		State   *string `json:"state"`
-		Hosting *struct {
-			Type         string `json:"type"`
-			InstanceArn  string `json:"instanceArn"`
-			VpcId        string `json:"vpcId"`
-			ConnectorArn string `json:"connectorArn"`
-		} `json:"hosting"`
-	} `json:"item"`
+	Item *mysqlIamWriteStagedJson `json:"item"`
 }
 
 type mysqlIamWriteStagedModel struct {
-	Id          types.String `tfsdk:"id"`
-	InstanceArn types.String `tfsdk:"instance_arn"`
-	VpcId       types.String `tfsdk:"vpc_id"`
-	Region      types.String `tfsdk:"region"`
-	AccountId   types.String `tfsdk:"account_id"`
-	State       types.String `tfsdk:"state"`
+	Id      types.String              `tfsdk:"id"`
+	Hosting *awsConnectorHostingModel `tfsdk:"hosting"`
+	State   types.String              `tfsdk:"state"`
 }
 
 func (r *MysqlIamWriteStaged) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -56,11 +64,11 @@ func (r *MysqlIamWriteStaged) Metadata(ctx context.Context, req resource.Metadat
 
 func (r *MysqlIamWriteStaged) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A staged MySQL installation for AWS RDS. Staged resources generate the infrastructure configuration needed to deploy the Lambda connector.
+		MarkdownDescription: `A staged MySQL installation. Staged resources generate the infrastructure configuration needed to deploy P0's MySQL connector.
 
-**Important:** Before using this resource, you must first install the p0_aws_rds resource for the VPC.
+**Important:** If using RDS hosting, you must first install the p0_aws_rds resource for the instance's VPC.
 
-Use the read-only attributes defined on this resource to get the shell commands or Terraform configuration needed to create the Lambda connector infrastructure.`,
+Use the read-only attributes defined on this resource to get the shell commands or Terraform configuration needed to create the P0 connector infrastructure.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
@@ -69,33 +77,42 @@ Use the read-only attributes defined on this resource to get the shell commands 
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"instance_arn": schema.StringAttribute{
+			"hosting": schema.SingleNestedAttribute{
 				Required:            true,
-				MarkdownDescription: `The AWS RDS instance ARN`,
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(AwsRdsArnRegex, "Must be a valid AWS RDS instance ARN"),
+				MarkdownDescription: `How this instance (or cluster) is hosted`,
+				Attributes: map[string]schema.Attribute{
+					"type": schema.StringAttribute{
+						Required:            true,
+						MarkdownDescription: `The hosing environment`,
+						Validators: []validator.String{
+							stringvalidator.OneOf("aws-rds", "Hosting must be 'aws-rds'"),
+						},
+					},
+					"connector_arn": schema.StringAttribute{
+						MarkdownDescription: `The AWS Lambda connector ARN`,
+						Computed:            true,
+					},
+					"instance_arn": schema.StringAttribute{
+						Required:            true,
+						MarkdownDescription: `The AWS RDS instance ARN`,
+						Validators: []validator.String{
+							stringvalidator.RegexMatches(AwsRdsArnRegex, "Must be a valid AWS RDS instance ARN"),
+						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.RequiresReplace(),
+						},
+					},
+					"vpc_id": schema.StringAttribute{
+						Required:            true,
+						MarkdownDescription: `The AWS VPC ID where the RDS instance is located (must reference an existing aws-rds integration)`,
+						Validators: []validator.String{
+							stringvalidator.RegexMatches(AwsVpcIdRegex, "Must be a valid AWS VPC ID"),
+						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.RequiresReplace(),
+						},
+					},
 				},
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"vpc_id": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The AWS VPC ID where the RDS instance is located (must reference an existing aws-rds integration)`,
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(AwsVpcIdRegex, "Must be a valid AWS VPC ID"),
-				},
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"region": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: `The AWS region (computed from RDS perimeter configuration)`,
-			},
-			"account_id": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: `The AWS account ID (computed from RDS perimeter configuration)`,
 			},
 			"state": schema.StringAttribute{
 				MarkdownDescription: common.StateMarkdownDescription,
@@ -132,58 +149,51 @@ func (r *MysqlIamWriteStaged) getItemJson(json any) any {
 	if !ok {
 		return nil
 	}
-	return inner
+	return inner.Item
 }
 
 func (r *MysqlIamWriteStaged) fromJson(ctx context.Context, diags *diag.Diagnostics, id string, json any) any {
 	data := mysqlIamWriteStagedModel{}
 
-	jsonv, ok := json.(*mysqlIamWriteStagedApi)
+	jsonv, ok := json.(*mysqlIamWriteStagedJson)
 	if !ok {
 		return nil
 	}
 
 	data.Id = types.StringValue(id)
 
-	if jsonv.Item.State != nil {
-		data.State = types.StringValue(*jsonv.Item.State)
+	if jsonv.State != nil {
+		data.State = types.StringValue(*jsonv.State)
 	}
 
-	if jsonv.Item.Hosting != nil {
-		data.InstanceArn = types.StringValue(jsonv.Item.Hosting.InstanceArn)
-		data.VpcId = types.StringValue(jsonv.Item.Hosting.VpcId)
-
-		region, accountId := parseRdsArn(jsonv.Item.Hosting.InstanceArn)
-		data.Region = types.StringValue(region)
-		data.AccountId = types.StringValue(accountId)
+	if jsonv.Hosting != nil {
+		data.Hosting = &awsConnectorHostingModel{
+			Type:         jsonv.Hosting.Type,
+			ConnectorArn: types.StringPointerValue(jsonv.Hosting.ConnectorArn),
+			InstanceArn:  jsonv.Hosting.InstanceArn,
+			VpcId:        jsonv.Hosting.VpcId,
+		}
 	}
 
 	return &data
 }
 
 func (r *MysqlIamWriteStaged) toJson(data any) any {
+	json := mysqlIamWriteStagedJson{}
+
 	datav, ok := data.(*mysqlIamWriteStagedModel)
 	if !ok {
 		return nil
 	}
 
-	return &struct {
-		Hosting struct {
-			Type        string `json:"type"`
-			InstanceArn string `json:"instanceArn"`
-			VpcId       string `json:"vpcId"`
-		} `json:"hosting"`
-	}{
-		Hosting: struct {
-			Type        string `json:"type"`
-			InstanceArn string `json:"instanceArn"`
-			VpcId       string `json:"vpcId"`
-		}{
-			Type:        "aws-rds",
-			InstanceArn: datav.InstanceArn.ValueString(),
-			VpcId:       datav.VpcId.ValueString(),
-		},
+	json.Hosting = &awsConnectorHostingJson{
+		Type:         datav.Hosting.Type,
+		ConnectorArn: datav.Hosting.ConnectorArn.ValueStringPointer(),
+		InstanceArn:  datav.Hosting.InstanceArn,
+		VpcId:        datav.Hosting.VpcId,
 	}
+
+	return &json
 }
 
 func (r *MysqlIamWriteStaged) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
