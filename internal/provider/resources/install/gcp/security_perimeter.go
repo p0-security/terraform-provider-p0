@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -65,8 +66,10 @@ To use this resource, you must also:
 			"project": projectAttribute,
 			"state":   common.StateAttribute,
 			"region": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: `The GCP region where the Cloud Run security perimeter service is deployed (e.g., us-west1).`,
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString("us-west1"),
+				MarkdownDescription: `The GCP region where the Cloud Run security perimeter service is deployed. Defaults to "us-west1".`,
 			},
 			"cloud_run_url": schema.StringAttribute{
 				Required:            true,
@@ -112,7 +115,10 @@ func (r *GcpSecurityPerimeter) fromJson(ctx context.Context, diags *diag.Diagnos
 		data.State = state
 	}
 
-	data.Region = types.StringNull()
+	// Default to "us-west1" when the API omits region (pre-existing installations).
+	// Without this, fromJson would set region to null, causing Terraform to report
+	// an inconsistency against the schema default of "us-west1".
+	data.Region = types.StringValue("us-west1")
 	if jsonv.Region != nil {
 		data.Region = types.StringValue(*jsonv.Region)
 	}
