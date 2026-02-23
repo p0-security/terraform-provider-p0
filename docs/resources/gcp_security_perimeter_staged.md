@@ -27,6 +27,7 @@ To use this resource, you must also:
 ### Required
 
 - `project` (String) The ID of the Google Cloud project to manage with P0
+- `region` (String) The GCP region where the Cloud Run security perimeter service is deployed (e.g., us-west1).
 
 ### Read-Only
 

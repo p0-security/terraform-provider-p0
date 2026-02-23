@@ -30,6 +30,7 @@ type GcpSecurityPerimeter struct {
 type gcpSecurityPerimeterModel struct {
 	State          types.String `tfsdk:"state"`
 	Project        types.String `tfsdk:"project"`
+	Region         types.String `tfsdk:"region"`
 	CloudRunUrl    types.String `tfsdk:"cloud_run_url"`
 	AllowedDomains types.String `tfsdk:"allowed_domains"`
 	ImageDigest    types.String `tfsdk:"image_digest"`
@@ -37,6 +38,7 @@ type gcpSecurityPerimeterModel struct {
 
 type gcpSecurityPerimeterJson struct {
 	State          *string `json:"state,omitempty"`
+	Region         *string `json:"region,omitempty"`
 	CloudRunUrl    *string `json:"cloudRunUrl,omitempty"`
 	AllowedDomains *string `json:"allowedDomains,omitempty"`
 	ImageDigest    *string `json:"imageDigest,omitempty"`
@@ -62,6 +64,10 @@ To use this resource, you must also:
 		Attributes: map[string]schema.Attribute{
 			"project": projectAttribute,
 			"state":   common.StateAttribute,
+			"region": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: `The GCP region where the Cloud Run security perimeter service is deployed (e.g., us-west1).`,
+			},
 			"cloud_run_url": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The URL of the Cloud Run service that will be used to enforce the security perimeter.`,
@@ -106,6 +112,11 @@ func (r *GcpSecurityPerimeter) fromJson(ctx context.Context, diags *diag.Diagnos
 		data.State = state
 	}
 
+	data.Region = types.StringNull()
+	if jsonv.Region != nil {
+		data.Region = types.StringValue(*jsonv.Region)
+	}
+
 	data.CloudRunUrl = types.StringNull()
 	if jsonv.CloudRunUrl != nil {
 		gcloudRunUrl := types.StringValue(*jsonv.CloudRunUrl)
@@ -132,6 +143,11 @@ func (r *GcpSecurityPerimeter) toJson(data any) any {
 	datav, ok := data.(*gcpSecurityPerimeterModel)
 	if !ok {
 		return nil
+	}
+
+	if !datav.Region.IsNull() && !datav.Region.IsUnknown() {
+		region := datav.Region.ValueString()
+		json.Region = &region
 	}
 
 	if !datav.CloudRunUrl.IsNull() && !datav.CloudRunUrl.IsUnknown() {

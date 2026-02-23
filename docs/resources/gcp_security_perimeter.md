@@ -130,6 +130,7 @@ resource "p0_gcp_security_perimeter" "p0-dev-account" {
 - `cloud_run_url` (String) The URL of the Cloud Run service that will be used to enforce the security perimeter.
 - `image_digest` (String) The hash value of the image that is deployed to the Cloud Run service.
 - `project` (String) The ID of the Google Cloud project to manage with P0
+- `region` (String) The GCP region where the Cloud Run security perimeter service is deployed (e.g., us-west1).
 
 ### Read-Only
 
