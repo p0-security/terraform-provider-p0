@@ -8,7 +8,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -93,6 +95,10 @@ To use this resource, you must also:
 				Computed:            true,
 				Default:             stringdefault.StaticString("us-west1"),
 				MarkdownDescription: `The GCP region where the Cloud Run security perimeter service is deployed. Defaults to "us-west1".`,
+				// The `region` parameter is added at the `new` step of the install and cannot be modified later
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"allowed_domains": schema.StringAttribute{
 				Computed:            true,
