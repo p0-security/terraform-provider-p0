@@ -1,5 +1,6 @@
 resource "p0_gcp_security_perimeter_staged" "p0-dev-account" {
   project = local.dev_project_id
+  region  = var.location
 }
 
 # Enable iam and cloud run services
@@ -84,6 +85,7 @@ resource "google_cloud_run_service_iam_member" "invoker_access" {
 
 resource "p0_gcp_security_perimeter" "p0-dev-account" {
   project         = var.project_id
+  region          = var.location
   allowed_domains = p0_gcp_security_perimeter_staged.p0-dev-account.allowed_domains
   image_digest    = p0_gcp_security_perimeter_staged.p0-dev-account.image_digest
   cloud_run_url   = google_cloud_run_service.p0_security_perimeter.status[0].url

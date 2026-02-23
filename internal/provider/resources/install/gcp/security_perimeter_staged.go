@@ -8,6 +8,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -29,6 +32,7 @@ type GcpSecurityPerimeterStage struct {
 type gcpSecurityPerimeterStageModel struct {
 	State             types.String `tfsdk:"state"`
 	Project           types.String `tfsdk:"project"`
+	Region            types.String `tfsdk:"region"`
 	AllowedDomains    types.String `tfsdk:"allowed_domains"`
 	ImageDigest       types.String `tfsdk:"image_digest"`
 	CustomRole        types.Object `tfsdk:"custom_role"`
@@ -47,12 +51,15 @@ type gcpSecurityPerimeterStageMetadata struct {
 	ProjectReaderRole gcpProjectReaderRoleMetadata `json:"projectReaderRole" tfsdk:"project_reader_role"`
 }
 
+type gcpSecurityPerimeterStageItem struct {
+	State          *string `json:"state,omitempty"`
+	Region         *string `json:"region,omitempty"`
+	AllowedDomains *string `json:"allowedDomains,omitempty"`
+	ImageDigest    *string `json:"imageDigest,omitempty"`
+}
+
 type gcpSecurityPerimeterStageApi struct {
-	Item struct {
-		State          *string `json:"state,omitempty"`
-		AllowedDomains *string `json:"allowedDomains,omitempty"`
-		ImageDigest    *string `json:"imageDigest,omitempty"`
-	} `json:"item"`
+	Item     gcpSecurityPerimeterStageItem     `json:"item"`
 	Metadata gcpSecurityPerimeterStageMetadata `json:"metadata"`
 }
 
@@ -83,6 +90,16 @@ To use this resource, you must also:
 		Attributes: map[string]schema.Attribute{
 			"project": projectAttribute,
 			"state":   common.StateAttribute,
+			"region": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString("us-west1"),
+				MarkdownDescription: `The GCP region where the Cloud Run security perimeter service is deployed. Defaults to "us-west1".`,
+				// The `region` parameter is added at the `new` step of the install and cannot be modified later
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
 			"allowed_domains": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: `The list of domains that are allowed to access the Cloud Run service.`,
@@ -131,6 +148,14 @@ func (r *GcpSecurityPerimeterStage) fromJson(ctx context.Context, diags *diag.Di
 		data.State = state
 	}
 
+	// Default to "us-west1" when the API omits region (pre-existing installations).
+	// Without this, fromJson would set region to null, causing Terraform to report
+	// an inconsistency against the schema default of "us-west1".
+	data.Region = types.StringValue("us-west1")
+	if jsonv.Item.Region != nil {
+		data.Region = types.StringValue(*jsonv.Item.Region)
+	}
+
 	data.AllowedDomains = types.StringNull()
 	if jsonv.Item.AllowedDomains != nil {
 		allowedDomains := types.StringValue(*jsonv.Item.AllowedDomains)
@@ -174,6 +199,11 @@ func (r *GcpSecurityPerimeterStage) toJson(data any) any {
 		return nil
 	}
 
+	if !datav.Region.IsNull() && !datav.Region.IsUnknown() {
+		region := datav.Region.ValueString()
+		json.Item.Region = &region
+	}
+
 	if !datav.AllowedDomains.IsNull() && !datav.AllowedDomains.IsUnknown() {
 		allowedDomains := datav.AllowedDomains.ValueString()
 		json.Item.AllowedDomains = &allowedDomains
@@ -214,7 +244,14 @@ func (s *GcpSecurityPerimeterStage) Create(ctx context.Context, req resource.Cre
 	var api gcpSecurityPerimeterStageApi
 	var model gcpSecurityPerimeterStageModel
 	s.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &model)
-	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &api, &model, &struct{}{})
+
+	stageInput := gcpSecurityPerimeterStageItem{}
+	if !model.Region.IsNull() && !model.Region.IsUnknown() {
+		region := model.Region.ValueString()
+		stageInput.Region = &region
+	}
+
+	s.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &api, &model, &stageInput)
 }
 
 func (s *GcpSecurityPerimeterStage) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

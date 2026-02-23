@@ -8,6 +8,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -30,6 +33,7 @@ type GcpSecurityPerimeter struct {
 type gcpSecurityPerimeterModel struct {
 	State          types.String `tfsdk:"state"`
 	Project        types.String `tfsdk:"project"`
+	Region         types.String `tfsdk:"region"`
 	CloudRunUrl    types.String `tfsdk:"cloud_run_url"`
 	AllowedDomains types.String `tfsdk:"allowed_domains"`
 	ImageDigest    types.String `tfsdk:"image_digest"`
@@ -37,6 +41,7 @@ type gcpSecurityPerimeterModel struct {
 
 type gcpSecurityPerimeterJson struct {
 	State          *string `json:"state,omitempty"`
+	Region         *string `json:"region,omitempty"`
 	CloudRunUrl    *string `json:"cloudRunUrl,omitempty"`
 	AllowedDomains *string `json:"allowedDomains,omitempty"`
 	ImageDigest    *string `json:"imageDigest,omitempty"`
@@ -62,6 +67,16 @@ To use this resource, you must also:
 		Attributes: map[string]schema.Attribute{
 			"project": projectAttribute,
 			"state":   common.StateAttribute,
+			"region": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString("us-west1"),
+				MarkdownDescription: `The GCP region where the Cloud Run security perimeter service is deployed. Defaults to "us-west1".`,
+				// The `region` parameter is added at the `new` step of the install and cannot be modified later
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
 			"cloud_run_url": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The URL of the Cloud Run service that will be used to enforce the security perimeter.`,
@@ -106,6 +121,14 @@ func (r *GcpSecurityPerimeter) fromJson(ctx context.Context, diags *diag.Diagnos
 		data.State = state
 	}
 
+	// Default to "us-west1" when the API omits region (pre-existing installations).
+	// Without this, fromJson would set region to null, causing Terraform to report
+	// an inconsistency against the schema default of "us-west1".
+	data.Region = types.StringValue("us-west1")
+	if jsonv.Region != nil {
+		data.Region = types.StringValue(*jsonv.Region)
+	}
+
 	data.CloudRunUrl = types.StringNull()
 	if jsonv.CloudRunUrl != nil {
 		gcloudRunUrl := types.StringValue(*jsonv.CloudRunUrl)
@@ -132,6 +155,11 @@ func (r *GcpSecurityPerimeter) toJson(data any) any {
 	datav, ok := data.(*gcpSecurityPerimeterModel)
 	if !ok {
 		return nil
+	}
+
+	if !datav.Region.IsNull() && !datav.Region.IsUnknown() {
+		region := datav.Region.ValueString()
+		json.Region = &region
 	}
 
 	if !datav.CloudRunUrl.IsNull() && !datav.CloudRunUrl.IsUnknown() {
