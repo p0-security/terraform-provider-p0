@@ -11,7 +11,7 @@ formatters:
     - gofmt
 
 linters:
-  disable-all: true
+  default: none
   enable:
     - copyloopvar
     - durationcheck
