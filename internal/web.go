@@ -28,7 +28,7 @@ func (data *P0ProviderData) Do(req *http.Request, responseJson any) (*http.Respo
 	if errDo != nil {
 		return resp, errDo
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
@@ -82,7 +82,7 @@ func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
 	if errDo != nil {
 		return resp, errDo
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Endpoints should not return content
 	// TODO: Render actual error
