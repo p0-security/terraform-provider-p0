@@ -43,7 +43,7 @@ type bastionHostBastionRef struct {
 
 type bastionHostItemJson struct {
 	Bastion          bastionHostBastionRef `json:"bastion"`
-	RoleDefinitionId string               `json:"roleDefinitionId"`
+	RoleDefinitionId string                `json:"roleDefinitionId"`
 	State            string                `json:"state,omitempty"`
 	Label            string                `json:"label,omitempty"`
 }
