@@ -28,11 +28,11 @@ type azureBastionHost struct {
 }
 
 type azureBastionHostModel struct {
-	SubscriptionId    types.String `tfsdk:"subscription_id"`
-	BastionId         types.String `tfsdk:"bastion_id"`
-	RoleDefinitionId  types.String `tfsdk:"role_definition_id"`
-	Label             types.String `tfsdk:"label"`
-	State             types.String `tfsdk:"state"`
+	SubscriptionId   types.String `tfsdk:"subscription_id"`
+	BastionId        types.String `tfsdk:"bastion_id"`
+	RoleDefinitionId types.String `tfsdk:"role_definition_id"`
+	Label            types.String `tfsdk:"label"`
+	State            types.String `tfsdk:"state"`
 }
 
 // Item request/response for the P0 API (camelCase for API).
@@ -136,6 +136,10 @@ func (r *azureBastionHost) toJson(data any) any {
 	if !ok {
 		return nil
 	}
+	if datav.BastionId.IsUnknown() || datav.BastionId.IsNull() ||
+		datav.RoleDefinitionId.IsUnknown() || datav.RoleDefinitionId.IsNull() {
+		return nil
+	}
 	return &bastionHostItemJson{
 		Bastion: bastionHostBastionRef{
 			Type:      "single",
@@ -161,6 +165,16 @@ func (r *azureBastionHost) Configure(ctx context.Context, req resource.Configure
 func (s *azureBastionHost) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data azureBastionHostModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if data.BastionId.IsUnknown() || data.BastionId.IsNull() {
+		resp.Diagnostics.AddAttributeError(path.Root("bastion_id"), "Invalid bastion_id", "bastion_id must be set and known at apply time (e.g. when derived from another resource, that resource must be created in the same run)")
+	}
+	if data.RoleDefinitionId.IsUnknown() || data.RoleDefinitionId.IsNull() {
+		resp.Diagnostics.AddAttributeError(path.Root("role_definition_id"), "Invalid role_definition_id", "role_definition_id must be set and known at apply time (e.g. when derived from another resource, that resource must be created in the same run)")
+	}
 	if resp.Diagnostics.HasError() {
 		return
 	}
