@@ -125,6 +125,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installk8s.NewKubernetesStagedAws,
 		installazure.NewAzure,
 		installazure.NewAzureApp,
+		installazure.NewAzureBastionHost,
 		installazure.NewAzureIamWrite,
 		installazure.NewAzureIamWriteStaged,
 		installgcp.NewGcp,
