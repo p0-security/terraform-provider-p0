@@ -109,6 +109,11 @@ func (r *azureBastionHostStaged) fromJson(ctx context.Context, diags *diag.Diagn
 	data.SubscriptionId = id
 	data.State = types.StringValue(jsonv.Item.State)
 	metadata := jsonv.Metadata
+	actionsList, actionsDiags := types.ListValueFrom(ctx, types.StringType, metadata.CustomRole.Actions)
+	if actionsDiags.HasError() {
+		diags.Append(actionsDiags...)
+		return nil
+	}
 	customRole, alDiags := types.ObjectValueFrom(ctx, map[string]attr.Type{
 		"name":             types.StringType,
 		"description":      types.StringType,
@@ -118,7 +123,7 @@ func (r *azureBastionHostStaged) fromJson(ctx context.Context, diags *diag.Diagn
 	}, map[string]attr.Value{
 		"name":             types.StringValue(metadata.CustomRole.Name),
 		"description":      types.StringValue(metadata.CustomRole.Description),
-		"actions":          types.ListValueMust(types.StringType, sliceToAttrValues(metadata.CustomRole.Actions)),
+		"actions":          actionsList,
 		"is_custom":        types.BoolValue(metadata.CustomRole.IsCustom),
 		"assignable_scope": types.StringValue(metadata.CustomRole.AssignableScope),
 	})

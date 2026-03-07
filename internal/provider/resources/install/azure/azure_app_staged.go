@@ -109,6 +109,11 @@ func (r *AzureAppStaged) fromJson(ctx context.Context, diags *diag.Diagnostics, 
 	data.State = types.StringValue(jsonv.Item.State)
 	data.AppName = types.StringValue(jsonv.Metadata.AppName)
 	cred := jsonv.Metadata.CredentialInfo
+	audiencesList, audiencesDiags := types.ListValueFrom(ctx, types.StringType, cred.Audiences)
+	if audiencesDiags.HasError() {
+		diags.Append(audiencesDiags...)
+		return nil
+	}
 	credObj, alDiags := types.ObjectValueFrom(ctx, map[string]attr.Type{
 		"name":        types.StringType,
 		"description": types.StringType,
@@ -118,7 +123,7 @@ func (r *AzureAppStaged) fromJson(ctx context.Context, diags *diag.Diagnostics, 
 		"name":        types.StringValue(cred.Name),
 		"description": types.StringValue(cred.Description),
 		"issuer":      types.StringValue(cred.Issuer),
-		"audiences":   types.ListValueMust(types.StringType, sliceToAttrValues(cred.Audiences)),
+		"audiences":   audiencesList,
 	})
 	if alDiags.HasError() {
 		diags.Append(alDiags...)
@@ -127,14 +132,6 @@ func (r *AzureAppStaged) fromJson(ctx context.Context, diags *diag.Diagnostics, 
 	data.CredentialInfo = credObj
 
 	return &data
-}
-
-func sliceToAttrValues(ss []string) []attr.Value {
-	out := make([]attr.Value, len(ss))
-	for i, s := range ss {
-		out[i] = types.StringValue(s)
-	}
-	return out
 }
 
 func (r *AzureAppStaged) toJson(data any) any {

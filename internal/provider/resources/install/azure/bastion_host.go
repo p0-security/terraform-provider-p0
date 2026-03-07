@@ -61,6 +61,7 @@ func (r *azureBastionHost) Schema(ctx context.Context, req resource.SchemaReques
 		MarkdownDescription: `Registers an Azure Bastion host with P0 for SSH access to VMs in a subscription.
 
 To use this resource, you must also:
+- install the ` + "`p0_azure_bastion_host_staged`" + ` resource,
 - install the ` + "`p0_azure`" + ` resource,
 - install the ` + "`p0_azure_app`" + ` resource,
 - install the ` + "`p0_azure_iam_write`" + ` resource for the same subscription,
