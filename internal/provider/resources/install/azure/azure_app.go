@@ -135,7 +135,7 @@ func (s *AzureApp) Read(ctx context.Context, req resource.ReadRequest, resp *res
 }
 
 func (s *AzureApp) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	s.installer.Delete(ctx, &resp.Diagnostics, &req.State, &azureAppModel{})
+	s.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &azureAppModel{})
 }
 
 func (s *AzureApp) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
