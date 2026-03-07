@@ -21,6 +21,7 @@ import (
 	installsplunk "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/splunk"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
+	installentra_id "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/entra_id"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
@@ -127,6 +128,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installazure.NewAzureApp,
 		installazure.NewAzureIamWrite,
 		installazure.NewAzureIamWriteStaged,
+		installentra_id.NewEntraIdIamWriteStaged,
+		installentra_id.NewEntraIdIamWrite,
 		installgcp.NewGcp,
 		installgcp.NewGcpAccessLogs,
 		installgcp.NewGcpIamAssessment,
