@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -42,6 +43,7 @@ type awsKubernetesModel struct {
 	ConnectivityType     basetypes.StringValue `tfsdk:"connectivity_type"`
 	HostingType          basetypes.StringValue `tfsdk:"hosting_type"`
 	ClusterArn           basetypes.StringValue `tfsdk:"cluster_arn"`
+	AutoModeEnabled      basetypes.BoolValue   `tfsdk:"auto_mode_enabled"`
 	ClusterEndpoint      basetypes.StringValue `tfsdk:"cluster_endpoint"`
 	CertificateAuthority basetypes.StringValue `tfsdk:"certificate_authority"`
 	State                basetypes.StringValue `tfsdk:"state"`
@@ -56,8 +58,9 @@ type awsKubernetesItemStruct struct {
 		ClearText *string `json:"clearText"`
 	} `json:"token"`
 	Hosting struct {
-		HostingType *string `json:"type"`
-		ClusterArn  *string `json:"arn"`
+		HostingType     *string `json:"type"`
+		ClusterArn      *string `json:"arn"`
+		AutoModeEnabled *bool   `json:"autoModeEnabled"`
 	} `json:"hosting"`
 	ClusterEndpoint      *string `json:"endpoint"`
 	CertificateAuthority *string `json:"ca"`
@@ -118,6 +121,12 @@ been provisioned. Before using this resource, please read the instructions for t
 			"cluster_arn": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The ARN of the cluster`,
+			},
+			"auto_mode_enabled": schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: `Whether or not the EKS cluster has Auto-Mode enabled`,
+				Default:             booldefault.StaticBool(false),
 			},
 			"cluster_endpoint": schema.StringAttribute{
 				Required:            true,
@@ -185,6 +194,11 @@ func (r *AwsKubernetes) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 		data.ClusterArn = types.StringValue(*jsonv.Hosting.ClusterArn)
 	}
 
+	data.AutoModeEnabled = types.BoolNull()
+	if jsonv.Hosting.AutoModeEnabled != nil {
+		data.AutoModeEnabled = types.BoolValue(*jsonv.Hosting.AutoModeEnabled)
+	}
+
 	data.ClusterEndpoint = types.StringNull()
 	if jsonv.ClusterEndpoint != nil {
 		data.ClusterEndpoint = types.StringValue(*jsonv.ClusterEndpoint)
@@ -201,7 +215,7 @@ func (r *AwsKubernetes) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 }
 
 func (r *AwsKubernetes) toJson(data any) any {
-	// Request format: fields at top level (no 'item' wrapper)
+	// Request format: fields at top level (no 'item' wrapper, or 'state' field)
 	type awsKubernetesRequest struct {
 		Connectivity struct {
 			ConnectivityType *string `json:"type"`
@@ -211,8 +225,9 @@ func (r *AwsKubernetes) toJson(data any) any {
 			ClearText *string `json:"clearText"`
 		} `json:"token"`
 		Hosting struct {
-			HostingType *string `json:"type"`
-			ClusterArn  *string `json:"arn"`
+			HostingType     *string `json:"type"`
+			ClusterArn      *string `json:"arn"`
+			AutoModeEnabled *bool   `json:"autoModeEnabled"`
 		} `json:"hosting"`
 		ClusterEndpoint      *string `json:"endpoint"`
 		CertificateAuthority *string `json:"ca"`
@@ -248,6 +263,11 @@ func (r *AwsKubernetes) toJson(data any) any {
 	if !datav.ClusterArn.IsNull() && !datav.ClusterArn.IsUnknown() {
 		clusterArn := datav.ClusterArn.ValueString()
 		json.Hosting.ClusterArn = &clusterArn
+	}
+
+	if !datav.AutoModeEnabled.IsNull() && !datav.AutoModeEnabled.IsUnknown() {
+		autoModeEnabled := datav.AutoModeEnabled.ValueBool()
+		json.Hosting.AutoModeEnabled = &autoModeEnabled
 	}
 
 	if !datav.ClusterEndpoint.IsNull() && !datav.ClusterEndpoint.IsUnknown() {
