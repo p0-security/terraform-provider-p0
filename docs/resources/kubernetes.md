@@ -36,6 +36,7 @@ been provisioned. Before using this resource, please read the instructions for t
 
 ### Optional
 
+- `auto_mode_enabled` (Boolean) Whether or not the EKS cluster has Auto-Mode enabled
 - `connectivity_type` (String) One of:
 	- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
 	- 'public': The integration will connect to the cluster via the public internet

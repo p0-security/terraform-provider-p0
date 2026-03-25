@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -38,8 +39,9 @@ type awsKubernetesStagedApi struct {
 			ConnectivityType *string `json:"type"`
 		} `json:"connectivity"`
 		Hosting struct {
-			HostingType *string `json:"type"`
-			ClusterArn  *string `json:"arn"`
+			HostingType     *string `json:"type"`
+			ClusterArn      *string `json:"arn"`
+			AutoModeEnabled *bool   `json:"autoModeEnabled"`
 		} `json:"hosting"`
 		ClusterEndpoint      *string `json:"endpoint"`
 		CertificateAuthority *string `json:"ca"`
@@ -56,6 +58,7 @@ type awsKubernetesStagedModel struct {
 	ConnectivityType     string       `tfsdk:"connectivity_type"`
 	HostingType          string       `tfsdk:"hosting_type"`
 	ClusterArn           string       `tfsdk:"cluster_arn"`
+	AutoModeEnabled      bool         `tfsdk:"auto_mode_enabled"`
 	ClusterEndpoint      types.String `tfsdk:"cluster_endpoint"`
 	CertificateAuthority types.String `tfsdk:"certificate_authority"`
 	CaBundle             types.String `tfsdk:"ca_bundle"`
@@ -103,6 +106,12 @@ for the 'p0_kubernetes' resource.`,
 			"cluster_arn": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: `The ARN of the cluster`,
+			},
+			"auto_mode_enabled": schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: `Whether or not the EKS cluster has Auto-Mode enabled`,
+				Default:             booldefault.StaticBool(false),
 			},
 			"cluster_endpoint": schema.StringAttribute{
 				Required:            true,
@@ -179,6 +188,10 @@ func (r *AwsKubernetesStaged) fromJson(ctx context.Context, diags *diag.Diagnost
 		data.ClusterArn = *jsonv.Item.Hosting.ClusterArn
 	}
 
+	if jsonv.Item.Hosting.AutoModeEnabled != nil {
+		data.AutoModeEnabled = *jsonv.Item.Hosting.AutoModeEnabled
+	}
+
 	if jsonv.Item.ClusterEndpoint != nil {
 		data.ClusterEndpoint = types.StringValue(*jsonv.Item.ClusterEndpoint)
 	}
@@ -213,6 +226,7 @@ func (r *AwsKubernetesStaged) toJson(data any) any {
 	json.Item.Connectivity.ConnectivityType = &datav.ConnectivityType
 	json.Item.Hosting.HostingType = &datav.HostingType
 	json.Item.Hosting.ClusterArn = &datav.ClusterArn
+	json.Item.Hosting.AutoModeEnabled = &datav.AutoModeEnabled
 
 	if !datav.ClusterEndpoint.IsNull() && !datav.ClusterEndpoint.IsUnknown() {
 		clusterEndpoint := datav.ClusterEndpoint.ValueString()
