@@ -8,23 +8,86 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
+	"time"
 )
 
 // Like http.Client, except:
 //   - handles authentication
 //   - converts to/from JSON
 //   - treats response codes 400 and higher as errors
+//   - retries 429 responses with exponential backoff
 type P0ProviderData struct {
 	BaseUrl        string
 	Authentication string
 	Client         *http.Client
 }
 
+const (
+	maxRetries     = 5
+	baseRetryDelay = 1 * time.Second
+	maxRetryDelay  = 60 * time.Second
+)
+
+// doWithRetry sends req via the underlying http.Client, retrying on 429
+// responses with exponential backoff plus jitter.
+func (data *P0ProviderData) doWithRetry(req *http.Request) (*http.Response, error) {
+	var lastResp *http.Response
+	var lastErr error
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 && req.GetBody != nil {
+			newBody, err := req.GetBody()
+			if err != nil {
+				return lastResp, err
+			}
+			req.Body = newBody
+		}
+
+		resp, err := data.Client.Do(req)
+		lastResp = resp
+		lastErr = err
+
+		if err != nil {
+			return resp, err
+		}
+
+		if resp.StatusCode != http.StatusTooManyRequests || attempt == maxRetries {
+			return resp, nil
+		}
+
+		delay := computeRetryDelay(attempt)
+
+		// Drain and close so the underlying connection can be reused.
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+
+		select {
+		case <-time.After(delay):
+		case <-req.Context().Done():
+			return nil, req.Context().Err()
+		}
+	}
+
+	return lastResp, lastErr
+}
+
+// computeRetryDelay returns an exponential backoff delay with jitter,
+// capped at maxRetryDelay.
+func computeRetryDelay(attempt int) time.Duration {
+	backoff := baseRetryDelay * (1 << attempt)
+	if backoff > maxRetryDelay {
+		backoff = maxRetryDelay
+	}
+	jitter := time.Duration(rand.Int63n(int64(backoff / 4)))
+	return backoff + jitter
+}
+
 func (data *P0ProviderData) Do(req *http.Request, responseJson any) (*http.Response, error) {
 	req.Header.Add("Accept", "application/json")
 
-	resp, errDo := data.Client.Do(req)
+	resp, errDo := data.doWithRetry(req)
 	if errDo != nil {
 		return resp, errDo
 	}
@@ -78,7 +141,7 @@ func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
 		return nil, errNew
 	}
 
-	resp, errDo := data.Client.Do(req)
+	resp, errDo := data.doWithRetry(req)
 	if errDo != nil {
 		return resp, errDo
 	}
