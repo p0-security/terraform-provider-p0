@@ -52,7 +52,20 @@ func (r *azureBastionHostStaged) Schema(ctx context.Context, req resource.Schema
 To use this resource, you must also:
 - install the ` + "`p0_azure`" + ` resource,
 - install the ` + "`p0_azure_app`" + ` resource,
-- install the ` + "`p0_azure_iam_write`" + ` resource for the same subscription.`,
+- install the ` + "`p0_azure_iam_write`" + ` resource for the same subscription.
+
+Read ` + "`custom_role`" + ` (name, description, actions, assignable_scope) when defining an ` + "`azurerm_role_definition`" + ` or equivalent, assign it to the P0 service principal, deploy Bastion, then pass the Bastion ARM ID and role definition ID to ` + "`p0_azure_bastion_host`" + `.
+` + "\n\nExample:\n\n```terraform\n" +
+			"resource \"p0_azure_bastion_host_staged\" \"example\" {\n" +
+			"  depends_on = [\n" +
+			"    p0_azure.example,\n" +
+			"    p0_azure_app.example,\n" +
+			"    p0_azure_iam_write.example,\n" +
+			"  ]\n" +
+			"\n" +
+			"  subscription_id = local.subscription_id\n" +
+			"}\n" +
+			"```\n",
 		Attributes: map[string]schema.Attribute{
 			"subscription_id": subscriptionIdAttribute,
 			"state":           common.StateAttribute,

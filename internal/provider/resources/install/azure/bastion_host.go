@@ -1,3 +1,8 @@
+// Azure Bastion host registration wires an existing Microsoft Azure Bastion into P0 for
+// subscription-scoped SSH. Stage with `p0_azure_bastion_host_staged`, create the role and Bastion in
+// Azure (for example with the `azure_p0_roles` and `azure_p0_bastion` modules), then pass the Bastion
+// ARM ID and role definition ID into this resource. See `examples/resources/p0_azure_bastion_host/`.
+
 package installazure
 
 import (
@@ -29,7 +34,7 @@ type azureBastionHost struct {
 
 type azureBastionHostModel struct {
 	SubscriptionId   types.String `tfsdk:"subscription_id"`
-	BastionId        types.String `tfsdk:"bastion_id"`
+	BastionId        string       `tfsdk:"bastion_id"`
 	RoleDefinitionId types.String `tfsdk:"role_definition_id"`
 	Label            types.String `tfsdk:"label"`
 	State            types.String `tfsdk:"state"`
@@ -66,7 +71,17 @@ To use this resource, you must also:
 - install the ` + "`p0_azure_app`" + ` resource,
 - install the ` + "`p0_azure_iam_write`" + ` resource for the same subscription,
 - create an Azure Bastion host (e.g. via the ` + "`azure_p0_bastion`" + ` module),
-- create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the ` + "`azure_p0_roles`" + ` module).`,
+- create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the ` + "`azure_p0_roles`" + ` module).
+
+Use ` + "`p0_azure_bastion_host_staged`" + ` computed ` + "`custom_role`" + ` when defining that Azure role. See ` + "`examples/resources/p0_azure_bastion_host/`" + ` for a full chain.
+
+` + "\n\nExample (after creating the Bastion and role in Azure):\n\n```terraform\n" +
+			"resource \"p0_azure_bastion_host\" \"example\" {\n" +
+			"  subscription_id    = p0_azure_bastion_host_staged.example.subscription_id\n" +
+			"  bastion_id         = module.azure_p0_bastion.bastion_resource_id\n" +
+			"  role_definition_id = module.azure_p0_roles.bastion_role_definition_id\n" +
+			"}\n" +
+			"```\n",
 		Attributes: map[string]schema.Attribute{
 			"subscription_id": schema.StringAttribute{
 				Description: "The Azure subscription ID where the bastion host is used.",
@@ -126,7 +141,7 @@ func (r *azureBastionHost) fromJson(ctx context.Context, diags *diag.Diagnostics
 	data.Label = types.StringValue(jsonv.Label)
 	data.RoleDefinitionId = types.StringValue(jsonv.RoleDefinitionId)
 	if jsonv.Bastion.Type == "single" {
-		data.BastionId = types.StringValue(jsonv.Bastion.BastionId)
+		data.BastionId = jsonv.Bastion.BastionId
 	}
 
 	return &data
@@ -137,14 +152,13 @@ func (r *azureBastionHost) toJson(data any) any {
 	if !ok {
 		return nil
 	}
-	if datav.BastionId.IsUnknown() || datav.BastionId.IsNull() ||
-		datav.RoleDefinitionId.IsUnknown() || datav.RoleDefinitionId.IsNull() {
+	if datav.RoleDefinitionId.IsUnknown() || datav.RoleDefinitionId.IsNull() {
 		return nil
 	}
 	return &bastionHostItemJson{
 		Bastion: bastionHostBastionRef{
 			Type:      "single",
-			BastionId: datav.BastionId.ValueString(),
+			BastionId: datav.BastionId,
 		},
 		RoleDefinitionId: datav.RoleDefinitionId.ValueString(),
 	}
@@ -166,16 +180,6 @@ func (r *azureBastionHost) Configure(ctx context.Context, req resource.Configure
 func (s *azureBastionHost) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data azureBastionHostModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if data.BastionId.IsUnknown() || data.BastionId.IsNull() {
-		resp.Diagnostics.AddAttributeError(path.Root("bastion_id"), "Invalid bastion_id", "bastion_id must be set and known at apply time (e.g. when derived from another resource, that resource must be created in the same run)")
-	}
-	if data.RoleDefinitionId.IsUnknown() || data.RoleDefinitionId.IsNull() {
-		resp.Diagnostics.AddAttributeError(path.Root("role_definition_id"), "Invalid role_definition_id", "role_definition_id must be set and known at apply time (e.g. when derived from another resource, that resource must be created in the same run)")
-	}
 	if resp.Diagnostics.HasError() {
 		return
 	}

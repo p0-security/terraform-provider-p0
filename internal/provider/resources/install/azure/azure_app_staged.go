@@ -54,9 +54,34 @@ func (r *AzureAppStaged) Metadata(ctx context.Context, req resource.MetadataRequ
 
 func (r *AzureAppStaged) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `Staged installation of the P0 Azure App Registration. Returns app name and federated credential metadata so you can create the Azure AD app and federated credential, then complete with ` + "`p0_azure_app`" + `.
+		MarkdownDescription: `Staged installation of the P0 Azure App Registration. After apply, read ` + "`app_name`" + ` and ` + "`credential_info`" + ` to create the Azure AD application and federated identity credential, then complete installation with ` + "`p0_azure_app`" + ` using the new app's client ID.
 
-To use this resource, you must first install the ` + "`p0_azure`" + ` resource.`,
+Use ` + "`p0_azure.example.service_account_id`" + ` as the federated credential ` + "`subject`" + ` (see ` + "`credential_info`" + ` for issuer, audiences, and suggested name/description).
+
+To use this resource, you must first install the ` + "`p0_azure`" + ` resource.
+` + "\n\nExample:\n\n```terraform\n" +
+			"resource \"p0_azure_app_staged\" \"example\" {\n" +
+			"  depends_on = [p0_azure.example]\n" +
+			"}\n" +
+			"\n" +
+			"resource \"azuread_application_registration\" \"p0\" {\n" +
+			"  display_name = p0_azure_app_staged.example.app_name\n" +
+			"}\n" +
+			"\n" +
+			"resource \"azuread_application_federated_identity_credential\" \"p0\" {\n" +
+			"  application_id = azuread_application_registration.p0.id\n" +
+			"  display_name   = p0_azure_app_staged.example.credential_info.name\n" +
+			"  description    = p0_azure_app_staged.example.credential_info.description\n" +
+			"  issuer         = p0_azure_app_staged.example.credential_info.issuer\n" +
+			"  audiences      = p0_azure_app_staged.example.credential_info.audiences\n" +
+			"  subject        = p0_azure.example.service_account_id\n" +
+			"}\n" +
+			"\n" +
+			"resource \"p0_azure_app\" \"example\" {\n" +
+			"  depends_on = [azuread_application_federated_identity_credential.p0]\n" +
+			"  client_id  = azuread_application_registration.p0.client_id\n" +
+			"}\n" +
+			"```\n",
 		Attributes: map[string]schema.Attribute{
 			"state": common.StateAttribute,
 			"app_name": schema.StringAttribute{
@@ -114,17 +139,20 @@ func (r *AzureAppStaged) fromJson(ctx context.Context, diags *diag.Diagnostics, 
 		diags.Append(audiencesDiags...)
 		return nil
 	}
-	credObj, alDiags := types.ObjectValueFrom(ctx, map[string]attr.Type{
-		"name":        types.StringType,
-		"description": types.StringType,
-		"issuer":      types.StringType,
-		"audiences":   types.ListType{ElemType: types.StringType},
-	}, map[string]attr.Value{
-		"name":        types.StringValue(cred.Name),
-		"description": types.StringValue(cred.Description),
-		"issuer":      types.StringValue(cred.Issuer),
-		"audiences":   audiencesList,
-	})
+	credObj, alDiags := types.ObjectValue(
+		map[string]attr.Type{
+			"name":        types.StringType,
+			"description": types.StringType,
+			"issuer":      types.StringType,
+			"audiences":   types.ListType{ElemType: types.StringType},
+		},
+		map[string]attr.Value{
+			"name":        types.StringValue(cred.Name),
+			"description": types.StringValue(cred.Description),
+			"issuer":      types.StringValue(cred.Issuer),
+			"audiences":   audiencesList,
+		},
+	)
 	if alDiags.HasError() {
 		diags.Append(alDiags...)
 		return nil
