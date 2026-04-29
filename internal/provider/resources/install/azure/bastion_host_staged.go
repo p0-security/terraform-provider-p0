@@ -94,6 +94,10 @@ Read ` + "`custom_role`" + ` (name, description, actions, assignable_scope) when
 						Computed:            true,
 						MarkdownDescription: "The assignable scope of the Azure custom role.",
 					},
+					"condition": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "The condition of the Azure custom role assignment, if any.",
+					},
 				},
 			},
 		},
@@ -122,24 +126,14 @@ func (r *azureBastionHostStaged) fromJson(ctx context.Context, diags *diag.Diagn
 	data.SubscriptionId = id
 	data.State = types.StringValue(jsonv.Item.State)
 	metadata := jsonv.Metadata
-	actionsList, actionsDiags := types.ListValueFrom(ctx, types.StringType, metadata.CustomRole.Actions)
-	if actionsDiags.HasError() {
-		diags.Append(actionsDiags...)
-		return nil
-	}
 	customRole, alDiags := types.ObjectValueFrom(ctx, map[string]attr.Type{
 		"name":             types.StringType,
 		"description":      types.StringType,
 		"actions":          types.ListType{ElemType: types.StringType},
 		"is_custom":        types.BoolType,
 		"assignable_scope": types.StringType,
-	}, map[string]attr.Value{
-		"name":             types.StringValue(metadata.CustomRole.Name),
-		"description":      types.StringValue(metadata.CustomRole.Description),
-		"actions":          actionsList,
-		"is_custom":        types.BoolValue(metadata.CustomRole.IsCustom),
-		"assignable_scope": types.StringValue(metadata.CustomRole.AssignableScope),
-	})
+		"condition":        types.StringType,
+	}, metadata.CustomRole)
 	if alDiags.HasError() {
 		diags.Append(alDiags...)
 		return nil
