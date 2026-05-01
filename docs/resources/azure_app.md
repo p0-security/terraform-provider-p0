@@ -4,14 +4,14 @@ page_title: "p0_azure_app Resource - p0"
 subcategory: ""
 description: |-
   An installation of P0, on a single Azure tenant.
-  For instructions on using this resource, see the documentation for p0_azure_azure_app.
+  Complete a prior p0_azure_app_staged apply, create the Azure AD application and federated identity credential using that resource's computed app_name and credential_info (see examples/resources/p0_azure_app_staged/), then set client_id here to the new application's client ID.
 ---
 
 # p0_azure_app (Resource)
 
 An installation of P0, on a single Azure tenant.
 
-For instructions on using this resource, see the documentation for `p0_azure_azure_app`.
+Complete a prior `p0_azure_app_staged` apply, create the Azure AD application and federated identity credential using that resource's computed `app_name` and `credential_info` (see `examples/resources/p0_azure_app_staged/`), then set `client_id` here to the new application's client ID.
 
 
 

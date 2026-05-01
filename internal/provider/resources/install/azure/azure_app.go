@@ -56,7 +56,7 @@ func (r *AzureApp) Schema(ctx context.Context, req resource.SchemaRequest, resp 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `An installation of P0, on a single Azure tenant.
 
-For instructions on using this resource, see the documentation for ` + "`p0_azure_azure_app`.",
+Complete a prior ` + "`p0_azure_app_staged`" + ` apply, create the Azure AD application and federated identity credential using that resource's computed ` + "`app_name`" + ` and ` + "`credential_info`" + ` (see ` + "`examples/resources/p0_azure_app_staged/`" + `), then set ` + "`client_id`" + ` here to the new application's client ID.`,
 		Attributes: map[string]schema.Attribute{
 			"state": common.StateAttribute,
 			"client_id": schema.StringAttribute{
@@ -135,7 +135,7 @@ func (s *AzureApp) Read(ctx context.Context, req resource.ReadRequest, resp *res
 }
 
 func (s *AzureApp) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	s.installer.Delete(ctx, &resp.Diagnostics, &req.State, &azureAppModel{})
+	s.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &azureAppModel{})
 }
 
 func (s *AzureApp) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
