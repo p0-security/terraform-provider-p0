@@ -24,6 +24,7 @@ import (
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
+	installpostgres "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/postgres"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
@@ -143,6 +144,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installssh.NewSshAzureIamWrite,
 		installmysql.NewMysqlIamWriteStaged,
 		installmysql.NewMysqlIamWrite,
+		installpostgres.NewPostgresIamWriteStaged,
+		installpostgres.NewPostgresIamWrite,
 		installokta.NewOktaDirectoryListingStaged,
 		installokta.NewOktaDirectoryListing,
 		installokta.NewOktaGroupAssignment,
