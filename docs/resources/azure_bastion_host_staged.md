@@ -104,6 +104,7 @@ Read-Only:
 
 - `actions` (List of String) The actions allowed for the Azure custom role.
 - `assignable_scope` (String) The assignable scope of the Azure custom role.
+- `condition` (String) The condition of the Azure custom role assignment, if any.
 - `description` (String) The description of the Azure custom role.
 - `is_custom` (Boolean) Indicates if the role is a custom role.
 - `name` (String) The name of the Azure custom role.
