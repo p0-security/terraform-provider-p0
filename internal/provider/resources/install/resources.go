@@ -1,6 +1,7 @@
 package installresources
 
 const (
+	BastionHost      = "bastion-host"
 	IamAssessment    = "iam-assessment"
 	IamWrite         = "iam-write"
 	Inventory        = "inventory"
