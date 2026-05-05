@@ -91,8 +91,10 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		)
 	}
 
-	api_token := model.ApiToken.ValueString()
-	if api_token == "" {
+	var api_token string
+	if !model.ApiToken.IsNull() && !model.ApiToken.IsUnknown() {
+		api_token = model.ApiToken.ValueString()
+	} else {
 		api_token = os.Getenv("P0_API_TOKEN")
 	}
 	if api_token == "" {
