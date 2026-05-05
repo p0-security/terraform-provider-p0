@@ -1,7 +1,6 @@
 locals {
-  management_group_id = "my-management-group"
-  subscription_id     = "12345678-1234-1234-1234-123456789012"
-  bastion_id          = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/sample-resource-group/providers/Microsoft.Network/bastionHosts/sample-bastion"
+  subscription_id = "12345678-1234-1234-1234-123456789012"
+  bastion_id      = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/sample-resource-group/providers/Microsoft.Network/bastionHosts/sample-bastion"
 
 }
 
@@ -12,7 +11,7 @@ provider "azurerm" {
 
 resource "azurerm_role_definition" "vm_admin_access" {
   name        = "Virtual Machine Administrator Access"
-  scope       = "/providers/Microsoft.Management/managementGroups/${local.management_group_id}"
+  scope       = "/subscriptions/${local.subscription_id}"
   description = "Grants a user read access to virtual machines and Sudo SSH access"
 
   permissions {
@@ -28,13 +27,13 @@ resource "azurerm_role_definition" "vm_admin_access" {
   }
 
   assignable_scopes = [
-    "/providers/Microsoft.Management/managementGroups/${local.management_group_id}"
+    "/subscriptions/${local.subscription_id}"
   ]
 }
 
 resource "azurerm_role_definition" "vm_standard_access" {
   name        = "Virtual Machine Standard Access"
-  scope       = "/providers/Microsoft.Management/managementGroups/${local.management_group_id}"
+  scope       = "/subscriptions/${local.subscription_id}"
   description = "Grants a user read access to virtual machines and SSH access"
 
   permissions {
@@ -49,7 +48,7 @@ resource "azurerm_role_definition" "vm_standard_access" {
   }
 
   assignable_scopes = [
-    "/providers/Microsoft.Management/managementGroups/${local.management_group_id}"
+    "/subscriptions/${local.subscription_id}"
   ]
 }
 
@@ -60,5 +59,5 @@ resource "p0_ssh_azure" "example" {
   is_sudo_enabled         = true
   group_key               = "resource-group"
   bastion_id              = local.bastion_id
-  management_group_id     = local.management_group_id
+  subscription_id         = local.subscription_id
 }
