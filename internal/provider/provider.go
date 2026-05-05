@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -79,6 +80,25 @@ precedence when both are set.`,
 	}
 }
 
+func resolveApiToken(apiToken types.String, org string, diags *diag.Diagnostics) string {
+	var token string
+	if !apiToken.IsNull() && !apiToken.IsUnknown() {
+		token = apiToken.ValueString()
+	} else {
+		token = os.Getenv("P0_API_TOKEN")
+	}
+	if token == "" {
+		diags.AddError(
+			"No P0 API token configured",
+			fmt.Sprintf(
+				"A P0 API token is required to use the P0 Terraform provider. To create a token, navigate to https://p0.app/o/%s/settings. Pass your token via the `api_token` provider attribute or the P0_API_TOKEN environment variable.",
+				org,
+			),
+		)
+	}
+	return token
+}
+
 func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	var model P0ProviderModel
 
@@ -91,21 +111,7 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		)
 	}
 
-	var api_token string
-	if !model.ApiToken.IsNull() && !model.ApiToken.IsUnknown() {
-		api_token = model.ApiToken.ValueString()
-	} else {
-		api_token = os.Getenv("P0_API_TOKEN")
-	}
-	if api_token == "" {
-		resp.Diagnostics.AddError(
-			"No P0 API token configured",
-			fmt.Sprintf(
-				"A P0 API token is required to use the P0 Terraform provider. To create a token, navigate to https://p0.app/o/%s/settings. Pass your token via the `api_token` provider attribute or the P0_API_TOKEN environment variable.",
-				model.Org.ValueString(),
-			),
-		)
-	}
+	api_token := resolveApiToken(model.ApiToken, model.Org.ValueString(), &resp.Diagnostics)
 
 	p0_host := model.Host.ValueString()
 	if p0_host == "" {
