@@ -3,16 +3,18 @@
 page_title: "p0 Provider"
 description: |-
   Configures a P0 organization. Requires a P0 account. Go to https://p0.app to create an account.
-  You must also configure a P0 API token (on your P0 app "/settings" page). Then run Terraform with your API token in
-  the P0_API_TOKEN environment variable.
+  You must also configure a P0 API token (on your P0 app "/settings" page). Pass it via the api_token provider
+  attribute, or by setting the P0_API_TOKEN environment variable. The api_token attribute takes
+  precedence when both are set.
 ---
 
 # p0 Provider
 
 Configures a P0 organization. Requires a P0 account. Go to https://p0.app to create an account.
 
-You must also configure a P0 API token (on your P0 app "/settings" page). Then run Terraform with your API token in
-the P0_API_TOKEN environment variable.
+You must also configure a P0 API token (on your P0 app "/settings" page). Pass it via the `api_token` provider
+attribute, or by setting the `P0_API_TOKEN` environment variable. The `api_token` attribute takes
+precedence when both are set.
 
 ## Example Usage
 
@@ -31,4 +33,5 @@ provider "p0" {
 
 ### Optional
 
+- `api_token` (String, Sensitive) Your P0 API token. If unset, falls back to the `P0_API_TOKEN` environment variable.
 - `host` (String) Your P0 application API host (defaults to `https://api.p0.app`)

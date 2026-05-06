@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -44,8 +45,9 @@ type P0Provider struct {
 
 // P0ProviderModel describes the provider data model.
 type P0ProviderModel struct {
-	Host types.String `tfsdk:"host"`
-	Org  types.String `tfsdk:"org"`
+	Host     types.String `tfsdk:"host"`
+	Org      types.String `tfsdk:"org"`
+	ApiToken types.String `tfsdk:"api_token"`
 }
 
 func (p *P0Provider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -57,8 +59,9 @@ func (p *P0Provider) Schema(ctx context.Context, req provider.SchemaRequest, res
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `Configures a P0 organization. Requires a P0 account. Go to https://p0.app to create an account.
 
-You must also configure a P0 API token (on your P0 app "/settings" page). Then run Terraform with your API token in
-the P0_API_TOKEN environment variable.`,
+You must also configure a P0 API token (on your P0 app "/settings" page). Pass it via the ` + "`api_token`" + ` provider
+attribute, or by setting the ` + "`P0_API_TOKEN`" + ` environment variable. The ` + "`api_token`" + ` attribute takes
+precedence when both are set.`,
 		Attributes: map[string]schema.Attribute{
 			"host": schema.StringAttribute{
 				MarkdownDescription: "Your P0 application API host (defaults to `https://api.p0.app`)",
@@ -68,8 +71,32 @@ the P0_API_TOKEN environment variable.`,
 				MarkdownDescription: "Your P0 organization identifier",
 				Required:            true,
 			},
+			"api_token": schema.StringAttribute{
+				MarkdownDescription: "Your P0 API token. If unset, falls back to the `P0_API_TOKEN` environment variable.",
+				Optional:            true,
+				Sensitive:           true,
+			},
 		},
 	}
+}
+
+func resolveApiToken(apiToken types.String, org string, diags *diag.Diagnostics) string {
+	var token string
+	if !apiToken.IsNull() && !apiToken.IsUnknown() {
+		token = apiToken.ValueString()
+	} else {
+		token = os.Getenv("P0_API_TOKEN")
+	}
+	if token == "" {
+		diags.AddError(
+			"No P0 API token configured",
+			fmt.Sprintf(
+				"A P0 API token is required to use the P0 Terraform provider. To create a token, navigate to https://p0.app/o/%s/settings. Pass your token via the `api_token` provider attribute or the P0_API_TOKEN environment variable.",
+				org,
+			),
+		)
+	}
+	return token
 }
 
 func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
@@ -84,16 +111,7 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		)
 	}
 
-	api_token := os.Getenv("P0_API_TOKEN")
-	if api_token == "" {
-		resp.Diagnostics.AddError(
-			"No P0_API_TOKEN environment variable",
-			fmt.Sprintf(
-				"A P0 API token is required to use the P0 Terraform provider. To create a token, navigate to https://p0.app/o/%s/settings. Pass your token by setting it in the P0_API_TOKEN environment variable.",
-				model.Org.ValueString(),
-			),
-		)
-	}
+	api_token := resolveApiToken(model.ApiToken, model.Org.ValueString(), &resp.Diagnostics)
 
 	p0_host := model.Host.ValueString()
 	if p0_host == "" {
