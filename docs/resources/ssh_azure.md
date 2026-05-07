@@ -17,9 +17,8 @@ Installing SSH allows you to manage access to your virtual machines on Microsoft
 
 ```terraform
 locals {
-  management_group_id = "my-management-group"
-  subscription_id     = "12345678-1234-1234-1234-123456789012"
-  bastion_id          = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/sample-resource-group/providers/Microsoft.Network/bastionHosts/sample-bastion"
+  subscription_id = "12345678-1234-1234-1234-123456789012"
+  bastion_id      = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/sample-resource-group/providers/Microsoft.Network/bastionHosts/sample-bastion"
 
 }
 
@@ -30,7 +29,7 @@ provider "azurerm" {
 
 resource "azurerm_role_definition" "vm_admin_access" {
   name        = "Virtual Machine Administrator Access"
-  scope       = "/providers/Microsoft.Management/managementGroups/${local.management_group_id}"
+  scope       = "/subscriptions/${local.subscription_id}"
   description = "Grants a user read access to virtual machines and Sudo SSH access"
 
   permissions {
@@ -46,13 +45,13 @@ resource "azurerm_role_definition" "vm_admin_access" {
   }
 
   assignable_scopes = [
-    "/providers/Microsoft.Management/managementGroups/${local.management_group_id}"
+    "/subscriptions/${local.subscription_id}"
   ]
 }
 
 resource "azurerm_role_definition" "vm_standard_access" {
   name        = "Virtual Machine Standard Access"
-  scope       = "/providers/Microsoft.Management/managementGroups/${local.management_group_id}"
+  scope       = "/subscriptions/${local.subscription_id}"
   description = "Grants a user read access to virtual machines and SSH access"
 
   permissions {
@@ -67,7 +66,7 @@ resource "azurerm_role_definition" "vm_standard_access" {
   }
 
   assignable_scopes = [
-    "/providers/Microsoft.Management/managementGroups/${local.management_group_id}"
+    "/subscriptions/${local.subscription_id}"
   ]
 }
 
@@ -78,7 +77,7 @@ resource "p0_ssh_azure" "example" {
   is_sudo_enabled         = true
   group_key               = "resource-group"
   bastion_id              = local.bastion_id
-  management_group_id     = local.management_group_id
+  subscription_id         = local.subscription_id
 }
 ```
 
@@ -89,8 +88,8 @@ resource "p0_ssh_azure" "example" {
 
 - `admin_access_role_id` (String) The ID of the Azure role that grants admin access to the virtual machines
 - `bastion_id` (String) The ID of the Azure Bastion that provides secure RDP and SSH access to the virtual machines
-- `management_group_id` (String) The Azure Management Group ID
 - `standard_access_role_id` (String) The ID of the Azure role that grants standard access to the virtual machines
+- `subscription_id` (String) The Azure Subscription ID
 
 ### Optional
 
@@ -99,7 +98,7 @@ resource "p0_ssh_azure" "example" {
 
 ### Read-Only
 
-- `label` (String) The Azure Management Group label (if available)
+- `label` (String) The Azure Subscription label (if available)
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured

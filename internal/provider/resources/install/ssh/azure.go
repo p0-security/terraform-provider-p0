@@ -36,7 +36,7 @@ type sshAzureIamWriteModel struct {
 	GroupKey             types.String `tfsdk:"group_key" json:"groupKey,omitempty"`
 	IsSudoEnabled        types.Bool   `tfsdk:"is_sudo_enabled" json:"isSudoEnabled,omitempty"`
 	Label                types.String `tfsdk:"label" json:"label,omitempty"`
-	ManagementGroupId    types.String `tfsdk:"management_group_id" json:"managementGroupId,omitempty"`
+	SubscriptionId       types.String `tfsdk:"subscription_id" json:"subscriptionId,omitempty"`
 	StandardAccessRoleId types.String `tfsdk:"standard_access_role_id" json:"standardAccessRoleId,omitempty"`
 	State                types.String `tfsdk:"state" json:"state,omitempty"`
 }
@@ -47,7 +47,7 @@ type sshAzureIamWriteJson struct {
 	GroupKey             *string `json:"groupKey"`
 	IsSudoEnabled        *bool   `json:"isSudoEnabled,omitempty"`
 	Label                *string `json:"label,omitempty"`
-	ManagementGroupId    *string `json:"managementGroupId"`
+	SubscriptionId       *string `json:"subscriptionId"`
 	StandardAccessRoleId *string `json:"standardAccessRoleId"`
 	State                string  `json:"state"`
 }
@@ -92,10 +92,10 @@ Installing SSH allows you to manage access to your virtual machines on Microsoft
 			},
 			"label": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The Azure Management Group label (if available)",
+				MarkdownDescription: "The Azure Subscription label (if available)",
 			},
-			"management_group_id": schema.StringAttribute{
-				MarkdownDescription: "The Azure Management Group ID",
+			"subscription_id": schema.StringAttribute{
+				MarkdownDescription: "The Azure Subscription ID",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -132,7 +132,7 @@ func (r *sshAzureIamWrite) getId(data any) *string {
 		return nil
 	}
 
-	str := fmt.Sprintf("%s%s", azurePrefix, model.ManagementGroupId.ValueString())
+	str := fmt.Sprintf("%s%s", azurePrefix, model.SubscriptionId.ValueString())
 	return &str
 }
 
@@ -152,7 +152,7 @@ func (r *sshAzureIamWrite) fromJson(ctx context.Context, diags *diag.Diagnostics
 	}
 
 	data.State = types.StringValue(jsonv.State)
-	data.ManagementGroupId = types.StringValue(strings.TrimPrefix(id, azurePrefix))
+	data.SubscriptionId = types.StringValue(strings.TrimPrefix(id, azurePrefix))
 
 	if jsonv.Label != nil {
 		data.Label = types.StringValue(*jsonv.Label)
@@ -251,5 +251,5 @@ func (s *sshAzureIamWrite) Update(ctx context.Context, req resource.UpdateReques
 }
 
 func (s *sshAzureIamWrite) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("management_group_id"), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("subscription_id"), req, resp)
 }
