@@ -45,7 +45,7 @@ type fileTransferIamWriteJson struct {
 	BucketName   string  `json:"bucketName"`
 	Region       string  `json:"region"`
 	AwsPartition string  `json:"awsPartition"`
-	State        string  `json:"state"`
+	State        *string `json:"state,omitempty"`
 	Label        *string `json:"label,omitempty"`
 }
 
@@ -160,7 +160,11 @@ func (r *fileTransferIamWrite) fromJson(ctx context.Context, diags *diag.Diagnos
 	data.BucketName = types.StringValue(jsonv.BucketName)
 	data.Region = types.StringValue(jsonv.Region)
 	data.AwsPartition = types.StringValue(jsonv.AwsPartition)
-	data.State = types.StringValue(jsonv.State)
+
+	data.State = types.StringNull()
+	if jsonv.State != nil {
+		data.State = types.StringValue(*jsonv.State)
+	}
 
 	data.Label = types.StringNull()
 	if jsonv.Label != nil {
