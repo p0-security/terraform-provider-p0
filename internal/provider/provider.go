@@ -92,7 +92,12 @@ func accessTokenFromIdentityFile() string {
 		return ""
 	}
 
-	contents, err := os.ReadFile(filepath.Join(home, ".p0", "identity.json"))
+	dir := ".p0"
+	if env, ok := os.LookupEnv("P0_ENV"); ok {
+		dir = dir + "-" + env
+	}
+
+	contents, err := os.ReadFile(filepath.Join(home, dir, "identity.json"))
 	if err != nil {
 		return ""
 	}
@@ -109,6 +114,10 @@ func accessTokenFromIdentityFile() string {
 	return identity.Credential.AccessToken
 }
 
+// resolveApiToken returns the P0 API token to authenticate with, consulting the
+// following sources in order of precedence: the api_token provider attribute,
+// the P0_API_TOKEN environment variable, and the access token written by the P0
+// CLI to the identity file.
 func resolveApiToken(model P0ProviderModel, diags *diag.Diagnostics) string {
 	var token string
 	if !model.ApiToken.IsNull() && !model.ApiToken.IsUnknown() {
