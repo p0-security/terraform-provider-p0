@@ -5,9 +5,11 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -81,19 +83,47 @@ precedence when both are set.`,
 	}
 }
 
-func resolveApiToken(apiToken types.String, org string, diags *diag.Diagnostics) string {
+// accessTokenFromIdentityFile returns the access token written by the P0 CLI to
+// ~/.p0/identity.json, or an empty string if the file is absent, unreadable, or
+// cannot be parsed.
+func accessTokenFromIdentityFile() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	contents, err := os.ReadFile(filepath.Join(home, ".p0", "identity.json"))
+	if err != nil {
+		return ""
+	}
+
+	var identity struct {
+		Credential struct {
+			AccessToken string `json:"access_token"`
+		} `json:"credential"`
+	}
+	if err := json.Unmarshal(contents, &identity); err != nil {
+		return ""
+	}
+
+	return identity.Credential.AccessToken
+}
+
+func resolveApiToken(model P0ProviderModel, diags *diag.Diagnostics) string {
 	var token string
-	if !apiToken.IsNull() && !apiToken.IsUnknown() {
-		token = apiToken.ValueString()
+	if !model.ApiToken.IsNull() && !model.ApiToken.IsUnknown() {
+		token = model.ApiToken.ValueString()
+	} else if envToken, ok := os.LookupEnv("P0_API_TOKEN"); ok {
+		token = envToken
 	} else {
-		token = os.Getenv("P0_API_TOKEN")
+		token = accessTokenFromIdentityFile()
 	}
 	if token == "" {
 		diags.AddError(
-			"No P0 API token configured",
+			"No P0 authentication configured",
 			fmt.Sprintf(
-				"A P0 API token is required to use the P0 Terraform provider. To create a token, navigate to https://p0.app/o/%s/settings. Pass your token via the `api_token` provider attribute or the P0_API_TOKEN environment variable.",
-				org,
+				"Authentication is required to use the P0 Terraform provider. Either login via the P0 CLI or provide an API token via the `api_token` provider attribute or the P0_API_TOKEN environment variable. To create a token, navigate to https://p0.app/o/%s/settings.",
+				model.Org.ValueString(),
 			),
 		)
 	}
@@ -112,7 +142,7 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		)
 	}
 
-	api_token := resolveApiToken(model.ApiToken, model.Org.ValueString(), &resp.Diagnostics)
+	api_token := resolveApiToken(model, &resp.Diagnostics)
 
 	p0_host := model.Host.ValueString()
 	if p0_host == "" {
