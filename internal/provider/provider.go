@@ -5,11 +5,9 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -83,49 +81,23 @@ precedence when both are set.`,
 	}
 }
 
-// accessTokenFromIdentityFile returns the access token written by the P0 CLI to
-// ~/.p0/identity.json, or an empty string if the file is absent, unreadable, or
-// cannot be parsed.
-func accessTokenFromIdentityFile() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-
-	dir := ".p0"
-	if env, ok := os.LookupEnv("P0_ENV"); ok {
-		dir = dir + "-" + env
-	}
-
-	contents, err := os.ReadFile(filepath.Join(home, dir, "identity.json"))
-	if err != nil {
-		return ""
-	}
-
-	var identity struct {
-		Credential struct {
-			AccessToken string `json:"access_token"`
-		} `json:"credential"`
-	}
-	if err := json.Unmarshal(contents, &identity); err != nil {
-		return ""
-	}
-
-	return identity.Credential.AccessToken
-}
-
 // resolveApiToken returns the P0 API token to authenticate with, consulting the
 // following sources in order of precedence: the api_token provider attribute,
-// the P0_API_TOKEN environment variable, and the access token written by the P0
-// CLI to the identity file.
-func resolveApiToken(model P0ProviderModel, diags *diag.Diagnostics) string {
+// the P0_API_TOKEN environment variable, and the P0 CLI session (whose OIDC
+// credential is exchanged for a Firebase ID token).
+func resolveApiToken(ctx context.Context, model P0ProviderModel, diags *diag.Diagnostics) string {
 	var token string
 	if !model.ApiToken.IsNull() && !model.ApiToken.IsUnknown() {
 		token = model.ApiToken.ValueString()
 	} else if envToken, ok := os.LookupEnv("P0_API_TOKEN"); ok {
 		token = envToken
 	} else {
-		token = accessTokenFromIdentityFile()
+		cliToken, err := cliFirebaseToken(ctx)
+		if err != nil {
+			diags.AddError("Could not authenticate using the P0 CLI session", err.Error())
+			return ""
+		}
+		token = cliToken
 	}
 	if token == "" {
 		diags.AddError(
@@ -151,7 +123,7 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		)
 	}
 
-	api_token := resolveApiToken(model, &resp.Diagnostics)
+	api_token := resolveApiToken(ctx, model, &resp.Diagnostics)
 
 	p0_host := model.Host.ValueString()
 	if p0_host == "" {
