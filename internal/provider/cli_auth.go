@@ -7,8 +7,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +18,11 @@ import (
 	"strings"
 	"time"
 )
+
+// errNoCliSession indicates the P0 CLI has not been used to log in. Callers may
+// swallow it to fall through to other auth sources; every other error from
+// cliFirebaseToken means a CLI session exists but could not be exchanged.
+var errNoCliSession = errors.New("no P0 CLI session found")
 
 // p0Identity mirrors the subset of ~/.p0/identity.json that the provider reads.
 type p0Identity struct {
@@ -106,14 +113,14 @@ func exchangeForFirebaseToken(ctx context.Context, apiKey, tenantId, providerId,
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Firebase token exchange failed (%s): %s", resp.Status, strings.TrimSpace(string(body)))
+		return "", fmt.Errorf("could not exchange the CLI credential for a Firebase token (%s): %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
 	var result struct {
@@ -123,25 +130,30 @@ func exchangeForFirebaseToken(ctx context.Context, apiKey, tenantId, providerId,
 		return "", err
 	}
 	if result.IdToken == "" {
-		return "", fmt.Errorf("Firebase token exchange returned no ID token")
+		return "", fmt.Errorf("the Firebase token exchange returned no ID token")
 	}
 	return result.IdToken, nil
 }
 
 // cliFirebaseToken exchanges the credential persisted by the P0 CLI for a
 // Firebase ID token that the P0 API accepts as a bearer token. It returns
-// ("", nil) when the CLI has not been used (so callers can fall through to other
-// auth sources), and an error when a CLI session exists but cannot be exchanged.
+// errNoCliSession when the CLI has not been used, which callers may swallow to
+// fall through to other auth sources, and other errors when a CLI session exists
+// but cannot be exchanged.
 func cliFirebaseToken(ctx context.Context) (string, error) {
 	dir, err := p0ConfigDir()
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
 	var identity p0Identity
 	if err := loadJsonFile(filepath.Join(dir, "identity.json"), &identity); err != nil {
-		// No readable identity file: the user has not logged in with the CLI.
-		return "", nil
+		// A missing identity file means the user has not logged in with the CLI;
+		// any other error is a genuine read failure worth surfacing.
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", errNoCliSession
+		}
+		return "", fmt.Errorf("could not read the P0 CLI identity: %w", err)
 	}
 
 	// expires_at is a Unix timestamp in (fractional) seconds.

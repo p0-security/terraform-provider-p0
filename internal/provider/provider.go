@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -93,10 +94,11 @@ func resolveApiToken(ctx context.Context, model P0ProviderModel, diags *diag.Dia
 		token = envToken
 	} else {
 		cliToken, err := cliFirebaseToken(ctx)
-		if err != nil {
+		if err != nil && !errors.Is(err, errNoCliSession) {
 			diags.AddError("Could not authenticate using the P0 CLI session", err.Error())
 			return ""
 		}
+		// A missing CLI session falls through to the "no auth configured" error below.
 		token = cliToken
 	}
 	if token == "" {
