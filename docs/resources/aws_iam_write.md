@@ -105,7 +105,8 @@ Required:
 
 Optional:
 
-- `identity` (Attributes) How user identities are mapped. When login type is 'iam', valid identity types are 'email' and 'tag'. When login type is 'idc', valid identity types are 'user' (default, username is email) and 'email' (match by IDC email). (see [below for nested schema](#nestedatt--login--identity))
+- `identity` (Attributes) How user identities are mapped. When login type is 'iam', valid identity types are 'email' and 'tag'.
+    When login type is 'idc', valid identity types are 'user' (default, username is email) and 'email' (match by IDC email). (see [below for nested schema](#nestedatt--login--identity))
 - `parent` (String) Identity Center parent account ID
 - `provider` (Attributes) Federated login provider details (see [below for nested schema](#nestedatt--login--provider))
 
