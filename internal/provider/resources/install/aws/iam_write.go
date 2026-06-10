@@ -149,7 +149,7 @@ resource "p0_aws_iam_write" "installed_account" {
 						Required: true,
 						MarkdownDescription: `One of:
     - 'iam': Users log in as IAM users; 'identity' attribute is required
-    - 'idc': Users log in via Identity Center (formerly 'SSO'); 'parent' attribute is required
+    - 'idc': Users log in via Identity Center (formerly 'SSO'); 'parent' and 'identity' attributes are required
     - 'federated': Users log in via a federated identity provider; 'provider' attribute is required`,
 						Validators: []validator.String{
 							stringvalidator.AnyWithAllWarnings(
@@ -163,6 +163,7 @@ resource "p0_aws_iam_write" "installed_account" {
 									stringvalidator.OneOf("idc"),
 									stringvalidator.AlsoRequires(
 										path.MatchRelative().AtParent().AtName("parent"),
+										path.MatchRelative().AtParent().AtName("identity"),
 									),
 								),
 								stringvalidator.All(
@@ -175,14 +176,16 @@ resource "p0_aws_iam_write" "installed_account" {
 						},
 					},
 					"identity": schema.SingleNestedAttribute{
-						Optional:            true,
-						MarkdownDescription: `How user identities are mapped to AWS IAM users`,
+						Optional: true,
+						MarkdownDescription: `How user identities are mapped. When login type is 'iam', valid identity types are 'email' and 'tag'.
+    When login type is 'idc', valid identity types are 'user' (default, username is email) and 'email' (match by IDC email).`,
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								Required: true,
 								MarkdownDescription: `One of:
-    - 'email': IAM user names are user email addresses
-    - 'tag': User email addresses appear in IAM user tag; 'tag_name' is required`,
+    - 'email': IAM user names are user email addresses (IAM login), or user's IDC email is user's email (IDC login)
+    - 'tag': User email addresses appear in IAM user tag; 'tag_name' is required (IAM login only)
+    - 'user': Username is user's email (IDC login only)`,
 								Validators: []validator.String{
 									stringvalidator.AnyWithAllWarnings(
 										stringvalidator.All(
@@ -195,6 +198,7 @@ resource "p0_aws_iam_write" "installed_account" {
 											stringvalidator.AlsoRequires(
 												path.MatchRelative().AtParent().AtName("tag_name")),
 										),
+										stringvalidator.OneOf("user"),
 									),
 								},
 							},
@@ -206,7 +210,6 @@ resource "p0_aws_iam_write" "installed_account" {
 						Validators: []validator.Object{
 							objectvalidator.ConflictsWith(
 								path.MatchRelative().AtParent().AtName("provider"),
-								path.MatchRelative().AtParent().AtName("parent"),
 							),
 						},
 					},
@@ -214,7 +217,6 @@ resource "p0_aws_iam_write" "installed_account" {
 						Optional:            true,
 						MarkdownDescription: `Identity Center parent account ID`,
 						Validators: []validator.String{
-							stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("identity")),
 							stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("provider")),
 							stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
 						},
