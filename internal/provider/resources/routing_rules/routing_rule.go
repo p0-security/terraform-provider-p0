@@ -47,7 +47,7 @@ func NewRoutingRule() resource.Resource {
 
 func getPath(name string) string {
 	encodedName := url.PathEscape(name)
-	return fmt.Sprintf("routing/name/%s", encodedName)
+	return fmt.Sprintf("policy/name/%s", encodedName)
 }
 
 func toJson(model RoutingRuleModelV2) RoutingRuleJson {
