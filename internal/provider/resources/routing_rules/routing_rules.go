@@ -199,7 +199,7 @@ func (rules *RoutingRules) Create(ctx context.Context, req resource.CreateReques
 
 	// Even if we are replacing the rules, it is technically an update, so retrieve the current routing rules
 	var current WorkflowLatestApi
-	_, httpErr := rules.data.Get("routing/latest", &current)
+	_, httpErr := rules.data.Get("policy/latest", &current)
 	if httpErr != nil {
 		resp.Diagnostics.AddError("Error communicating with P0", fmt.Sprintf("Unable to read routing rules, got error:\n%s", httpErr))
 		return
@@ -239,7 +239,7 @@ func (rules *RoutingRules) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 
 	var latest WorkflowLatestApi
-	_, httpErr := rules.data.Get("routing/latest", &latest)
+	_, httpErr := rules.data.Get("policy/latest", &latest)
 	if httpErr != nil {
 		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to read routing rules, got error:\n%s", httpErr))
 		return
