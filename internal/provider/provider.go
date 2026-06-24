@@ -163,6 +163,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installazure.NewAzureBastionHostStaged,
 		installazure.NewAzureIamWrite,
 		installazure.NewAzureIamWriteStaged,
+		installazure.NewEntraIdIamWrite,
 		installgcp.NewGcp,
 		installgcp.NewGcpAccessLogs,
 		installgcp.NewGcpIamAssessment,
