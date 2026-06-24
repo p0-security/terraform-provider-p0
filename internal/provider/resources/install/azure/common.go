@@ -10,6 +10,7 @@ import (
 const (
 	AzureKey    = "azure"
 	AzureAppKey = "azure-app"
+	EntraIdKey  = "azure-ad"
 )
 
 var subscriptionIdAttribute = schema.StringAttribute{
