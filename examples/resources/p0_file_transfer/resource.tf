@@ -1,6 +1,6 @@
 module "file_transfer_bucket" {
   source  = "p0-security/p0-file-transfer/aws"
-  version = "0.1.0"
+  version = "1.0.0"
 }
 
 # File transfer requires AWS SSH to be installed for the same account first.
