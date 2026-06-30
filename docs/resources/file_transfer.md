@@ -19,16 +19,22 @@ Installing File Transfer allows P0 to broker temporary, audited file transfers t
 ## Example Usage
 
 ```terraform
+module "file_transfer_bucket" {
+  source  = "p0-security/p0-file-transfer/aws"
+  version = "1.0.0"
+}
+
 # File transfer requires AWS SSH to be installed for the same account first.
 resource "p0_ssh_aws" "example" {
-  account_id = "123456789012"
+  account_id = module.file_transfer_bucket.account_id
 }
 
 resource "p0_file_transfer" "example" {
-  account_id    = p0_ssh_aws.example.account_id
-  bucket_name   = "my-file-transfer-bucket"
-  region        = "us-east-1"
-  aws_partition = "aws"
+  account_id    = module.file_transfer_bucket.account_id
+  bucket_name   = module.file_transfer_bucket.bucket_name
+  region        = module.file_transfer_bucket.region
+  aws_partition = module.file_transfer_bucket.aws_partition
+  depends_on    = [module.file_transfer_bucket]
 }
 ```
 
