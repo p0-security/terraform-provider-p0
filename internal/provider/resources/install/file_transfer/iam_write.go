@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -43,8 +42,8 @@ type fileTransferIamWriteModel struct {
 
 type fileTransferIamWriteJson struct {
 	BucketName   string  `json:"bucketName"`
-	Region       string  `json:"region"`
-	AwsPartition string  `json:"awsPartition"`
+	Region       *string `json:"region,omitempty"`
+	AwsPartition *string `json:"awsPartition,omitempty"`
 	State        *string `json:"state,omitempty"`
 	Label        *string `json:"label,omitempty"`
 }
@@ -90,19 +89,11 @@ Installing File Transfer allows P0 to broker temporary, audited file transfers t
 			},
 			"region": schema.StringAttribute{
 				MarkdownDescription: `The AWS region of the S3 bucket (e.g. ` + "`us-east-1`" + `)`,
-				Required:            true,
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(RegionRegex, "AWS region should be in the format: us-east-1 or us-gov-east-1"),
-				},
+				Computed:            true,
 			},
 			"aws_partition": schema.StringAttribute{
 				MarkdownDescription: `The AWS partition the bucket resides in. Usually ` + "`aws`" + `; use ` + "`aws-us-gov`" + ` for GovCloud or ` + "`aws-cn`" + ` for China`,
-				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString(DefaultPartition),
-				Validators: []validator.String{
-					stringvalidator.OneOf(Partitions...),
-				},
 			},
 			"label": schema.StringAttribute{
 				MarkdownDescription: `The label for this installation (defaults to the AWS account ID)`,
@@ -158,8 +149,16 @@ func (r *fileTransferIamWrite) fromJson(ctx context.Context, diags *diag.Diagnos
 	accountId := strings.TrimPrefix(id, awsPrefix)
 	data.AccountId = types.StringValue(accountId)
 	data.BucketName = types.StringValue(jsonv.BucketName)
-	data.Region = types.StringValue(jsonv.Region)
-	data.AwsPartition = types.StringValue(jsonv.AwsPartition)
+
+	data.Region = types.StringNull()
+	if jsonv.Region != nil {
+		data.Region = types.StringValue(*jsonv.Region)
+	}
+
+	data.AwsPartition = types.StringNull()
+	if jsonv.AwsPartition != nil {
+		data.AwsPartition = types.StringValue(*jsonv.AwsPartition)
+	}
 
 	data.State = types.StringNull()
 	if jsonv.State != nil {
@@ -184,8 +183,6 @@ func (r *fileTransferIamWrite) toJson(data any) any {
 	}
 
 	json.BucketName = datav.BucketName.ValueString()
-	json.Region = datav.Region.ValueString()
-	json.AwsPartition = datav.AwsPartition.ValueString()
 
 	// can omit state and label here as they're filled by the backend
 	return &json
