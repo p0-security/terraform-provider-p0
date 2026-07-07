@@ -30,11 +30,9 @@ resource "p0_ssh_aws" "example" {
 }
 
 resource "p0_file_transfer" "example" {
-  account_id    = module.file_transfer_bucket.account_id
-  bucket_name   = module.file_transfer_bucket.bucket_name
-  region        = module.file_transfer_bucket.region
-  aws_partition = module.file_transfer_bucket.aws_partition
-  depends_on    = [module.file_transfer_bucket]
+  account_id  = module.file_transfer_bucket.account_id
+  bucket_name = module.file_transfer_bucket.bucket_name
+  depends_on  = [module.file_transfer_bucket]
 }
 ```
 
