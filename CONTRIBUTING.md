@@ -66,7 +66,9 @@ Create a file `.env` in the home directory and add your api token and any other 
 P0_API_TOKEN=...
 ```
 
-Start a new debugging session using the `Debug Terraform Plugin` configuration. Running this configuration will output an environment variable `TF_REATTACH_PROVIDERS` to your `DEBUG_CONSOLE` which must be used to attach the debugger to the running `terraform apply` process. These variables are set in the shell where the `terraform apply` process is run, not the .env file. Afterwards you can set breakpoints in the provider code and they will be hit when the terraform process is executed.
+Start a new debugging session using the `Debug Terraform Plugin` configuration. Make sure you have the go extension installed in VSCode, then you can simply run the debugger via VS Code. You may need to install delve (go debugger) if it prompts you.
+
+Running this configuration will output an environment variable `TF_REATTACH_PROVIDERS` to your `DEBUG_CONSOLE` which must be used to attach the debugger to the running `terraform apply` process. These variables are set in the shell where the `terraform apply` process is run, not the .env file. Afterwards you can set breakpoints in the provider code and they will be hit when the terraform process is executed.
 
 Example:
 
