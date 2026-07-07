@@ -39,15 +39,12 @@ resource "p0_file_transfer" "example" {
 
 - `account_id` (String) The AWS account ID. AWS SSH must already be installed for this account.
 - `bucket_name` (String) The name of the S3 bucket used to broker fast file transfers (without the `s3://` prefix)
-- `region` (String) The AWS region of the S3 bucket (e.g. `us-east-1`)
-
-### Optional
-
-- `aws_partition` (String) The AWS partition the bucket resides in. Usually `aws`; use `aws-us-gov` for GovCloud or `aws-cn` for China
 
 ### Read-Only
 
+- `aws_partition` (String) The AWS partition the bucket resides in. Usually `aws`; use `aws-us-gov` for GovCloud or `aws-cn` for China
 - `label` (String) The label for this installation (defaults to the AWS account ID)
+- `region` (String) The AWS region of the S3 bucket (e.g. `us-east-1`)
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured
