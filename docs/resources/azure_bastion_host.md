@@ -3,32 +3,51 @@
 page_title: "p0_azure_bastion_host Resource - p0"
 subcategory: ""
 description: |-
-  Registers an Azure Bastion host with P0 for SSH access to VMs in a subscription.
-  To use this resource, you must also:
-  install the p0_azure_bastion_host_staged resource,install the p0_azure resource,install the p0_azure_app resource,install the p0_azure_iam_write resource for the same subscription,create an Azure Bastion host (e.g. via the azure_p0_bastion module),create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the azure_p0_roles module).
-  Use p0_azure_bastion_host_staged computed custom_role when defining that Azure role. See examples/resources/p0_azure_bastion_host/ for a full chain.
+  Registers how P0 connects to Azure VMs in a subscription to provision SSH access: through a managed Azure Bastion host, or through a customer-managed jump host VM. Configure exactly one of azure_bastion or jump_host.
+  In both cases, you must also:
+  install the p0_azure resource,install the p0_azure_app resource,install the p0_azure_iam_write resource for the same subscription.
+  To use azure_bastion, you must additionally:
+  install the p0_azure_bastion_host_staged resource,create an Azure Bastion host (e.g. via the azure_p0_bastion module),create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the azure_p0_roles module), using the staged resource's computed custom_role.
+  To use jump_host, the VM must have a public IP address on its primary network interface; P0 resolves and stores the IP at install time. You must also provide the role definition ID of the role granted to users connecting through the jump host (a built-in role, an existing custom role, or a new one with at least the required permissions — see the P0 setup instructions). No staged resource or Bastion host is needed. To let P0 terminate established jump host sessions when access is revoked, also install the p0_azure_jump_host management component.
+  See examples/resources/p0_azure_bastion_host/ for full chains.
   Example (after creating the Bastion and role in Azure):
   
   resource "p0_azure_bastion_host" "example" {
-    subscription_id    = p0_azure_bastion_host_staged.example.subscription_id
-    bastion_id         = module.azure_p0_bastion.bastion_resource_id
-    role_definition_id = module.azure_p0_roles.bastion_role_definition_id
+    subscription_id = p0_azure_bastion_host_staged.example.subscription_id
+    azure_bastion = {
+      bastion_id         = module.azure_p0_bastion.bastion_resource_id
+      role_definition_id = module.azure_p0_roles.bastion_role_definition_id
+    }
+  }
+  
+  Or, with a customer-managed jump host VM:
+  
+  resource "p0_azure_bastion_host" "example" {
+    subscription_id = local.subscription_id
+    jump_host = {
+      virtual_machine_id = "/subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<name>"
+      role_definition_id = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
+    }
   }
 ---
 
 # p0_azure_bastion_host (Resource)
 
-Registers an Azure Bastion host with P0 for SSH access to VMs in a subscription.
+Registers how P0 connects to Azure VMs in a subscription to provision SSH access: through a managed Azure Bastion host, or through a customer-managed jump host VM. Configure exactly one of `azure_bastion` or `jump_host`.
 
-To use this resource, you must also:
-- install the `p0_azure_bastion_host_staged` resource,
+In both cases, you must also:
 - install the `p0_azure` resource,
 - install the `p0_azure_app` resource,
-- install the `p0_azure_iam_write` resource for the same subscription,
-- create an Azure Bastion host (e.g. via the `azure_p0_bastion` module),
-- create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the `azure_p0_roles` module).
+- install the `p0_azure_iam_write` resource for the same subscription.
 
-Use `p0_azure_bastion_host_staged` computed `custom_role` when defining that Azure role. See `examples/resources/p0_azure_bastion_host/` for a full chain.
+To use `azure_bastion`, you must additionally:
+- install the `p0_azure_bastion_host_staged` resource,
+- create an Azure Bastion host (e.g. via the `azure_p0_bastion` module),
+- create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the `azure_p0_roles` module), using the staged resource's computed `custom_role`.
+
+To use `jump_host`, the VM must have a public IP address on its primary network interface; P0 resolves and stores the IP at install time. You must also provide the role definition ID of the role granted to users connecting through the jump host (a built-in role, an existing custom role, or a new one with at least the required permissions — see the P0 setup instructions). No staged resource or Bastion host is needed. To let P0 terminate established jump host sessions when access is revoked, also install the `p0_azure_jump_host` management component.
+
+See `examples/resources/p0_azure_bastion_host/` for full chains.
 
 
 
@@ -36,9 +55,23 @@ Example (after creating the Bastion and role in Azure):
 
 ```terraform
 resource "p0_azure_bastion_host" "example" {
-  subscription_id    = p0_azure_bastion_host_staged.example.subscription_id
-  bastion_id         = module.azure_p0_bastion.bastion_resource_id
-  role_definition_id = module.azure_p0_roles.bastion_role_definition_id
+  subscription_id = p0_azure_bastion_host_staged.example.subscription_id
+  azure_bastion = {
+    bastion_id         = module.azure_p0_bastion.bastion_resource_id
+    role_definition_id = module.azure_p0_roles.bastion_role_definition_id
+  }
+}
+```
+
+Or, with a customer-managed jump host VM:
+
+```terraform
+resource "p0_azure_bastion_host" "example" {
+  subscription_id = local.subscription_id
+  jump_host = {
+    virtual_machine_id = "/subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<name>"
+    role_definition_id = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
+  }
 }
 ```
 
@@ -47,6 +80,9 @@ resource "p0_azure_bastion_host" "example" {
 ```terraform
 locals {
   subscription_id = "12345678-1234-1234-1234-123456789012"
+  # A subscription uses either an Azure Bastion host or a jump host, never both,
+  # so the jump host example below uses a second subscription.
+  jump_host_subscription_id = "87654321-1234-1234-1234-123456789012"
   # From your Bastion deployment (for example module.azure_p0_bastion.bastion_resource_id)
   bastion_id = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/example/providers/Microsoft.Network/bastionHosts/example"
   # From the Azure custom role you create from p0_azure_bastion_host_staged outputs, for example:
@@ -72,6 +108,8 @@ resource "p0_azure_iam_write" "example" {
   subscription_id = local.subscription_id
 }
 
+# Option 1: a managed Azure Bastion host. Stage first to obtain the custom role
+# spec, create the role and Bastion in Azure, then register both IDs.
 resource "p0_azure_bastion_host_staged" "example" {
   depends_on = [
     p0_azure.example,
@@ -84,9 +122,31 @@ resource "p0_azure_bastion_host_staged" "example" {
 resource "p0_azure_bastion_host" "example" {
   depends_on = [p0_azure_bastion_host_staged.example]
 
-  subscription_id    = p0_azure_bastion_host_staged.example.subscription_id
-  bastion_id         = local.bastion_id
-  role_definition_id = local.bastion_role_definition_id
+  subscription_id = p0_azure_bastion_host_staged.example.subscription_id
+  azure_bastion = {
+    bastion_id         = local.bastion_id
+    role_definition_id = local.bastion_role_definition_id
+  }
+}
+
+# Option 2: a customer-managed jump host VM. No staged resource or Bastion host
+# is needed; the VM must have a public IP on its primary network interface,
+# which P0 resolves and stores at install time. role_definition_id is the role
+# granted to users connecting through the jump host (a built-in role, an
+# existing custom role, or a new one with at least the required permissions).
+resource "p0_azure_iam_write" "jump_host_example" {
+  depends_on      = [p0_azure_app.example]
+  subscription_id = local.jump_host_subscription_id
+}
+
+resource "p0_azure_bastion_host" "jump_host_example" {
+  depends_on = [p0_azure_iam_write.jump_host_example]
+
+  subscription_id = local.jump_host_subscription_id
+  jump_host = {
+    virtual_machine_id = "/subscriptions/87654321-1234-1234-1234-123456789012/resourceGroups/example/providers/Microsoft.Compute/virtualMachines/example"
+    role_definition_id = "/subscriptions/87654321-1234-1234-1234-123456789012/providers/Microsoft.Authorization/roleDefinitions/11111111-1111-1111-1111-111111111111"
+  }
 }
 ```
 
@@ -95,14 +155,38 @@ resource "p0_azure_bastion_host" "example" {
 
 ### Required
 
-- `bastion_id` (String) The full Azure resource ID of the Bastion host (e.g. from azure_p0_bastion.bastion_resource_id).
-- `role_definition_id` (String) The Azure role definition ID for the P0 Bastion Host Management role (e.g. from azure_p0_roles.bastion_role_definition_id).
-- `subscription_id` (String) The Azure subscription ID where the bastion host is used.
+- `subscription_id` (String) The Azure subscription ID where the bastion host or jump host is used.
+
+### Optional
+
+- `azure_bastion` (Attributes) Provision SSH access through a managed Azure Bastion host. Exactly one of `azure_bastion` or `jump_host` must be configured. (see [below for nested schema](#nestedatt--azure_bastion))
+- `jump_host` (Attributes) Provision SSH access through a customer-managed jump host VM. Exactly one of `azure_bastion` or `jump_host` must be configured. (see [below for nested schema](#nestedatt--jump_host))
 
 ### Read-Only
 
-- `label` (String) The label of the subscription (computed from P0).
+- `label` (String) The label of this install: the subscription label for azure_bastion, or the VM name for jump_host (computed from P0).
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured
 	- 'installed': The item is fully installed
+
+<a id="nestedatt--azure_bastion"></a>
+### Nested Schema for `azure_bastion`
+
+Required:
+
+- `bastion_id` (String) The full Azure resource ID of the Bastion host (e.g. from azure_p0_bastion.bastion_resource_id).
+- `role_definition_id` (String) The Azure role definition ID for the P0 Bastion Host Management role (e.g. from azure_p0_roles.bastion_role_definition_id).
+
+
+<a id="nestedatt--jump_host"></a>
+### Nested Schema for `jump_host`
+
+Required:
+
+- `role_definition_id` (String) The Azure role definition ID of the role granted to users connecting through this jump host, so they can reach a target virtual machine. Use a built-in role, an existing custom role, or create a new one with at least the required permissions.
+- `virtual_machine_id` (String) The Azure resource ID of the jump host VM, e.g. /subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<name>.
+
+Read-Only:
+
+- `ip` (String) The jump host's public IP address, resolved from the VM's primary network interface by P0 at install time (computed from P0).

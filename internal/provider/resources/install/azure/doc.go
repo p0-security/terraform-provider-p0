@@ -8,5 +8,6 @@
 //     using p0_azure_app_staged outputs (app_name, credential_info), then p0_azure_app.
 //   - examples/resources/p0_azure_bastion_host_staged/ and examples/resources/p0_azure_bastion_host/ —
 //     read custom_role from p0_azure_bastion_host_staged, define the Azure custom role and Bastion,
-//     then register with p0_azure_bastion_host.
+//     then register with p0_azure_bastion_host (azure_bastion option). The jump_host option registers
+//     a customer-managed jump host VM instead and needs no staged resource or custom role.
 package installazure
