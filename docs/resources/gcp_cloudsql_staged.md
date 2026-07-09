@@ -23,6 +23,7 @@ Use the read-only `connector_service_name` and `connector_service_account` attri
 resource "p0_gcp_cloudsql_staged" "example" {
   id         = "my-vpc"
   project_id = "my-gcp-project"
+  subnetwork = "my-subnet"
 }
 
 # Deploy the P0 connector's Cloud Run service using the staged connector
@@ -44,10 +45,7 @@ resource "p0_gcp_cloudsql_staged" "example" {
 
 - `id` (String) The GCP VPC (network) identifier for this CloudSQL installation
 - `project_id` (String) The GCP project in which this VPC is provisioned
-
-### Optional
-
-- `subnetwork` (String) The name of the subnetwork the connector should have direct VPC access to (defaults to the name of the VPC)
+- `subnetwork` (String) The name of the subnetwork to which the Cloud Run connector should have direct VPC access
 
 ### Read-Only
 

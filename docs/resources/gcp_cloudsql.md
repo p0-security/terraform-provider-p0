@@ -26,6 +26,7 @@ Installing GCP CloudSQL allows P0 to manage just-in-time access to your CloudSQL
 resource "p0_gcp_cloudsql" "example" {
   id         = p0_gcp_cloudsql_staged.example.id
   project_id = p0_gcp_cloudsql_staged.example.project_id
+  subnetwork = p0_gcp_cloudsql_staged.example.subnetwork
   depends_on = [module.p0_cloudsql_connector]
 }
 ```
@@ -37,10 +38,7 @@ resource "p0_gcp_cloudsql" "example" {
 
 - `id` (String) The GCP VPC (network) identifier for this CloudSQL installation
 - `project_id` (String) The GCP project in which this VPC is provisioned
-
-### Optional
-
-- `subnetwork` (String) The name of the subnetwork the connector should have direct VPC access to (defaults to the name of the VPC)
+- `subnetwork` (String) The name of the subnetwork to which the Cloud Run connector should have direct VPC access
 
 ### Read-Only
 

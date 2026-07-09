@@ -86,12 +86,10 @@ Use the read-only ` + "`connector_service_name`" + ` and ` + "`connector_service
 				},
 			},
 			"subnetwork": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				MarkdownDescription: `The name of the subnetwork the connector should have direct VPC access to (defaults to the name of the VPC)`,
+				Required:            true,
+				MarkdownDescription: `The name of the subnetwork to which the Cloud Run connector should have direct VPC access`,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-					stringplanmodifier.RequiresReplaceIfConfigured(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"region": schema.StringAttribute{
@@ -167,14 +165,12 @@ func (r *GcpCloudSqlIamWriteStaged) toJson(data any) any {
 	if !ok {
 		return nil
 	}
-	// projectId and (optionally) the subnetwork are user-owned inputs; region and
+	// projectId and the subnetwork are user-owned inputs; region and
 	// the connector_* fields are assigned by the backend, so they are
 	// intentionally omitted from the request.
 	json.ProjectId = datav.ProjectId.ValueString()
-	if !datav.Subnetwork.IsNull() && !datav.Subnetwork.IsUnknown() {
-		subnetwork := datav.Subnetwork.ValueString()
-		json.ConnectorSubnetwork = &subnetwork
-	}
+	subnetwork := datav.Subnetwork.ValueString()
+	json.ConnectorSubnetwork = &subnetwork
 	return &json
 }
 

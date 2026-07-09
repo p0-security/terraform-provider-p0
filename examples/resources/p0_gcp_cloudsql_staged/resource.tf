@@ -2,6 +2,7 @@
 resource "p0_gcp_cloudsql_staged" "example" {
   id         = "my-vpc"
   project_id = "my-gcp-project"
+  subnetwork = "my-subnet"
 }
 
 # Deploy the P0 connector's Cloud Run service using the staged connector
