@@ -108,7 +108,10 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 
 	created := i.FromJson(ctx, diags, *id, itemJson)
 	if created == nil {
-		reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
+		// FromJson may have already reported a specific diagnostic
+		if !diags.HasError() {
+			reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
+		}
 		return
 	}
 
@@ -162,7 +165,10 @@ func (i *Install) UpsertFromStage(ctx context.Context, diags *diag.Diagnostics, 
 
 	updated := i.FromJson(ctx, diags, *id, itemJson)
 	if updated == nil {
-		reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
+		// FromJson may have already reported a specific diagnostic
+		if !diags.HasError() {
+			reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
+		}
 		return
 	}
 
@@ -206,7 +212,10 @@ func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsd
 
 	updated := i.FromJson(ctx, diags, *id, itemJson)
 	if updated == nil {
-		reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
+		// FromJson may have already reported a specific diagnostic
+		if !diags.HasError() {
+			reportConversionError("Bad API response", "Could not read resource data from", itemJson, diags)
+		}
 		return
 	}
 
@@ -230,7 +239,7 @@ func (i *Install) Rollback(ctx context.Context, diags *diag.Diagnostics, state *
 
 	json := i.ToJson(model)
 	if json == nil {
-		reportConversionError("Bad Terraform state", "Could not create an API request from", json, diags)
+		reportConversionError("Bad Terraform state", "Could not create an API request from", model, diags)
 		return
 	}
 
