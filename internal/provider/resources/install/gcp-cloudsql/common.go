@@ -25,6 +25,7 @@ var Components = []string{installresources.IamWrite}
 type gcpCloudSqlIamWriteModel struct {
 	Id                      types.String `tfsdk:"id"`
 	ProjectId               types.String `tfsdk:"project_id"`
+	Subnetwork              types.String `tfsdk:"subnetwork"`
 	Region                  types.String `tfsdk:"region"`
 	ConnectorServiceName    types.String `tfsdk:"connector_service_name"`
 	ConnectorServiceUri     types.String `tfsdk:"connector_service_uri"`
@@ -34,6 +35,7 @@ type gcpCloudSqlIamWriteModel struct {
 
 type gcpCloudSqlIamWriteJson struct {
 	ProjectId               string  `json:"projectId"`
+	ConnectorSubnetwork     *string `json:"connectorSubnetwork,omitempty"`
 	ConnectorRegion         *string `json:"connectorRegion,omitempty"`
 	ConnectorServiceName    *string `json:"connectorServiceName,omitempty"`
 	ConnectorServiceUri     *string `json:"connectorServiceUri,omitempty"`
@@ -64,6 +66,14 @@ func attributes() map[string]schema.Attribute {
 				// validates consistently across all p0_gcp_* integrations.
 				stringvalidator.RegexMatches(installgcp.GcpProjectIdRegex, "GCP project IDs should consist only of alphanumeric characters and hyphens"),
 			},
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.RequiresReplace(),
+			},
+		},
+		"subnetwork": schema.StringAttribute{
+			Optional:            true,
+			Computed:            true,
+			MarkdownDescription: `The name of the subnetwork the connector should have direct VPC access to (defaults to the name of the VPC)`,
 			PlanModifiers: []planmodifier.String{
 				stringplanmodifier.RequiresReplace(),
 			},
@@ -115,6 +125,7 @@ func fromJson(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
 	data.Id = types.StringValue(id)
 	data.ProjectId = types.StringValue(jsonv.ProjectId)
 	data.State = types.StringValue(jsonv.State)
+	data.Subnetwork = types.StringPointerValue(jsonv.ConnectorSubnetwork)
 	data.Region = types.StringPointerValue(jsonv.ConnectorRegion)
 	data.ConnectorServiceName = types.StringPointerValue(jsonv.ConnectorServiceName)
 	data.ConnectorServiceUri = types.StringPointerValue(jsonv.ConnectorServiceUri)
@@ -129,8 +140,13 @@ func toJson(data any) any {
 	if !ok {
 		return nil
 	}
-	// Only projectId is user-owned; region and connector_* fields are assigned by
-	// the backend, so they are intentionally omitted from the request.
+	// projectId and (optionally) the subnetwork are user-owned inputs; region and
+	// the connector_* fields are assigned by the backend, so they are
+	// intentionally omitted from the request.
 	json.ProjectId = datav.ProjectId.ValueString()
+	if !datav.Subnetwork.IsNull() && !datav.Subnetwork.IsUnknown() {
+		subnetwork := datav.Subnetwork.ValueString()
+		json.ConnectorSubnetwork = &subnetwork
+	}
 	return &json
 }
