@@ -90,7 +90,8 @@ Use the read-only ` + "`connector_service_name`" + ` and ` + "`connector_service
 				Computed:            true,
 				MarkdownDescription: `The name of the subnetwork the connector should have direct VPC access to (defaults to the name of the VPC)`,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplaceIfConfigured(),
 				},
 			},
 			"region": schema.StringAttribute{
