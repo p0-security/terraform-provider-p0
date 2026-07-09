@@ -53,7 +53,6 @@ resource "p0_gcp_cloudsql_staged" "example" {
 
 - `connector_service_account` (String) The GCP service account that the connector runs as
 - `connector_service_name` (String) The name of the connector's GCP Cloud Run service
-- `connector_service_uri` (String) The invocation URL of the connector's Cloud Run service (resolved once the connector is installed)
 - `region` (String) The GCP region in which the connector's Cloud Run service is provisioned (defaults to us-west1)
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation

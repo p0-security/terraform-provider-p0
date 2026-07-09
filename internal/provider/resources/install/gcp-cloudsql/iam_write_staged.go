@@ -32,7 +32,6 @@ type gcpCloudSqlIamWriteStagedModel struct {
 	Subnetwork              types.String `tfsdk:"subnetwork"`
 	Region                  types.String `tfsdk:"region"`
 	ConnectorServiceName    types.String `tfsdk:"connector_service_name"`
-	ConnectorServiceUri     types.String `tfsdk:"connector_service_uri"`
 	ConnectorServiceAccount types.String `tfsdk:"connector_service_account"`
 	State                   types.String `tfsdk:"state"`
 }
@@ -42,9 +41,8 @@ type gcpCloudSqlIamWriteStagedJson struct {
 	ConnectorSubnetwork     *string `json:"connectorSubnetwork,omitempty"`
 	ConnectorRegion         *string `json:"connectorRegion,omitempty"`
 	ConnectorServiceName    *string `json:"connectorServiceName,omitempty"`
-	ConnectorServiceUri     *string `json:"connectorServiceUri,omitempty"`
 	ConnectorServiceAccount *string `json:"connectorServiceAccount,omitempty"`
-	State                   string  `json:"state"`
+	State                   *string `json:"state"`
 }
 
 type gcpCloudSqlIamWriteStagedApi struct {
@@ -103,10 +101,6 @@ Use the read-only ` + "`connector_service_name`" + ` and ` + "`connector_service
 				Computed:            true,
 				MarkdownDescription: `The name of the connector's GCP Cloud Run service`,
 			},
-			"connector_service_uri": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: `The invocation URL of the connector's Cloud Run service (resolved once the connector is installed)`,
-			},
 			"connector_service_account": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: `The GCP service account that the connector runs as`,
@@ -155,11 +149,12 @@ func (r *GcpCloudSqlIamWriteStaged) fromJson(_ context.Context, _ *diag.Diagnost
 
 	data.Id = types.StringValue(id)
 	data.ProjectId = types.StringValue(jsonv.ProjectId)
-	data.State = types.StringValue(jsonv.State)
+	if jsonv.State != nil {
+		data.State = types.StringValue(*jsonv.State)
+	}
 	data.Subnetwork = types.StringPointerValue(jsonv.ConnectorSubnetwork)
 	data.Region = types.StringPointerValue(jsonv.ConnectorRegion)
 	data.ConnectorServiceName = types.StringPointerValue(jsonv.ConnectorServiceName)
-	data.ConnectorServiceUri = types.StringPointerValue(jsonv.ConnectorServiceUri)
 	data.ConnectorServiceAccount = types.StringPointerValue(jsonv.ConnectorServiceAccount)
 
 	return &data
