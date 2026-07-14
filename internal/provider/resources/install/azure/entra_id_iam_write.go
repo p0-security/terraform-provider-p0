@@ -58,14 +58,14 @@ func (r *entraIdIamWrite) Schema(ctx context.Context, req resource.SchemaRequest
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `An installation of P0 for IAM management of a Microsoft Entra ID (Azure AD) tenant.
 
-To use this resource, you must also:
-- create an App Registration in your Entra tenant for P0,
+This resource requires a function app and the ` + "`roles.read`" + ` Microsoft Graph permission, since it writes role assignments back to Entra ID. To use this resource, you must also:
+- install the ` + "`p0_azure`" + ` resource,
+- create an App Registration in your Entra tenant for P0 and register it with ` + "`p0_entra_app`" + `,
 - expose an API with a ` + "`user_impersonation`" + ` scope on the App Registration,
-- add Microsoft Graph application permissions and grant admin consent,
+- add Microsoft Graph application permissions (including ` + "`roles.read`" + `) and grant admin consent,
 - create a federated identity credential on the App Registration pointing to P0's service account,
 - deploy the P0 Security Perimeter as an Azure Function App in your tenant,
-- configure App Service Authentication on the Function App using the App Registration,
-- install the ` + "`p0_azure`" + ` resource.
+- configure App Service Authentication on the Function App using the App Registration.
 
 See the example usage for the recommended pattern to define this infrastructure.`,
 		Attributes: map[string]schema.Attribute{
@@ -157,7 +157,7 @@ func (r *entraIdIamWrite) toJson(data any) any {
 func (r *entraIdIamWrite) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	providerData := internal.Configure(&req, resp)
 	r.installer = &common.Install{
-		Integration:  EntraIdKey,
+		Integration:  EntraIdIamManagementKey,
 		Component:    installresources.IamWrite,
 		ProviderData: providerData,
 		GetId:        r.getId,
