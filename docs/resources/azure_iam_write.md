@@ -40,6 +40,12 @@ provider "azuread" {
   tenant_id = local.directory_id
 }
 
+data "azuread_application_published_app_ids" "well_known" {}
+
+data "azuread_service_principal" "msgraph" {
+  client_id = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
+}
+
 provider "azurerm" {
   features {}
   subscription_id = local.subscription_id
@@ -87,6 +93,32 @@ resource "azuread_application_federated_identity_credential" "p0_integration" {
 resource "azuread_service_principal" "example" {
   depends_on = [azuread_application_registration.example]
   client_id  = azuread_application_registration.example.client_id
+}
+
+# P0 verifies the User.Read.All Microsoft Graph permission when installing
+# the IAM management integration; it is used to resolve access-request
+# principals to Entra ID users.
+resource "azuread_application_api_access" "msgraph_user_read_all" {
+  application_id = azuread_application_registration.example.id
+  api_client_id  = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
+
+  role_ids = [
+    data.azuread_service_principal.msgraph.app_role_ids["User.Read.All"],
+  ]
+
+  depends_on = [azuread_application_registration.example]
+}
+
+# Grants admin consent for the User.Read.All permission
+resource "azuread_app_role_assignment" "msgraph_user_read_all_consent" {
+  app_role_id         = data.azuread_service_principal.msgraph.app_role_ids["User.Read.All"]
+  principal_object_id = azuread_service_principal.example.object_id
+  resource_object_id  = data.azuread_service_principal.msgraph.object_id
+
+  depends_on = [
+    azuread_service_principal.example,
+    azuread_application_api_access.msgraph_user_read_all,
+  ]
 }
 ```
 
