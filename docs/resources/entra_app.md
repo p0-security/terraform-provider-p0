@@ -50,27 +50,44 @@ resource "azuread_service_principal" "p0" {
   depends_on = [azuread_application_registration.p0]
 }
 
-# Grant the Microsoft Graph RoleManagement.Read.Directory permission, required
-# to read Entra ID directory role assignments.
-resource "azuread_application_api_access" "msgraph_role_management_read" {
+# Grant the Microsoft Graph read-only permissions required by the shared App
+# Registration (the "caller app") to read directory information. This same
+# set of permissions is required for both entra-id-iam-management and
+# entra-id-iam-assessment.
+locals {
+  msgraph_read_permissions = [
+    "Group.Read.All",
+    "GroupMember.Read.All",
+    "User.Read.All",
+    "RoleManagement.Read.All",
+    "Reports.Read.All",
+    "AuditLog.Read.All",
+    "Application.Read.All",
+  ]
+}
+
+resource "azuread_application_api_access" "msgraph_read" {
   application_id = azuread_application_registration.p0.id
   api_client_id  = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
 
   role_ids = [
-    data.azuread_service_principal.msgraph.app_role_ids["RoleManagement.Read.Directory"],
+    for permission in local.msgraph_read_permissions :
+    data.azuread_service_principal.msgraph.app_role_ids[permission]
   ]
 
   depends_on = [azuread_application_registration.p0]
 }
 
-resource "azuread_app_role_assignment" "msgraph_role_management_read_consent" {
-  app_role_id         = data.azuread_service_principal.msgraph.app_role_ids["RoleManagement.Read.Directory"]
+resource "azuread_app_role_assignment" "msgraph_read_consent" {
+  for_each = toset(local.msgraph_read_permissions)
+
+  app_role_id         = data.azuread_service_principal.msgraph.app_role_ids[each.value]
   principal_object_id = azuread_service_principal.p0.object_id
   resource_object_id  = data.azuread_service_principal.msgraph.object_id
 
   depends_on = [
     azuread_service_principal.p0,
-    azuread_application_api_access.msgraph_role_management_read,
+    azuread_application_api_access.msgraph_read,
   ]
 }
 
@@ -90,7 +107,7 @@ resource "azuread_application_federated_identity_credential" "p0" {
 resource "p0_entra_app" "example" {
   depends_on = [
     azuread_application_federated_identity_credential.p0,
-    azuread_app_role_assignment.msgraph_role_management_read_consent,
+    azuread_app_role_assignment.msgraph_read_consent,
   ]
   client_id = azuread_application_registration.p0.client_id
 }

@@ -11,6 +11,12 @@ provider "azurerm" {
   features {}
 }
 
+data "azuread_application_published_app_ids" "well_known" {}
+
+data "azuread_service_principal" "msgraph" {
+  client_id = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
+}
+
 # ── Step 1: P0 Azure root integration ─────────────────────────────────────────
 # Required before the iam-write component can be installed.
 resource "p0_azure" "example" {
@@ -134,12 +140,39 @@ resource "azurerm_linux_function_app" "p0" {
   }
 }
 
+# Grant the Microsoft Graph permissions required by the Function App's
+# system-assigned managed identity to read/write role assignments and group
+# memberships in the directory. Note these are granted to the Function App's
+# managed identity, not to the shared App Registration's service principal
+# (which only ever receives the read-only permissions in
+# examples/resources/p0_entra_app/).
+locals {
+  function_app_msgraph_permissions = [
+    "User.Read.All",
+    "RoleManagement.ReadWrite.Directory",
+    "GroupMember.Read.All",
+    "GroupMember.ReadWrite.All",
+    "Group.Read.All",
+  ]
+}
+
+resource "azuread_app_role_assignment" "function_app_msgraph" {
+  for_each = toset(local.function_app_msgraph_permissions)
+
+  app_role_id         = data.azuread_service_principal.msgraph.app_role_ids[each.value]
+  principal_object_id = azurerm_linux_function_app.p0.identity[0].principal_id
+  resource_object_id  = data.azuread_service_principal.msgraph.object_id
+
+  depends_on = [azurerm_linux_function_app.p0]
+}
+
 # ── Step 4: P0 Entra ID IAM Write ─────────────────────────────────────────────
 resource "p0_entra_id_iam_write" "example" {
   depends_on = [
     p0_azure.example,
     p0_entra_app.example,
     azurerm_linux_function_app.p0,
+    azuread_app_role_assignment.function_app_msgraph,
   ]
 
   tenant_id          = local.tenant_id
