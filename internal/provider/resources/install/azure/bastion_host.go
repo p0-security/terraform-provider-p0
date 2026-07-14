@@ -4,10 +4,14 @@
 //   - `azure_bastion`: a managed Azure Bastion host, plus the P0 Bastion Host Management
 //     custom role. Stage with `p0_azure_bastion_host_staged`, create the role and Bastion in
 //     Azure (for example with the `azure_p0_roles` and `azure_p0_bastion` modules), then pass
-//     the Bastion ARM ID and role definition ID here.
+//     the Bastion ARM ID here. P0 verifies the Bastion Host Management role by name, so its ID
+//     is not configured here.
 //   - `jump_host`: a customer-managed jump host VM, referenced by its resource ID. No custom
 //     role or staged resource is needed; P0 resolves and stores the VM's public IP at install
 //     time.
+//
+// Both options also take the VM-access role definition IDs P0 assigns to a connecting user:
+// `standard_access_role_id` (non-sudo access) and `admin_access_role_id` (sudo access).
 //
 // See `examples/resources/p0_azure_bastion_host/`.
 
@@ -80,14 +84,16 @@ type azureBastionHost struct {
 }
 
 type azureBastionHostAzureBastionModel struct {
-	BastionId        string `tfsdk:"bastion_id"`
-	RoleDefinitionId string `tfsdk:"role_definition_id"`
+	BastionId            string `tfsdk:"bastion_id"`
+	StandardAccessRoleId string `tfsdk:"standard_access_role_id"`
+	AdminAccessRoleId    string `tfsdk:"admin_access_role_id"`
 }
 
 type azureBastionHostJumpHostModel struct {
-	VirtualMachineId string       `tfsdk:"virtual_machine_id"`
-	RoleDefinitionId string       `tfsdk:"role_definition_id"`
-	Ip               types.String `tfsdk:"ip"`
+	VirtualMachineId     string       `tfsdk:"virtual_machine_id"`
+	StandardAccessRoleId string       `tfsdk:"standard_access_role_id"`
+	AdminAccessRoleId    string       `tfsdk:"admin_access_role_id"`
+	Ip                   types.String `tfsdk:"ip"`
 }
 
 type azureBastionHostModel struct {
@@ -108,9 +114,13 @@ type bastionHostBastionHostRefJson struct {
 
 type bastionHostBastionJson struct {
 	Type string `json:"type"`
-	// Both options: the P0 Bastion Host Management custom role for azureBastion,
-	// or the customer-owned role granted to connecting users for jumpHost.
-	RoleDefinitionId string `json:"roleDefinitionId,omitempty"`
+	// Both options carry the customer-owned role definition IDs P0 assigns to a
+	// connecting user: standardAccessRoleId (non-sudo access, at the connection
+	// point and — for standard requests — the target VM) and adminAccessRoleId
+	// (sudo access, at the target VM). The P0 Bastion Host Management custom role
+	// for azureBastion is verified server-side by name, not passed here.
+	StandardAccessRoleId string `json:"standardAccessRoleId,omitempty"`
+	AdminAccessRoleId    string `json:"adminAccessRoleId,omitempty"`
 	// azureBastion fields
 	BastionHost *bastionHostBastionHostRefJson `json:"bastionHost,omitempty"`
 	// jumpHost fields; `ip` is resolved server-side from the VM at install time
@@ -136,8 +146,13 @@ func (r *azureBastionHost) Schema(ctx context.Context, req resource.SchemaReques
 	resp.Schema = schema.Schema{
 		// Version 1: flat `bastion_id`/`role_definition_id` moved into the `azure_bastion`
 		// nested attribute (see UpgradeState).
-		Version: 1,
+		// Version 2: the single `role_definition_id` on `azure_bastion`/`jump_host` split
+		// into `standard_access_role_id` (required) and `admin_access_role_id` (required,
+		// for sudo access), matching the VM-access roles now configured on this component.
+		Version: 2,
 		MarkdownDescription: `Registers how P0 connects to Azure VMs in a subscription to provision SSH access: through a managed Azure Bastion host, or through a customer-managed jump host VM. Configure exactly one of ` + "`azure_bastion`" + ` or ` + "`jump_host`" + `.
+
+Both options take the Azure role definition IDs P0 assigns to a connecting user: ` + "`standard_access_role_id`" + ` for standard (non-sudo) access and ` + "`admin_access_role_id`" + ` for sudo access. Point each at a built-in role (Azure's "Virtual Machine User Login" and "Virtual Machine Administrator Login" are the recommended defaults), an existing custom role, or a new one.
 
 In both cases, you must also:
 - install the ` + "`p0_azure`" + ` resource,
@@ -147,9 +162,9 @@ In both cases, you must also:
 To use ` + "`azure_bastion`" + `, you must additionally:
 - install the ` + "`p0_azure_bastion_host_staged`" + ` resource,
 - create an Azure Bastion host (e.g. via the ` + "`azure_p0_bastion`" + ` module),
-- create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the ` + "`azure_p0_roles`" + ` module), using the staged resource's computed ` + "`custom_role`" + `.
+- create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the ` + "`azure_p0_roles`" + ` module), using the staged resource's computed ` + "`custom_role`" + `. P0 verifies this role by name, so its ID is not configured here.
 
-To use ` + "`jump_host`" + `, the VM must have a public IP address on its primary network interface; P0 resolves and stores the IP at install time. You must also provide the role definition ID of the role granted to users connecting through the jump host (a built-in role, an existing custom role, or a new one with at least the required permissions — see the P0 setup instructions). No staged resource or Bastion host is needed. To let P0 terminate established jump host sessions when access is revoked, also install the ` + "`p0_azure_jump_host`" + ` management component.
+To use ` + "`jump_host`" + `, the VM must have a public IP address on its primary network interface; P0 resolves and stores the IP at install time. No staged resource or Bastion host is needed. To let P0 terminate established jump host sessions when access is revoked, also install the ` + "`p0_azure_jump_host`" + ` management component.
 
 See ` + "`examples/resources/p0_azure_bastion_host/`" + ` for full chains.
 
@@ -157,8 +172,9 @@ See ` + "`examples/resources/p0_azure_bastion_host/`" + ` for full chains.
 			"resource \"p0_azure_bastion_host\" \"example\" {\n" +
 			"  subscription_id = p0_azure_bastion_host_staged.example.subscription_id\n" +
 			"  azure_bastion = {\n" +
-			"    bastion_id         = module.azure_p0_bastion.bastion_resource_id\n" +
-			"    role_definition_id = module.azure_p0_roles.bastion_role_definition_id\n" +
+			"    bastion_id              = module.azure_p0_bastion.bastion_resource_id\n" +
+			"    standard_access_role_id = \"" + roleDefinitionResourceIdExample + "\"\n" +
+			"    admin_access_role_id    = \"" + roleDefinitionResourceIdExample + "\"\n" +
 			"  }\n" +
 			"}\n" +
 			"```\n" +
@@ -166,8 +182,9 @@ See ` + "`examples/resources/p0_azure_bastion_host/`" + ` for full chains.
 			"resource \"p0_azure_bastion_host\" \"example\" {\n" +
 			"  subscription_id = local.subscription_id\n" +
 			"  jump_host = {\n" +
-			"    virtual_machine_id = \"" + virtualMachineResourceIdExample + "\"\n" +
-			"    role_definition_id = \"" + roleDefinitionResourceIdExample + "\"\n" +
+			"    virtual_machine_id      = \"" + virtualMachineResourceIdExample + "\"\n" +
+			"    standard_access_role_id = \"" + roleDefinitionResourceIdExample + "\"\n" +
+			"    admin_access_role_id    = \"" + roleDefinitionResourceIdExample + "\"\n" +
 			"  }\n" +
 			"}\n" +
 			"```\n",
@@ -190,8 +207,15 @@ See ` + "`examples/resources/p0_azure_bastion_host/`" + ` for full chains.
 							stringvalidator.RegexMatches(bastionHostResourceIdRegex, "Enter a valid Bastion host resource ID, e.g. "+bastionHostResourceIdExample+"."),
 						},
 					},
-					"role_definition_id": schema.StringAttribute{
-						Description: "The Azure role definition ID for the P0 Bastion Host Management role (e.g. from azure_p0_roles.bastion_role_definition_id).",
+					"standard_access_role_id": schema.StringAttribute{
+						Description: "The Azure role definition ID granted to a user for standard (non-sudo) access through this Azure Bastion host, so they can reach and log in to the target VM. Use a built-in role (Azure's \"Virtual Machine User Login\" is the recommended default), an existing custom role, or a new one.",
+						Required:    true,
+						Validators: []validator.String{
+							stringvalidator.RegexMatches(roleDefinitionResourceIdRegex, "Enter a valid role definition resource ID, e.g. "+roleDefinitionResourceIdExample+"."),
+						},
+					},
+					"admin_access_role_id": schema.StringAttribute{
+						Description: "The Azure role definition ID granted to a user for sudo access to the target VM. Use a built-in role (Azure's \"Virtual Machine Administrator Login\" is the recommended default), an existing custom role, or a new one.",
 						Required:    true,
 						Validators: []validator.String{
 							stringvalidator.RegexMatches(roleDefinitionResourceIdRegex, "Enter a valid role definition resource ID, e.g. "+roleDefinitionResourceIdExample+"."),
@@ -213,8 +237,15 @@ See ` + "`examples/resources/p0_azure_bastion_host/`" + ` for full chains.
 							stringvalidator.RegexMatches(virtualMachineResourceIdRegex, "Enter a valid virtual machine resource ID, e.g. "+virtualMachineResourceIdExample+"."),
 						},
 					},
-					"role_definition_id": schema.StringAttribute{
-						Description: "The Azure role definition ID of the role granted to users connecting through this jump host, so they can reach a target virtual machine. Use a built-in role, an existing custom role, or create a new one with at least the required permissions.",
+					"standard_access_role_id": schema.StringAttribute{
+						Description: "The Azure role definition ID granted to a user for standard (non-sudo) access through this jump host, so they can reach and log in to a target virtual machine. This role is scoped to jump-host management and can be smaller than the Bastion equivalent. Use a built-in role (Azure's \"Virtual Machine User Login\" is the recommended default), an existing custom role, or a new one.",
+						Required:    true,
+						Validators: []validator.String{
+							stringvalidator.RegexMatches(roleDefinitionResourceIdRegex, "Enter a valid role definition resource ID, e.g. "+roleDefinitionResourceIdExample+"."),
+						},
+					},
+					"admin_access_role_id": schema.StringAttribute{
+						Description: "The Azure role definition ID granted to a user for sudo access to the target VM. Use a built-in role (Azure's \"Virtual Machine Administrator Login\" is the recommended default), an existing custom role, or a new one.",
 						Required:    true,
 						Validators: []validator.String{
 							stringvalidator.RegexMatches(roleDefinitionResourceIdRegex, "Enter a valid role definition resource ID, e.g. "+roleDefinitionResourceIdExample+"."),
@@ -249,6 +280,29 @@ type azureBastionHostModelV0 struct {
 	State            types.String `tfsdk:"state"`
 }
 
+// Schema version 1 had a single `role_definition_id` nested under `azure_bastion` and
+// `jump_host`; version 2 splits it into `standard_access_role_id` and `admin_access_role_id`.
+// The old `role_definition_id` was the role granted to connecting users, so it maps onto
+// `standard_access_role_id`.
+type azureBastionHostAzureBastionModelV1 struct {
+	BastionId        string `tfsdk:"bastion_id"`
+	RoleDefinitionId string `tfsdk:"role_definition_id"`
+}
+
+type azureBastionHostJumpHostModelV1 struct {
+	VirtualMachineId string       `tfsdk:"virtual_machine_id"`
+	RoleDefinitionId string       `tfsdk:"role_definition_id"`
+	Ip               types.String `tfsdk:"ip"`
+}
+
+type azureBastionHostModelV1 struct {
+	SubscriptionId types.String                         `tfsdk:"subscription_id"`
+	AzureBastion   *azureBastionHostAzureBastionModelV1 `tfsdk:"azure_bastion"`
+	JumpHost       *azureBastionHostJumpHostModelV1     `tfsdk:"jump_host"`
+	Label          types.String                         `tfsdk:"label"`
+	State          types.String                         `tfsdk:"state"`
+}
+
 func (r *azureBastionHost) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
 	return map[int64]resource.StateUpgrader{
 		0: {
@@ -271,11 +325,71 @@ func (r *azureBastionHost) UpgradeState(ctx context.Context) map[int64]resource.
 				upgraded := azureBastionHostModel{
 					SubscriptionId: prior.SubscriptionId,
 					AzureBastion: &azureBastionHostAzureBastionModel{
-						BastionId:        prior.BastionId,
-						RoleDefinitionId: prior.RoleDefinitionId.ValueString(),
+						BastionId:            prior.BastionId,
+						StandardAccessRoleId: prior.RoleDefinitionId.ValueString(),
+						// No prior value for the sudo role; leave it empty so the next
+						// apply plans a replacement once the customer supplies it.
+						AdminAccessRoleId: "",
 					},
 					Label: prior.Label,
 					State: prior.State,
+				}
+				resp.Diagnostics.Append(resp.State.Set(ctx, &upgraded)...)
+			},
+		},
+		1: {
+			PriorSchema: &schema.Schema{
+				Attributes: map[string]schema.Attribute{
+					"subscription_id": schema.StringAttribute{Required: true},
+					"azure_bastion": schema.SingleNestedAttribute{
+						Optional: true,
+						Attributes: map[string]schema.Attribute{
+							"bastion_id":         schema.StringAttribute{Required: true},
+							"role_definition_id": schema.StringAttribute{Required: true},
+						},
+					},
+					"jump_host": schema.SingleNestedAttribute{
+						Optional: true,
+						Attributes: map[string]schema.Attribute{
+							"virtual_machine_id": schema.StringAttribute{Required: true},
+							"role_definition_id": schema.StringAttribute{Required: true},
+							"ip":                 schema.StringAttribute{Computed: true},
+						},
+					},
+					"label": schema.StringAttribute{Computed: true},
+					"state": common.StateAttribute,
+				},
+			},
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				var prior azureBastionHostModelV1
+				resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+
+				upgraded := azureBastionHostModel{
+					SubscriptionId: prior.SubscriptionId,
+					Label:          prior.Label,
+					State:          prior.State,
+				}
+				// The old role_definition_id was the role granted to connecting users,
+				// so it maps onto standard_access_role_id. There is no prior value for
+				// the sudo role, so leave admin_access_role_id empty; the next apply
+				// plans a replacement once the customer supplies it.
+				if prior.AzureBastion != nil {
+					upgraded.AzureBastion = &azureBastionHostAzureBastionModel{
+						BastionId:            prior.AzureBastion.BastionId,
+						StandardAccessRoleId: prior.AzureBastion.RoleDefinitionId,
+						AdminAccessRoleId:    "",
+					}
+				}
+				if prior.JumpHost != nil {
+					upgraded.JumpHost = &azureBastionHostJumpHostModel{
+						VirtualMachineId:     prior.JumpHost.VirtualMachineId,
+						StandardAccessRoleId: prior.JumpHost.RoleDefinitionId,
+						AdminAccessRoleId:    "",
+						Ip:                   prior.JumpHost.Ip,
+					}
 				}
 				resp.Diagnostics.Append(resp.State.Set(ctx, &upgraded)...)
 			},
@@ -341,14 +455,16 @@ func (r *azureBastionHost) fromJson(ctx context.Context, diags *diag.Diagnostics
 			return nil
 		}
 		data.AzureBastion = &azureBastionHostAzureBastionModel{
-			BastionId:        jsonv.Bastion.BastionHost.BastionId,
-			RoleDefinitionId: jsonv.Bastion.RoleDefinitionId,
+			BastionId:            jsonv.Bastion.BastionHost.BastionId,
+			StandardAccessRoleId: jsonv.Bastion.StandardAccessRoleId,
+			AdminAccessRoleId:    jsonv.Bastion.AdminAccessRoleId,
 		}
 	case jumpHostType:
 		data.JumpHost = &azureBastionHostJumpHostModel{
-			VirtualMachineId: jsonv.Bastion.VirtualMachineId,
-			RoleDefinitionId: jsonv.Bastion.RoleDefinitionId,
-			Ip:               types.StringValue(jsonv.Bastion.Ip),
+			VirtualMachineId:     jsonv.Bastion.VirtualMachineId,
+			StandardAccessRoleId: jsonv.Bastion.StandardAccessRoleId,
+			AdminAccessRoleId:    jsonv.Bastion.AdminAccessRoleId,
+			Ip:                   types.StringValue(jsonv.Bastion.Ip),
 		}
 	default:
 		diags.AddError(
@@ -373,8 +489,9 @@ func (r *azureBastionHost) toJson(data any) any {
 	if datav.AzureBastion != nil {
 		return &bastionHostItemJson{
 			Bastion: bastionHostBastionJson{
-				Type:             azureBastionType,
-				RoleDefinitionId: datav.AzureBastion.RoleDefinitionId,
+				Type:                 azureBastionType,
+				StandardAccessRoleId: datav.AzureBastion.StandardAccessRoleId,
+				AdminAccessRoleId:    datav.AzureBastion.AdminAccessRoleId,
 				BastionHost: &bastionHostBastionHostRefJson{
 					Type:      singleBastionHostType,
 					BastionId: datav.AzureBastion.BastionId,
@@ -387,9 +504,10 @@ func (r *azureBastionHost) toJson(data any) any {
 		// `ip` is omitted; the backend resolves it from the VM at install time.
 		return &bastionHostItemJson{
 			Bastion: bastionHostBastionJson{
-				Type:             jumpHostType,
-				VirtualMachineId: datav.JumpHost.VirtualMachineId,
-				RoleDefinitionId: datav.JumpHost.RoleDefinitionId,
+				Type:                 jumpHostType,
+				VirtualMachineId:     datav.JumpHost.VirtualMachineId,
+				StandardAccessRoleId: datav.JumpHost.StandardAccessRoleId,
+				AdminAccessRoleId:    datav.JumpHost.AdminAccessRoleId,
 			},
 		}
 	}
@@ -440,6 +558,17 @@ func (s *azureBastionHost) Update(ctx context.Context, req resource.UpdateReques
 }
 
 func (s *azureBastionHost) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var data azureBastionHostModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if data.JumpHost != nil {
+		s.installer.Delete(ctx, &resp.Diagnostics, &req.State, &azureBastionHostModel{})
+		return
+	}
+
 	s.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &azureBastionHostModel{})
 }
 
