@@ -144,5 +144,5 @@ func (s *EntraApp) Update(ctx context.Context, req resource.UpdateRequest, resp 
 }
 
 func (s *EntraApp) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Empty(), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("client_id"), req, resp)
 }

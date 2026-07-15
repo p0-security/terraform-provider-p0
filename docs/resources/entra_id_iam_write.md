@@ -135,6 +135,7 @@ resource "azurerm_linux_function_app" "p0" {
   service_plan_id            = azurerm_service_plan.p0.id
   storage_account_name       = azurerm_storage_account.p0.name
   storage_account_access_key = azurerm_storage_account.p0.primary_access_key
+  https_only                 = true
 
   identity {
     type = "SystemAssigned"
