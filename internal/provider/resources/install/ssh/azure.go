@@ -25,31 +25,26 @@ const azurePrefix = "azure:"
 var _ resource.Resource = &sshAzureIamWrite{}
 var _ resource.ResourceWithConfigure = &sshAzureIamWrite{}
 var _ resource.ResourceWithImportState = &sshAzureIamWrite{}
+var _ resource.ResourceWithUpgradeState = &sshAzureIamWrite{}
 
 type sshAzureIamWrite struct {
 	installer *common.Install
 }
 
 type sshAzureIamWriteModel struct {
-	AdminAccessRoleId    types.String `tfsdk:"admin_access_role_id" json:"adminAccessRoleId,omitempty"`
-	BastionId            types.String `tfsdk:"bastion_id" json:"bastionId,omitempty"`
-	GroupKey             types.String `tfsdk:"group_key" json:"groupKey,omitempty"`
-	IsSudoEnabled        types.Bool   `tfsdk:"is_sudo_enabled" json:"isSudoEnabled,omitempty"`
-	Label                types.String `tfsdk:"label" json:"label,omitempty"`
-	SubscriptionId       types.String `tfsdk:"subscription_id" json:"subscriptionId,omitempty"`
-	StandardAccessRoleId types.String `tfsdk:"standard_access_role_id" json:"standardAccessRoleId,omitempty"`
-	State                types.String `tfsdk:"state" json:"state,omitempty"`
+	GroupKey       types.String `tfsdk:"group_key" json:"groupKey,omitempty"`
+	IsSudoEnabled  types.Bool   `tfsdk:"is_sudo_enabled" json:"isSudoEnabled,omitempty"`
+	Label          types.String `tfsdk:"label" json:"label,omitempty"`
+	SubscriptionId types.String `tfsdk:"subscription_id" json:"subscriptionId,omitempty"`
+	State          types.String `tfsdk:"state" json:"state,omitempty"`
 }
 
 type sshAzureIamWriteJson struct {
-	AdminAccessRoleId    *string `json:"adminAccessRoleId"`
-	BastionId            *string `json:"bastionId"`
-	GroupKey             *string `json:"groupKey"`
-	IsSudoEnabled        *bool   `json:"isSudoEnabled,omitempty"`
-	Label                *string `json:"label,omitempty"`
-	SubscriptionId       *string `json:"subscriptionId"`
-	StandardAccessRoleId *string `json:"standardAccessRoleId"`
-	State                string  `json:"state"`
+	GroupKey       *string `json:"groupKey"`
+	IsSudoEnabled  *bool   `json:"isSudoEnabled,omitempty"`
+	Label          *string `json:"label,omitempty"`
+	SubscriptionId *string `json:"subscriptionId"`
+	State          string  `json:"state"`
 }
 
 type sshAzureIamWriteApi struct {
@@ -66,18 +61,16 @@ func (*sshAzureIamWrite) Metadata(_ context.Context, req resource.MetadataReques
 
 func (*sshAzureIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A Microsoft Azure SSH installation. 
-		
-Installing SSH allows you to manage access to your virtual machines on Microsoft Azure.`,
+		// Version 1: the VM-access roles (`standard_access_role_id`, `admin_access_role_id`)
+		// and `bastion_id` moved to the `p0_azure_bastion_host` component and were removed
+		// from this resource (see UpgradeState).
+		Version: 1,
+		MarkdownDescription: `A Microsoft Azure SSH installation.
+
+Installing SSH allows you to manage access to your virtual machines on Microsoft Azure.
+
+The VM-access roles P0 assigns when access is requested, and the Azure Bastion host or jump host P0 connects through, are configured on the ` + "`p0_azure_bastion_host`" + ` component for the same subscription, not here.`,
 		Attributes: map[string]schema.Attribute{
-			"admin_access_role_id": schema.StringAttribute{
-				MarkdownDescription: `The ID of the Azure role that grants admin access to the virtual machines`,
-				Required:            true,
-			},
-			"bastion_id": schema.StringAttribute{
-				MarkdownDescription: `The ID of the Azure Bastion that provides secure RDP and SSH access to the virtual machines`,
-				Required:            true,
-			},
 			"group_key": schema.StringAttribute{
 				MarkdownDescription: `If present, virtual machines on Azure will be grouped by the value of this tag. Access can be requested, in one request, to all instances with a shared tag value`,
 				Optional:            true,
@@ -85,7 +78,7 @@ Installing SSH allows you to manage access to your virtual machines on Microsoft
 				Default:             stringdefault.StaticString(""),
 			},
 			"is_sudo_enabled": schema.BoolAttribute{
-				MarkdownDescription: `If true, users will be able to request sudo access to the instances`,
+				MarkdownDescription: `If true, users will be able to request sudo access to the instances. Sudo access is granted with the admin role configured on the p0_azure_bastion_host component.`,
 				Optional:            true,
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
@@ -101,13 +94,60 @@ Installing SSH allows you to manage access to your virtual machines on Microsoft
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"standard_access_role_id": schema.StringAttribute{
-				MarkdownDescription: `The ID of the Azure role that grants standard access to the virtual machines`,
-				Required:            true,
-			},
 			"state": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: common.StateMarkdownDescription,
+			},
+		},
+	}
+}
+
+// Schema version 0 additionally carried the VM-access roles and Bastion ID as required
+// inputs; version 1 removed them (they now live on `p0_azure_bastion_host`). Only the
+// retained fields are read from prior state.
+type sshAzureIamWriteModelV0 struct {
+	AdminAccessRoleId    types.String `tfsdk:"admin_access_role_id"`
+	BastionId            types.String `tfsdk:"bastion_id"`
+	GroupKey             types.String `tfsdk:"group_key"`
+	IsSudoEnabled        types.Bool   `tfsdk:"is_sudo_enabled"`
+	Label                types.String `tfsdk:"label"`
+	SubscriptionId       types.String `tfsdk:"subscription_id"`
+	StandardAccessRoleId types.String `tfsdk:"standard_access_role_id"`
+	State                types.String `tfsdk:"state"`
+}
+
+func (r *sshAzureIamWrite) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema: &schema.Schema{
+				Attributes: map[string]schema.Attribute{
+					"admin_access_role_id":    schema.StringAttribute{Required: true},
+					"bastion_id":              schema.StringAttribute{Required: true},
+					"group_key":               schema.StringAttribute{Optional: true, Computed: true},
+					"is_sudo_enabled":         schema.BoolAttribute{Optional: true, Computed: true},
+					"label":                   schema.StringAttribute{Computed: true},
+					"subscription_id":         schema.StringAttribute{Required: true},
+					"standard_access_role_id": schema.StringAttribute{Required: true},
+					"state":                   schema.StringAttribute{Computed: true},
+				},
+			},
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				var prior sshAzureIamWriteModelV0
+				resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+
+				// Drop the role/bastion fields; they are configured on
+				// p0_azure_bastion_host now.
+				upgraded := sshAzureIamWriteModel{
+					GroupKey:       prior.GroupKey,
+					IsSudoEnabled:  prior.IsSudoEnabled,
+					Label:          prior.Label,
+					SubscriptionId: prior.SubscriptionId,
+					State:          prior.State,
+				}
+				resp.Diagnostics.Append(resp.State.Set(ctx, &upgraded)...)
 			},
 		},
 	}
@@ -168,20 +208,6 @@ func (r *sshAzureIamWrite) fromJson(ctx context.Context, diags *diag.Diagnostics
 		data.IsSudoEnabled = types.BoolValue(*jsonv.IsSudoEnabled)
 	}
 
-	data.StandardAccessRoleId = types.StringNull()
-	if jsonv.StandardAccessRoleId != nil {
-		data.StandardAccessRoleId = types.StringValue(*jsonv.StandardAccessRoleId)
-	}
-
-	data.AdminAccessRoleId = types.StringNull()
-	if jsonv.AdminAccessRoleId != nil {
-		data.AdminAccessRoleId = types.StringValue(*jsonv.AdminAccessRoleId)
-	}
-	data.BastionId = types.StringNull()
-	if jsonv.BastionId != nil {
-		data.BastionId = types.StringValue(*jsonv.BastionId)
-	}
-
 	return &data
 }
 
@@ -206,21 +232,6 @@ func (r *sshAzureIamWrite) toJson(data any) any {
 	if !datav.IsSudoEnabled.IsNull() {
 		isSudoEnabled := datav.IsSudoEnabled.ValueBool()
 		json.IsSudoEnabled = &isSudoEnabled
-	}
-
-	if !datav.AdminAccessRoleId.IsNull() && !datav.AdminAccessRoleId.IsUnknown() {
-		adminAccessRoleId := datav.AdminAccessRoleId.ValueString()
-		json.AdminAccessRoleId = &adminAccessRoleId
-	}
-
-	if !datav.StandardAccessRoleId.IsNull() && !datav.StandardAccessRoleId.IsUnknown() {
-		standardAccessRoleId := datav.StandardAccessRoleId.ValueString()
-		json.StandardAccessRoleId = &standardAccessRoleId
-	}
-
-	if !datav.BastionId.IsNull() && !datav.BastionId.IsUnknown() {
-		bastionId := datav.BastionId.ValueString()
-		json.BastionId = &bastionId
 	}
 
 	// can omit state here as it's filled by the backend

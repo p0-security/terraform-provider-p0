@@ -206,7 +206,7 @@ func (s *azureJumpHost) Update(ctx context.Context, req resource.UpdateRequest, 
 }
 
 func (s *azureJumpHost) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	s.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &azureJumpHostModel{})
+	s.installer.Delete(ctx, &resp.Diagnostics, &req.State, &azureJumpHostModel{})
 }
 
 func (s *azureJumpHost) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

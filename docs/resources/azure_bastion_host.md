@@ -4,19 +4,21 @@ page_title: "p0_azure_bastion_host Resource - p0"
 subcategory: ""
 description: |-
   Registers how P0 connects to Azure VMs in a subscription to provision SSH access: through a managed Azure Bastion host, or through a customer-managed jump host VM. Configure exactly one of azure_bastion or jump_host.
+  Both options take the Azure role definition IDs P0 assigns to a connecting user: standard_access_role_id for standard (non-sudo) access and admin_access_role_id for sudo access. Point each at a built-in role (Azure's "Virtual Machine User Login" and "Virtual Machine Administrator Login" are the recommended defaults), an existing custom role, or a new one.
   In both cases, you must also:
   install the p0_azure resource,install the p0_azure_app resource,install the p0_azure_iam_write resource for the same subscription.
   To use azure_bastion, you must additionally:
-  install the p0_azure_bastion_host_staged resource,create an Azure Bastion host (e.g. via the azure_p0_bastion module),create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the azure_p0_roles module), using the staged resource's computed custom_role.
-  To use jump_host, the VM must have a public IP address on its primary network interface; P0 resolves and stores the IP at install time. You must also provide the role definition ID of the role granted to users connecting through the jump host (a built-in role, an existing custom role, or a new one with at least the required permissions — see the P0 setup instructions). No staged resource or Bastion host is needed. To let P0 terminate established jump host sessions when access is revoked, also install the p0_azure_jump_host management component.
+  install the p0_azure_bastion_host_staged resource,create an Azure Bastion host (e.g. via the azure_p0_bastion module),create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the azure_p0_roles module), using the staged resource's computed custom_role. P0 verifies this role by name, so its ID is not configured here.
+  To use jump_host, the VM must have a public IP address on its primary network interface; P0 resolves and stores the IP at install time. No staged resource or Bastion host is needed. To let P0 terminate established jump host sessions when access is revoked, also install the p0_azure_jump_host management component.
   See examples/resources/p0_azure_bastion_host/ for full chains.
   Example (after creating the Bastion and role in Azure):
   
   resource "p0_azure_bastion_host" "example" {
     subscription_id = p0_azure_bastion_host_staged.example.subscription_id
     azure_bastion = {
-      bastion_id         = module.azure_p0_bastion.bastion_resource_id
-      role_definition_id = module.azure_p0_roles.bastion_role_definition_id
+      bastion_id              = module.azure_p0_bastion.bastion_resource_id
+      standard_access_role_id = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
+      admin_access_role_id    = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
     }
   }
   
@@ -25,8 +27,9 @@ description: |-
   resource "p0_azure_bastion_host" "example" {
     subscription_id = local.subscription_id
     jump_host = {
-      virtual_machine_id = "/subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<name>"
-      role_definition_id = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
+      virtual_machine_id      = "/subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<name>"
+      standard_access_role_id = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
+      admin_access_role_id    = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
     }
   }
 ---
@@ -34,6 +37,8 @@ description: |-
 # p0_azure_bastion_host (Resource)
 
 Registers how P0 connects to Azure VMs in a subscription to provision SSH access: through a managed Azure Bastion host, or through a customer-managed jump host VM. Configure exactly one of `azure_bastion` or `jump_host`.
+
+Both options take the Azure role definition IDs P0 assigns to a connecting user: `standard_access_role_id` for standard (non-sudo) access and `admin_access_role_id` for sudo access. Point each at a built-in role (Azure's "Virtual Machine User Login" and "Virtual Machine Administrator Login" are the recommended defaults), an existing custom role, or a new one.
 
 In both cases, you must also:
 - install the `p0_azure` resource,
@@ -43,9 +48,9 @@ In both cases, you must also:
 To use `azure_bastion`, you must additionally:
 - install the `p0_azure_bastion_host_staged` resource,
 - create an Azure Bastion host (e.g. via the `azure_p0_bastion` module),
-- create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the `azure_p0_roles` module), using the staged resource's computed `custom_role`.
+- create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the `azure_p0_roles` module), using the staged resource's computed `custom_role`. P0 verifies this role by name, so its ID is not configured here.
 
-To use `jump_host`, the VM must have a public IP address on its primary network interface; P0 resolves and stores the IP at install time. You must also provide the role definition ID of the role granted to users connecting through the jump host (a built-in role, an existing custom role, or a new one with at least the required permissions — see the P0 setup instructions). No staged resource or Bastion host is needed. To let P0 terminate established jump host sessions when access is revoked, also install the `p0_azure_jump_host` management component.
+To use `jump_host`, the VM must have a public IP address on its primary network interface; P0 resolves and stores the IP at install time. No staged resource or Bastion host is needed. To let P0 terminate established jump host sessions when access is revoked, also install the `p0_azure_jump_host` management component.
 
 See `examples/resources/p0_azure_bastion_host/` for full chains.
 
@@ -57,8 +62,9 @@ Example (after creating the Bastion and role in Azure):
 resource "p0_azure_bastion_host" "example" {
   subscription_id = p0_azure_bastion_host_staged.example.subscription_id
   azure_bastion = {
-    bastion_id         = module.azure_p0_bastion.bastion_resource_id
-    role_definition_id = module.azure_p0_roles.bastion_role_definition_id
+    bastion_id              = module.azure_p0_bastion.bastion_resource_id
+    standard_access_role_id = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
+    admin_access_role_id    = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
   }
 }
 ```
@@ -69,8 +75,9 @@ Or, with a customer-managed jump host VM:
 resource "p0_azure_bastion_host" "example" {
   subscription_id = local.subscription_id
   jump_host = {
-    virtual_machine_id = "/subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<name>"
-    role_definition_id = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
+    virtual_machine_id      = "/subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<name>"
+    standard_access_role_id = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
+    admin_access_role_id    = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
   }
 }
 ```
@@ -85,13 +92,13 @@ locals {
   jump_host_subscription_id = "87654321-1234-1234-1234-123456789012"
   # From your Bastion deployment (for example module.azure_p0_bastion.bastion_resource_id)
   bastion_id = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/example/providers/Microsoft.Network/bastionHosts/example"
-  # From the Azure custom role you create from p0_azure_bastion_host_staged outputs, for example:
-  #   name             = p0_azure_bastion_host_staged.example.custom_role.name
-  #   description      = p0_azure_bastion_host_staged.example.custom_role.description
-  #   actions          = p0_azure_bastion_host_staged.example.custom_role.actions
-  #   assignable_scope = p0_azure_bastion_host_staged.example.custom_role.assignable_scope
-  # then pass azurerm_role_definition (or module) ID here:
-  bastion_role_definition_id = "/subscriptions/12345678-1234-1234-1234-123456789012/providers/Microsoft.Authorization/roleDefinitions/00000000-0000-0000-0000-000000000000"
+
+  # The VM-access roles P0 assigns to a connecting user. Point each at a
+  # built-in role, an existing custom role, or a new one. The built-in
+  # "Virtual Machine User Login" / "Virtual Machine Administrator Login" roles
+  # are the recommended defaults; their IDs are stable across every tenant.
+  vm_user_login_role_id  = "/providers/Microsoft.Authorization/roleDefinitions/fb879df8-f326-4884-b1cf-06f3ad86be52"
+  vm_admin_login_role_id = "/providers/Microsoft.Authorization/roleDefinitions/1c0163c0-47e6-4577-8991-ea5c82e286e4"
 }
 
 resource "p0_azure" "example" {
@@ -109,7 +116,9 @@ resource "p0_azure_iam_write" "example" {
 }
 
 # Option 1: a managed Azure Bastion host. Stage first to obtain the custom role
-# spec, create the role and Bastion in Azure, then register both IDs.
+# spec, create the P0 Bastion Host Management role and the Bastion in Azure, then
+# register the Bastion ID and the VM-access roles. P0 verifies the Bastion Host
+# Management role by name, so its ID is not passed here.
 resource "p0_azure_bastion_host_staged" "example" {
   depends_on = [
     p0_azure.example,
@@ -124,16 +133,17 @@ resource "p0_azure_bastion_host" "example" {
 
   subscription_id = p0_azure_bastion_host_staged.example.subscription_id
   azure_bastion = {
-    bastion_id         = local.bastion_id
-    role_definition_id = local.bastion_role_definition_id
+    bastion_id              = local.bastion_id
+    standard_access_role_id = local.vm_user_login_role_id
+    admin_access_role_id    = local.vm_admin_login_role_id
   }
 }
 
 # Option 2: a customer-managed jump host VM. No staged resource or Bastion host
 # is needed; the VM must have a public IP on its primary network interface,
-# which P0 resolves and stores at install time. role_definition_id is the role
-# granted to users connecting through the jump host (a built-in role, an
-# existing custom role, or a new one with at least the required permissions).
+# which P0 resolves and stores at install time. standard_access_role_id and
+# admin_access_role_id are the roles granted to users connecting through the
+# jump host (a built-in role, an existing custom role, or a new one).
 resource "p0_azure_iam_write" "jump_host_example" {
   depends_on      = [p0_azure_app.example]
   subscription_id = local.jump_host_subscription_id
@@ -144,8 +154,9 @@ resource "p0_azure_bastion_host" "jump_host_example" {
 
   subscription_id = local.jump_host_subscription_id
   jump_host = {
-    virtual_machine_id = "/subscriptions/87654321-1234-1234-1234-123456789012/resourceGroups/example/providers/Microsoft.Compute/virtualMachines/example"
-    role_definition_id = "/subscriptions/87654321-1234-1234-1234-123456789012/providers/Microsoft.Authorization/roleDefinitions/11111111-1111-1111-1111-111111111111"
+    virtual_machine_id      = "/subscriptions/87654321-1234-1234-1234-123456789012/resourceGroups/example/providers/Microsoft.Compute/virtualMachines/example"
+    standard_access_role_id = local.vm_user_login_role_id
+    admin_access_role_id    = local.vm_admin_login_role_id
   }
 }
 ```
@@ -175,8 +186,9 @@ resource "p0_azure_bastion_host" "jump_host_example" {
 
 Required:
 
+- `admin_access_role_id` (String) The Azure role definition ID granted to a user for sudo access to the target VM. Use a built-in role (Azure's "Virtual Machine Administrator Login" is the recommended default), an existing custom role, or a new one.
 - `bastion_id` (String) The full Azure resource ID of the Bastion host (e.g. from azure_p0_bastion.bastion_resource_id).
-- `role_definition_id` (String) The Azure role definition ID for the P0 Bastion Host Management role (e.g. from azure_p0_roles.bastion_role_definition_id).
+- `standard_access_role_id` (String) The Azure role definition ID granted to a user for standard (non-sudo) access through this Azure Bastion host, so they can reach and log in to the target VM. Use a built-in role (Azure's "Virtual Machine User Login" is the recommended default), an existing custom role, or a new one.
 
 
 <a id="nestedatt--jump_host"></a>
@@ -184,7 +196,8 @@ Required:
 
 Required:
 
-- `role_definition_id` (String) The Azure role definition ID of the role granted to users connecting through this jump host, so they can reach a target virtual machine. Use a built-in role, an existing custom role, or create a new one with at least the required permissions.
+- `admin_access_role_id` (String) The Azure role definition ID granted to a user for sudo access to the target VM. Use a built-in role (Azure's "Virtual Machine Administrator Login" is the recommended default), an existing custom role, or a new one.
+- `standard_access_role_id` (String) The Azure role definition ID granted to a user for standard (non-sudo) access through this jump host, so they can reach and log in to a target virtual machine. This role is scoped to jump-host management and can be smaller than the Bastion equivalent. Use a built-in role (Azure's "Virtual Machine User Login" is the recommended default), an existing custom role, or a new one.
 - `virtual_machine_id` (String) The Azure resource ID of the jump host VM, e.g. /subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<name>.
 
 Read-Only:

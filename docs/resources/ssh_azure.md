@@ -5,79 +5,32 @@ subcategory: ""
 description: |-
   A Microsoft Azure SSH installation.
   Installing SSH allows you to manage access to your virtual machines on Microsoft Azure.
+  The VM-access roles P0 assigns when access is requested, and the Azure Bastion host or jump host P0 connects through, are configured on the p0_azure_bastion_host component for the same subscription, not here.
 ---
 
 # p0_ssh_azure (Resource)
 
-A Microsoft Azure SSH installation. 
-		
+A Microsoft Azure SSH installation.
+
 Installing SSH allows you to manage access to your virtual machines on Microsoft Azure.
+
+The VM-access roles P0 assigns when access is requested, and the Azure Bastion host or jump host P0 connects through, are configured on the `p0_azure_bastion_host` component for the same subscription, not here.
 
 ## Example Usage
 
 ```terraform
 locals {
   subscription_id = "12345678-1234-1234-1234-123456789012"
-  bastion_id      = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/sample-resource-group/providers/Microsoft.Network/bastionHosts/sample-bastion"
-
 }
 
-provider "azurerm" {
-  features {}
-  subscription_id = local.subscription_id
-}
-
-resource "azurerm_role_definition" "vm_admin_access" {
-  name        = "Virtual Machine Administrator Access"
-  scope       = "/subscriptions/${local.subscription_id}"
-  description = "Grants a user read access to virtual machines and Sudo SSH access"
-
-  permissions {
-    actions = [
-      "Microsoft.Compute/virtualMachines/read",
-      "Microsoft.Network/networkInterfaces/read",
-      "Microsoft.Network/bastionHosts/read"
-    ]
-    data_actions = [
-      "Microsoft.Compute/virtualMachines/loginAsAdmin/action",
-      "Microsoft.Compute/virtualMachines/login/action"
-    ]
-  }
-
-  assignable_scopes = [
-    "/subscriptions/${local.subscription_id}"
-  ]
-}
-
-resource "azurerm_role_definition" "vm_standard_access" {
-  name        = "Virtual Machine Standard Access"
-  scope       = "/subscriptions/${local.subscription_id}"
-  description = "Grants a user read access to virtual machines and SSH access"
-
-  permissions {
-    actions = [
-      "Microsoft.Compute/virtualMachines/read",
-      "Microsoft.Network/networkInterfaces/read",
-      "Microsoft.Network/bastionHosts/read"
-    ]
-    data_actions = [
-      "Microsoft.Compute/virtualMachines/login/action"
-    ]
-  }
-
-  assignable_scopes = [
-    "/subscriptions/${local.subscription_id}"
-  ]
-}
-
+# The VM-access roles P0 assigns, and the Azure Bastion host or jump host P0
+# connects through, are configured on the p0_azure_bastion_host component for
+# the same subscription — not on this resource. Install p0_azure_bastion_host
+# (and its prerequisites) before requesting access.
 resource "p0_ssh_azure" "example" {
-  depends_on              = [azurerm_role_definition.vm_admin_access, azurerm_role_definition.vm_standard_access]
-  admin_access_role_id    = azurerm_role_definition.vm_admin_access.role_definition_resource_id
-  standard_access_role_id = azurerm_role_definition.vm_standard_access.role_definition_resource_id
-  is_sudo_enabled         = true
-  group_key               = "resource-group"
-  bastion_id              = local.bastion_id
-  subscription_id         = local.subscription_id
+  subscription_id = local.subscription_id
+  is_sudo_enabled = true
+  group_key       = "resource-group"
 }
 ```
 
@@ -86,15 +39,12 @@ resource "p0_ssh_azure" "example" {
 
 ### Required
 
-- `admin_access_role_id` (String) The ID of the Azure role that grants admin access to the virtual machines
-- `bastion_id` (String) The ID of the Azure Bastion that provides secure RDP and SSH access to the virtual machines
-- `standard_access_role_id` (String) The ID of the Azure role that grants standard access to the virtual machines
 - `subscription_id` (String) The Azure Subscription ID
 
 ### Optional
 
 - `group_key` (String) If present, virtual machines on Azure will be grouped by the value of this tag. Access can be requested, in one request, to all instances with a shared tag value
-- `is_sudo_enabled` (Boolean) If true, users will be able to request sudo access to the instances
+- `is_sudo_enabled` (Boolean) If true, users will be able to request sudo access to the instances. Sudo access is granted with the admin role configured on the p0_azure_bastion_host component.
 
 ### Read-Only
 
