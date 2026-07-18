@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -147,6 +146,7 @@ Each ` + "`p0_postgres_legacy`" + ` resource manages access to a single database
 										path.MatchRelative().AtParent().AtName("resource_id"),
 										path.MatchRelative().AtParent().AtName("instance"),
 										path.MatchRelative().AtParent().AtName("hostname"),
+										path.MatchRelative().AtParent().AtName("port"),
 										path.MatchRelative().AtParent().AtName("connectivity"),
 									),
 								),
@@ -201,9 +201,12 @@ Each ` + "`p0_postgres_legacy`" + ` resource manages access to a single database
 						MarkdownDescription: `(rds only) The public hostname/endpoint of the RDS instance`,
 					},
 					"port": schema.StringAttribute{
-						Optional:            true,
-						Computed:            true,
-						Default:             stringdefault.StaticString(PostgresLegacyDefaultPort),
+						Optional: true,
+						Computed: true,
+						// No schema-level default: a static default would also apply to
+						// cloud-sql plans, whose API items never carry a port, producing
+						// an inconsistent result after apply. The rds default is applied
+						// in toJson instead.
 						MarkdownDescription: `(rds only) The port on which the PostgreSQL instance is listening (defaults to 5432)`,
 						Validators: []validator.String{
 							stringvalidator.RegexMatches(PortRegex, "Must be a valid port number (1-65535)"),
@@ -351,7 +354,16 @@ func (r *PostgresLegacy) toJson(data any) any {
 			installType.ResourceId = datav.InstallType.ResourceId.ValueStringPointer()
 			installType.Instance = datav.InstallType.Instance.ValueStringPointer()
 			installType.Hostname = datav.InstallType.Hostname.ValueStringPointer()
-			installType.Port = datav.InstallType.Port.ValueStringPointer()
+
+			// Default the port here rather than in the schema so that cloud-sql
+			// plans (which never carry a port) are not assigned one. Sending the
+			// default also keeps the stored value a string; the backend's own
+			// fallback would store it as a number.
+			port := PostgresLegacyDefaultPort
+			if !datav.InstallType.Port.IsNull() && !datav.InstallType.Port.IsUnknown() {
+				port = datav.InstallType.Port.ValueString()
+			}
+			installType.Port = &port
 
 			if datav.InstallType.Connectivity != nil {
 				connectivity := postgresLegacyConnectivityJson{
