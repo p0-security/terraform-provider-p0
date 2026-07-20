@@ -1,14 +1,17 @@
-
 locals {
-  management_group_id = "my-management-group"
-  # The tenant or directory ID for the Azure Installation
+  # The tenant or directory ID for the Azure installation.
   directory_id = "12345678-1234-1234-1234-123456789012"
-  # The billing subscription ID
+  # The subscription P0 will manage IAM grants in.
   subscription_id = "12345678-1234-1234-1234-123456789012"
 }
 
 provider "azuread" {
   tenant_id = local.directory_id
+}
+
+provider "azurerm" {
+  features {}
+  subscription_id = local.subscription_id
 }
 
 data "azuread_application_published_app_ids" "well_known" {}
@@ -17,78 +20,103 @@ data "azuread_service_principal" "msgraph" {
   client_id = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
 }
 
-provider "azurerm" {
-  features {}
-  subscription_id = local.subscription_id
-}
-
-resource "azurerm_role_definition" "p0_service_management" {
-  name        = "P0 Service Management"
-  scope       = "/providers/Microsoft.Management/managementGroups/${local.management_group_id}"
-  description = "Gives P0 Access to manage access to virtual machines"
-
-  permissions {
-    actions = [
-      "Microsoft.Management/managementGroups/read",
-      "Microsoft.Management/managementGroups/subscriptions/read",
-      "Microsoft.Authorization/roleAssignments/write",
-      "Microsoft.Authorization/roleAssignments/delete",
-      "Microsoft.Authorization/roleAssignments/read",
-    ]
-  }
-
-  assignable_scopes = [
-    "/providers/Microsoft.Management/managementGroups/${local.management_group_id}"
-  ]
-}
-
-resource "azuread_application_registration" "example" {
-  display_name = "my-terraform-app"
-}
-
+# 1. Register the P0 Azure integration for the tenant.
 resource "p0_azure" "example" {
-  depends_on   = [azuread_application_registration.example]
   directory_id = local.directory_id
 }
 
-resource "azuread_application_federated_identity_credential" "p0_integration" {
-  depends_on     = [p0_azure.example, azuread_application_registration.example]
-  application_id = azuread_application_registration.example.id
-  display_name   = "P0Integration"
-  description    = "P0 integration with Azure"
-  issuer         = "https://accounts.google.com"
-  subject        = p0_azure.example.service_account_id
-  audiences      = ["api://AzureADTokenExchange"]
+# 2. Create the P0 app registration. Stage it to obtain the app name and
+#    federated-credential parameters, create the Azure AD application and its
+#    federated identity credential, then complete the install with
+#    p0_azure_app. See examples/resources/p0_azure_app_staged/ for details.
+resource "p0_azure_app_staged" "example" {
+  depends_on = [p0_azure.example]
 }
 
-resource "azuread_service_principal" "example" {
-  depends_on = [azuread_application_registration.example]
-  client_id  = azuread_application_registration.example.client_id
+resource "azuread_application_registration" "p0" {
+  display_name = p0_azure_app_staged.example.app_name
 }
 
-# P0 verifies the User.Read.All Microsoft Graph permission when installing
-# the IAM management integration; it is used to resolve access-request
-# principals to Entra ID users.
+resource "azuread_service_principal" "p0" {
+  client_id  = azuread_application_registration.p0.client_id
+  depends_on = [azuread_application_registration.p0]
+}
+
+# P0 verifies the User.Read.All Microsoft Graph permission when installing the
+# IAM management integration; it is used to resolve access-request principals
+# to Entra ID users.
 resource "azuread_application_api_access" "msgraph_user_read_all" {
-  application_id = azuread_application_registration.example.id
+  application_id = azuread_application_registration.p0.id
   api_client_id  = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
 
   role_ids = [
     data.azuread_service_principal.msgraph.app_role_ids["User.Read.All"],
   ]
 
-  depends_on = [azuread_application_registration.example]
+  depends_on = [azuread_application_registration.p0]
 }
 
-# Grants admin consent for the User.Read.All permission
+# Grants admin consent for the User.Read.All permission.
 resource "azuread_app_role_assignment" "msgraph_user_read_all_consent" {
   app_role_id         = data.azuread_service_principal.msgraph.app_role_ids["User.Read.All"]
-  principal_object_id = azuread_service_principal.example.object_id
+  principal_object_id = azuread_service_principal.p0.object_id
   resource_object_id  = data.azuread_service_principal.msgraph.object_id
 
   depends_on = [
-    azuread_service_principal.example,
+    azuread_service_principal.p0,
     azuread_application_api_access.msgraph_user_read_all,
   ]
 }
 
+resource "azuread_application_federated_identity_credential" "p0" {
+  depends_on     = [p0_azure.example, p0_azure_app_staged.example, azuread_application_registration.p0]
+  application_id = azuread_application_registration.p0.id
+  display_name   = p0_azure_app_staged.example.credential_info.name
+  description    = p0_azure_app_staged.example.credential_info.description
+  issuer         = p0_azure_app_staged.example.credential_info.issuer
+  audiences      = p0_azure_app_staged.example.credential_info.audiences
+  subject        = p0_azure.example.service_account_id
+}
+
+resource "p0_azure_app" "example" {
+  depends_on = [
+    azuread_application_federated_identity_credential.p0,
+    azuread_app_role_assignment.msgraph_user_read_all_consent,
+  ]
+  client_id = azuread_application_registration.p0.client_id
+}
+
+# 3. Stage the IAM-write install to obtain the custom role P0 needs to manage
+#    role assignments in the subscription.
+resource "p0_azure_iam_write_staged" "example" {
+  depends_on      = [p0_azure_app.example]
+  subscription_id = local.subscription_id
+}
+
+# 4. Create that custom role from the staged spec and assign it to P0's service
+#    principal, so P0 can assign and remove roles in the subscription.
+resource "azurerm_role_definition" "p0_iam_management" {
+  name              = p0_azure_iam_write_staged.example.custom_role.name
+  description       = p0_azure_iam_write_staged.example.custom_role.description
+  scope             = p0_azure_iam_write_staged.example.custom_role.assignable_scope
+  assignable_scopes = [p0_azure_iam_write_staged.example.custom_role.assignable_scope]
+
+  permissions {
+    actions = p0_azure_iam_write_staged.example.custom_role.actions
+  }
+}
+
+resource "azurerm_role_assignment" "p0_iam_management" {
+  scope              = p0_azure_iam_write_staged.example.custom_role.assignable_scope
+  role_definition_id = azurerm_role_definition.p0_iam_management.role_definition_resource_id
+  principal_id       = azuread_service_principal.p0.object_id
+
+  # To constrain P0 to specific roles or principals, apply the staged
+  # custom_role.condition here (with condition_version = "2.0") when it is set.
+}
+
+# 5. Complete the IAM-write install once the role assignment exists.
+resource "p0_azure_iam_write" "example" {
+  depends_on      = [azurerm_role_assignment.p0_iam_management]
+  subscription_id = local.subscription_id
+}
