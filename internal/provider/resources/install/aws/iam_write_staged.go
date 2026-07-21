@@ -39,9 +39,11 @@ type AwsPartition struct {
 
 type awsIamWriteStagedApi struct {
 	Item struct {
-		Label        *string       `json:"label"`
-		State        *string       `json:"state"`
-		AwsPartition *AwsPartition `json:"awsPartition"`
+		Label *string `json:"label"`
+		State *string `json:"state"`
+		// omitempty: the backend rejects a null awsPartition but defaults an
+		// absent one, and an unset partition is null in the Terraform config.
+		AwsPartition *AwsPartition `json:"awsPartition,omitempty"`
 	} `json:"item"`
 	Metadata struct {
 		InlinePolicy     string `json:"inlinePolicy"`
@@ -165,6 +167,8 @@ func (r *AwsIamWriteStaged) fromJson(ctx context.Context, diags *diag.Diagnostic
 
 	if jsonv.Item.AwsPartition != nil && jsonv.Item.AwsPartition.Type != nil {
 		data.Partition = types.StringValue(*jsonv.Item.AwsPartition.Type)
+	} else {
+		data.Partition = types.StringValue("aws")
 	}
 
 	data.ServiceAccountId = types.StringValue(jsonv.Metadata.ServiceAccountId)
@@ -218,8 +222,14 @@ func (r *AwsIamWriteStaged) Create(ctx context.Context, req resource.CreateReque
 	var json awsIamWriteStagedApi
 	var data awsIamWriteStagedModel
 
+	// Read the user's config: only user-supplied values are sent. Fields unset
+	// in config (e.g. partition) must be omitted from the request entirely —
+	// the backend rejects explicit nulls but applies defaults for absent fields.
 	var inputData awsIamWriteStagedModel
-	req.Config.Get(ctx, &inputData)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &inputData)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	inputJson, ok := r.toJson(&inputData).(*awsIamWriteStagedApi)
 	if !ok {
 		// TODO throw?
@@ -241,7 +251,10 @@ func (r *AwsIamWriteStaged) Update(ctx context.Context, req resource.UpdateReque
 	var data awsIamWriteStagedModel
 
 	var inputData awsIamWriteStagedModel
-	req.Config.Get(ctx, &inputData)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &inputData)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	inputJson, ok := r.toJson(&inputData).(*awsIamWriteStagedApi)
 	if !ok {
 		// TODO throw?

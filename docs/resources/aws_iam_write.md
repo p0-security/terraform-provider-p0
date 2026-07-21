@@ -101,13 +101,16 @@ Required:
 - `type` (String) One of:
     - 'iam': Users log in as IAM users; 'identity' attribute is required
     - 'idc': Users log in via Identity Center (formerly 'SSO'); 'parent' and 'identity' attributes are required
+    - 'merged-idc': Users log in via Identity Center using a single shared permission set per principal; requires a
+       separately installed AWS Identity Center (merged) integration (see the 'aws_midc' resource); 'parent' attribute is required
     - 'federated': Users log in via a federated identity provider; 'provider' attribute is required
 
 Optional:
 
 - `identity` (Attributes) How user identities are mapped. When login type is 'iam', valid identity types are 'email' and 'tag'.
-    When login type is 'idc', valid identity types are 'user' (default, username is email) and 'email' (match by IDC email). (see [below for nested schema](#nestedatt--login--identity))
-- `parent` (String) Identity Center parent account ID
+    When login type is 'idc', valid identity types are 'user' (default, username is email) and 'email' (match by IDC email).
+    May not be used when login type is 'merged-idc' (identity mapping is configured on the 'aws_midc' resource instead). (see [below for nested schema](#nestedatt--login--identity))
+- `parent` (String) The ID of the AWS account that contains the Identity Center instance (used by the 'idc' and 'merged-idc' login types)
 - `provider` (Attributes) Federated login provider details (see [below for nested schema](#nestedatt--login--provider))
 
 <a id="nestedatt--login--identity"></a>

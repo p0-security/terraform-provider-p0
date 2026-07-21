@@ -36,9 +36,11 @@ type AwsMidcStaged struct {
 
 type awsMidcStagedApi struct {
 	Item struct {
-		Label        *string                  `json:"label"`
-		State        *string                  `json:"state"`
-		AwsPartition *installaws.AwsPartition `json:"awsPartition"`
+		Label *string `json:"label"`
+		State *string `json:"state"`
+		// omitempty: the backend rejects a null awsPartition but defaults an
+		// absent one, and an unset partition is null in the Terraform config.
+		AwsPartition *installaws.AwsPartition `json:"awsPartition,omitempty"`
 		IdcRegion    *string                  `json:"idcRegion"`
 	} `json:"item"`
 	Metadata struct {
@@ -168,6 +170,8 @@ func (r *AwsMidcStaged) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 
 	if jsonv.Item.AwsPartition != nil && jsonv.Item.AwsPartition.Type != nil {
 		data.Partition = types.StringValue(*jsonv.Item.AwsPartition.Type)
+	} else {
+		data.Partition = types.StringValue("aws")
 	}
 
 	if jsonv.Item.IdcRegion != nil {
@@ -230,10 +234,14 @@ func (r *AwsMidcStaged) Create(ctx context.Context, req resource.CreateRequest, 
 	var json awsMidcStagedApi
 	var data awsMidcStagedModel
 
-	// Read from the plan, not the config: schema defaults (e.g. partition) are
-	// only applied to the plan, and the backend rejects a null awsPartition.
+	// Read the user's config: only user-supplied values are sent. Fields unset
+	// in config (e.g. partition) must be omitted from the request entirely —
+	// the backend rejects explicit nulls but applies defaults for absent fields.
 	var inputData awsMidcStagedModel
-	req.Plan.Get(ctx, &inputData)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &inputData)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	inputJson, ok := r.toJson(&inputData).(*awsMidcStagedApi)
 	if !ok {
 		return
@@ -254,7 +262,10 @@ func (r *AwsMidcStaged) Update(ctx context.Context, req resource.UpdateRequest, 
 	var data awsMidcStagedModel
 
 	var inputData awsMidcStagedModel
-	req.Plan.Get(ctx, &inputData)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &inputData)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	inputJson, ok := r.toJson(&inputData).(*awsMidcStagedApi)
 	if !ok {
 		return
