@@ -22,6 +22,7 @@ import (
 	installdatadog "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/datadog"
 	installsplunk "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/splunk"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
+	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
 	installfiletransfer "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/file_transfer"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
@@ -155,6 +156,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installaws.NewIamWriteStagedAws,
 		installaws.NewAwsInventory,
 		installaws.NewAwsInventoryStaged,
+		installawsmidc.NewAwsMidc,
+		installawsmidc.NewAwsMidcStaged,
 		installk8s.NewAwsKubernetes,
 		installk8s.NewKubernetesStagedAws,
 		installazure.NewAzure,
