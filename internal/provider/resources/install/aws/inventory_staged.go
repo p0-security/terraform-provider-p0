@@ -35,9 +35,11 @@ type AwsInventoryStaged struct {
 
 type awsInventoryStagedApi struct {
 	Item struct {
-		Label        *string       `json:"label"`
-		State        *string       `json:"state"`
-		AwsPartition *AwsPartition `json:"awsPartition"`
+		Label *string `json:"label"`
+		State *string `json:"state"`
+		// omitempty: the backend rejects a null awsPartition but defaults an
+		// absent one, and an unset partition is null in the Terraform config.
+		AwsPartition *AwsPartition `json:"awsPartition,omitempty"`
 	} `json:"item"`
 	Metadata struct {
 		InlinePolicy     string `json:"inlinePolicy"`
@@ -214,8 +216,14 @@ func (r *AwsInventoryStaged) Create(ctx context.Context, req resource.CreateRequ
 	var json awsInventoryStagedApi
 	var data awsInventoryStagedModel
 
+	// Read the user's config: only user-supplied values are sent. Fields unset
+	// in config (e.g. partition) must be omitted from the request entirely —
+	// the backend rejects explicit nulls but applies defaults for absent fields.
 	var inputData awsInventoryStagedModel
-	req.Config.Get(ctx, &inputData)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &inputData)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	inputJson, ok := r.toJson(&inputData).(*awsInventoryStagedApi)
 	if !ok {
 		return
@@ -236,7 +244,10 @@ func (r *AwsInventoryStaged) Update(ctx context.Context, req resource.UpdateRequ
 	var data awsInventoryStagedModel
 
 	var inputData awsInventoryStagedModel
-	req.Config.Get(ctx, &inputData)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &inputData)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	inputJson, ok := r.toJson(&inputData).(*awsInventoryStagedApi)
 	if !ok {
 		return

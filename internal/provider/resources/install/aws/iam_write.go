@@ -150,6 +150,8 @@ resource "p0_aws_iam_write" "installed_account" {
 						MarkdownDescription: `One of:
     - 'iam': Users log in as IAM users; 'identity' attribute is required
     - 'idc': Users log in via Identity Center (formerly 'SSO'); 'parent' and 'identity' attributes are required
+    - 'merged-idc': Users log in via Identity Center using a single shared permission set per principal; requires a
+       separately installed AWS Identity Center (merged) integration (see the 'aws_midc' resource); 'parent' attribute is required
     - 'federated': Users log in via a federated identity provider; 'provider' attribute is required`,
 						Validators: []validator.String{
 							stringvalidator.AnyWithAllWarnings(
@@ -167,6 +169,15 @@ resource "p0_aws_iam_write" "installed_account" {
 									),
 								),
 								stringvalidator.All(
+									stringvalidator.OneOf("merged-idc"),
+									stringvalidator.AlsoRequires(
+										path.MatchRelative().AtParent().AtName("parent"),
+									),
+									stringvalidator.ConflictsWith(
+										path.MatchRelative().AtParent().AtName("identity"),
+									),
+								),
+								stringvalidator.All(
 									stringvalidator.OneOf("federated"),
 									stringvalidator.AlsoRequires(
 										path.MatchRelative().AtParent().AtName("provider"),
@@ -178,7 +189,8 @@ resource "p0_aws_iam_write" "installed_account" {
 					"identity": schema.SingleNestedAttribute{
 						Optional: true,
 						MarkdownDescription: `How user identities are mapped. When login type is 'iam', valid identity types are 'email' and 'tag'.
-    When login type is 'idc', valid identity types are 'user' (default, username is email) and 'email' (match by IDC email).`,
+    When login type is 'idc', valid identity types are 'user' (default, username is email) and 'email' (match by IDC email).
+    May not be used when login type is 'merged-idc' (identity mapping is configured on the 'aws_midc' resource instead).`,
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								Required: true,
@@ -215,7 +227,7 @@ resource "p0_aws_iam_write" "installed_account" {
 					},
 					"parent": schema.StringAttribute{
 						Optional:            true,
-						MarkdownDescription: `Identity Center parent account ID`,
+						MarkdownDescription: `The ID of the AWS account that contains the Identity Center instance (used by the 'idc' and 'merged-idc' login types)`,
 						Validators: []validator.String{
 							stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("provider")),
 							stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
