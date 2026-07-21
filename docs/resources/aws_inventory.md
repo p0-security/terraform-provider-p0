@@ -24,28 +24,24 @@ Create the AWS role using the attributes from p0_aws_inventory_staged, then crea
 ## Example Usage
 
 ```terraform
-# Stage the inventory component to compute the AWS role configuration that P0
-# needs to inventory this account's resources.
+# Stage: computes the AWS role config P0 needs to inventory this account.
 resource "p0_aws_inventory_staged" "example" {
   id = "123456789012"
 }
 
-# Create the IAM role P0 assumes. The trust policy already embeds the P0
-# service account (service_account_id), so no extra wiring is required.
+# Trust policy already embeds the P0 service account, so no extra wiring is needed.
 resource "aws_iam_role" "p0_inventory" {
   name               = p0_aws_inventory_staged.example.role.name
   assume_role_policy = p0_aws_inventory_staged.example.role.trust_policy
 }
 
-# Attach the read-only inventory permissions to that role.
 resource "aws_iam_role_policy" "p0_inventory" {
   name   = p0_aws_inventory_staged.example.role.inline_policy_name
   role   = aws_iam_role.p0_inventory.name
   policy = p0_aws_inventory_staged.example.role.inline_policy
 }
 
-# Finalize the install only after the role and its policy exist. P0 verifies it
-# can assume this role during apply, so the depends_on is required.
+# Install only after the role and policy exist; P0 assumes the role during apply.
 resource "p0_aws_inventory" "example" {
   id = p0_aws_inventory_staged.example.id
   depends_on = [

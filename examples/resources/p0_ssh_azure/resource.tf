@@ -1,35 +1,27 @@
 locals {
   subscription_id = "12345678-1234-1234-1234-123456789012"
 
-  # The Azure Bastion host P0 connects through, from your Bastion deployment
-  # (for example module.azure_p0_bastion.bastion_resource_id). Configured on the
-  # p0_azure_bastion_host component below, not on p0_ssh_azure.
+  # Azure Bastion host P0 connects through, from your Bastion deployment (e.g.
+  # module.azure_p0_bastion.bastion_resource_id). Set on p0_azure_bastion_host.
   bastion_id = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/example/providers/Microsoft.Network/bastionHosts/example"
 
-  # The VM-access roles P0 assigns to a connecting user. The built-in
-  # "Virtual Machine User Login" / "Virtual Machine Administrator Login" roles
-  # are the recommended defaults; their IDs are stable across every tenant.
+  # VM-access roles P0 assigns. Built-in "Virtual Machine User Login" /
+  # "Virtual Machine Administrator Login"; these IDs are the same in every tenant.
   vm_user_login_role_id  = "/providers/Microsoft.Authorization/roleDefinitions/fb879df8-f326-4884-b1cf-06f3ad86be52"
   vm_admin_login_role_id = "/providers/Microsoft.Authorization/roleDefinitions/1c0163c0-47e6-4577-8991-ea5c82e286e4"
 }
 
-# The SSH public key installed on the target VM's admin user.
 variable "target_vm_ssh_public_key" {
   type = string
 }
 
-# Targets the subscription being installed, for the target-VM blocks below.
 provider "azurerm" {
   features {}
   subscription_id = local.subscription_id
 }
 
-# --- P0 prerequisite chain -------------------------------------------------
-# p0_ssh_azure sits at the end of the Azure install chain. Install these first,
-# in order, for the same subscription. The VM-access roles P0 assigns and the
-# Azure Bastion host (or jump host) P0 connects through are configured on
-# p0_azure_bastion_host below, not on p0_ssh_azure.
-
+# P0 prerequisite chain: install these first, in order, for the same subscription.
+# p0_ssh_azure sits at the end.
 resource "p0_azure" "example" {
   directory_id = "12345678-1234-1234-1234-123456789012"
 }
@@ -44,12 +36,9 @@ resource "p0_azure_iam_write" "example" {
   subscription_id = local.subscription_id
 }
 
-# Stage the Bastion Host component to obtain the P0 Bastion Host Management role
-# spec, create that role and the Bastion in Azure, then register the Bastion ID
-# and VM-access roles below. The jump-host alternative, and creating the Bastion
-# and P0 role in Azure (azure_p0_bastion / azure_p0_roles modules, wired from the
-# staged resource's computed custom_role), are shown in full in
-# examples/resources/p0_azure_bastion_host/.
+# Stage to obtain the P0 Bastion Host Management role spec, create that role and
+# the Bastion in Azure, then register the Bastion ID and VM roles below. Jump-host
+# alternative and full wiring: examples/resources/p0_azure_bastion_host/.
 resource "p0_azure_bastion_host_staged" "example" {
   depends_on = [
     p0_azure.example,
@@ -70,13 +59,10 @@ resource "p0_azure_bastion_host" "example" {
   }
 }
 
-# --- Target VM the integration grants access to ----------------------------
-# This is the SSH example's own infra (the Bastion/jump-host connectivity infra
-# lives in examples/resources/p0_azure_bastion_host/). The Virtual Machine
-# User/Admin Login roles P0 assigns only grant SSH on VMs that have a
-# system-assigned managed identity and the AADSSHLoginForLinux extension, so the
-# target VM below is configured with both. Access flows through the Bastion, so
-# the VM needs only a private IP.
+# Target VM this integration grants access to. The VM User/Admin Login roles P0
+# assigns only grant SSH on VMs with a system-assigned managed identity and the
+# AADSSHLoginForLinux extension, so this VM has both. Access flows through the
+# Bastion, so it needs only a private IP.
 resource "azurerm_resource_group" "target" {
   name     = "p0-ssh-target"
   location = "eastus"
@@ -116,8 +102,7 @@ resource "azurerm_linux_virtual_machine" "target" {
   admin_username        = "azureuser"
   network_interface_ids = [azurerm_network_interface.target.id]
 
-  # AADSSHLoginForLinux authenticates SSH through Azure AD and requires the VM
-  # to have a managed identity.
+  # AADSSHLoginForLinux requires the VM to have a managed identity.
   identity {
     type = "SystemAssigned"
   }
@@ -132,8 +117,7 @@ resource "azurerm_linux_virtual_machine" "target" {
     storage_account_type = "Standard_LRS"
   }
 
-  # Ubuntu ships and enables sshd by default, satisfying the SSH-server
-  # requirement.
+  # Ubuntu ships and enables sshd by default (SSH-server requirement).
   source_image_reference {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-jammy"
@@ -141,16 +125,14 @@ resource "azurerm_linux_virtual_machine" "target" {
     version   = "latest"
   }
 
-  # group_key below is the name of the tag P0 groups VMs by; this VM's value for
-  # that tag ("production") is what a requester picks to get access to every VM
-  # sharing it.
+  # group_key names the tag P0 groups VMs by; a requester picks a tag VALUE
+  # ("production" here) to reach every VM sharing it.
   tags = {
     environment = "production"
   }
 }
 
-# Install the Azure AD login for Linux extension so the VM-access roles P0
-# assigns actually grant SSH on this VM.
+# Azure AD login for Linux extension, so the VM roles P0 assigns grant SSH here.
 resource "azurerm_virtual_machine_extension" "target_aad_login" {
   name                       = "AADSSHLoginForLinux"
   virtual_machine_id         = azurerm_linux_virtual_machine.target.id
@@ -160,12 +142,8 @@ resource "azurerm_virtual_machine_extension" "target_aad_login" {
   auto_upgrade_minor_version = true
 }
 
-# The VM-access roles P0 assigns when access is requested, and the Azure Bastion
-# host or jump host P0 connects through, are configured on the
-# p0_azure_bastion_host component for the same subscription — not on this
-# resource. group_key is the name of an Azure tag; VMs are grouped by that tag's
-# value, so a requester can, in one request, get access to every VM sharing a
-# value (here, all VMs tagged environment = "production").
+# VM-access roles and the Bastion/jump host P0 uses are configured on
+# p0_azure_bastion_host (same subscription), not here. group_key: see the VM tags.
 resource "p0_ssh_azure" "example" {
   depends_on = [
     p0_azure_bastion_host.example,

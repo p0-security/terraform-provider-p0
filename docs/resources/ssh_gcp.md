@@ -16,40 +16,29 @@ Installing SSH allows you to manage access to your servers on Google Cloud.
 ## Example Usage
 
 ```terraform
-# Installing SSH on Google Cloud lets P0 manage just-in-time access to your
-# Compute Engine instances. P0 grants access via OS Login and brokers the SSH
-# connection through Identity-Aware Proxy (IAP) tunneling.
+# SSH on Google Cloud = JIT access to Compute Engine instances. P0 grants access
+# via OS Login and brokers SSH through Identity-Aware Proxy (IAP) tunneling.
 #
-# Prerequisites:
-#   - The root `p0_gcp` organization install (below). See examples/resources/p0_gcp
-#     for the full root-install pattern.
-#   - The Google Cloud IAM-management install (`p0_gcp_iam_write`) for the project.
-#     The SSH install is layered on top of the project's `gcloud` iam-write
-#     integration and fails to configure unless that integration is already
-#     installed for the same project. The `p0_gcp_iam_write_staged` ->
-#     custom role + role bindings -> `p0_gcp_iam_write` chain below reproduces the
-#     pattern from examples/resources/p0_gcp_iam_write.
+# Prerequisites: the root p0_gcp org install (below; see examples/resources/p0_gcp)
+# and p0_gcp_iam_write for the project — SSH layers on the project's gcloud
+# iam-write integration and fails unless it's already installed for the same
+# project. The chain below reproduces examples/resources/p0_gcp_iam_write.
 
 resource "p0_gcp" "example" {
   organization_id = "123456789012"
 }
 
 locals {
-  # The Google Cloud project whose instances P0 manages SSH access to.
+  # Google Cloud project whose instances P0 manages SSH access to.
   project_id = "my-project-id"
 }
-
-# --- Prerequisite: the project must be connected to P0 via the GCP
-# IAM-management install. p0_ssh_gcp is keyed to this project's `gcloud`
-# iam-write integration, so this chain (p0_gcp_iam_write_staged -> custom role +
-# bindings -> p0_gcp_iam_write) is the P0 prerequisite for the SSH install. ---
 
 resource "p0_gcp_iam_write_staged" "example" {
   project    = local.project_id
   depends_on = [p0_gcp.example]
 }
 
-# This custom role is required for P0 to manage IAM grants in your project.
+# Custom role required for P0 to manage IAM grants in your project.
 resource "google_project_iam_custom_role" "example" {
   project     = local.project_id
   role_id     = p0_gcp_iam_write_staged.example.custom_role.id
@@ -64,15 +53,14 @@ resource "google_project_iam_member" "example_custom_role" {
   member  = "serviceAccount:${p0_gcp.example.service_account_email}"
 }
 
-# The predefined role is required for P0 to grant resource-level access.
+# Predefined role required for P0 to grant resource-level access.
 resource "google_project_iam_member" "example_predefined_role" {
   project = local.project_id
   role    = p0_gcp_iam_write_staged.example.predefined_role
   member  = "serviceAccount:${p0_gcp.example.service_account_email}"
 }
 
-# Completes the GCP IAM-management integration. Must be installed _after_ the P0
-# service account is granted the roles above.
+# Completes the GCP IAM-management integration; install after the grants above.
 resource "p0_gcp_iam_write" "example" {
   project = local.project_id
   depends_on = [
@@ -81,8 +69,7 @@ resource "p0_gcp_iam_write" "example" {
   ]
 }
 
-# An example Compute Engine instance managed by this integration. P0 grants SSH
-# via OS Login, so instances must have OS Login enabled.
+# Example instance. P0 grants SSH via OS Login, so instances must enable OS Login.
 resource "google_compute_instance" "example" {
   name         = "p0-ssh-example"
   project      = local.project_id
@@ -103,9 +90,8 @@ resource "google_compute_instance" "example" {
     enable-oslogin = "TRUE"
   }
 
-  # `group_key` (below) groups instances by the value of this label, so access
-  # can be requested to all instances sharing a label value in one request. The
-  # label KEY here ("p0-group") is the part after the "/" in group_key.
+  # group_key groups instances by this label's VALUE; the label KEY ("p0-group")
+  # is the part after the "/" in group_key.
   labels = {
     p0-group = "dev-servers"
   }
@@ -128,9 +114,8 @@ resource "google_compute_firewall" "allow_iap_ssh" {
 resource "p0_ssh_gcp" "example" {
   project_id = local.project_id
 
-  # Google Cloud group keys must be formatted as "<project_id_or_org_id>/<key>".
-  # Instances are matched either by a resource-manager tag with this full key, or
-  # by an instance label named by the part after the "/" (here, "p0-group").
+  # group_key must be "<project_id_or_org_id>/<key>". Matched by a resource-manager
+  # tag with the full key, or an instance label named by the part after the "/".
   group_key       = "${local.project_id}/p0-group"
   is_sudo_enabled = true
 

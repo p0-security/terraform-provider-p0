@@ -1,6 +1,5 @@
-# Prerequisite: the account must already be installed via p0_aws_iam_write.
-# The p0-security/p0-rds-vpc/aws module grants the P0 IAM-management role the
-# VPC-scoped ec2/rds describe permissions the install verifier checks.
+# Requires the account already installed via p0_aws_iam_write; p0-security/p0-rds-vpc/aws grants
+# P0's IAM-management role the VPC-scoped ec2/rds describe perms the install verifier checks.
 module "aws_rds_vpc" {
   source  = "p0-security/p0-rds-vpc/aws"
   version = "0.1.3"

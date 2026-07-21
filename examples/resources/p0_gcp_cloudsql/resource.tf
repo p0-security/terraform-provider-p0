@@ -1,33 +1,24 @@
-# Installing GCP CloudSQL lets P0 manage just-in-time access to your CloudSQL
-# (PostgreSQL) instances (MySQL is not yet supported) using GCP IAM
-# authentication. P0 reaches your private instances through a Cloud Run
-# connector with direct VPC access.
-#
-# Prerequisites:
-#   - The root `p0_gcp` organization install (below).
-#   - The `p0_gcp_iam_write` install on the same project. Its full custom-role
-#     and service-account grant sub-chain lives in
-#     examples/resources/p0_gcp_iam_write/resource.tf.
+# Installs GCP CloudSQL JIT access via GCP IAM auth (PostgreSQL only; MySQL
+# unsupported), reached through a Cloud Run connector with direct VPC access.
+# Requires the root p0_gcp install plus p0_gcp_iam_write on the same project
+# (its custom-role and grant sub-chain: see the p0_gcp_iam_write example).
 
 resource "p0_gcp" "example" {
   organization_id = "123456789012"
 }
 
 locals {
-  # The Google Cloud project P0 manages. The staged and final CloudSQL installs
-  # must target the same project.
+  # Staged and final CloudSQL installs must target the same project.
   project = "my-project-id"
   region  = "us-west1"
 }
 
-# The CloudSQL install requires the `p0_gcp_iam_write` install. See the
-# p0_gcp_iam_write example for the staged-role and grant sub-chain it needs.
 resource "p0_gcp_iam_write" "example" {
   project    = local.project
   depends_on = [p0_gcp.example]
 }
 
-# Enable the Google Cloud APIs the connector and CloudSQL depend on.
+# APIs the connector and CloudSQL require.
 resource "google_project_service" "enable_services" {
   for_each = toset([
     "compute.googleapis.com",
@@ -41,12 +32,8 @@ resource "google_project_service" "enable_services" {
   disable_on_destroy = false
 }
 
-# The VPC and subnetwork the CloudSQL instances live on. The Cloud Run connector
-# is given direct VPC egress to this subnetwork so it can reach the instances.
-#
-# Direct VPC egress requires the Cloud Run service agent to have VPC access on
-# this network. This is usually configured by default, but in restricted orgs
-# you may need to grant it explicitly - see
+# VPC/subnet the instances live on; the connector gets direct VPC egress here.
+# Restricted orgs may need to grant the Cloud Run service agent VPC access:
 # https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc#direct-vpc-iam
 resource "google_compute_network" "example" {
   name                    = "p0-cloudsql-vpc"
@@ -62,8 +49,7 @@ resource "google_compute_subnetwork" "example" {
   ip_cidr_range = "10.0.0.0/24"
 }
 
-# Stage the installation to obtain the connector identifiers (service name and
-# service account) that the Cloud Run deployment below must use.
+# Stage the install to get the connector identifiers the Cloud Run deploy needs.
 resource "p0_gcp_cloudsql_staged" "example" {
   id         = google_compute_network.example.name
   project_id = local.project
@@ -71,10 +57,8 @@ resource "p0_gcp_cloudsql_staged" "example" {
   depends_on = [p0_gcp_iam_write.example]
 }
 
-# Deploy the P0 CloudSQL connector as a Cloud Run service with direct VPC egress
-# to the subnetwork staged above. The `p0-security/p0-connector/google` registry
-# module encapsulates the connector image, creates the connector's runtime
-# service account, and grants P0's service account the Cloud Run invoker role.
+# p0-security/p0-connector/google: deploys the connector image, creates its
+# runtime service account, and grants P0's SA the Cloud Run invoker role.
 module "gcp_cloudsql_vpc" {
   source  = "p0-security/p0-connector/google"
   version = "0.0.3"
@@ -91,9 +75,8 @@ module "gcp_cloudsql_vpc" {
   depends_on = [google_project_service.enable_services]
 }
 
-# The connector provisions IAM DB users through the CloudSQL Admin API, so its
-# service account needs roles/cloudsql.admin (roles/cloudsql.client is not
-# sufficient - it lacks cloudsql.users.create).
+# Needs cloudsql.admin, not cloudsql.client, to provision IAM DB users via the
+# CloudSQL Admin API (client lacks cloudsql.users.create).
 resource "google_project_iam_member" "connector_cloudsql_admin" {
   project    = local.project
   role       = "roles/cloudsql.admin"
@@ -101,7 +84,7 @@ resource "google_project_iam_member" "connector_cloudsql_admin" {
   depends_on = [module.gcp_cloudsql_vpc]
 }
 
-# The connector logs in to CloudSQL as this service account using IAM auth.
+# Lets the connector log in to CloudSQL as this SA via IAM auth.
 resource "google_project_iam_member" "connector_instance_user" {
   project    = local.project
   role       = "roles/cloudsql.instanceUser"
@@ -109,8 +92,7 @@ resource "google_project_iam_member" "connector_instance_user" {
   depends_on = [module.gcp_cloudsql_vpc]
 }
 
-# An example CloudSQL instance managed by this integration. IAM authentication
-# must be enabled so P0 can grant just-in-time database access, and the instance
+# IAM authentication must be on so P0 can grant JIT access, and the instance
 # must be reachable from the connector's VPC.
 resource "google_sql_database_instance" "example" {
   name                = "p0-cloudsql-example"
@@ -134,7 +116,7 @@ resource "google_sql_database_instance" "example" {
   }
 }
 
-# Register the connector's service account as an IAM database user on the instance.
+# Register the connector's SA as an IAM database user on the instance.
 resource "google_sql_user" "connector" {
   name       = trimsuffix(p0_gcp_cloudsql_staged.example.connector_service_account, ".gserviceaccount.com")
   instance   = google_sql_database_instance.example.name
@@ -143,8 +125,7 @@ resource "google_sql_user" "connector" {
   depends_on = [module.gcp_cloudsql_vpc]
 }
 
-# Complete the installation once the connector is deployed and reachable.
-# Creating this resource verifies that the connector is reachable.
+# Completes the install; creating it verifies the connector is reachable.
 resource "p0_gcp_cloudsql" "example" {
   id         = p0_gcp_cloudsql_staged.example.id
   project_id = p0_gcp_cloudsql_staged.example.project_id

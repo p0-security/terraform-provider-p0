@@ -1,9 +1,5 @@
-# Full MySQL (AWS RDS) installation chain.
-#
-# Install order: aws_rds_vpc module (VPC prerequisite) -> p0_aws_rds ->
-# p0_mysql_staged -> P0 MySQL connector modules -> p0_mysql (completes the
-# install). IAM database authentication is what P0's connector uses to broker
-# access, so the RDS instance must have it enabled.
+# Full MySQL (AWS RDS) install chain, in order: aws_rds_vpc module -> p0_aws_rds ->
+# p0_mysql_staged -> p0-connector/p0-db modules -> p0_mysql (completes it).
 
 locals {
   vpc_id = "vpc-0123456789abcdef0"
@@ -13,7 +9,6 @@ data "aws_caller_identity" "current" {}
 
 data "aws_region" "current" {}
 
-# Subnets in the target VPC, used for both the RDS instance and the connector.
 data "aws_subnets" "example" {
   filter {
     name   = "vpc-id"
@@ -21,10 +16,8 @@ data "aws_subnets" "example" {
   }
 }
 
-# ---------------------------------------------------------------------------
-# The RDS MySQL instance P0 governs. iam_database_authentication_enabled is
-# required: P0's connector authenticates to the database using IAM.
-# ---------------------------------------------------------------------------
+# The RDS MySQL instance P0 governs. iam_database_authentication_enabled is required:
+# the connector authenticates to the database via IAM.
 resource "aws_security_group" "mysql" {
   name        = "my-mysql-instance"
   description = "P0-governed MySQL instance"
@@ -50,12 +43,8 @@ resource "aws_db_instance" "mysql" {
   skip_final_snapshot                 = true
 }
 
-# ---------------------------------------------------------------------------
-# Prerequisite: prepare the instance's VPC for P0's RDS connector. This module
-# creates the rds-API VPC interface endpoints and grants the P0RoleIamManager
-# role the permissions the connector needs, and must run before the VPC is
-# registered as a P0 aws-rds integration.
-# ---------------------------------------------------------------------------
+# Prepares the VPC for P0's RDS connector (rds-API interface endpoints + P0RoleIamManager
+# permissions). Must run before the VPC is registered as an aws-rds integration.
 module "aws_rds_vpc" {
   source  = "p0-security/p0-rds-vpc/aws"
   version = "0.1.3"
@@ -64,10 +53,6 @@ module "aws_rds_vpc" {
   vpc_id        = local.vpc_id
 }
 
-# ---------------------------------------------------------------------------
-# Register the instance's VPC as a P0 aws-rds integration (see this resource's
-# description).
-# ---------------------------------------------------------------------------
 resource "p0_aws_rds" "example" {
   id         = local.vpc_id
   account_id = data.aws_caller_identity.current.account_id
@@ -75,10 +60,8 @@ resource "p0_aws_rds" "example" {
   depends_on = [module.aws_rds_vpc]
 }
 
-# ---------------------------------------------------------------------------
-# Stage the MySQL installation. connector_arn is computed by P0 and names the
-# Lambda connector deployed by the p0-connector module below.
-# ---------------------------------------------------------------------------
+# Stage the install. P0 computes hosting.connector_arn, which names the Lambda the
+# p0-connector module deploys below.
 resource "p0_mysql_staged" "example" {
   id = "my-mysql-instance"
   hosting = {
@@ -89,13 +72,8 @@ resource "p0_mysql_staged" "example" {
   depends_on = [p0_aws_rds.example]
 }
 
-# ---------------------------------------------------------------------------
-# Deploy P0's MySQL connector. P0 distributes the connector as a container
-# image; the p0-security/p0-connector/aws module creates the ECR repository,
-# pushes the image, provisions the container-image Lambda under the name P0
-# assigned in hosting.connector_arn, sets up the rds-API VPC interface
-# endpoints, and grants the P0RoleIamManager role permission to invoke it.
-# ---------------------------------------------------------------------------
+# Deploys P0's MySQL connector, distributed as a container image: builds the ECR
+# repo/image and provisions the Lambda under the name P0 set in hosting.connector_arn.
 module "p0_connector" {
   source  = "p0-security/p0-connector/aws"
   version = "0.5.1"
@@ -111,12 +89,8 @@ module "p0_connector" {
   connector_arn = p0_mysql_staged.example.hosting.connector_arn
 }
 
-# ---------------------------------------------------------------------------
-# Wire the connector to the governed instance: the p0-security/p0-db/aws module
-# grants the connector's Lambda execution role rds-db:connect on the
-# p0_iam_manager database user and opens the security-group path from the
-# connector to the instance on the MySQL port.
-# ---------------------------------------------------------------------------
+# Grants the connector's Lambda execution role rds-db:connect on the p0_iam_manager DB
+# user and opens the connector -> instance security-group path on the MySQL port.
 module "p0_mysql_install" {
   source  = "p0-security/p0-db/aws"
   version = "0.3.0"
@@ -127,20 +101,14 @@ module "p0_mysql_install" {
   lambda_execution_role_name  = reverse(split("/", reverse(split(":", module.p0_connector.lambda.role))[0]))[0]
 }
 
-# ---------------------------------------------------------------------------
-# Create the database user P0 authenticates as. These statements run inside the
-# database with the AWS IAM auth plugin (not manageable with the AWS Terraform
-# provider) and grant the privileges P0 verifies at install time:
-#
+# Create the DB user P0 authenticates as by running these in the database (AWS IAM auth
+# plugin; not manageable via the AWS provider). P0 verifies these privileges at install:
 #   CREATE USER p0_iam_manager IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
 #   GRANT CREATE USER, CREATE ROLE ON *.* TO p0_iam_manager;
 #   GRANT ROLE_ADMIN ON *.* TO p0_iam_manager;
 #   GRANT ALL PRIVILEGES ON `%`.* TO p0_iam_manager WITH GRANT OPTION;
-# ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# Complete the installation once the connector is deployed and wired up.
-# ---------------------------------------------------------------------------
+# Completes the install once the connector is deployed and wired up.
 resource "p0_mysql" "example" {
   id         = p0_mysql_staged.example.id
   port       = "3306"

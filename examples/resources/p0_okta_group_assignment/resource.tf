@@ -1,11 +1,9 @@
-# Stage the P0 Okta directory listing to generate the JWK that P0 uses to
-# authenticate to the Okta API.
+# P0 generates the JWK it authenticates to the Okta API with.
 resource "p0_okta_directory_listing_staged" "example" {
   domain = "example.okta.com"
 }
 
-# Create the Okta service application that P0 authenticates as, using the
-# P0-generated JWK for private-key-JWT authentication.
+# Service app P0 authenticates as, via the staged JWK.
 resource "okta_app_oauth" "p0_api_integration" {
   label                      = "P0 API Integration"
   type                       = "service"
@@ -23,8 +21,6 @@ resource "okta_app_oauth" "p0_api_integration" {
   }
 }
 
-# Grant the API scopes P0 needs to read the directory and manage group
-# membership.
 resource "okta_app_oauth_api_scope" "p0_api_integration_scopes" {
   app_id = okta_app_oauth.p0_api_integration.id
   issuer = "https://${p0_okta_directory_listing_staged.example.domain}"
@@ -34,7 +30,7 @@ resource "okta_app_oauth_api_scope" "p0_api_integration_scopes" {
   ]
 }
 
-# Finalize the directory listing install, wiring P0 to the Okta application.
+# Finalizes the directory-listing install.
 resource "p0_okta_directory_listing" "example" {
   depends_on = [
     okta_app_oauth_api_scope.p0_api_integration_scopes,
@@ -45,15 +41,13 @@ resource "p0_okta_directory_listing" "example" {
   jwk    = p0_okta_directory_listing_staged.example.jwk
 }
 
-# Grant the "Group Membership Administrator" admin role to the P0 application.
-# This role is required for P0 to manage Okta group membership.
+# GROUP_MEMBERSHIP_ADMIN role is required for P0 to manage Okta group membership.
 resource "okta_app_oauth_role_assignment" "p0_group_membership_admin_role_assignment" {
   type      = "GROUP_MEMBERSHIP_ADMIN"
   client_id = okta_app_oauth.p0_api_integration.client_id
 }
 
-# Install P0 for Okta group assignment. This requires the directory listing
-# install and the Group Membership Administrator role to already be in place.
+# Requires the directory-listing install and the GROUP_MEMBERSHIP_ADMIN role already in place.
 resource "p0_okta_group_assignment" "example" {
   depends_on = [
     p0_okta_directory_listing.example,

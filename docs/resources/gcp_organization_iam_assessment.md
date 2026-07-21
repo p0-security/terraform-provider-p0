@@ -29,7 +29,7 @@ resource "p0_gcp" "example" {
   organization_id = "123456789012"
 }
 
-# This role grants P0 access to analyze your organization's IAM configuration and asset inventory
+# Role granting P0 read of your org's IAM config and asset inventory.
 resource "google_organization_iam_custom_role" "example" {
   org_id      = p0_gcp.example.organization_id
   role_id     = "p0IamAuditor"
@@ -47,8 +47,7 @@ resource "google_organization_iam_member" "example" {
   member = "serviceAccount:${p0_gcp.example.service_account_email}"
 }
 
-# The `p0_gcp_organization_iam_assessment` resource will fail to validate unless it is installed
-# _after_ the P0 service account is granted the above role
+# p0_gcp_organization_iam_assessment fails validation unless installed after the grant above.
 resource "p0_gcp_organization_iam_assessment" "example" {
   depends_on = [google_organization_iam_member.example]
 }

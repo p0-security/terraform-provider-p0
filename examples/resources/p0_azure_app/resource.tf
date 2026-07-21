@@ -16,29 +16,25 @@ resource "p0_azure" "example" {
   directory_id = local.directory_id
 }
 
-# Stage the P0 app registration to obtain the app name and federated-credential
-# parameters. See examples/resources/p0_azure_app_staged/ for the full
-# explanation of the staged outputs.
+# Stage to obtain the app name and federated-credential parameters; see
+# examples/resources/p0_azure_app_staged/.
 resource "p0_azure_app_staged" "example" {
   depends_on = [p0_azure.example]
 }
 
-# Create the Azure AD application from the staged app name.
 resource "azuread_application_registration" "p0" {
   display_name = p0_azure_app_staged.example.app_name
 }
 
-# P0's app installer requires the application's service principal to exist in the
-# tenant: completing p0_azure_app acquires a token as the app and looks the
-# principal up by app ID, so the install fails if the service principal is absent.
+# p0_azure_app acquires a token as the app and looks up its service principal by
+# app ID, so the principal must exist before that install.
 resource "azuread_service_principal" "p0" {
   client_id  = azuread_application_registration.p0.client_id
   depends_on = [azuread_application_registration.p0]
 }
 
-# Grant and admin-consent the Microsoft Graph User.Read.All permission P0 uses to
-# resolve access-request principals to Entra ID users (verified later by
-# p0_azure_iam_write).
+# Microsoft Graph User.Read.All: resolves access-request principals to Entra ID
+# users; verified at the p0_azure_iam_write install.
 resource "azuread_application_api_access" "msgraph_user_read_all" {
   application_id = azuread_application_registration.p0.id
   api_client_id  = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
@@ -61,8 +57,7 @@ resource "azuread_app_role_assignment" "msgraph_user_read_all_consent" {
   ]
 }
 
-# Create the federated identity credential so P0 can authenticate as the app via
-# workload identity federation, using p0_azure.service_account_id as the subject.
+# Federated credential so P0 authenticates as the app via workload identity federation.
 resource "azuread_application_federated_identity_credential" "p0" {
   depends_on     = [p0_azure_app_staged.example, azuread_application_registration.p0]
   application_id = azuread_application_registration.p0.id
@@ -73,7 +68,6 @@ resource "azuread_application_federated_identity_credential" "p0" {
   subject        = p0_azure.example.service_account_id
 }
 
-# Complete the app install by pointing client_id at the new application.
 resource "p0_azure_app" "example" {
   depends_on = [
     azuread_application_federated_identity_credential.p0,

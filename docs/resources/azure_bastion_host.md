@@ -88,29 +88,24 @@ resource "p0_azure_bastion_host" "example" {
 locals {
   directory_id    = "12345678-1234-1234-1234-123456789012"
   subscription_id = "12345678-1234-1234-1234-123456789012"
-  # A subscription uses either an Azure Bastion host or a jump host, never both,
-  # so the jump host example below uses a second subscription.
+  # A subscription uses either a Bastion host or a jump host, never both; the jump host example uses a second subscription.
   jump_host_subscription_id = "87654321-1234-1234-1234-123456789012"
   # From your Bastion deployment (for example module.azure_p0_bastion.bastion_resource_id)
   bastion_id = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/example/providers/Microsoft.Network/bastionHosts/example"
 
-  # The VM-access roles P0 assigns to a connecting user. Point each at a
-  # built-in role, an existing custom role, or a new one. The built-in
-  # "Virtual Machine User Login" / "Virtual Machine Administrator Login" roles
-  # are the recommended defaults; their IDs are stable across every tenant.
+  # VM-access roles P0 assigns to a connecting user: a built-in role, an existing
+  # custom role, or a new one. The built-in "Virtual Machine User/Administrator
+  # Login" roles are the recommended defaults; their IDs are stable across tenants.
   vm_user_login_role_id  = "/providers/Microsoft.Authorization/roleDefinitions/fb879df8-f326-4884-b1cf-06f3ad86be52"
   vm_admin_login_role_id = "/providers/Microsoft.Authorization/roleDefinitions/1c0163c0-47e6-4577-8991-ea5c82e286e4"
 }
 
-# The SSH public key installed on the jump host's admin user.
 variable "jump_host_ssh_public_key" {
   type = string
 }
 
-# Only the jump host option below provisions Azure infrastructure through the
-# azurerm provider, so this provider targets the jump host's subscription. The
-# Azure Bastion option references an already-deployed Bastion by ID and needs no
-# azurerm resources here.
+# Only the jump host option provisions azurerm infrastructure, so this provider targets
+# the jump host's subscription; the Bastion option references an existing Bastion by ID.
 provider "azurerm" {
   features {}
   subscription_id = local.jump_host_subscription_id
@@ -129,8 +124,7 @@ resource "p0_azure_app" "example" {
   client_id  = "12345678-1234-1234-1234-123456789012"
 }
 
-# Resolve the object ID of P0's service principal so the Bastion Host Management
-# custom role can be assigned to it below.
+# P0's service principal object ID, for the Bastion role assignment below.
 data "azuread_service_principal" "p0" {
   client_id = p0_azure_app.example.client_id
 }
@@ -140,10 +134,9 @@ resource "p0_azure_iam_write" "example" {
   subscription_id = local.subscription_id
 }
 
-# Option 1: a managed Azure Bastion host. Stage first to obtain the custom role
-# spec, create the P0 Bastion Host Management role and the Bastion in Azure, then
-# register the Bastion ID and the VM-access roles. P0 verifies the Bastion Host
-# Management role by name, so its ID is not passed here.
+# Option 1: managed Azure Bastion host. Stage for the custom role spec, create the
+# P0 Bastion Host Management role and the Bastion, then register the Bastion ID and
+# VM-access roles. P0 verifies the role by name, so its ID isn't passed here.
 resource "p0_azure_bastion_host_staged" "example" {
   depends_on = [
     p0_azure.example,
@@ -153,9 +146,7 @@ resource "p0_azure_bastion_host_staged" "example" {
   subscription_id = local.subscription_id
 }
 
-# Create the P0 Bastion Host Management role from the staged spec and assign it
-# to P0's service principal. P0 verifies this role by name at install time, so
-# its definition ID is not passed to p0_azure_bastion_host below.
+# Create the Bastion Host Management role from the staged spec and assign it to P0's SP.
 resource "azurerm_role_definition" "p0_bastion" {
   name              = p0_azure_bastion_host_staged.example.custom_role.name
   description       = p0_azure_bastion_host_staged.example.custom_role.description
@@ -187,23 +178,18 @@ resource "p0_azure_bastion_host" "example" {
   }
 }
 
-# Option 2: a customer-managed jump host VM. No staged resource or Bastion host
-# is needed; the VM must have a public IP on its primary network interface,
-# which P0 resolves and stores at install time. standard_access_role_id and
-# admin_access_role_id are the roles granted to users connecting through the
-# jump host (a built-in role, an existing custom role, or a new one).
+# Option 2: customer-managed jump host VM (no staged resource or Bastion). The VM
+# must have a public IP on its primary NIC, which P0 resolves and stores at install.
+# standard/admin_access_role_id are the roles granted to users connecting through it.
 resource "p0_azure_iam_write" "jump_host_example" {
   depends_on      = [p0_azure_app.example]
   subscription_id = local.jump_host_subscription_id
 }
 
 # --- Jump host VM prerequisites ---
-# P0 reaches the jump host over its public IP and authenticates SSH sessions
-# through Azure IAM, so the VM must have:
-#   - a public IP address on its primary network interface,
-#   - the Azure AD login for Linux extension (AADSSHLoginForLinux), which in
-#     turn requires the VM to have a managed identity, and
-#   - a running SSH server. Ubuntu marketplace images ship sshd enabled.
+# P0 reaches the jump host over its public IP and authenticates SSH via Azure IAM,
+# so the VM needs: a public IP on its primary NIC; the AADSSHLoginForLinux extension
+# (requires a managed identity); and a running SSH server (Ubuntu ships sshd enabled).
 resource "azurerm_resource_group" "jump_host" {
   name     = "p0-jump-host"
   location = "eastus"
@@ -236,8 +222,7 @@ resource "azurerm_network_interface" "jump_host" {
   location            = azurerm_resource_group.jump_host.location
   resource_group_name = azurerm_resource_group.jump_host.name
 
-  # The public IP on the primary IP configuration is what P0 resolves at
-  # install time to reach the jump host.
+  # P0 resolves this primary-config public IP at install time to reach the jump host.
   ip_configuration {
     name                          = "primary"
     subnet_id                     = azurerm_subnet.jump_host.id
@@ -254,8 +239,7 @@ resource "azurerm_linux_virtual_machine" "jump_host" {
   admin_username        = "azureuser"
   network_interface_ids = [azurerm_network_interface.jump_host.id]
 
-  # AADSSHLoginForLinux authenticates SSH through Azure AD and requires the VM
-  # to have a managed identity.
+  # AADSSHLoginForLinux requires the VM to have a managed identity.
   identity {
     type = "SystemAssigned"
   }
@@ -270,8 +254,7 @@ resource "azurerm_linux_virtual_machine" "jump_host" {
     storage_account_type = "Standard_LRS"
   }
 
-  # Ubuntu ships and enables sshd by default, satisfying the SSH-server
-  # requirement.
+  # Ubuntu ships sshd enabled, satisfying the SSH-server requirement.
   source_image_reference {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-jammy"
@@ -280,8 +263,7 @@ resource "azurerm_linux_virtual_machine" "jump_host" {
   }
 }
 
-# Install the Azure AD login for Linux extension so P0 can authenticate SSH
-# sessions to the jump host through Azure IAM.
+# AADSSHLoginForLinux lets P0 authenticate SSH to the jump host via Azure IAM.
 resource "azurerm_virtual_machine_extension" "jump_host_aad_login" {
   name                       = "AADSSHLoginForLinux"
   virtual_machine_id         = azurerm_linux_virtual_machine.jump_host.id

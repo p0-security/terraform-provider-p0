@@ -1,6 +1,5 @@
-# Completes a MySQL (AWS RDS) installation. Set `id` to the same identifier used
-# when staging the install. See the p0_mysql_staged example for the full chain:
-# p0_aws_rds -> p0_mysql_staged -> P0 Lambda connector -> p0_mysql.
+# Completes a MySQL (AWS RDS) install; `id` must match the p0_mysql_staged id.
+# See the p0_mysql_staged example for the full install chain.
 resource "p0_mysql" "example" {
   id         = "my-mysql-instance"
   port       = "3306"
