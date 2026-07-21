@@ -141,6 +141,10 @@ resource "azurerm_role_assignment" "p0_iam_management" {
   role_definition_id = azurerm_role_definition.p0_iam_management.role_definition_resource_id
   principal_id       = azuread_service_principal.p0.object_id
 
+  # The service principal was just created and may not have propagated to
+  # Azure AD yet.
+  skip_service_principal_aad_check = true
+
   # To constrain P0 to specific roles or principals, apply the staged
   # custom_role.condition here (with condition_version = "2.0") when it is set.
 }
