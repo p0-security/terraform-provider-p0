@@ -36,7 +36,7 @@ website/vendor
 *.winfile eol=crlf
 
 # Do not commit manual testing
-examples/provider-install-verification
+examples/provider-*
 
 # Binary from go build
 terraform-provider-p0
