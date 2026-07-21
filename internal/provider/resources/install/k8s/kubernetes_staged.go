@@ -77,9 +77,12 @@ func (r *AwsKubernetesStaged) Schema(ctx context.Context, req resource.SchemaReq
 **Disclaimer**: This resource currently only supports installation against an AWS EKS cluster. Support for Azure, GCP, and self-hosted clusters will
 be added in a future release.
 		
-**Important**: This resource only initiates the installation process for a k8s integration. It is intended to be used in conjunction with the 
-'p0_kubernetes' resource, which completes the final steps of the installation. Before using this resource, please read the instructions 
-for the 'p0_kubernetes' resource.`,
+**Important**: This resource only initiates the installation process for a k8s integration. It is intended to be used in conjunction with the
+'p0_kubernetes' resource, which completes the final steps of the installation. Before using this resource, please read the instructions
+for the 'p0_kubernetes' resource.
+
+**Prerequisite**: The EKS cluster's AWS account must already be installed for P0 IAM management (for example via the 'p0_aws' resource) before this resource can be
+applied. The P0 backend resolves the AWS account from the cluster ARN and rejects the install if that account is not yet installed for IAM management.`,
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -91,8 +94,10 @@ for the 'p0_kubernetes' resource.`,
 				Computed: true,
 				Default:  stringdefault.StaticString("proxy"),
 				MarkdownDescription: `One of:
-	- 'proxy' (default): The integration will connect to the cluster via P0's proxy service. 
-	- 'public': The integration will connect to the cluster via the public internet`,
+	- 'proxy' (default): The integration will connect to the cluster via P0's proxy service.
+	- 'public': The integration will connect to the cluster via the public internet
+
+Note: 'proxy' is the Terraform provider's default; the P0 web UI defaults this to 'public'.`,
 				Validators: []validator.String{
 					stringvalidator.OneOf("public", "proxy"),
 				},

@@ -16,7 +16,7 @@ func prefixDescription(version int, description string) string {
 
 func DirectoryAttribute(version int) schema.StringAttribute {
 	return schema.StringAttribute{
-		MarkdownDescription: prefixDescription(version, `One of "azure-ad", "okta", or "workspace".`),
+		MarkdownDescription: prefixDescription(version, `One of "azure-ad", "entra-id", "okta", or "workspace".`),
 		Required:            true,
 	}
 }

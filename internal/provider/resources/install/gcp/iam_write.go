@@ -36,7 +36,7 @@ To use this resource, you must also:
 - install the ` + "`p0_gcp_iam_write_staged`" + ` resource
 - create a custom role allowing IAM-management operations,
 - grant this custom role to P0's service account,
-- grant the ` + "`iam.securityAdmin`" + ` role to P0's service account.
+- grant the predefined role reported by ` + "`p0_gcp_iam_write_staged`" + `'s ` + "`predefined_role`" + ` attribute to P0's service account (` + "`roles/iam.securityAdmin`" + ` for legacy installs; ` + "`roles/iam.securityReviewer`" + ` when the security perimeter is in use, in which case ` + "`roles/iam.securityAdmin`" + ` is granted to the security-perimeter service account instead).
 
 Use the read-only attributes defined on ` + "`p0_gcp_iam_write_staged`" + ` to create the requisite Google Cloud infrastructure.
 

@@ -1,4 +1,5 @@
 locals {
+  directory_id    = "12345678-1234-1234-1234-123456789012"
   subscription_id = "12345678-1234-1234-1234-123456789012"
   # A subscription uses either an Azure Bastion host or a jump host, never both,
   # so the jump host example below uses a second subscription.
@@ -28,13 +29,23 @@ provider "azurerm" {
   subscription_id = local.jump_host_subscription_id
 }
 
+provider "azuread" {
+  tenant_id = local.directory_id
+}
+
 resource "p0_azure" "example" {
-  directory_id = "12345678-1234-1234-1234-123456789012"
+  directory_id = local.directory_id
 }
 
 resource "p0_azure_app" "example" {
   depends_on = [p0_azure.example]
   client_id  = "12345678-1234-1234-1234-123456789012"
+}
+
+# Resolve the object ID of P0's service principal so the Bastion Host Management
+# custom role can be assigned to it below.
+data "azuread_service_principal" "p0" {
+  client_id = p0_azure_app.example.client_id
 }
 
 resource "p0_azure_iam_write" "example" {
@@ -55,8 +66,31 @@ resource "p0_azure_bastion_host_staged" "example" {
   subscription_id = local.subscription_id
 }
 
+# Create the P0 Bastion Host Management role from the staged spec and assign it
+# to P0's service principal. P0 verifies this role by name at install time, so
+# its definition ID is not passed to p0_azure_bastion_host below.
+resource "azurerm_role_definition" "p0_bastion" {
+  name              = p0_azure_bastion_host_staged.example.custom_role.name
+  description       = p0_azure_bastion_host_staged.example.custom_role.description
+  scope             = p0_azure_bastion_host_staged.example.custom_role.assignable_scope
+  assignable_scopes = [p0_azure_bastion_host_staged.example.custom_role.assignable_scope]
+
+  permissions {
+    actions = p0_azure_bastion_host_staged.example.custom_role.actions
+  }
+}
+
+resource "azurerm_role_assignment" "p0_bastion" {
+  scope              = p0_azure_bastion_host_staged.example.custom_role.assignable_scope
+  role_definition_id = azurerm_role_definition.p0_bastion.role_definition_resource_id
+  principal_id       = data.azuread_service_principal.p0.object_id
+}
+
 resource "p0_azure_bastion_host" "example" {
-  depends_on = [p0_azure_bastion_host_staged.example]
+  depends_on = [
+    p0_azure_bastion_host_staged.example,
+    azurerm_role_assignment.p0_bastion,
+  ]
 
   subscription_id = p0_azure_bastion_host_staged.example.subscription_id
   azure_bastion = {

@@ -15,15 +15,17 @@ description: |-
   resource "aws_iam_role" "p0_iam_manager" {
     name               = p0_aws_iam_write_staged.staged_account.role.name
     assume_role_policy = p0_aws_iam_write_staged.staged_account.role.trust_policy
-    inline_policy {
-      name   = p0_aws_iam_write_staged.staged_account.role.inline_policy_name
-      policy = p0_aws_iam_write_staged.staged_account.role.inline_policy
-    }
+  }
+  
+  resource "aws_iam_role_policy" "p0_iam_manager" {
+    name   = p0_aws_iam_write_staged.staged_account.role.inline_policy_name
+    role   = aws_iam_role.p0_iam_manager.name
+    policy = p0_aws_iam_write_staged.staged_account.role.inline_policy
   }
   
   resource "p0_aws_iam_write" "installed_account" {
-    id         = p0_aws_staged.staged_account.id
-    depends_on = [aws_iam_role.p0_iam_manager]
+    id         = p0_aws_iam_write_staged.staged_account.id
+    depends_on = [aws_iam_role_policy.p0_iam_manager]
     ...
   }
 ---
@@ -45,15 +47,17 @@ resource "p0_aws_iam_write_staged" "staged_account" {
 resource "aws_iam_role" "p0_iam_manager" {
   name               = p0_aws_iam_write_staged.staged_account.role.name
   assume_role_policy = p0_aws_iam_write_staged.staged_account.role.trust_policy
-  inline_policy {
-    name   = p0_aws_iam_write_staged.staged_account.role.inline_policy_name
-    policy = p0_aws_iam_write_staged.staged_account.role.inline_policy
-  }
+}
+
+resource "aws_iam_role_policy" "p0_iam_manager" {
+  name   = p0_aws_iam_write_staged.staged_account.role.inline_policy_name
+  role   = aws_iam_role.p0_iam_manager.name
+  policy = p0_aws_iam_write_staged.staged_account.role.inline_policy
 }
 
 resource "p0_aws_iam_write" "installed_account" {
-  id         = p0_aws_staged.staged_account.id
-  depends_on = [aws_iam_role.p0_iam_manager]
+  id         = p0_aws_iam_write_staged.staged_account.id
+  depends_on = [aws_iam_role_policy.p0_iam_manager]
   ...
 }
 ```
@@ -61,9 +65,43 @@ resource "p0_aws_iam_write" "installed_account" {
 ## Example Usage
 
 ```terraform
+# Stage the AWS account. This computes the role name, trust policy, and inline
+# policy that P0 requires to manage IAM in the account.
+#
+# GovCloud note: for an aws-us-gov account you must set `partition =
+# "aws-us-gov"` on BOTH this staged resource and the p0_aws_iam_write resource
+# below. The two partitions must match, or the install will fail.
+resource "p0_aws_iam_write_staged" "example" {
+  id = "123456789012"
+}
+
+# The IAM role that P0 assumes to manage IAM grants in your account. Its name and
+# trust policy come from the staged resource's computed outputs.
+resource "aws_iam_role" "p0_iam_manager" {
+  name               = p0_aws_iam_write_staged.example.role.name
+  assume_role_policy = p0_aws_iam_write_staged.example.role.trust_policy
+}
+
+# The inline policy that grants the role its IAM-management permissions. Attached
+# as a standalone resource (the aws_iam_role inline_policy block was removed in
+# AWS provider v6).
+resource "aws_iam_role_policy" "p0_iam_manager" {
+  name   = p0_aws_iam_write_staged.example.role.inline_policy_name
+  role   = aws_iam_role.p0_iam_manager.name
+  policy = p0_aws_iam_write_staged.example.role.inline_policy
+}
+
+# The `p0_aws_iam_write` resource will fail to validate unless it is installed
+# _after_ P0's role and its inline policy exist.
 resource "p0_aws_iam_write" "example" {
-  id         = p0_aws_staged.example.id
-  depends_on = [p0_aws_staged.example]
+  id         = p0_aws_iam_write_staged.example.id
+  depends_on = [aws_iam_role_policy.p0_iam_manager]
+
+  # How users log in to this AWS account. Alternatives to `iam`:
+  #   - type = "idc": Identity Center login; also set `parent` (the IDC account
+  #     ID) and an `identity` block.
+  #   - type = "federated": federated login; set a `provider` block instead of
+  #     `identity` (see the p0_aws_iam_write_staged example's federated.tf).
   login = {
     type = "iam"
     identity = {
@@ -108,7 +146,7 @@ Required:
 Optional:
 
 - `identity` (Attributes) How user identities are mapped. When login type is 'iam', valid identity types are 'email' and 'tag'.
-    When login type is 'idc', valid identity types are 'user' (default, username is email) and 'email' (match by IDC email).
+    When login type is 'idc', valid identity types are 'user' (username is email) and 'email' (match by IDC email).
     May not be used when login type is 'merged-idc' (identity mapping is configured on the 'aws_midc' resource instead). (see [below for nested schema](#nestedatt--login--identity))
 - `parent` (String) The ID of the AWS account that contains the Identity Center instance (used by the 'idc' and 'merged-idc' login types)
 - `provider` (Attributes) Federated login provider details (see [below for nested schema](#nestedatt--login--provider))

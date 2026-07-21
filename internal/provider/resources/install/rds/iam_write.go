@@ -59,7 +59,9 @@ func (*rdsIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, resp *re
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `An AWS RDS Installation.
 
-Installing RDS allows you to manage access to your RDS database instances using IAM authentication.`,
+Installing this resource allows P0 to manage access to Aurora and RDS instances in a VPC using IAM authentication.
+
+**Important:** The AWS account must first be installed in P0 (see the p0_aws_iam_write resource), and P0's access must be provisioned by applying the p0-security/p0-rds-vpc/aws Terraform module (aws_role_name = the P0 IAM-management role, vpc_id = this resource's id) before this install can verify.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				MarkdownDescription: `The VPC ID for the RDS installation`,

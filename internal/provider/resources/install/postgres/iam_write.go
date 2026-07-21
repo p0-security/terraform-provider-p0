@@ -58,9 +58,9 @@ func (*postgresIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, res
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A PostgreSQL Installation for AWS RDS.
 
-Installing PostgreSQL allows you to manage access to your PostgreSQL database instances using IAM authentication.
+Installing PostgreSQL allows you to manage access to your PostgreSQL database instances and clusters using IAM authentication.
 
-**Note:** This integration is currently experimental and only supports AWS RDS PostgreSQL instances.`,
+**Note:** This Terraform resource currently supports AWS RDS PostgreSQL instances and clusters.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				MarkdownDescription: `A unique identifier for this PostgreSQL installation (can be any string, e.g., "production-db" or "staging-postgres")`,

@@ -8,7 +8,7 @@ description: |-
   In both cases, you must also:
   install the p0_azure resource,install the p0_azure_app resource,install the p0_azure_iam_write resource for the same subscription.
   To use azure_bastion, you must additionally:
-  install the p0_azure_bastion_host_staged resource,create an Azure Bastion host (e.g. via the azure_p0_bastion module),create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the azure_p0_roles module), using the staged resource's computed custom_role. P0 verifies this role by name, so its ID is not configured here.
+  install the p0_azure_bastion_host_staged resource,create an Azure Bastion host (e.g. via the azure_p0_bastion module). The Bastion must use the Standard or Premium SKU, have native-client tunneling enabled (tunneling_enabled = true), and include an AzureBastionSubnet IP configuration; the install fails verification otherwise,create the P0 Bastion Host Management role from the staged resource's computed custom_role and assign it to the P0 service principal (e.g. via the p0_azure_bastion module). P0 verifies this role by name, so its ID is not configured here.
   To use jump_host, the VM must have a public IP address on its primary network interface; P0 resolves and stores the IP at install time. No staged resource or Bastion host is needed. To let P0 terminate established jump host sessions when access is revoked, also install the p0_azure_jump_host management component.
   See examples/resources/p0_azure_bastion_host/ for full chains.
   Example (after creating the Bastion and role in Azure):
@@ -47,8 +47,8 @@ In both cases, you must also:
 
 To use `azure_bastion`, you must additionally:
 - install the `p0_azure_bastion_host_staged` resource,
-- create an Azure Bastion host (e.g. via the `azure_p0_bastion` module),
-- create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the `azure_p0_roles` module), using the staged resource's computed `custom_role`. P0 verifies this role by name, so its ID is not configured here.
+- create an Azure Bastion host (e.g. via the `azure_p0_bastion` module). The Bastion must use the Standard or Premium SKU, have native-client tunneling enabled (`tunneling_enabled = true`), and include an `AzureBastionSubnet` IP configuration; the install fails verification otherwise,
+- create the P0 Bastion Host Management role from the staged resource's computed `custom_role` and assign it to the P0 service principal (e.g. via the `p0_azure_bastion` module). P0 verifies this role by name, so its ID is not configured here.
 
 To use `jump_host`, the VM must have a public IP address on its primary network interface; P0 resolves and stores the IP at install time. No staged resource or Bastion host is needed. To let P0 terminate established jump host sessions when access is revoked, also install the `p0_azure_jump_host` management component.
 
@@ -86,6 +86,7 @@ resource "p0_azure_bastion_host" "example" {
 
 ```terraform
 locals {
+  directory_id    = "12345678-1234-1234-1234-123456789012"
   subscription_id = "12345678-1234-1234-1234-123456789012"
   # A subscription uses either an Azure Bastion host or a jump host, never both,
   # so the jump host example below uses a second subscription.
@@ -115,13 +116,23 @@ provider "azurerm" {
   subscription_id = local.jump_host_subscription_id
 }
 
+provider "azuread" {
+  tenant_id = local.directory_id
+}
+
 resource "p0_azure" "example" {
-  directory_id = "12345678-1234-1234-1234-123456789012"
+  directory_id = local.directory_id
 }
 
 resource "p0_azure_app" "example" {
   depends_on = [p0_azure.example]
   client_id  = "12345678-1234-1234-1234-123456789012"
+}
+
+# Resolve the object ID of P0's service principal so the Bastion Host Management
+# custom role can be assigned to it below.
+data "azuread_service_principal" "p0" {
+  client_id = p0_azure_app.example.client_id
 }
 
 resource "p0_azure_iam_write" "example" {
@@ -142,8 +153,31 @@ resource "p0_azure_bastion_host_staged" "example" {
   subscription_id = local.subscription_id
 }
 
+# Create the P0 Bastion Host Management role from the staged spec and assign it
+# to P0's service principal. P0 verifies this role by name at install time, so
+# its definition ID is not passed to p0_azure_bastion_host below.
+resource "azurerm_role_definition" "p0_bastion" {
+  name              = p0_azure_bastion_host_staged.example.custom_role.name
+  description       = p0_azure_bastion_host_staged.example.custom_role.description
+  scope             = p0_azure_bastion_host_staged.example.custom_role.assignable_scope
+  assignable_scopes = [p0_azure_bastion_host_staged.example.custom_role.assignable_scope]
+
+  permissions {
+    actions = p0_azure_bastion_host_staged.example.custom_role.actions
+  }
+}
+
+resource "azurerm_role_assignment" "p0_bastion" {
+  scope              = p0_azure_bastion_host_staged.example.custom_role.assignable_scope
+  role_definition_id = azurerm_role_definition.p0_bastion.role_definition_resource_id
+  principal_id       = data.azuread_service_principal.p0.object_id
+}
+
 resource "p0_azure_bastion_host" "example" {
-  depends_on = [p0_azure_bastion_host_staged.example]
+  depends_on = [
+    p0_azure_bastion_host_staged.example,
+    azurerm_role_assignment.p0_bastion,
+  ]
 
   subscription_id = p0_azure_bastion_host_staged.example.subscription_id
   azure_bastion = {

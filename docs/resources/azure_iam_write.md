@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   An installation of P0, on a single Microsoft Azure Cloud Subscription, for IAM management.
   To use this resource, you must also:
-  create an app registration in Azure for P0,create federated credentials for P0 to communicate with Azure through the app registration,create a custom role allowing IAM operations,assign this custom role to P0's app registration at the subscription level,(optional) constraint role assignment to specific roles or principals,install the p0_azure resource,install the p0_azure_app resource,install the p0_azure_iam_write_staged resource,
+  create an app registration in Azure for P0,create federated credentials for P0 to communicate with Azure through the app registration,create a custom role allowing IAM operations,assign this custom role to P0's app registration at the subscription level,(optional) constrain role assignment to specific roles or principals,install the p0_azure resource,install the p0_azure_app resource,install the p0_azure_iam_write_staged resource,
   See the example usage for the recommended pattern to define this infrastructure.
 ---
 
@@ -18,7 +18,7 @@ To use this resource, you must also:
 - create federated credentials for P0 to communicate with Azure through the app registration,
 - create a custom role allowing IAM operations,
 - assign this custom role to P0's app registration at the subscription level,
-- (optional) constraint role assignment to specific roles or principals,
+- (optional) constrain role assignment to specific roles or principals,
 - install the `p0_azure` resource,
 - install the `p0_azure_app` resource,
 - install the `p0_azure_iam_write_staged` resource,
@@ -145,8 +145,11 @@ resource "azurerm_role_assignment" "p0_iam_management" {
   # Azure AD yet.
   skip_service_principal_aad_check = true
 
-  # To constrain P0 to specific roles or principals, apply the staged
-  # custom_role.condition here (with condition_version = "2.0") when it is set.
+  # Prevent P0 from assigning or revoking roles for its own service principal,
+  # blocking privilege escalation. P0 always returns this ABAC condition in the
+  # staged custom_role.
+  condition         = p0_azure_iam_write_staged.example.custom_role.condition
+  condition_version = "2.0"
 }
 
 # 5. Complete the IAM-write install once the role assignment exists.

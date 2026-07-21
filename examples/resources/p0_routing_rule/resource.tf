@@ -1,6 +1,13 @@
+# Prerequisites (must already exist in the P0 app before this rule resolves):
+# - the referenced Okta directory group, exposed via an installed Okta directory
+#   listing integration (see the p0_okta_directory_listing example),
+# - the "aws" integration (see the p0_aws_iam_write example), and
+# - the PagerDuty integration, connected in the P0 app (not managed via Terraform).
 resource "p0_routing_rule" "example" {
+  name = "okta-aws-developers-oncall"
   requestor = {
-    type = "group"
+    type   = "group"
+    effect = "keep"
     groups = [{
       directory = "okta"
       id        = "00abcdefghijklmno697"

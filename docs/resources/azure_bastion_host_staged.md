@@ -7,7 +7,7 @@ description: |-
   This resource is only needed for the azure_bastion option of p0_azure_bastion_host; jump host installs (the jump_host option) need no custom role and skip this resource.
   To use this resource, you must also:
   install the p0_azure resource,install the p0_azure_app resource,install the p0_azure_iam_write resource for the same subscription.
-  Read custom_role (name, description, actions, assignable_scope) when defining an azurerm_role_definition or equivalent, assign it to the P0 service principal, deploy Bastion, then pass the Bastion ARM ID and role definition ID in the azure_bastion attribute of p0_azure_bastion_host.
+  Read custom_role (name, description, actions, assignable_scope) when defining an azurerm_role_definition or equivalent, assign it to the P0 service principal, deploy Bastion, then register with p0_azure_bastion_host, passing the Bastion ARM ID plus the standard/admin VM-access role definition IDs in the azure_bastion attribute (the Bastion Host Management role is verified by name and is not configured there).
   Example:
   
   resource "p0_azure_bastion_host_staged" "example" {
@@ -32,7 +32,7 @@ To use this resource, you must also:
 - install the `p0_azure_app` resource,
 - install the `p0_azure_iam_write` resource for the same subscription.
 
-Read `custom_role` (name, description, actions, assignable_scope) when defining an `azurerm_role_definition` or equivalent, assign it to the P0 service principal, deploy Bastion, then pass the Bastion ARM ID and role definition ID in the `azure_bastion` attribute of `p0_azure_bastion_host`.
+Read `custom_role` (name, description, actions, assignable_scope) when defining an `azurerm_role_definition` or equivalent, assign it to the P0 service principal, deploy Bastion, then register with `p0_azure_bastion_host`, passing the Bastion ARM ID plus the standard/admin VM-access role definition IDs in the `azure_bastion` attribute (the Bastion Host Management role is verified by name and is not configured there).
 
 
 Example:
@@ -201,7 +201,7 @@ Read-Only:
 
 - `actions` (List of String) The actions allowed for the Azure custom role.
 - `assignable_scope` (String) The assignable scope of the Azure custom role.
-- `condition` (String) The condition of the Azure custom role assignment, if any.
+- `condition` (String) Always empty for the Bastion Host Management role, which has no ABAC condition. (This attribute exists only because the resource reuses the IAM-write role metadata shape.)
 - `description` (String) The description of the Azure custom role.
 - `is_custom` (Boolean) Indicates if the role is a custom role.
 - `name` (String) The name of the Azure custom role.

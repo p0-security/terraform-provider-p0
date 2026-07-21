@@ -1,9 +1,45 @@
-resource "p0_gcp_security_perimeter_staged" "p0-dev-account" {
-  project = local.dev_project_id
-  region  = var.location
+# The P0 Security Perimeter deploys a Cloud Run service that enforces a
+# security boundary around the access P0 grants in your Google Cloud project.
+#
+# Install order (mirrors the p0-terraform-install modules): install the security
+# perimeter first, then `p0_gcp_iam_write`. The security perimeter does NOT
+# require an existing `p0_gcp_iam_write` install.
+#
+# Every Google Cloud project that installs `p0_gcp_iam_write` while the perimeter
+# is in use must grant the security-perimeter service account the `p0IamWriter`
+# custom role and `roles/iam.securityAdmin` on the managed project (see the
+# grants below).
+#
+# The security perimeter must be enabled for your P0 organization. If the staged
+# resource returns a 404, contact P0 support to enable the feature.
+
+resource "p0_gcp" "example" {
+  organization_id = "123456789012"
 }
 
-# Enable iam and cloud run services
+locals {
+  # The Google Cloud project P0 manages. The staged and final security-perimeter
+  # installs must target the same project.
+  project = "my-project-id"
+  region  = "us-west1"
+
+  # The P0 production environment project. The Cloud Run service uses this to
+  # authenticate callers from P0; it is not your own project.
+  p0_project_id = "p0-prod"
+
+  # Regex of email domains allowed to invoke the security-perimeter service.
+  allowed_domain_pattern = ".*@example[.]com"
+}
+
+# Stage the security perimeter to obtain the role metadata, allowed domains, and
+# image digest that the infrastructure below must match.
+resource "p0_gcp_security_perimeter_staged" "example" {
+  project    = local.project
+  region     = local.region
+  depends_on = [p0_gcp.example]
+}
+
+# Enable the Google Cloud APIs the security perimeter depends on.
 resource "google_project_service" "enable_services" {
   for_each = toset([
     "cloudasset.googleapis.com",
@@ -13,35 +49,41 @@ resource "google_project_service" "enable_services" {
     "run.googleapis.com",
   ])
   service            = each.key
-  project            = var.project_id
+  project            = local.project
   disable_on_destroy = false
 }
 
-# Create the service account for the p0 security perimeter
+# Runtime identity for the security-perimeter Cloud Run service.
 resource "google_service_account" "p0_security_perimeter_sa" {
   account_id   = "p0-security-perimeter-sa"
   display_name = "P0 Security Perimeter Service Account"
-  description  = "Service account to manage p0 security perimeter"
-  project      = var.project_id
+  description  = "Runtime identity for the P0 security perimeter Cloud Run service"
+  project      = local.project
 }
 
-# deploys p0 security perimeter cloud run service
+# Deploy the P0 security-perimeter Cloud Run service.
+#
+# This is a P0-proprietary connector image. The deployed image is pinned to the
+# digest the staged resource reports (`image_digest`); P0 verifies the deployed
+# image matches that digest exactly during install, so a floating tag such as
+# `:latest` will fail verification. GCLOUD_PROJECT points at the P0 production
+# environment project so the service can authenticate callers from P0.
 resource "google_cloud_run_service" "p0_security_perimeter" {
-  name     = "p0-security-perimeter-dev"
-  project  = var.project_id
-  location = var.location
+  name     = "p0-security-perimeter-prod"
+  project  = local.project
+  location = local.region
 
   template {
     spec {
       containers {
-        image = "docker.io/p0security/p0-security-perimeter-gcloud:sha-d8092dc"
+        image = "docker.io/p0security/p0-security-perimeter-gcloud:${p0_gcp_security_perimeter_staged.example.image_digest}"
         env {
           name  = "DOMAIN_ALLOW_PATTERN"
-          value = ".*@(p0[.]dev|nathanbrahmsp0[.]onmicrosoft[.]com|permz[.]us)"
+          value = local.allowed_domain_pattern
         }
         env {
           name  = "GCLOUD_PROJECT"
-          value = var.project_id
+          value = local.p0_project_id
         }
       }
       service_account_name = google_service_account.p0_security_perimeter_sa.email
@@ -49,51 +91,104 @@ resource "google_cloud_run_service" "p0_security_perimeter" {
   }
 }
 
-# Create the p0 security perimeter invoker role, this is assumed by p0 service account
+# Custom role, built from the staged metadata, that lets P0's service account
+# invoke the Cloud Run service.
 resource "google_project_iam_custom_role" "p0_security_perimeter_invoker_role" {
-  role_id     = p0_gcp_security_perimeter_staged.p0-dev-account.custom_role.id
-  title       = p0_gcp_security_perimeter_staged.p0-dev-account.custom_role.name
-  description = "P0 IAM cloud run invoker role"
-  project     = var.project_id
-  permissions = p0_gcp_security_perimeter_staged.p0-dev-account.required_permissions
+  project     = local.project
+  role_id     = p0_gcp_security_perimeter_staged.example.custom_role.id
+  title       = p0_gcp_security_perimeter_staged.example.custom_role.name
+  description = "P0 security perimeter Cloud Run invoker role"
+  permissions = p0_gcp_security_perimeter_staged.example.required_permissions
 }
 
-# Grants the p0 service account access to the role just created
+# Grant the invoker role on the Cloud Run service to P0's service account.
 resource "google_cloud_run_service_iam_member" "invoker_access" {
+  project  = local.project
   service  = google_cloud_run_service.p0_security_perimeter.name
   location = google_cloud_run_service.p0_security_perimeter.location
-  role     = "projects/p0-gcp-project/roles/p0SecurityPerimeterInvoker"
-  member   = "serviceAccount:customer-p0-gcp-sa@p0-gcp-project.iam.gserviceaccount.com"
+  role     = google_project_iam_custom_role.p0_security_perimeter_invoker_role.id
+  member   = "serviceAccount:${p0_gcp.example.service_account_email}"
 }
 
-# Create the p0 security perimeter invoker role, this is assumed by p0 service account
-resource "google_project_iam_custom_role" "p0_security_perimeter_invoker_role" {
-  role_id     = p0_gcp_security_perimeter_staged.p0-dev-account.custom_role.id
-  title       = p0_gcp_security_perimeter_staged.p0-dev-account.custom_role.name
-  description = "P0 IAM cloud run invoker role"
-  project     = var.project_id
-  permissions = p0_gcp_security_perimeter_staged.p0-dev-account.required_permissions
+# Custom role, built from the staged metadata, that lets P0's service account
+# read project resources.
+resource "google_project_iam_custom_role" "p0_project_reader_role" {
+  project     = local.project
+  role_id     = p0_gcp_security_perimeter_staged.example.project_reader_role.custom_role.id
+  title       = p0_gcp_security_perimeter_staged.example.project_reader_role.custom_role.name
+  description = "P0 security perimeter project reader role"
+  permissions = p0_gcp_security_perimeter_staged.example.project_reader_role.required_permissions
 }
 
-# Grants the p0 service account access to the role just created
-resource "google_cloud_run_service_iam_member" "invoker_access" {
-  service  = google_cloud_run_service.p0_security_perimeter.name
-  location = google_cloud_run_service.p0_security_perimeter.location
-  role     = "projects/p0-gcp-project/roles/p0SecurityPerimeterInvoker"
-  member   = "serviceAccount:customer-p0-gcp-sa@p0-gcp-project.iam.gserviceaccount.com"
+# Grant the project reader role to P0's service account.
+resource "google_project_iam_member" "project_reader_access" {
+  project = local.project
+  role    = google_project_iam_custom_role.p0_project_reader_role.id
+  member  = "serviceAccount:${p0_gcp.example.service_account_email}"
 }
 
-resource "p0_gcp_security_perimeter" "p0-dev-account" {
-  project         = var.project_id
-  region          = var.location
-  allowed_domains = p0_gcp_security_perimeter_staged.p0-dev-account.allowed_domains
-  image_digest    = p0_gcp_security_perimeter_staged.p0-dev-account.image_digest
+# Complete the security-perimeter install once the infrastructure is in place.
+resource "p0_gcp_security_perimeter" "example" {
+  project         = local.project
+  region          = local.region
+  allowed_domains = p0_gcp_security_perimeter_staged.example.allowed_domains
+  image_digest    = p0_gcp_security_perimeter_staged.example.image_digest
   cloud_run_url   = google_cloud_run_service.p0_security_perimeter.status[0].url
   depends_on = [
     google_project_service.enable_services,
     google_service_account.p0_security_perimeter_sa,
     google_cloud_run_service.p0_security_perimeter,
     google_project_iam_custom_role.p0_security_perimeter_invoker_role,
-    google_cloud_run_service_iam_member.invoker_access
+    google_cloud_run_service_iam_member.invoker_access,
+    google_project_iam_custom_role.p0_project_reader_role,
+    google_project_iam_member.project_reader_access,
+  ]
+}
+
+# --- IAM management (p0_gcp_iam_write) --------------------------------------
+#
+# Install `p0_gcp_iam_write` AFTER the perimeter. While the perimeter is in use,
+# P0 manages IAM through the security-perimeter service account, so that account
+# must hold the `p0IamWriter` custom role and `roles/iam.securityAdmin` on the
+# managed project (this mirrors modules/p0_gcp_iam_management in
+# p0-terraform-install). See the `p0_gcp_iam_write` example for the P0
+# service-account staged-role and grant sub-chain it also needs.
+
+# Custom role granted to the security-perimeter service account so it can manage
+# IAM within the project on P0's behalf.
+resource "google_project_iam_custom_role" "p0_iam_writer" {
+  project     = local.project
+  role_id     = "p0IamWriter"
+  title       = "P0 IAM Writer"
+  description = "Role used by the P0 security perimeter service account to manage IAM in the project"
+  permissions = [
+    "bigquery.datasets.get",
+    "bigquery.datasets.update",
+    "iam.serviceAccounts.get",
+    "resourcemanager.projects.get",
+  ]
+}
+
+resource "google_project_iam_member" "p0_iam_writer_binding" {
+  project = local.project
+  role    = google_project_iam_custom_role.p0_iam_writer.id
+  member  = "serviceAccount:${google_service_account.p0_security_perimeter_sa.email}"
+}
+
+resource "google_project_iam_member" "p0_security_admin_binding" {
+  project = local.project
+  role    = "roles/iam.securityAdmin"
+  member  = "serviceAccount:${google_service_account.p0_security_perimeter_sa.email}"
+}
+
+# The `p0_gcp_iam_write` install. See the `p0_gcp_iam_write` example for the
+# staged-role and P0 service-account grant sub-chain it requires.
+resource "p0_gcp_iam_write" "example" {
+  project = local.project
+  depends_on = [
+    p0_gcp_security_perimeter.example,
+    google_project_iam_custom_role.p0_iam_writer,
+    google_project_iam_member.p0_iam_writer_binding,
+    google_project_iam_member.p0_security_admin_binding,
   ]
 }

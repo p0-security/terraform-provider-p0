@@ -68,7 +68,7 @@ func (r *PostgresIamWriteStaged) Schema(ctx context.Context, req resource.Schema
 
 **Important:** If using RDS hosting, you must first install the p0_aws_rds resource for the instance's VPC.
 
-Use the read-only attributes defined on this resource to get the shell commands or Terraform configuration needed to create the P0 connector infrastructure.`,
+After staging, deploy the P0 connector infrastructure using the Terraform configuration shown in the P0 app (modules p0-security/p0-connector/aws and p0-security/p0-db/aws). The computed hosting.connector_arn attribute identifies the connector Lambda that will be deployed.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
@@ -94,7 +94,7 @@ Use the read-only attributes defined on this resource to get the shell commands 
 					},
 					"instance_arn": schema.StringAttribute{
 						Required:            true,
-						MarkdownDescription: `The AWS RDS instance ARN`,
+						MarkdownDescription: `The AWS RDS instance or cluster ARN`,
 						Validators: []validator.String{
 							stringvalidator.RegexMatches(AwsRdsArnRegex, "Must be a valid AWS RDS instance ARN"),
 						},

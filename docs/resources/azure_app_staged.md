@@ -16,6 +16,11 @@ description: |-
     display_name = p0_azure_app_staged.example.app_name
   }
   
+  # P0's app installer requires the application's service principal to exist.
+  resource "azuread_service_principal" "p0" {
+    client_id = azuread_application_registration.p0.client_id
+  }
+  
   resource "azuread_application_federated_identity_credential" "p0" {
     application_id = azuread_application_registration.p0.id
     display_name   = p0_azure_app_staged.example.credential_info.name
@@ -26,8 +31,11 @@ description: |-
   }
   
   resource "p0_azure_app" "example" {
-    depends_on = [azuread_application_federated_identity_credential.p0]
-    client_id  = azuread_application_registration.p0.client_id
+    depends_on = [
+      azuread_application_federated_identity_credential.p0,
+      azuread_service_principal.p0,
+    ]
+    client_id = azuread_application_registration.p0.client_id
   }
 ---
 
@@ -51,6 +59,11 @@ resource "azuread_application_registration" "p0" {
   display_name = p0_azure_app_staged.example.app_name
 }
 
+# P0's app installer requires the application's service principal to exist.
+resource "azuread_service_principal" "p0" {
+  client_id = azuread_application_registration.p0.client_id
+}
+
 resource "azuread_application_federated_identity_credential" "p0" {
   application_id = azuread_application_registration.p0.id
   display_name   = p0_azure_app_staged.example.credential_info.name
@@ -61,8 +74,11 @@ resource "azuread_application_federated_identity_credential" "p0" {
 }
 
 resource "p0_azure_app" "example" {
-  depends_on = [azuread_application_federated_identity_credential.p0]
-  client_id  = azuread_application_registration.p0.client_id
+  depends_on = [
+    azuread_application_federated_identity_credential.p0,
+    azuread_service_principal.p0,
+  ]
+  client_id = azuread_application_registration.p0.client_id
 }
 ```
 

@@ -62,8 +62,11 @@ resource "azurerm_role_assignment" "p0_iam_management" {
   role_definition_id = azurerm_role_definition.p0_iam_management.role_definition_resource_id
   principal_id       = data.azuread_service_principal.p0.object_id
 
-  # To constrain P0 to specific roles or principals, apply the staged
-  # custom_role.condition here (with condition_version = "2.0") when it is set.
+  # Prevent P0 from assigning or revoking roles for its own service principal,
+  # blocking privilege escalation. P0 always returns this ABAC condition in the
+  # staged custom_role.
+  condition         = p0_azure_iam_write_staged.example.custom_role.condition
+  condition_version = "2.0"
 }
 
 # 5. Complete the install once the role assignment exists: apply

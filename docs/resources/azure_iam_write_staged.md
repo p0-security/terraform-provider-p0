@@ -4,8 +4,9 @@ page_title: "p0_azure_iam_write_staged Resource - p0"
 subcategory: ""
 description: |-
   An installation of P0, on a single Azure subscription, for IAM management.
-  To use this resource, you must also:
-  create an app registration in Azure for P0,create federated credentials for P0 to communicate with Azure through the app registration,create a custom role allowing IAM operations,assign this custom role to P0's app registration at the subscription level,(optional) constraint role assignment to specific roles or principals,install the p0_azure resource,install the p0_azure_app resource,
+  Staging this resource computes the custom_role spec (name, description, actions, assignable_scope, condition) for the role P0 needs to manage role assignments in the subscription. After staging, create that custom role from the computed spec and assign it to P0's service principal (optionally applying custom_role.condition to constrain role assignment to specific roles or principals), then complete the install with p0_azure_iam_write.
+  To use this resource, you must first:
+  install the p0_azure resource,install the p0_azure_app resource.
   For instructions on using this resource, see the documentation for p0_azure_iam_write.
 ---
 
@@ -13,14 +14,11 @@ description: |-
 
 An installation of P0, on a single Azure subscription, for IAM management.
 		
-To use this resource, you must also:
-- create an app registration in Azure for P0,
-- create federated credentials for P0 to communicate with Azure through the app registration,
-- create a custom role allowing IAM operations,
-- assign this custom role to P0's app registration at the subscription level,
-- (optional) constraint role assignment to specific roles or principals,
+Staging this resource computes the `custom_role` spec (name, description, actions, assignable_scope, condition) for the role P0 needs to manage role assignments in the subscription. After staging, create that custom role from the computed spec and assign it to P0's service principal (optionally applying `custom_role.condition` to constrain role assignment to specific roles or principals), then complete the install with `p0_azure_iam_write`.
+
+To use this resource, you must first:
 - install the `p0_azure` resource,
-- install the `p0_azure_app` resource,
+- install the `p0_azure_app` resource.
 
 For instructions on using this resource, see the documentation for `p0_azure_iam_write`.
 
@@ -91,8 +89,11 @@ resource "azurerm_role_assignment" "p0_iam_management" {
   role_definition_id = azurerm_role_definition.p0_iam_management.role_definition_resource_id
   principal_id       = data.azuread_service_principal.p0.object_id
 
-  # To constrain P0 to specific roles or principals, apply the staged
-  # custom_role.condition here (with condition_version = "2.0") when it is set.
+  # Prevent P0 from assigning or revoking roles for its own service principal,
+  # blocking privilege escalation. P0 always returns this ABAC condition in the
+  # staged custom_role.
+  condition         = p0_azure_iam_write_staged.example.custom_role.condition
+  condition_version = "2.0"
 }
 
 # 5. Complete the install once the role assignment exists: apply

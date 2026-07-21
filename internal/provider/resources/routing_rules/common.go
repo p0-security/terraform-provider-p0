@@ -191,19 +191,20 @@ func approvalAttribute(version int64) schema.ListNestedAttribute {
 		NestedObject: schema.NestedAttributeObject{
 			Attributes: AttachGroupFilterEffectAttribute(version, AttachGroupAttributes(version, map[string]schema.Attribute{
 				"directory": schema.StringAttribute{
-					MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "okta", or "workspace".`,
+					MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "entra-id", "okta", or "workspace".`,
 					Optional:            true,
 				},
 				"integration": schema.StringAttribute{
 					MarkdownDescription: `May only be used if 'type' is 'auto' or 'escalation'. Possible values:
-- 'pagerduty': Access is granted if the requestor is on-call.`,
+- 'pagerduty': Access is granted if the requestor is on-call in PagerDuty.
+- 'incidentio': Access is granted if the requestor is on-call in incident.io.`,
 					Optional: true,
 				},
 				"options": schema.SingleNestedAttribute{
 					MarkdownDescription: `If present, determines additional trust requirements.`,
 					Attributes: map[string]schema.Attribute{
 						"allow_one_party": schema.BoolAttribute{
-							MarkdownDescription: `If true, allows requestors to approve their own requests.`,
+							MarkdownDescription: `If true, allows requestors to approve their own requests. Does not apply to 'auto' approval rules.`,
 							Optional:            true,
 						},
 						"require_reason": schema.BoolAttribute{
@@ -219,7 +220,7 @@ func approvalAttribute(version int64) schema.ListNestedAttribute {
 							Optional:            true,
 						},
 						"break_glass_approver": schema.BoolAttribute{
-							MarkdownDescription: `If true, allows the approver to approve break-glass requests.`,
+							MarkdownDescription: `If true, allows the approver to approve break-glass requests. Does not apply to 'auto' approval rules.`,
 							Optional:            true,
 						},
 					},

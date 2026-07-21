@@ -48,7 +48,7 @@ func (r *OktaGroupAssignment) Schema(ctx context.Context, req resource.SchemaReq
 		MarkdownDescription: `Installation of P0 for Okta group assignment.
 
 To use this resource, you must first:
-- Create the + ` + "`p0_okta_directory_listing`" + ` resource 
+- Create the ` + "`p0_okta_directory_listing`" + ` resource
 - Grant the P0 Okta application the "Group Membership Administrator" role assignment
 
 See the example usage for the recommended pattern to define this infrastructure.`,

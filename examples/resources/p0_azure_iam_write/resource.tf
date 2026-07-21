@@ -115,8 +115,11 @@ resource "azurerm_role_assignment" "p0_iam_management" {
   # Azure AD yet.
   skip_service_principal_aad_check = true
 
-  # To constrain P0 to specific roles or principals, apply the staged
-  # custom_role.condition here (with condition_version = "2.0") when it is set.
+  # Prevent P0 from assigning or revoking roles for its own service principal,
+  # blocking privilege escalation. P0 always returns this ABAC condition in the
+  # staged custom_role.
+  condition         = p0_azure_iam_write_staged.example.custom_role.condition
+  condition_version = "2.0"
 }
 
 # 5. Complete the IAM-write install once the role assignment exists.

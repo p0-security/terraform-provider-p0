@@ -63,7 +63,7 @@ func (*GcpCloudSqlIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A GCP CloudSQL installation.
 
-Installing GCP CloudSQL allows P0 to manage just-in-time access to your CloudSQL (PostgreSQL / MySQL) database instances using GCP IAM authentication.
+Installing GCP CloudSQL allows P0 to manage just-in-time access to your CloudSQL (PostgreSQL) database instances (MySQL is not yet supported) using GCP IAM authentication.
 
 **Important:** Before creating this resource you must stage the installation with ` + "`p0_gcp_cloudsql_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is reachable.
 

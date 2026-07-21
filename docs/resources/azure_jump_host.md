@@ -84,8 +84,9 @@ resource "p0_azure_app" "example" {
 # --- Session-terminator app registration ---
 # P0 authenticates as this app (via workload identity federation) when it calls
 # the Function App to dispatch privileged commands to your jump hosts. Its
-# federated credential is created at the bottom of this file, once the P0
-# service account it must trust has been computed by p0_azure_jump_host.
+# federated credential is created below, before the jump-host registration,
+# because p0_azure_jump_host's install performs a real token exchange against
+# this app and fails if the credential trusting P0's service account is absent.
 resource "azuread_application_registration" "session_terminator" {
   display_name = "P0 Session Terminator"
   # v2 access tokens, matching the tenant_auth_endpoint used by Easy Auth below.
@@ -162,6 +163,9 @@ resource "azurerm_linux_function_app" "jump_host_connector" {
     CALLER_APP_ID                       = azuread_application_registration.session_terminator.client_id
     WEBSITES_ENABLE_APP_SERVICE_STORAGE = "false"
     AzureWebJobsFeatureFlags            = "EnableWorkerIndexing"
+    # P0's session-terminator package emits an audit event for each terminated
+    # session when this is enabled.
+    LOG_SECURITY_EVENTS = "true"
   }
 
   # Easy Auth: reject any caller not presenting a token for the
@@ -175,37 +179,46 @@ resource "azurerm_linux_function_app" "jump_host_connector" {
     active_directory_v2 {
       client_id            = azuread_application_registration.session_terminator.client_id
       tenant_auth_endpoint = "https://login.microsoftonline.com/${local.directory_id}/v2.0"
+      # Lock Easy Auth to the session-terminator app itself: only tokens issued
+      # to (and for) this app registration are accepted, so nothing else in the
+      # tenant can invoke the connector.
+      allowed_audiences    = [azuread_application_registration.session_terminator.client_id]
+      allowed_applications = [azuread_application_registration.session_terminator.client_id]
     }
 
     login {}
   }
 }
 
-# --- Register jump host management with P0 ---
-# Points P0 at the session-terminator app (client_id) and the Function App
-# (function_app_resource_id). This install computes directory_id and the P0
-# service account (service_account_id) the federated credential below must trust.
-resource "p0_azure_jump_host" "example" {
-  depends_on = [
-    p0_azure.example,
-    p0_azure_app.example,
-  ]
-
-  client_id                = azuread_application_registration.session_terminator.client_id
-  function_app_resource_id = azurerm_linux_function_app.jump_host_connector.id
-}
-
 # --- Federated credential for the session-terminator app ---
-# Created after p0_azure_jump_host because the trust subject is the P0 service
-# account this install computes (there is no _staged sibling for this resource).
-# The issuer and audiences come from p0_azure.credential_info.
+# Must exist before p0_azure_jump_host: that install authenticates to this app
+# via workload identity federation (a real token exchange) and fails unless the
+# credential trusting P0's service account is already in place. The subject is
+# P0's service account from the root install (the jump-host install reuses the
+# same service account, so p0_azure.example.service_account_id is correct);
+# issuer and audiences come from p0_azure.credential_info.
 resource "azuread_application_federated_identity_credential" "session_terminator" {
   application_id = azuread_application_registration.session_terminator.id
   display_name   = p0_azure.example.credential_info.name
   description    = p0_azure.example.credential_info.description
   issuer         = p0_azure.example.credential_info.issuer
   audiences      = p0_azure.example.credential_info.audiences
-  subject        = p0_azure_jump_host.example.service_account_id
+  subject        = p0_azure.example.service_account_id
+}
+
+# --- Register jump host management with P0 ---
+# Points P0 at the session-terminator app (client_id) and the Function App
+# (function_app_resource_id). Depends on the federated credential so the
+# install's token exchange against the session-terminator app succeeds.
+resource "p0_azure_jump_host" "example" {
+  depends_on = [
+    p0_azure.example,
+    p0_azure_app.example,
+    azuread_application_federated_identity_credential.session_terminator,
+  ]
+
+  client_id                = azuread_application_registration.session_terminator.client_id
+  function_app_resource_id = azurerm_linux_function_app.jump_host_connector.id
 }
 
 # --- Run Command role for the Function App identity ---
