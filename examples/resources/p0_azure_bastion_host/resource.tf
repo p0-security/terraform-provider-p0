@@ -14,6 +14,20 @@ locals {
   vm_admin_login_role_id = "/providers/Microsoft.Authorization/roleDefinitions/1c0163c0-47e6-4577-8991-ea5c82e286e4"
 }
 
+# The SSH public key installed on the jump host's admin user.
+variable "jump_host_ssh_public_key" {
+  type = string
+}
+
+# Only the jump host option below provisions Azure infrastructure through the
+# azurerm provider, so this provider targets the jump host's subscription. The
+# Azure Bastion option references an already-deployed Bastion by ID and needs no
+# azurerm resources here.
+provider "azurerm" {
+  features {}
+  subscription_id = local.jump_host_subscription_id
+}
+
 resource "p0_azure" "example" {
   directory_id = "12345678-1234-1234-1234-123456789012"
 }
@@ -62,12 +76,109 @@ resource "p0_azure_iam_write" "jump_host_example" {
   subscription_id = local.jump_host_subscription_id
 }
 
+# --- Jump host VM prerequisites ---
+# P0 reaches the jump host over its public IP and authenticates SSH sessions
+# through Azure IAM, so the VM must have:
+#   - a public IP address on its primary network interface,
+#   - the Azure AD login for Linux extension (AADSSHLoginForLinux), which in
+#     turn requires the VM to have a managed identity, and
+#   - a running SSH server. Ubuntu marketplace images ship sshd enabled.
+resource "azurerm_resource_group" "jump_host" {
+  name     = "p0-jump-host"
+  location = "eastus"
+}
+
+resource "azurerm_virtual_network" "jump_host" {
+  name                = "p0-jump-host-vnet"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.jump_host.location
+  resource_group_name = azurerm_resource_group.jump_host.name
+}
+
+resource "azurerm_subnet" "jump_host" {
+  name                 = "p0-jump-host-subnet"
+  resource_group_name  = azurerm_resource_group.jump_host.name
+  virtual_network_name = azurerm_virtual_network.jump_host.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+
+resource "azurerm_public_ip" "jump_host" {
+  name                = "p0-jump-host-ip"
+  location            = azurerm_resource_group.jump_host.location
+  resource_group_name = azurerm_resource_group.jump_host.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+
+resource "azurerm_network_interface" "jump_host" {
+  name                = "p0-jump-host-nic"
+  location            = azurerm_resource_group.jump_host.location
+  resource_group_name = azurerm_resource_group.jump_host.name
+
+  # The public IP on the primary IP configuration is what P0 resolves at
+  # install time to reach the jump host.
+  ip_configuration {
+    name                          = "primary"
+    subnet_id                     = azurerm_subnet.jump_host.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.jump_host.id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "jump_host" {
+  name                  = "p0-jump-host"
+  location              = azurerm_resource_group.jump_host.location
+  resource_group_name   = azurerm_resource_group.jump_host.name
+  size                  = "Standard_B1s"
+  admin_username        = "azureuser"
+  network_interface_ids = [azurerm_network_interface.jump_host.id]
+
+  # AADSSHLoginForLinux authenticates SSH through Azure AD and requires the VM
+  # to have a managed identity.
+  identity {
+    type = "SystemAssigned"
+  }
+
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = var.jump_host_ssh_public_key
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  # Ubuntu ships and enables sshd by default, satisfying the SSH-server
+  # requirement.
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+}
+
+# Install the Azure AD login for Linux extension so P0 can authenticate SSH
+# sessions to the jump host through Azure IAM.
+resource "azurerm_virtual_machine_extension" "jump_host_aad_login" {
+  name                       = "AADSSHLoginForLinux"
+  virtual_machine_id         = azurerm_linux_virtual_machine.jump_host.id
+  publisher                  = "Microsoft.Azure.ActiveDirectory"
+  type                       = "AADSSHLoginForLinux"
+  type_handler_version       = "1.0"
+  auto_upgrade_minor_version = true
+}
+
 resource "p0_azure_bastion_host" "jump_host_example" {
-  depends_on = [p0_azure_iam_write.jump_host_example]
+  depends_on = [
+    p0_azure_iam_write.jump_host_example,
+    azurerm_virtual_machine_extension.jump_host_aad_login,
+  ]
 
   subscription_id = local.jump_host_subscription_id
   jump_host = {
-    virtual_machine_id      = "/subscriptions/87654321-1234-1234-1234-123456789012/resourceGroups/example/providers/Microsoft.Compute/virtualMachines/example"
+    virtual_machine_id      = azurerm_linux_virtual_machine.jump_host.id
     standard_access_role_id = local.vm_user_login_role_id
     admin_access_role_id    = local.vm_admin_login_role_id
   }
