@@ -19,7 +19,8 @@ After staging, use the computed hosting.connector_arn to deploy P0's MySQL conne
 ## Example Usage
 
 ```terraform
-# Full MySQL (AWS RDS) install chain, in order: aws_rds_vpc module -> p0_aws_rds ->
+# Full MySQL (AWS RDS) install chain, in order: p0_aws_iam_write (bootstraps the
+# P0RoleIamManager role both modules below require) -> aws_rds_vpc module -> p0_aws_rds ->
 # p0_mysql_staged -> p0-connector/p0-db modules -> p0_mysql (completes it).
 
 locals {
@@ -64,8 +65,9 @@ resource "aws_db_instance" "mysql" {
   skip_final_snapshot                 = true
 }
 
-# Prepares the VPC for P0's RDS connector (rds-API interface endpoints + P0RoleIamManager
-# permissions). Must run before the VPC is registered as an aws-rds integration.
+# Grants P0RoleIamManager the VPC/subnet/RDS read permissions P0's connector needs.
+# Must run before the VPC is registered as an aws-rds integration. (The VPC interface
+# endpoints are created by the p0-connector module below via setup_vpc_endpoints.)
 module "aws_rds_vpc" {
   source  = "p0-security/p0-rds-vpc/aws"
   version = "0.1.3"
