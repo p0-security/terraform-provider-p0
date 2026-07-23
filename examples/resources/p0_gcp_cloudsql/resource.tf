@@ -92,6 +92,26 @@ resource "google_project_iam_member" "connector_instance_user" {
   depends_on = [module.gcp_cloudsql_vpc]
 }
 
+# Private Service Access: a private-IP CloudSQL instance requires an internal IP
+# range reserved for VPC peering and a service-networking connection peering that
+# range to servicenetworking.googleapis.com on the VPC, established before the
+# instance is created.
+resource "google_compute_global_address" "private_ip_range" {
+  name          = "p0-cloudsql-psa"
+  project       = local.project
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  prefix_length = 16
+  network       = google_compute_network.example.id
+}
+
+resource "google_service_networking_connection" "example" {
+  network                 = google_compute_network.example.id
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.private_ip_range.name]
+  depends_on              = [google_project_service.enable_services]
+}
+
 # IAM authentication must be on so P0 can grant JIT access, and the instance
 # must be reachable from the connector's VPC.
 resource "google_sql_database_instance" "example" {
@@ -100,6 +120,7 @@ resource "google_sql_database_instance" "example" {
   region              = local.region
   database_version    = "POSTGRES_15"
   deletion_protection = false
+  depends_on          = [google_service_networking_connection.example]
 
   settings {
     tier = "db-custom-1-3840"
