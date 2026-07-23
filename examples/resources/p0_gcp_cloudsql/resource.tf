@@ -1,7 +1,7 @@
 # Installs GCP CloudSQL JIT access via GCP IAM auth (PostgreSQL only; MySQL
 # unsupported), reached through a Cloud Run connector with direct VPC access.
-# Requires the root p0_gcp install plus p0_gcp_iam_write on the same project
-# (its custom-role and grant sub-chain: see the p0_gcp_iam_write example).
+# Full chain: p0_gcp -> p0_gcp_iam_write (staged role + grants, inline below) ->
+# Cloud Run connector -> p0_gcp_cloudsql_staged -> CloudSQL instance -> p0_gcp_cloudsql.
 
 resource "p0_gcp" "example" {
   organization_id = "123456789012"
