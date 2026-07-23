@@ -37,9 +37,41 @@ locals {
   region  = "us-west1"
 }
 
-resource "p0_gcp_iam_write" "example" {
+# p0_gcp_iam_write requires P0's service account to already hold the custom and
+# predefined roles it manages IAM with, or it fails validation. Stage it to obtain
+# that role metadata, grant both roles, then install after the grants (mirrors the
+# standalone p0_gcp_iam_write example).
+resource "p0_gcp_iam_write_staged" "example" {
   project    = local.project
   depends_on = [p0_gcp.example]
+}
+
+resource "google_project_iam_custom_role" "iam_write" {
+  project     = local.project
+  role_id     = p0_gcp_iam_write_staged.example.custom_role.id
+  title       = p0_gcp_iam_write_staged.example.custom_role.name
+  description = "Integration role for P0 IAM management integration"
+  permissions = p0_gcp_iam_write_staged.example.permissions
+}
+
+resource "google_project_iam_member" "iam_write_custom_role" {
+  project = local.project
+  role    = google_project_iam_custom_role.iam_write.id
+  member  = "serviceAccount:${p0_gcp.example.service_account_email}"
+}
+
+resource "google_project_iam_member" "iam_write_predefined_role" {
+  project = local.project
+  role    = p0_gcp_iam_write_staged.example.predefined_role
+  member  = "serviceAccount:${p0_gcp.example.service_account_email}"
+}
+
+resource "p0_gcp_iam_write" "example" {
+  project = local.project
+  depends_on = [
+    google_project_iam_member.iam_write_custom_role,
+    google_project_iam_member.iam_write_predefined_role,
+  ]
 }
 
 # APIs the connector and CloudSQL require.

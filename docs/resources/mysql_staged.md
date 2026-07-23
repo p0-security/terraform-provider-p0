@@ -57,6 +57,7 @@ resource "aws_db_instance" "mysql" {
   engine_version                      = "8.0"
   instance_class                      = "db.t3.micro"
   allocated_storage                   = 20
+  storage_encrypted                   = true
   db_subnet_group_name                = aws_db_subnet_group.mysql.name
   vpc_security_group_ids              = [aws_security_group.mysql.id]
   iam_database_authentication_enabled = true

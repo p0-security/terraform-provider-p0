@@ -18,9 +18,6 @@ locals {
 
   # P0 production environment project (not yours); lets the service authenticate callers from P0.
   p0_project_id = "p0-prod"
-
-  # Regex of email domains allowed to invoke the perimeter service.
-  allowed_domain_pattern = ".*@example[.]com"
 }
 
 # Stage to obtain the role metadata, allowed domains, and image digest the infrastructure below must match.
@@ -54,8 +51,10 @@ resource "google_service_account" "p0_security_perimeter_sa" {
 
 # P0-proprietary connector image pinned to the staged image_digest; P0 verifies
 # the deployed digest matches exactly at install, so a floating tag like :latest
-# fails. GCLOUD_PROJECT points at the P0 production project so the service can
-# authenticate callers from P0.
+# fails. DOMAIN_ALLOW_PATTERN uses the staged allowed_domains so the deployed
+# service enforces exactly the domain pattern P0 records at install (same source
+# as the final install below). GCLOUD_PROJECT points at the P0 production project
+# so the service can authenticate callers from P0.
 resource "google_cloud_run_service" "p0_security_perimeter" {
   name     = "p0-security-perimeter-prod"
   project  = local.project
@@ -67,7 +66,7 @@ resource "google_cloud_run_service" "p0_security_perimeter" {
         image = "docker.io/p0security/p0-security-perimeter-gcloud:${p0_gcp_security_perimeter_staged.example.image_digest}"
         env {
           name  = "DOMAIN_ALLOW_PATTERN"
-          value = local.allowed_domain_pattern
+          value = p0_gcp_security_perimeter_staged.example.allowed_domains
         }
         env {
           name  = "GCLOUD_PROJECT"

@@ -1,5 +1,6 @@
 # Full install chain for a P0 PostgreSQL (AWS RDS) integration:
-# aws-rds VPC integration -> RDS instance -> p0_postgres_staged -> connector + DB grant modules -> p0_postgres.
+# p0_aws_iam_write (account + IAM-management role) -> aws-rds VPC integration -> RDS instance
+# -> p0_postgres_staged -> connector + DB grant modules -> p0_postgres.
 
 data "aws_vpc" "selected" {
   default = true
@@ -12,19 +13,49 @@ data "aws_subnets" "private" {
   }
 }
 
+# Install the AWS account first. Staging computes the IAM-management role name, trust policy, and
+# inline policy P0 needs; create that role, then install p0_aws_iam_write once it exists. Downstream
+# modules take the role name from aws_iam_role.p0_iam_manager rather than hardcoding it.
+resource "p0_aws_iam_write_staged" "example" {
+  id = "123456789012"
+}
+
+resource "aws_iam_role" "p0_iam_manager" {
+  name               = p0_aws_iam_write_staged.example.role.name
+  assume_role_policy = p0_aws_iam_write_staged.example.role.trust_policy
+}
+
+resource "aws_iam_role_policy" "p0_iam_manager" {
+  name   = p0_aws_iam_write_staged.example.role.inline_policy_name
+  role   = aws_iam_role.p0_iam_manager.name
+  policy = p0_aws_iam_write_staged.example.role.inline_policy
+}
+
+resource "p0_aws_iam_write" "example" {
+  id         = p0_aws_iam_write_staged.example.id
+  depends_on = [aws_iam_role_policy.p0_iam_manager]
+
+  login = {
+    type = "iam"
+    identity = {
+      type = "email"
+    }
+  }
+}
+
 # Prerequisite: the VPC's AWS RDS integration must be installed first (see p0_aws_rds).
 # p0-rds-vpc grants P0's iam-write role the AWS permissions to manage RDS in this VPC.
 module "aws_rds_vpc" {
   source  = "p0-security/p0-rds-vpc/aws"
   version = "0.1.3"
 
-  aws_role_name = "P0RoleIamManager"
+  aws_role_name = aws_iam_role.p0_iam_manager.name
   vpc_id        = data.aws_vpc.selected.id
 }
 
 resource "p0_aws_rds" "example" {
   id         = data.aws_vpc.selected.id
-  account_id = "123456789012"
+  account_id = p0_aws_iam_write.example.id
   region     = "us-east-1"
   depends_on = [module.aws_rds_vpc]
 }
@@ -65,13 +96,14 @@ resource "p0_postgres_staged" "example" {
   }
 }
 
-# App-generated install modules. p0-connector/aws deploys the connector Lambda (name from
+# Deploy the connector with P0's public, published Terraform Registry modules (use these
+# as-is; don't build your own). p0-connector/aws deploys the connector Lambda (name from
 # connector_arn) with VPC endpoints for AWS/P0 API access, and lets P0's iam-write role invoke it.
 module "aws_db_connector_install" {
   source  = "p0-security/p0-connector/aws"
   version = "0.5.1"
 
-  aws_role_name       = "P0RoleIamManager"
+  aws_role_name       = aws_iam_role.p0_iam_manager.name
   aws_services        = ["rds"]
   setup_vpc_endpoints = true
 
@@ -82,18 +114,20 @@ module "aws_db_connector_install" {
   connector_arn = p0_postgres_staged.example.hosting.connector_arn
 }
 
-# p0-db/aws connects as the p0_iam_manager DB user and provisions the user + grants P0 requires (rds_iam + rds_superuser).
+# p0-db/aws grants the connector's Lambda execution role rds-db:connect on the
+# p0_iam_manager DB user and opens the connector -> instance security-group path.
 module "aws_pg_install" {
   source  = "p0-security/p0-db/aws"
   version = "0.3.0"
 
-  rds_instance_arn = aws_db_instance.postgres.arn
+  rds_cluster_arn = aws_db_instance.postgres.arn
 
   connector_security_group_id = module.aws_db_connector_install.connector_security_group.id
   lambda_execution_role_name  = reverse(split("/", reverse(split(":", module.aws_db_connector_install.lambda.role))[0]))[0]
+  depends_on                  = [p0_aws_rds.example]
 }
 
-# Finalize. hostname and state are computed by P0 and must not be set here.
+# Create the DB user P0 authenticates as by running this SQL in the database
 resource "p0_postgres" "example" {
   id         = p0_postgres_staged.example.id
   port       = "5432"
