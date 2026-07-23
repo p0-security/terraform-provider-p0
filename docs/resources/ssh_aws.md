@@ -16,9 +16,132 @@ Installing SSH allows you to manage access to your servers on AWS.
 ## Example Usage
 
 ```terraform
-resource "p0_ssh_aws" "example" {
+locals {
   account_id = "123456789012"
-  group_key  = "vegetables"
+
+  # group_key groups instances by this tag's VALUE (shared value = one request).
+  group_tag_key = "P0Group"
+}
+
+# Prerequisite: the AWS account must be connected to P0 via the AWS IAM-management
+# install. p0_ssh_aws has no _staged sibling, so this p0_aws_iam_write chain is its
+# only P0 prerequisite.
+resource "p0_aws_iam_write_staged" "example" {
+  id = local.account_id
+}
+
+resource "aws_iam_role" "p0_iam_manager" {
+  name               = p0_aws_iam_write_staged.example.role.name
+  assume_role_policy = p0_aws_iam_write_staged.example.role.trust_policy
+}
+
+resource "aws_iam_role_policy" "p0_iam_manager" {
+  name   = p0_aws_iam_write_staged.example.role.inline_policy_name
+  role   = aws_iam_role.p0_iam_manager.name
+  policy = p0_aws_iam_write_staged.example.role.inline_policy
+}
+
+# Completes the AWS integration; install after the role and its policy exist.
+resource "p0_aws_iam_write" "example" {
+  id         = p0_aws_iam_write_staged.example.id
+  depends_on = [aws_iam_role_policy.p0_iam_manager]
+
+  login = {
+    type = "iam"
+    identity = {
+      type = "email"
+    }
+  }
+}
+
+# Target infra: an SSM-ready EC2 instance. P0 AWS SSH runs over SSM Session
+# Manager, so brokered instances must be SSM-managed: SSM agent + an instance
+# profile granting AmazonSSMManagedInstanceCore + outbound HTTPS to the SSM
+# endpoints. The per-instance profile below is the simplest path; for account-wide
+# coverage use Default Host Management Configuration, and give private subnets
+# without egress SSM/EC2messages/SSMmessages VPC endpoints — see the
+# aws_systems_manager module in p0-security/p0-terraform-install.
+
+# Amazon Linux 2023 ships the SSM agent preinstalled.
+data "aws_ami" "al2023" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+}
+
+resource "aws_iam_role" "ssm_instance" {
+  name = "p0-ssm-instance-example"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.ssm_instance.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ssm_instance" {
+  name = "p0-ssm-instance-example"
+  role = aws_iam_role.ssm_instance.name
+}
+
+# Needs outbound HTTPS (443) to the SSM endpoints — internet egress or VPC endpoints.
+resource "aws_instance" "example" {
+  ami                  = data.aws_ami.al2023.id
+  instance_type        = "t3.micro"
+  iam_instance_profile = aws_iam_instance_profile.ssm_instance.name
+
+  tags = {
+    (local.group_tag_key) = "dev-servers"
+  }
+}
+
+# SSM command documents you must create (P0 can't create documents it executes, to
+# avoid privilege escalation). Must exist in EVERY brokered region and match P0's
+# exactly — verified at install. Source: the aws_p0_ssm_documents module in
+# p0-security/p0-terraform-install.
+
+# Grants/revokes password-less sudo, manages authorized keys, and provisions the
+# requesting user. Required for user provisioning and whenever is_sudo_enabled.
+resource "aws_ssm_document" "p0_provision_user_access" {
+  name            = "P0ProvisionUserAccess"
+  document_format = "YAML"
+  document_type   = "Command"
+  target_type     = "/AWS::EC2::Instance"
+  content         = file("${path.module}/p0-provision-user-access.yaml")
+}
+
+# Retrieves SSH host keys from a target instance at session establishment.
+resource "aws_ssm_document" "p0_get_ssh_host_keys" {
+  name            = "P0GetSshHostKeys"
+  document_format = "YAML"
+  document_type   = "Command"
+  target_type     = "/AWS::EC2::Instance"
+  content         = file("${path.module}/p0-get-ssh-host-keys.yaml")
+}
+
+resource "p0_ssh_aws" "example" {
+  account_id      = local.account_id
+  group_key       = local.group_tag_key
+  is_sudo_enabled = true
+
+  # Requires the AWS integration and the SSM documents (in every enabled region).
+  depends_on = [
+    p0_aws_iam_write.example,
+    aws_ssm_document.p0_provision_user_access,
+    aws_ssm_document.p0_get_ssh_host_keys,
+  ]
 }
 ```
 

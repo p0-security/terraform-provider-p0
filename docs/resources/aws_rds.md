@@ -4,22 +4,36 @@ page_title: "p0_aws_rds Resource - p0"
 subcategory: ""
 description: |-
   An AWS RDS Installation.
-  Installing RDS allows you to manage access to your RDS database instances using IAM authentication.
+  Installing this resource allows P0 to manage access to Aurora and RDS instances in a VPC using IAM authentication.
+  Important: The AWS account must first be installed in P0 (see the p0_aws_iam_write resource), and P0's access must be provisioned by applying the p0-security/p0-rds-vpc/aws Terraform module (aws_role_name = the P0 IAM-management role, vpc_id = this resource's id) before this install can verify.
 ---
 
 # p0_aws_rds (Resource)
 
 An AWS RDS Installation.
 
-Installing RDS allows you to manage access to your RDS database instances using IAM authentication.
+Installing this resource allows P0 to manage access to Aurora and RDS instances in a VPC using IAM authentication.
+
+**Important:** The AWS account must first be installed in P0 (see the p0_aws_iam_write resource), and P0's access must be provisioned by applying the p0-security/p0-rds-vpc/aws Terraform module (aws_role_name = the P0 IAM-management role, vpc_id = this resource's id) before this install can verify.
 
 ## Example Usage
 
 ```terraform
+# Requires the account already installed via p0_aws_iam_write; p0-security/p0-rds-vpc/aws grants
+# P0's IAM-management role the VPC-scoped ec2/rds describe perms the install verifier checks.
+module "aws_rds_vpc" {
+  source  = "p0-security/p0-rds-vpc/aws"
+  version = "0.1.3"
+
+  aws_role_name = "P0RoleIamManager"
+  vpc_id        = "vpc-1234567890abcdef0"
+}
+
 resource "p0_aws_rds" "example" {
   id         = "vpc-1234567890abcdef0"
   account_id = "123456789012"
   region     = "us-east-1"
+  depends_on = [module.aws_rds_vpc]
 }
 ```
 

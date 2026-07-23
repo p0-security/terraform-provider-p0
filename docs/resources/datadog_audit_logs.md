@@ -3,21 +3,30 @@
 page_title: "p0_datadog_audit_logs Resource - p0"
 subcategory: ""
 description: |-
-  Allows P0 to send access events and security findings to Datadog Logs
+  Allows P0 to send access events and security findings to Datadog Logs. Only one p0_datadog_audit_logs resource is supported per P0 organization; creating more than one disables Datadog log forwarding for the entire organization.
 ---
 
 # p0_datadog_audit_logs (Resource)
 
-Allows P0 to send access events and security findings to Datadog Logs
+Allows P0 to send access events and security findings to Datadog Logs. Only one `p0_datadog_audit_logs` resource is supported per P0 organization; creating more than one disables Datadog log forwarding for the entire organization.
 
 ## Example Usage
 
 ```terraform
+# Registers forwarding of P0 audit logs to Datadog Logs.
+# Only one per org; a second disables forwarding org-wide.
 resource "p0_datadog_audit_logs" "example" {
-  identifier        = "example"
-  intake_url        = "https://http-intake.logs.datadoghq.com"
+  identifier = "example"
+
+  # Must be https://http-intake.logs.<site> for your Datadog site, and match the API key's region.
+  intake_url = "https://http-intake.logs.datadoghq.com"
+
+  # API key for the intake region, from Datadog (Org Settings > API Keys). P0 stores it
+  # encrypted and exposes only its SHA-256 hash via the computed api_key_hash attribute.
   api_key_cleartext = sensitive("your-datadog-api-key")
-  service           = "p0"
+
+  # Optional; defaults to "p0" when omitted.
+  service = "p0"
 }
 ```
 

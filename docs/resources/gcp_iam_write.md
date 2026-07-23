@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   An installation of P0, on a single Google Cloud project, for IAM management.
   To use this resource, you must also:
-  install the p0_gcp_iam_write_staged resourcecreate a custom role allowing IAM-management operations,grant this custom role to P0's service account,grant the iam.securityAdmin role to P0's service account.
+  install the p0_gcp_iam_write_staged resourcecreate a custom role allowing IAM-management operations,grant this custom role to P0's service account,grant the predefined role reported by p0_gcp_iam_write_staged's predefined_role attribute to P0's service account (roles/iam.securityAdmin for legacy installs; roles/iam.securityReviewer when the security perimeter is in use, in which case roles/iam.securityAdmin is granted to the security-perimeter service account instead).
   Use the read-only attributes defined on p0_gcp_iam_write_staged to create the requisite Google Cloud infrastructure.
   See the example usage for the recommended pattern to define this infrastructure.
 ---
@@ -18,7 +18,7 @@ To use this resource, you must also:
 - install the `p0_gcp_iam_write_staged` resource
 - create a custom role allowing IAM-management operations,
 - grant this custom role to P0's service account,
-- grant the `iam.securityAdmin` role to P0's service account.
+- grant the predefined role reported by `p0_gcp_iam_write_staged`'s `predefined_role` attribute to P0's service account (`roles/iam.securityAdmin` for legacy installs; `roles/iam.securityReviewer` when the security perimeter is in use, in which case `roles/iam.securityAdmin` is granted to the security-perimeter service account instead).
 
 Use the read-only attributes defined on `p0_gcp_iam_write_staged` to create the requisite Google Cloud infrastructure.
 
@@ -32,17 +32,17 @@ resource "p0_gcp" "example" {
 }
 
 locals {
-  project = "my_project_id"
+  project = "my-project-id"
 }
 
 resource "p0_gcp_iam_write_staged" "example" {
-  project    = locals.project
+  project    = local.project
   depends_on = [p0_gcp.example]
 }
 
-# This custom role is required for P0 to manage IAM grants in your project
+# Custom role required for P0 to manage IAM grants in your project.
 resource "google_project_iam_custom_role" "example" {
-  project     = locals.project
+  project     = local.project
   role_id     = p0_gcp_iam_write_staged.example.custom_role.id
   title       = p0_gcp_iam_write_staged.example.custom_role.name
   description = "Integration role for P0 IAM management integration"
@@ -50,22 +50,21 @@ resource "google_project_iam_custom_role" "example" {
 }
 
 resource "google_project_iam_member" "example_custom_role" {
-  project = locals.project
+  project = local.project
   role    = google_project_iam_custom_role.example.id
   member  = "serviceAccount:${p0_gcp.example.service_account_email}"
 }
 
-# The predefined role is required for P0 to grant resource-level access in your project
+# Predefined role required for P0 to grant resource-level access.
 resource "google_project_iam_member" "example_predefined_role" {
-  project = locals.project
+  project = local.project
   role    = p0_gcp_iam_write_staged.example.predefined_role
   member  = "serviceAccount:${p0_gcp.example.service_account_email}"
 }
 
-# The `p0_gcp_iam_write` resource will fail to validate unless it is installed
-# _after_ the P0 service account is granted the above roles
+# p0_gcp_iam_write fails validation unless installed after the grants above.
 resource "p0_gcp_iam_write" "example" {
-  project = locals.project
+  project = local.project
   depends_on = [
     google_project_iam_member.example_custom_role,
     google_project_iam_member.example_predefined_role

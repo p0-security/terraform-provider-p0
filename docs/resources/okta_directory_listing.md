@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   Final installation of P0 for Okta directory listing.
   To use this resource, you must also:
-  install the p0_okta_directory_listing_staged resource,add the JWK from that resource to the Okta organization,
+  install the p0_okta_directory_listing_staged resource,create the Okta OAuth service application that P0 authenticates as, using private_key_jwt,add the JWK from the staged resource to that application's JWKS,grant the application the required Okta OAuth API scopes, andassign the application an Okta admin role that can read all users and groups (for example, a custom role with the okta.users.read and okta.groups.read permissions).
   See the example usage for the recommended pattern to define this infrastructure.
 ---
 
@@ -15,17 +15,22 @@ Final installation of P0 for Okta directory listing.
 
 To use this resource, you must also:
 - install the `p0_okta_directory_listing_staged` resource,
-- add the JWK from that resource to the Okta organization,
+- create the Okta OAuth service application that P0 authenticates as, using `private_key_jwt`,
+- add the JWK from the staged resource to that application's JWKS,
+- grant the application the required Okta OAuth API scopes, and
+- assign the application an Okta admin role that can read all users and groups (for example, a custom role with the `okta.users.read` and `okta.groups.read` permissions).
 
 See the example usage for the recommended pattern to define this infrastructure.
 
 ## Example Usage
 
 ```terraform
+# P0 generates the JWK the service app authenticates with.
 resource "p0_okta_directory_listing_staged" "example" {
   domain = "example.okta.com"
 }
 
+# Service app P0 reads the directory as, via the staged JWK.
 resource "okta_app_oauth" "p0_api_integration" {
   label                      = "P0 API Integration"
   type                       = "service"
@@ -43,19 +48,47 @@ resource "okta_app_oauth" "p0_api_integration" {
   }
 }
 
+# groups.manage is for the downstream p0_okta_group_assignment; users.read for directory listing.
 resource "okta_app_oauth_api_scope" "p0_api_integration_scopes" {
   app_id = okta_app_oauth.p0_api_integration.id
-  issuer = "http://example.okta.com"
+  issuer = "https://${p0_okta_directory_listing_staged.example.domain}"
   scopes = [
-    okta.groups.manage,
-    okta.users.read
+    "okta.groups.manage",
+    "okta.users.read",
   ]
 }
 
+# OAuth scopes alone aren't enough; P0 also needs a custom admin role reading all users and groups.
+resource "okta_admin_role_custom" "p0_lister_role" {
+  label       = "P0 Directory Lister"
+  description = "Allows P0 Security to read all users and all groups"
+  permissions = [
+    "okta.users.read",
+    "okta.groups.read",
+  ]
+}
 
+resource "okta_resource_set" "p0_all_users_groups" {
+  label       = "P0 All Users and Groups"
+  description = "All users and all groups"
+  resources = [
+    "https://${p0_okta_directory_listing_staged.example.domain}/api/v1/users",
+    "https://${p0_okta_directory_listing_staged.example.domain}/api/v1/groups",
+  ]
+}
+
+resource "okta_app_oauth_role_assignment" "p0_lister_role_assignment" {
+  type         = "CUSTOM"
+  client_id    = okta_app_oauth.p0_api_integration.client_id
+  role         = okta_admin_role_custom.p0_lister_role.id
+  resource_set = okta_resource_set.p0_all_users_groups.id
+}
+
+# Finalizes the install; depends_on ensures the scope grants and role assignment exist first.
 resource "p0_okta_directory_listing" "example" {
   depends_on = [
-    p0_okta_directory_listing_staged.example
+    okta_app_oauth_api_scope.p0_api_integration_scopes,
+    okta_app_oauth_role_assignment.p0_lister_role_assignment,
   ]
   client = okta_app_oauth.p0_api_integration.client_id
   domain = p0_okta_directory_listing_staged.example.domain

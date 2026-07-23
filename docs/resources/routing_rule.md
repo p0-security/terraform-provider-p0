@@ -15,9 +15,14 @@ See [the P0 request-routing docs](https://docs.p0.dev/just-in-time-access/reques
 ## Example Usage
 
 ```terraform
+# Must pre-exist in the P0 app: the Okta group (via an installed Okta directory
+# listing integration, see p0_okta_directory_listing), the "aws" integration (see
+# p0_aws_iam_write), and the PagerDuty integration (connected in-app, not via Terraform).
 resource "p0_routing_rule" "example" {
+  name = "okta-aws-developers-oncall"
   requestor = {
-    type = "group"
+    type   = "group"
+    effect = "keep"
     groups = [{
       directory = "okta"
       id        = "00abcdefghijklmno697"
@@ -75,13 +80,14 @@ Required:
 
 Optional:
 
-- `directory` (String) May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "okta", or "workspace".
+- `directory` (String) May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "entra-id", "okta", or "workspace".
 - `effect` (String) The filter effect. May be one of:
 	 - 'keep': Access rule only applies when a requestor is a member of any of the specified groups
 	 - 'remove': Access rule only applies when a requestor is _not_ a member of any of the specified groups
 - `groups` (Attributes List) May only be used if 'type' is 'group'. If the user is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--approval--groups))
 - `integration` (String) May only be used if 'type' is 'auto' or 'escalation'. Possible values:
-- 'pagerduty': Access is granted if the requestor is on-call.
+- 'pagerduty': Access is granted if the requestor is on-call in PagerDuty.
+- 'incidentio': Access is granted if the requestor is on-call in incident.io.
 - `options` (Attributes) If present, determines additional trust requirements. (see [below for nested schema](#nestedatt--approval--options))
 - `profile_property` (String) May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.
 - `services` (List of String) May only be used if 'type' is 'escalation'. Defines which services to page on escalation.
@@ -91,7 +97,7 @@ Optional:
 
 Required:
 
-- `directory` (String) One of "azure-ad", "okta", or "workspace".
+- `directory` (String) One of "azure-ad", "entra-id", "okta", or "workspace".
 - `id` (String) This is the directory's internal group identifier.
 
 Optional:
@@ -104,8 +110,8 @@ Optional:
 
 Optional:
 
-- `allow_one_party` (Boolean) If true, allows requestors to approve their own requests.
-- `break_glass_approver` (Boolean) If true, allows the approver to approve break-glass requests.
+- `allow_one_party` (Boolean) If true, allows requestors to approve their own requests. Does not apply to 'auto' approval rules.
+- `break_glass_approver` (Boolean) If true, allows the approver to approve break-glass requests. Does not apply to 'auto' approval rules.
 - `require_duration` (Boolean) If true, requires access requests to include a duration.
 - `require_preapproval` (Boolean) If true, requires access requests to be pre-approved.
 - `require_reason` (Boolean) If true, requires access requests to include a reason.
@@ -135,7 +141,7 @@ Optional:
 
 Required:
 
-- `directory` (String) One of "azure-ad", "okta", or "workspace".
+- `directory` (String) One of "azure-ad", "entra-id", "okta", or "workspace".
 - `id` (String) This is the directory's internal group identifier.
 
 Optional:

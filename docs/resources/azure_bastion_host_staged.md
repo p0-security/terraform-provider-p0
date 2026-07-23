@@ -7,7 +7,7 @@ description: |-
   This resource is only needed for the azure_bastion option of p0_azure_bastion_host; jump host installs (the jump_host option) need no custom role and skip this resource.
   To use this resource, you must also:
   install the p0_azure resource,install the p0_azure_app resource,install the p0_azure_iam_write resource for the same subscription.
-  Read custom_role (name, description, actions, assignable_scope) when defining an azurerm_role_definition or equivalent, assign it to the P0 service principal, deploy Bastion, then pass the Bastion ARM ID and role definition ID in the azure_bastion attribute of p0_azure_bastion_host.
+  Read custom_role (name, description, actions, assignable_scope) when defining an azurerm_role_definition or equivalent, assign it to the P0 service principal, deploy Bastion, then register with p0_azure_bastion_host, passing the Bastion ARM ID plus the standard/admin VM-access role definition IDs in the azure_bastion attribute (the Bastion Host Management role is verified by name and is not configured there).
   Example:
   
   resource "p0_azure_bastion_host_staged" "example" {
@@ -32,7 +32,7 @@ To use this resource, you must also:
 - install the `p0_azure_app` resource,
 - install the `p0_azure_iam_write` resource for the same subscription.
 
-Read `custom_role` (name, description, actions, assignable_scope) when defining an `azurerm_role_definition` or equivalent, assign it to the P0 service principal, deploy Bastion, then pass the Bastion ARM ID and role definition ID in the `azure_bastion` attribute of `p0_azure_bastion_host`.
+Read `custom_role` (name, description, actions, assignable_scope) when defining an `azurerm_role_definition` or equivalent, assign it to the P0 service principal, deploy Bastion, then register with `p0_azure_bastion_host`, passing the Bastion ARM ID plus the standard/admin VM-access role definition IDs in the `azure_bastion` attribute (the Bastion Host Management role is verified by name and is not configured there).
 
 
 Example:
@@ -57,7 +57,6 @@ locals {
   subscription_id = "12345678-1234-1234-1234-123456789012"
 }
 
-# The SSH public key installed on the target VM's admin user.
 variable "target_ssh_public_key" {
   type = string
 }
@@ -90,17 +89,13 @@ resource "p0_azure_bastion_host_staged" "example" {
   subscription_id = local.subscription_id
 }
 
-# After apply, use custom_role (name, description, actions, assignable_scope) when defining your
-# Azure Bastion Host Management role, deploy Bastion, then register with p0_azure_bastion_host — see
-# examples/resources/p0_azure_bastion_host/resource.tf
+# After apply, use custom_role to define your Bastion Host Management role, deploy
+# Bastion, then register via p0_azure_bastion_host — see examples/resources/p0_azure_bastion_host/.
 
 # --- Target VM prerequisites ---
-# VMs that users reach through the Azure Bastion host over Azure IAM must have:
-#   - the Azure AD login for Linux extension (AADSSHLoginForLinux), which in
-#     turn requires the VM to have a managed identity, and
-#   - a running SSH server. Ubuntu marketplace images ship sshd enabled.
-# Unlike a jump host, a Bastion target needs no public IP; the Bastion reaches
-# it over the private network.
+# VMs reached through the Bastion over Azure IAM need the AADSSHLoginForLinux
+# extension (which requires a managed identity) and a running SSH server (Ubuntu
+# ships sshd enabled). Unlike a jump host, a Bastion target needs no public IP.
 resource "azurerm_resource_group" "target" {
   name     = "p0-bastion-target"
   location = "eastus"
@@ -141,8 +136,7 @@ resource "azurerm_linux_virtual_machine" "target" {
   admin_username        = "azureuser"
   network_interface_ids = [azurerm_network_interface.target.id]
 
-  # AADSSHLoginForLinux authenticates SSH through Azure AD and requires the VM
-  # to have a managed identity.
+  # AADSSHLoginForLinux requires the VM to have a managed identity.
   identity {
     type = "SystemAssigned"
   }
@@ -157,8 +151,7 @@ resource "azurerm_linux_virtual_machine" "target" {
     storage_account_type = "Standard_LRS"
   }
 
-  # Ubuntu ships and enables sshd by default, satisfying the SSH-server
-  # requirement.
+  # Ubuntu ships sshd enabled, satisfying the SSH-server requirement.
   source_image_reference {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-jammy"
@@ -167,8 +160,7 @@ resource "azurerm_linux_virtual_machine" "target" {
   }
 }
 
-# Install the Azure AD login for Linux extension so P0 can authenticate SSH
-# sessions to this VM through Azure IAM.
+# AADSSHLoginForLinux lets P0 authenticate SSH to this VM via Azure IAM.
 resource "azurerm_virtual_machine_extension" "target_aad_login" {
   name                       = "AADSSHLoginForLinux"
   virtual_machine_id         = azurerm_linux_virtual_machine.target.id
@@ -201,7 +193,7 @@ Read-Only:
 
 - `actions` (List of String) The actions allowed for the Azure custom role.
 - `assignable_scope` (String) The assignable scope of the Azure custom role.
-- `condition` (String) The condition of the Azure custom role assignment, if any.
+- `condition` (String) Always empty for the Bastion Host Management role, which has no ABAC condition. (This attribute exists only because the resource reuses the IAM-write role metadata shape.)
 - `description` (String) The description of the Azure custom role.
 - `is_custom` (Boolean) Indicates if the role is a custom role.
 - `name` (String) The name of the Azure custom role.

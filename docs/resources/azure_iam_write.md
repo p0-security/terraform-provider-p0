@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   An installation of P0, on a single Microsoft Azure Cloud Subscription, for IAM management.
   To use this resource, you must also:
-  create an app registration in Azure for P0,create federated credentials for P0 to communicate with Azure through the app registration,create a custom role allowing IAM operations,assign this custom role to P0's app registration at the subscription level,(optional) constraint role assignment to specific roles or principals,install the p0_azure resource,install the p0_azure_app resource,install the p0_azure_iam_write_staged resource,
+  create an app registration in Azure for P0,create federated credentials for P0 to communicate with Azure through the app registration,create a custom role allowing IAM operations,assign this custom role to P0's app registration at the subscription level,(optional) constrain role assignment to specific roles or principals,install the p0_azure resource,install the p0_azure_app resource,install the p0_azure_iam_write_staged resource,
   See the example usage for the recommended pattern to define this infrastructure.
 ---
 
@@ -18,7 +18,7 @@ To use this resource, you must also:
 - create federated credentials for P0 to communicate with Azure through the app registration,
 - create a custom role allowing IAM operations,
 - assign this custom role to P0's app registration at the subscription level,
-- (optional) constraint role assignment to specific roles or principals,
+- (optional) constrain role assignment to specific roles or principals,
 - install the `p0_azure` resource,
 - install the `p0_azure_app` resource,
 - install the `p0_azure_iam_write_staged` resource,
@@ -29,9 +29,7 @@ See the example usage for the recommended pattern to define this infrastructure.
 
 ```terraform
 locals {
-  # The tenant or directory ID for the Azure installation.
-  directory_id = "12345678-1234-1234-1234-123456789012"
-  # The subscription P0 will manage IAM grants in.
+  directory_id    = "12345678-1234-1234-1234-123456789012"
   subscription_id = "12345678-1234-1234-1234-123456789012"
 }
 
@@ -50,15 +48,13 @@ data "azuread_service_principal" "msgraph" {
   client_id = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
 }
 
-# 1. Register the P0 Azure integration for the tenant.
 resource "p0_azure" "example" {
   directory_id = local.directory_id
 }
 
-# 2. Create the P0 app registration. Stage it to obtain the app name and
-#    federated-credential parameters, create the Azure AD application and its
-#    federated identity credential, then complete the install with
-#    p0_azure_app. See examples/resources/p0_azure_app_staged/ for details.
+# P0 app registration chain: stage for the app name + federated-credential
+# params, create the app and its federated credential, then complete via
+# p0_azure_app.
 resource "p0_azure_app_staged" "example" {
   depends_on = [p0_azure.example]
 }
@@ -72,9 +68,8 @@ resource "azuread_service_principal" "p0" {
   depends_on = [azuread_application_registration.p0]
 }
 
-# P0 verifies the User.Read.All Microsoft Graph permission when installing the
-# IAM management integration; it is used to resolve access-request principals
-# to Entra ID users.
+# User.Read.All Microsoft Graph permission, verified at the IAM-write install;
+# resolves access-request principals to Entra ID users.
 resource "azuread_application_api_access" "msgraph_user_read_all" {
   application_id = azuread_application_registration.p0.id
   api_client_id  = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
@@ -86,7 +81,6 @@ resource "azuread_application_api_access" "msgraph_user_read_all" {
   depends_on = [azuread_application_registration.p0]
 }
 
-# Grants admin consent for the User.Read.All permission.
 resource "azuread_app_role_assignment" "msgraph_user_read_all_consent" {
   app_role_id         = data.azuread_service_principal.msgraph.app_role_ids["User.Read.All"]
   principal_object_id = azuread_service_principal.p0.object_id
@@ -116,15 +110,13 @@ resource "p0_azure_app" "example" {
   client_id = azuread_application_registration.p0.client_id
 }
 
-# 3. Stage the IAM-write install to obtain the custom role P0 needs to manage
-#    role assignments in the subscription.
+# Stage to obtain the custom role P0 needs to manage role assignments in the subscription.
 resource "p0_azure_iam_write_staged" "example" {
   depends_on      = [p0_azure_app.example]
   subscription_id = local.subscription_id
 }
 
-# 4. Create that custom role from the staged spec and assign it to P0's service
-#    principal, so P0 can assign and remove roles in the subscription.
+# Create the custom role from the staged spec and assign it to P0's service principal.
 resource "azurerm_role_definition" "p0_iam_management" {
   name              = p0_azure_iam_write_staged.example.custom_role.name
   description       = p0_azure_iam_write_staged.example.custom_role.description
@@ -141,15 +133,16 @@ resource "azurerm_role_assignment" "p0_iam_management" {
   role_definition_id = azurerm_role_definition.p0_iam_management.role_definition_resource_id
   principal_id       = azuread_service_principal.p0.object_id
 
-  # The service principal was just created and may not have propagated to
-  # Azure AD yet.
+  # SP was just created and may not have propagated to Azure AD yet.
   skip_service_principal_aad_check = true
 
-  # To constrain P0 to specific roles or principals, apply the staged
-  # custom_role.condition here (with condition_version = "2.0") when it is set.
+  # ABAC condition blocking P0 from assigning/revoking roles for its own service
+  # principal (privilege escalation); P0 always returns it in the staged custom_role.
+  condition         = p0_azure_iam_write_staged.example.custom_role.condition
+  condition_version = "2.0"
 }
 
-# 5. Complete the IAM-write install once the role assignment exists.
+# Complete the IAM-write install once the role assignment exists.
 resource "p0_azure_iam_write" "example" {
   depends_on      = [azurerm_role_assignment.p0_iam_management]
   subscription_id = local.subscription_id

@@ -64,11 +64,11 @@ func (r *MysqlIamWriteStaged) Metadata(ctx context.Context, req resource.Metadat
 
 func (r *MysqlIamWriteStaged) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A staged MySQL installation. Staged resources generate the infrastructure configuration needed to deploy P0's MySQL connector.
+		MarkdownDescription: `A staged MySQL installation. Staging computes the connector identifiers (notably hosting.connector_arn) needed to deploy P0's MySQL connector.
 
 **Important:** If using RDS hosting, you must first install the p0_aws_rds resource for the instance's VPC.
 
-Use the read-only attributes defined on this resource to get the shell commands or Terraform configuration needed to create the P0 connector infrastructure.`,
+After staging, use the computed hosting.connector_arn to deploy P0's MySQL connector (via the p0-security/p0-connector/aws and p0-security/p0-db/aws Terraform modules, as shown in the example), then complete the install with the p0_mysql resource.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
@@ -83,7 +83,7 @@ Use the read-only attributes defined on this resource to get the shell commands 
 				Attributes: map[string]schema.Attribute{
 					"type": schema.StringAttribute{
 						Required:            true,
-						MarkdownDescription: `The hosing environment`,
+						MarkdownDescription: `The hosting environment`,
 						Validators: []validator.String{
 							stringvalidator.OneOf("aws-rds", "Hosting must be 'aws-rds'"),
 						},
@@ -94,7 +94,7 @@ Use the read-only attributes defined on this resource to get the shell commands 
 					},
 					"instance_arn": schema.StringAttribute{
 						Required:            true,
-						MarkdownDescription: `The AWS RDS instance ARN`,
+						MarkdownDescription: `The AWS RDS instance or cluster ARN`,
 						Validators: []validator.String{
 							stringvalidator.RegexMatches(AwsRdsArnRegex, "Must be a valid AWS RDS instance ARN"),
 						},

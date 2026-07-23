@@ -1,0 +1,30 @@
+schemaVersion: "2.2"
+description: "Retrieve machine registration information including SSH host keys"
+mainSteps:
+- precondition:
+    StringEquals:
+      - platformType
+      - Linux
+  action: aws:runShellScript
+  name: InvokeLinuxScript
+  inputs:
+    runCommand:
+      - |
+        #!/bin/bash
+        set -e
+        
+        GetMachineHostKeys() {
+          local keys=()
+          for key_type in rsa dsa ecdsa ed25519; do
+            path="/etc/ssh/ssh_host_${key_type}_key.pub"
+            [[ -f "$path" ]] && keys+=("$(<"$path")") 
+          done
+          printf '{"hostKeys":['
+          for i in "${!keys[@]}"; do
+            [[ $i -gt 0 ]] && printf ','
+            printf '"%s"' "${keys[$i]}"
+          done
+          printf ']}'
+        }
+        
+        GetMachineHostKeys

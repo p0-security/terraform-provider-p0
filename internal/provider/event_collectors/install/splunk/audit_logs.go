@@ -69,7 +69,9 @@ func (r *AuditLogs) Metadata(ctx context.Context, req resource.MetadataRequest, 
 
 func (r *AuditLogs) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `An installation of the Splunk HTTP Event Collector`,
+		MarkdownDescription: "Allows P0 to send access events and security findings to a Splunk HTTP event collector. " +
+			"Only one `p0_splunk_audit_logs` resource is supported per P0 organization; " +
+			"creating more than one disables Splunk event forwarding for the entire organization.",
 		Attributes: map[string]schema.Attribute{
 			"state": common.StateAttribute,
 			"token_id": schema.StringAttribute{

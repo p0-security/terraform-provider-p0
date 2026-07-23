@@ -103,15 +103,17 @@ resource "p0_aws_iam_write_staged" "staged_account" {
 resource "aws_iam_role" "p0_iam_manager" {
   name               = p0_aws_iam_write_staged.staged_account.role.name
   assume_role_policy = p0_aws_iam_write_staged.staged_account.role.trust_policy
-  inline_policy {
-    name   = p0_aws_iam_write_staged.staged_account.role.inline_policy_name
-    policy = p0_aws_iam_write_staged.staged_account.role.inline_policy
-  }
+}
+
+resource "aws_iam_role_policy" "p0_iam_manager" {
+  name   = p0_aws_iam_write_staged.staged_account.role.inline_policy_name
+  role   = aws_iam_role.p0_iam_manager.name
+  policy = p0_aws_iam_write_staged.staged_account.role.inline_policy
 }
 
 resource "p0_aws_iam_write" "installed_account" {
-  id         = p0_aws_staged.staged_account.id
-  depends_on = [aws_iam_role.p0_iam_manager]
+  id         = p0_aws_iam_write_staged.staged_account.id
+  depends_on = [aws_iam_role_policy.p0_iam_manager]
   ...
 }
 ` + "```",
@@ -189,7 +191,7 @@ resource "p0_aws_iam_write" "installed_account" {
 					"identity": schema.SingleNestedAttribute{
 						Optional: true,
 						MarkdownDescription: `How user identities are mapped. When login type is 'iam', valid identity types are 'email' and 'tag'.
-    When login type is 'idc', valid identity types are 'user' (default, username is email) and 'email' (match by IDC email).
+    When login type is 'idc', valid identity types are 'user' (username is email) and 'email' (match by IDC email).
     May not be used when login type is 'merged-idc' (identity mapping is configured on the 'aws_midc' resource instead).`,
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{

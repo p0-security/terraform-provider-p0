@@ -56,7 +56,7 @@ To use this resource, you must also:
 - install the ` + "`p0_azure_app`" + ` resource,
 - install the ` + "`p0_azure_iam_write`" + ` resource for the same subscription.
 
-Read ` + "`custom_role`" + ` (name, description, actions, assignable_scope) when defining an ` + "`azurerm_role_definition`" + ` or equivalent, assign it to the P0 service principal, deploy Bastion, then pass the Bastion ARM ID and role definition ID in the ` + "`azure_bastion`" + ` attribute of ` + "`p0_azure_bastion_host`" + `.
+Read ` + "`custom_role`" + ` (name, description, actions, assignable_scope) when defining an ` + "`azurerm_role_definition`" + ` or equivalent, assign it to the P0 service principal, deploy Bastion, then register with ` + "`p0_azure_bastion_host`" + `, passing the Bastion ARM ID plus the standard/admin VM-access role definition IDs in the ` + "`azure_bastion`" + ` attribute (the Bastion Host Management role is verified by name and is not configured there).
 ` + "\n\nExample:\n\n```terraform\n" +
 			"resource \"p0_azure_bastion_host_staged\" \"example\" {\n" +
 			"  depends_on = [\n" +
@@ -98,7 +98,7 @@ Read ` + "`custom_role`" + ` (name, description, actions, assignable_scope) when
 					},
 					"condition": schema.StringAttribute{
 						Computed:            true,
-						MarkdownDescription: "The condition of the Azure custom role assignment, if any.",
+						MarkdownDescription: "Always empty for the Bastion Host Management role, which has no ABAC condition. (This attribute exists only because the resource reuses the IAM-write role metadata shape.)",
 					},
 				},
 			},

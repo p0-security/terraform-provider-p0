@@ -57,7 +57,10 @@ func (r *OktaDirectoryListing) Schema(ctx context.Context, req resource.SchemaRe
 
 To use this resource, you must also:
 - install the ` + "`p0_okta_directory_listing_staged`" + ` resource,
-- add the JWK from that resource to the Okta organization,
+- create the Okta OAuth service application that P0 authenticates as, using ` + "`private_key_jwt`" + `,
+- add the JWK from the staged resource to that application's JWKS,
+- grant the application the required Okta OAuth API scopes, and
+- assign the application an Okta admin role that can read all users and groups (for example, a custom role with the ` + "`okta.users.read`" + ` and ` + "`okta.groups.read`" + ` permissions).
 
 See the example usage for the recommended pattern to define this infrastructure.`,
 		Attributes: map[string]schema.Attribute{

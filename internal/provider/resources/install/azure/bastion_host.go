@@ -2,10 +2,10 @@
 // provision SSH access. Exactly one connection method is configured per subscription:
 //
 //   - `azure_bastion`: a managed Azure Bastion host, plus the P0 Bastion Host Management
-//     custom role. Stage with `p0_azure_bastion_host_staged`, create the role and Bastion in
-//     Azure (for example with the `azure_p0_roles` and `azure_p0_bastion` modules), then pass
-//     the Bastion ARM ID here. P0 verifies the Bastion Host Management role by name, so its ID
-//     is not configured here.
+//     custom role. Stage with `p0_azure_bastion_host_staged`, create that role from its computed
+//     `custom_role` and assign it to the P0 service principal, deploy the Bastion (for example
+//     with the `azure_p0_bastion` module), then pass the Bastion ARM ID here. P0 verifies the
+//     Bastion Host Management role by name, so its ID is not configured here.
 //   - `jump_host`: a customer-managed jump host VM, referenced by its resource ID. No custom
 //     role or staged resource is needed; P0 resolves and stores the VM's public IP at install
 //     time.
@@ -161,8 +161,8 @@ In both cases, you must also:
 
 To use ` + "`azure_bastion`" + `, you must additionally:
 - install the ` + "`p0_azure_bastion_host_staged`" + ` resource,
-- create an Azure Bastion host (e.g. via the ` + "`azure_p0_bastion`" + ` module),
-- create and assign the P0 Bastion Host Management role to the P0 app (e.g. via the ` + "`azure_p0_roles`" + ` module), using the staged resource's computed ` + "`custom_role`" + `. P0 verifies this role by name, so its ID is not configured here.
+- create an Azure Bastion host (e.g. via the ` + "`azure_p0_bastion`" + ` module). The Bastion must use the Standard or Premium SKU, have native-client tunneling enabled (` + "`tunneling_enabled = true`" + `), and include an ` + "`AzureBastionSubnet`" + ` IP configuration; the install fails verification otherwise,
+- create the P0 Bastion Host Management role from the staged resource's computed ` + "`custom_role`" + ` and assign it to the P0 service principal (e.g. via the ` + "`p0_azure_bastion`" + ` module). P0 verifies this role by name, so its ID is not configured here.
 
 To use ` + "`jump_host`" + `, the VM must have a public IP address on its primary network interface; P0 resolves and stores the IP at install time. No staged resource or Bastion host is needed. To let P0 terminate established jump host sessions when access is revoked, also install the ` + "`p0_azure_jump_host`" + ` management component.
 

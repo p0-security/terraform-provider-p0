@@ -58,14 +58,11 @@ func (r *AzureIamWriteStaged) Schema(ctx context.Context, req resource.SchemaReq
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `An installation of P0, on a single Azure subscription, for IAM management.
 		
-To use this resource, you must also:
-- create an app registration in Azure for P0,
-- create federated credentials for P0 to communicate with Azure through the app registration,
-- create a custom role allowing IAM operations,
-- assign this custom role to P0's app registration at the subscription level,
-- (optional) constraint role assignment to specific roles or principals,
+Staging this resource computes the ` + "`custom_role`" + ` spec (name, description, actions, assignable_scope, condition) for the role P0 needs to manage role assignments in the subscription. After staging, create that custom role from the computed spec and assign it to P0's service principal (optionally applying ` + "`custom_role.condition`" + ` to constrain role assignment to specific roles or principals), then complete the install with ` + "`p0_azure_iam_write`" + `.
+
+To use this resource, you must first:
 - install the ` + "`p0_azure`" + ` resource,
-- install the ` + "`p0_azure_app`" + ` resource,
+- install the ` + "`p0_azure_app`" + ` resource.
 
 For instructions on using this resource, see the documentation for ` + "`p0_azure_iam_write`.",
 		Attributes: map[string]schema.Attribute{

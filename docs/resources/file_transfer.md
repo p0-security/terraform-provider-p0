@@ -3,28 +3,29 @@
 page_title: "p0_file_transfer Resource - p0"
 subcategory: ""
 description: |-
-  A File Transfer installation for AWS.
+  A File Transfer (beta) installation for AWS.
   Installing File Transfer allows P0 to broker temporary, audited file transfers to your AWS EC2 instances through a customer-owned S3 bucket.
-  Prerequisite: AWS SSH (p0_ssh_aws) must be installed for the same AWS account before file transfer can be requested.
+  Prerequisite: AWS SSH (p0_ssh_aws) must be installed for the same AWS account before file transfer can be requested. This also requires the AWS integration (p0_aws_iam_write), which P0 uses to verify the bucket at install time.
 ---
 
 # p0_file_transfer (Resource)
 
-A File Transfer installation for AWS.
+A File Transfer (beta) installation for AWS.
 
 Installing File Transfer allows P0 to broker temporary, audited file transfers to your AWS EC2 instances through a customer-owned S3 bucket.
 
-**Prerequisite:** AWS SSH (`p0_ssh_aws`) must be installed for the same AWS account before file transfer can be requested.
+**Prerequisite:** AWS SSH (`p0_ssh_aws`) must be installed for the same AWS account before file transfer can be requested. This also requires the AWS integration (`p0_aws_iam_write`), which P0 uses to verify the bucket at install time.
 
 ## Example Usage
 
 ```terraform
+# Published module: provisions the hardened S3 bucket P0 uses to broker file transfers; exposes account_id and bucket_name.
 module "file_transfer_bucket" {
   source  = "p0-security/p0-file-transfer/aws"
-  version = "1.0.0"
+  version = "~> 0.1.1"
 }
 
-# File transfer requires AWS SSH to be installed for the same account first.
+# File transfer requires AWS SSH installed for the same account first.
 resource "p0_ssh_aws" "example" {
   account_id = module.file_transfer_bucket.account_id
 }
@@ -32,7 +33,9 @@ resource "p0_ssh_aws" "example" {
 resource "p0_file_transfer" "example" {
   account_id  = module.file_transfer_bucket.account_id
   bucket_name = module.file_transfer_bucket.bucket_name
-  depends_on  = [module.file_transfer_bucket]
+
+  # P0 enforces this ordering: AWS SSH must be installed before file transfer.
+  depends_on = [p0_ssh_aws.example]
 }
 ```
 
@@ -42,11 +45,11 @@ resource "p0_file_transfer" "example" {
 ### Required
 
 - `account_id` (String) The AWS account ID. AWS SSH must already be installed for this account.
-- `bucket_name` (String) The name of the S3 bucket used to broker fast file transfers (without the `s3://` prefix)
+- `bucket_name` (String) The name of the S3 bucket used to broker fast file transfers (without the `s3://` prefix). Must exist in the same AWS account as `account_id`; may be in any region.
 
 ### Read-Only
 
-- `aws_partition` (String) The AWS partition the bucket resides in. Usually `aws`; use `aws-us-gov` for GovCloud or `aws-cn` for China
+- `aws_partition` (String) The AWS partition of the bucket, determined by P0 during install. Either `aws` or `aws-us-gov` (GovCloud).
 - `label` (String) The label for this installation (defaults to the AWS account ID)
 - `region` (String) The AWS region of the S3 bucket (e.g. `us-east-1`)
 - `state` (String) This item's install progress in the P0 application:

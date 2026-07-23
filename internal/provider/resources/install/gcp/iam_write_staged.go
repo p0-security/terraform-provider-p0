@@ -48,7 +48,7 @@ func (r *GcpIamWriteStaged) Metadata(ctx context.Context, req resource.MetadataR
 
 func (r *GcpIamWriteStaged) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `An installation of P0, on a single Google Cloud project, for IAM management.
+		MarkdownDescription: `A staged installation of P0, on a single Google Cloud project, for IAM management.
 
 For instructions on using this resource, see the documentation for ` + "`p0_gcp_iam_write`.",
 		Attributes: map[string]schema.Attribute{

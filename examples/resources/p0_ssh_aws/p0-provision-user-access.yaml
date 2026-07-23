@@ -1,0 +1,328 @@
+schemaVersion: "2.2"
+description: "Grant/revoke password-less sudo access, add/remove an authorized ssh key, or create a user"
+parameters:
+  UserName:
+    type: "String"
+    description: "User name"
+    allowedPattern: "^[a-z][-a-z0-9_]*$"
+  Action:
+    type: "String"
+    description: "'grant' or 'revoke'"
+    allowedValues:
+    - cleanup
+    - grant
+    - revoke
+  RequestId:
+    type: "String"
+    description: "P0 access request identifier"
+    allowedPattern: "^[a-zA-Z0-9]*$"
+  PublicKey:
+    type: "String"
+    description: "SSH public key"
+    allowedPattern: "^[^'\n]*$"
+    default: "N/A"
+  Sudo:
+    type: "String"
+    description: "Whether to grant sudo access"
+    allowedValues:
+    - "false"
+    - "true"
+    default: "false"
+mainSteps:
+- precondition:
+    StringEquals:
+      - platformType
+      - Linux
+  action: aws:runShellScript
+  name: InvokeLinuxScript
+  inputs:
+    runCommand:
+      - |
+        #!/bin/bash
+        set -euo pipefail
+        
+        ExitWithFailure() {
+          MESSAGE="$1"
+          (>&2 echo "$MESSAGE")
+          exit 1
+        }
+        
+        FindNextAvailableUID() {
+          local MIN_UID=65536
+          local MAX_UID=90000
+          local NEW_UID=$MIN_UID
+        
+          # Check both UID and GID availability since we enforce UID == GID
+          while id -u "$NEW_UID" &>/dev/null || getent group | cut -d: -f3 | grep -qx "$NEW_UID"; do
+            ((NEW_UID++))
+            if [ "$NEW_UID" -gt "$MAX_UID" ]; then
+                echo "No available UID/GID found in range $MIN_UID-$MAX_UID" >&2
+                return 1
+            fi
+          done
+        
+          echo "$NEW_UID"
+          return 0
+        }
+        
+        DeleteGroup() {
+          local USERNAME="$1"
+        
+          # Temporarily disable errexit to capture exit code
+          set +e
+          if [ -f /usr/sbin/groupdel ]; then
+            timeout 30s groupdel "$USERNAME"
+          elif [ -f /usr/sbin/delgroup ]; then
+            timeout 30s delgroup "$USERNAME"
+          else
+            ExitWithFailure "Neither groupdel nor delgroup are available."
+          fi
+          local EXIT_CODE=$?
+          set -e
+        
+          if [ $EXIT_CODE -eq 124 ]; then
+            ExitWithFailure "Timeout: Group deletion took longer than 30 seconds."
+          elif [ $EXIT_CODE -ne 0 ]; then
+            ExitWithFailure "Failed to delete existing group."
+          fi
+        }
+        
+        EnsureGroup() {
+          local USERNAME="$1"
+          local DESIRED_GID="$2"
+        
+          # Check if group already exists
+          local EXISTING_GID=$(getent group "$USERNAME" | cut -d: -f3)
+          if [ -n "$EXISTING_GID" ]; then
+            if [ "$EXISTING_GID" = "$DESIRED_GID" ]; then
+              # Group exists with correct GID - continue
+              return 0
+            fi
+            # Group exists with wrong GID - delete and recreate (will error if in use)
+            DeleteGroup "$USERNAME"
+          fi
+        
+          # Temporarily disable errexit to capture exit code
+          set +e
+          if [ -f /usr/sbin/groupadd ]; then
+            timeout 30s /usr/sbin/groupadd -g "$DESIRED_GID" "$USERNAME"
+          elif [ -f /usr/sbin/addgroup ]; then
+            timeout 30s /usr/sbin/addgroup --gid "$DESIRED_GID" "$USERNAME"
+          else
+            ExitWithFailure "Neither groupadd nor addgroup are available."
+          fi
+          local EXIT_CODE=$?
+          set -e
+        
+          if [ $EXIT_CODE -eq 124 ]; then
+            ExitWithFailure "Timeout: Group creation took longer than 30 seconds."
+          elif [ $EXIT_CODE -ne 0 ]; then
+            ExitWithFailure "Failed to create the specified group."
+          fi
+        }
+        
+        CreateUser() {
+          local USERNAME="$1"
+          local USER_UID="$2"
+        
+          # Temporarily disable errexit to capture exit code
+          set +e
+          if [ -f /usr/sbin/useradd ]; then
+            timeout 30s /usr/sbin/useradd -m -u "$USER_UID" -g "$USER_UID" -s /bin/bash "$USERNAME"
+          elif [ -f /usr/sbin/adduser ]; then
+            timeout 30s /usr/sbin/adduser --uid "$USER_UID" --gid "$USER_UID" --gecos "$USERNAME" --disabled-password --shell /bin/bash "$USERNAME"
+          else
+            ExitWithFailure "Neither useradd nor adduser are available."
+          fi
+          local EXIT_CODE=$?
+          set -e
+        
+          if [ $EXIT_CODE -eq 124 ]; then
+            ExitWithFailure "Timeout: User creation took longer than 30 seconds."
+          elif [ $EXIT_CODE -ne 0 ]; then
+            ExitWithFailure "Failed to create the specified user."
+          fi
+        }
+        
+        EnsureUserExists() {
+          local USERNAME="$1"
+        
+          if id "$USERNAME" &>/dev/null; then
+              return 0
+          fi
+        
+          local NEW_UID=$(FindNextAvailableUID) || ExitWithFailure "No available UID/GID found."
+        
+          EnsureGroup "$USERNAME" "$NEW_UID"
+          CreateUser "$USERNAME" "$NEW_UID"
+        }
+        
+        EnsureLineInFile() {
+          local LINE="$1"
+          local FILE="$2"
+        
+          if ! grep -qF "$LINE" "$FILE"; then
+              echo "$LINE" | tee -a "$FILE" >/dev/null
+          fi
+        }
+        
+        EnsureFileExists() {
+          local FILE_PATH="$1"
+          mkdir -p "$(dirname "$FILE_PATH")"
+          if [ ! -e "$FILE_PATH" ]; then
+            touch "$FILE_PATH"
+          fi
+        }
+        
+        UpdateFile() {
+          local REQUEST_ID="$1"
+          local FILE_PATH="$2"
+          local ACTION="$3"
+          local CONTENT="$4"
+          local PERMISSION="$5"
+        
+          if [ ! -f "$FILE_PATH" ]; then
+            return 0
+          fi
+        
+          local NOW=$(date +%s)
+          local TEMP_FILE="${FILE_PATH}.tmp.$$"
+          local MAX_REVOKE_AGE=604800  # 7 days in seconds
+        
+          # Create empty temp file
+          : > "$TEMP_FILE"
+        
+          # Flag to track whether to skip adding new grant/revoke line
+          local do_not_add=0
+          # Flag to keep the next line (used for actual "grant" content)
+          local keep_next_line=0
+          # Flag to skip the next line (used for revoking)
+          local skip_next_line=0
+        
+          # Process file line-by-line. Only clean up P0-generated content if action is "cleanup":
+          # - Comments starting with "# RequestID: ... | ..."
+          # - For authorized_keys: orphaned public keys ending with "p0-generated-key"
+          # All other content is preserved.
+          while IFS= read -r line || [ -n "$line" ]; do
+            if [ $skip_next_line -eq 1 ]; then
+              # Content line following a revoked GrantedAt - always skip
+              skip_next_line=0
+            elif [ $keep_next_line -eq 1 ]; then
+              # Content line following a kept P0 GrantedAt - always keep
+              echo "$line" >> "$TEMP_FILE"
+              keep_next_line=0
+            elif [[ "$line" =~ ^#[[:space:]]RequestID:[[:space:]](.+)[[:space:]]\|[[:space:]](GrantedAt|RevokedAt):[[:space:]]([0-9]+) ]]; then
+              # Properly formatted P0 comment line matching: "# RequestID: <id> | <GrantedAt|RevokedAt>: <timestamp>"
+              # Captures: [1]=request_id, [2]=type (GrantedAt/RevokedAt), [3]=timestamp
+              local line_request_id="${BASH_REMATCH[1]}"
+              local line_type="${BASH_REMATCH[2]}"
+              local line_timestamp="${BASH_REMATCH[3]}"
+        
+              if [ "$line_request_id" = "$REQUEST_ID" ]; then
+                # Current RequestID
+                if [ "$line_type" = "RevokedAt" ]; then
+                  echo "$line" >> "$TEMP_FILE"
+                  # If the ACTION is "revoke", an identical revoke for this request ID already exists (idempotency)
+                  # If the ACTION is "grant", a revoke tombstone for this request ID exists (out-of-order protection)
+                  do_not_add=1
+                else # line_type can only be "GrantedAt"
+                  if [ "$ACTION" = "grant" ]; then
+                    echo "$line" >> "$TEMP_FILE"
+                    # A "grant" action should not be added an identical grant for this request ID already exists (idempotency)
+                    do_not_add=1
+                    keep_next_line=1
+                  else # action can only be "revoke" because "cleanup" does not specify a RequestID
+                    # For "revoke" action, remove this GrantedAt line and its content line
+                    skip_next_line=1
+                  fi
+                fi
+              else
+                # Different RequestID - always clean up old RevokedAt tombstones
+                if [ "$line_type" = "RevokedAt" ]; then
+                  local age=$((NOW - line_timestamp))
+                  if [ $age -lt $MAX_REVOKE_AGE ]; then
+                    echo "$line" >> "$TEMP_FILE"
+                  fi
+                else # line_type can only be "GrantedAt"
+                  echo "$line" >> "$TEMP_FILE"
+                  keep_next_line=1
+                fi
+              fi
+            else
+              # Non-properly formatted line - only clean up content if action is "cleanup"
+              if [ "$ACTION" = "cleanup" ]; then
+                # Cleanup action: only malformed P0-owned lines are removed
+                if [[ "$line" =~ ^#[[:space:]]RequestID: ]]; then
+                  # Partial P0 comment without proper format - skip (malformed)
+                  :
+                elif [[ "$FILE_PATH" == *"authorized_keys"* ]]; then
+                  # For authorized_keys, check if it's an orphaned P0-generated key
+                  if [[ "$line" =~ p0-generated-key[[:space:]]*$ ]]; then
+                    # Orphaned P0 key not following a kept GrantedAt - skip (malformed)
+                    :
+                  else
+                    # Not a P0 key - keep it (user content)
+                    echo "$line" >> "$TEMP_FILE"
+                  fi
+                fi
+                # For sudoers-p0, skip everything else (comments, empty lines, orphaned entries)
+              else
+                # Grant or Revoke action: preserve all existing content (including malformed lines)
+                echo "$line" >> "$TEMP_FILE"
+              fi
+            fi
+          done < "$FILE_PATH"
+        
+          # After line-by-line processing, add new grant entry / revoke tombstone if needed
+          if [ $do_not_add -eq 0 ]; then
+            if [ "$ACTION" = "revoke" ]; then
+              echo "# RequestID: $REQUEST_ID | RevokedAt: $NOW" >> "$TEMP_FILE"
+            elif [ "$ACTION" = "grant" ]; then
+              echo "# RequestID: $REQUEST_ID | GrantedAt: $NOW" >> "$TEMP_FILE"
+              echo "$CONTENT" >> "$TEMP_FILE"
+            fi
+          fi
+        
+          mv "$TEMP_FILE" "$FILE_PATH"
+          # Always ensure correct permissions
+          chmod "$PERMISSION" "$FILE_PATH"
+        }
+        
+        # Create secure lock directory with restrictive permissions
+        mkdir -p /run/p0
+        chown root:root /run/p0
+        chmod 700 /run/p0
+        
+        # Use flock to serialize all operations (user creation, sudoers, SSH keys)
+        # Protects shared resources like /etc/sudoers-p0 from concurrent writes
+        (
+          flock -x -w 30 200 || ExitWithFailure "Failed to acquire lock after 30 seconds."
+        
+          # Ensure user exists and files are set up
+          EnsureUserExists '{{ UserName }}'
+          EnsureFileExists "/etc/sudoers-p0"
+          EnsureFileExists '/home/{{ UserName }}/.ssh/authorized_keys'
+        
+          if [ '{{ Action }}' = "grant" ]; then
+            if [ -n '{{ Sudo }}' ] && [ '{{ Sudo }}' = "true" ]; then
+              UpdateFile '{{ RequestId }}' "/etc/sudoers-p0" "grant" '{{ UserName }} ALL=(ALL) NOPASSWD: ALL' "440"
+              EnsureLineInFile "#include sudoers-p0" /etc/sudoers
+            fi
+            if [ -n '{{ PublicKey }}' ] && [ '{{ PublicKey }}' != "N/A" ]; then
+              UpdateFile '{{ RequestId }}' '/home/{{ UserName }}/.ssh/authorized_keys' "grant" '{{ PublicKey }}' "600"
+              chown -R '{{ UserName }}:{{ UserName }}' '/home/{{ UserName }}/.ssh'
+            fi
+          elif [ '{{ Action }}' = "revoke" ]; then
+            UpdateFile '{{ RequestId }}' "/etc/sudoers-p0" "revoke" "" "440"
+            UpdateFile '{{ RequestId }}' '/home/{{ UserName }}/.ssh/authorized_keys' "revoke" "" "600"
+          else # Action is "cleanup"
+            # PublicKey, RequestID, Sudo parameters are ignored for cleanup
+            # Always clean up sudoers-p0 file and pass empty PublicKey and RequestID
+            UpdateFile "" "/etc/sudoers-p0" "cleanup" "" "440"
+            UpdateFile "" '/home/{{ UserName }}/.ssh/authorized_keys' "cleanup" "" "600"
+          fi
+        
+          echo "Completed"
+          exit 0
+        ) 200>/run/p0/p0-operations.lock
+        

@@ -68,6 +68,11 @@ To use this resource, you must first install the ` + "`p0_azure`" + ` resource.
 			"  display_name = p0_azure_app_staged.example.app_name\n" +
 			"}\n" +
 			"\n" +
+			"# P0's app installer requires the application's service principal to exist.\n" +
+			"resource \"azuread_service_principal\" \"p0\" {\n" +
+			"  client_id = azuread_application_registration.p0.client_id\n" +
+			"}\n" +
+			"\n" +
 			"resource \"azuread_application_federated_identity_credential\" \"p0\" {\n" +
 			"  application_id = azuread_application_registration.p0.id\n" +
 			"  display_name   = p0_azure_app_staged.example.credential_info.name\n" +
@@ -78,8 +83,11 @@ To use this resource, you must first install the ` + "`p0_azure`" + ` resource.
 			"}\n" +
 			"\n" +
 			"resource \"p0_azure_app\" \"example\" {\n" +
-			"  depends_on = [azuread_application_federated_identity_credential.p0]\n" +
-			"  client_id  = azuread_application_registration.p0.client_id\n" +
+			"  depends_on = [\n" +
+			"    azuread_application_federated_identity_credential.p0,\n" +
+			"    azuread_service_principal.p0,\n" +
+			"  ]\n" +
+			"  client_id = azuread_application_registration.p0.client_id\n" +
 			"}\n" +
 			"```\n",
 		Attributes: map[string]schema.Attribute{

@@ -64,11 +64,11 @@ func (*fileTransferIamWrite) Metadata(_ context.Context, req resource.MetadataRe
 // Schema implements resource.ResourceWithImportState.
 func (*fileTransferIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A File Transfer installation for AWS.
+		MarkdownDescription: `A File Transfer (beta) installation for AWS.
 
 Installing File Transfer allows P0 to broker temporary, audited file transfers to your AWS EC2 instances through a customer-owned S3 bucket.
 
-**Prerequisite:** AWS SSH (` + "`p0_ssh_aws`" + `) must be installed for the same AWS account before file transfer can be requested.`,
+**Prerequisite:** AWS SSH (` + "`p0_ssh_aws`" + `) must be installed for the same AWS account before file transfer can be requested. This also requires the AWS integration (` + "`p0_aws_iam_write`" + `), which P0 uses to verify the bucket at install time.`,
 		Attributes: map[string]schema.Attribute{
 			"account_id": schema.StringAttribute{
 				MarkdownDescription: `The AWS account ID. AWS SSH must already be installed for this account.`,
@@ -81,7 +81,7 @@ Installing File Transfer allows P0 to broker temporary, audited file transfers t
 				},
 			},
 			"bucket_name": schema.StringAttribute{
-				MarkdownDescription: `The name of the S3 bucket used to broker fast file transfers (without the ` + "`s3://`" + ` prefix)`,
+				MarkdownDescription: `The name of the S3 bucket used to broker fast file transfers (without the ` + "`s3://`" + ` prefix). Must exist in the same AWS account as ` + "`account_id`" + `; may be in any region.`,
 				Required:            true,
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(BucketNameRegex, "Must be a valid S3 bucket DNS name (lowercase letters, numbers, dots, and hyphens)"),
@@ -92,7 +92,7 @@ Installing File Transfer allows P0 to broker temporary, audited file transfers t
 				Computed:            true,
 			},
 			"aws_partition": schema.StringAttribute{
-				MarkdownDescription: `The AWS partition the bucket resides in. Usually ` + "`aws`" + `; use ` + "`aws-us-gov`" + ` for GovCloud or ` + "`aws-cn`" + ` for China`,
+				MarkdownDescription: `The AWS partition of the bucket, determined by P0 during install. Either ` + "`aws`" + ` or ` + "`aws-us-gov`" + ` (GovCloud).`,
 				Computed:            true,
 			},
 			"label": schema.StringAttribute{

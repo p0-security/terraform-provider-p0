@@ -54,7 +54,7 @@ To use this resource, you must also:
 - create federated credentials for P0 to communicate with Azure through the app registration,
 - create a custom role allowing IAM operations,
 - assign this custom role to P0's app registration at the subscription level,
-- (optional) constraint role assignment to specific roles or principals,
+- (optional) constrain role assignment to specific roles or principals,
 - install the ` + "`p0_azure`" + ` resource,
 - install the ` + "`p0_azure_app`" + ` resource,
 - install the ` + "`p0_azure_iam_write_staged`" + ` resource,

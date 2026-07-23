@@ -83,10 +83,13 @@ func (r *GcpSecurityPerimeterStage) Schema(ctx context.Context, req resource.Sch
 		MarkdownDescription: `A staged installation of the P0 Security Perimeter, for a Google Cloud Project,
 which creates a security boundary for P0.
 
+The security perimeter must be enabled for your P0 organization. If this resource returns a 404, contact P0 support to enable the feature.
+
 To use this resource, you must also:
-- Install the ` + "`p0_gcp_iam_write`" + ` resource.
 - Deploy the P0 Security Perimeter cloud run service and the corresponding service account.
-- install the ` + "`p0_gcp_security_perimeter`" + ` resource.`,
+- Install the ` + "`p0_gcp_security_perimeter`" + ` resource.
+
+Install the security perimeter before (or alongside) ` + "`p0_gcp_iam_write`" + `; the perimeter does not require an existing ` + "`p0_gcp_iam_write`" + ` install. Every Google Cloud project that installs ` + "`p0_gcp_iam_write`" + ` while the perimeter is in use must grant the security-perimeter service account the ` + "`p0IamWriter`" + ` custom role and ` + "`roles/iam.securityAdmin`" + `.`,
 		Attributes: map[string]schema.Attribute{
 			"project": projectAttribute,
 			"state":   common.StateAttribute,

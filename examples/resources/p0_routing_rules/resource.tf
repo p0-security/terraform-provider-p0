@@ -1,10 +1,17 @@
+# Must pre-exist in the P0 app: the Okta group (via an installed Okta directory
+# listing integration, see p0_okta_directory_listing), the "aws" integration (see
+# p0_aws_iam_write), and the PagerDuty integration (connected in-app, not via Terraform).
 resource "p0_routing_rules" "example" {
   rule {
+    name = "AWS developers on-call access"
     requestor = {
-      type      = "group"
-      directory = "okta"
-      id        = "00abcdefghijklmno697"
-      label     = "AWS Developers"
+      type   = "group"
+      effect = "keep"
+      groups = [{
+        directory = "okta"
+        id        = "00abcdefghijklmno697"
+        label     = "AWS Developers"
+      }]
     }
     resource = {
       type    = "integration"
