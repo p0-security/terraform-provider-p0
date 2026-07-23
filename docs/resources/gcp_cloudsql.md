@@ -179,6 +179,7 @@ resource "p0_gcp_cloudsql" "example" {
     module.gcp_cloudsql_vpc,
     google_project_iam_member.connector_cloudsql_admin,
     google_project_iam_member.connector_instance_user,
+    google_sql_user.connector,
   ]
 }
 ```
