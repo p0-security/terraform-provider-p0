@@ -1,6 +1,7 @@
 package installresources
 
 const (
+	AccessManagement = "access-management"
 	BastionHost      = "bastion-host"
 	IamAssessment    = "iam-assessment"
 	IamWrite         = "iam-write"

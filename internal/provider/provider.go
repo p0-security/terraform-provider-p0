@@ -31,6 +31,7 @@ import (
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
 	installpostgres "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/postgres"
+	installpostgreslegacy "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/postgres-legacy"
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
 	routingrules "github.com/p0-security/terraform-provider-p0/internal/provider/resources/routing_rules"
@@ -186,6 +187,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installmysql.NewMysqlIamWrite,
 		installpostgres.NewPostgresIamWriteStaged,
 		installpostgres.NewPostgresIamWrite,
+		installpostgreslegacy.NewPostgresLegacy,
 		installokta.NewOktaDirectoryListingStaged,
 		installokta.NewOktaDirectoryListing,
 		installokta.NewOktaGroupAssignment,
