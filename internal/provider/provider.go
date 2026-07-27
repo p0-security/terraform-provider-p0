@@ -34,6 +34,7 @@ import (
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
 	routingrules "github.com/p0-security/terraform-provider-p0/internal/provider/resources/routing_rules"
+	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/settings"
 )
 
 // Ensure P0Provider satisfies various provider interfaces.
@@ -152,6 +153,14 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		routingrules.NewRoutingRule,
 		routingrules.NewRoutingRules,
+		settings.NewOwnerUser,
+		settings.NewOwnerGroup,
+		settings.NewSecurityReviewerUser,
+		settings.NewSecurityReviewerGroup,
+		settings.NewAssessmentUser,
+		settings.NewAssessmentGroup,
+		settings.NewAssessmentViewerUser,
+		settings.NewAssessmentViewerGroup,
 		installaws.NewAwsIamWrite,
 		installaws.NewIamWriteStagedAws,
 		installaws.NewAwsInventory,

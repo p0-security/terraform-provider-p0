@@ -98,6 +98,16 @@ func (data *P0ProviderData) Do(req *http.Request, responseJson any) (*http.Respo
 		return resp, readErr
 	}
 
+	// Some endpoints acknowledge success with an empty body (e.g. 201/204 from
+	// role-binding writes). There is no JSON to parse, so treat the status code
+	// as authoritative and leave responseJson at its zero value.
+	if len(bytes.TrimSpace(body)) == 0 {
+		if resp.StatusCode >= 400 {
+			return resp, fmt.Errorf("unexpected response from P0: %s", resp.Status)
+		}
+		return resp, nil
+	}
+
 	parseErr := json.Unmarshal(body, &responseJson)
 	if parseErr != nil {
 		return resp, parseErr
