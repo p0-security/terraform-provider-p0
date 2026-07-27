@@ -166,19 +166,27 @@ func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
 }
 
 func (data *P0ProviderData) doBody(method string, path string, requestJson any, responseJson any) (*http.Response, error) {
-	buf, marshalErr := json.Marshal(&requestJson)
-	if marshalErr != nil {
-		return nil, marshalErr
+	// A nil requestJson means "no request body". Send an empty body rather than
+	// the literal JSON `null`, which strict body parsers (e.g. Express's
+	// express.json()) reject with a parse error.
+	var reader io.Reader
+	hasBody := requestJson != nil
+	if hasBody {
+		buf, marshalErr := json.Marshal(requestJson)
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+		reader = bytes.NewReader(buf)
 	}
 
-	reader := bytes.NewReader(buf)
-
 	req, errNew := http.NewRequest(method, fmt.Sprintf("%s/%s", data.BaseUrl, path), reader)
-	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Authorization", data.Authentication)
-	req.Header.Add("Content-Type", "application/json")
 	if errNew != nil {
 		return nil, errNew
+	}
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("Authorization", data.Authentication)
+	if hasBody {
+		req.Header.Add("Content-Type", "application/json")
 	}
 	return data.Do(req, responseJson)
 }
