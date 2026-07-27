@@ -109,7 +109,10 @@ func (r *roleBinding) Create(ctx context.Context, req resource.CreateRequest, re
 
 	tflog.Debug(ctx, fmt.Sprintf("Added %s binding %q to role %q", r.kind, normalized, r.role))
 
-	diag.Append(resp.State.SetAttribute(ctx, path.Root(r.attr), types.StringValue(normalized))...)
+	// Persist the configured value verbatim: normalization is only for the API
+	// path, and (since there is no read endpoint) state must equal config to
+	// avoid a "provider produced inconsistent result after apply" error.
+	diag.Append(resp.State.SetAttribute(ctx, path.Root(r.attr), value)...)
 }
 
 func (r *roleBinding) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

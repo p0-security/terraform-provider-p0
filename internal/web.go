@@ -102,10 +102,10 @@ func (data *P0ProviderData) Do(req *http.Request, responseJson any) (*http.Respo
 	// role-binding writes). There is no JSON to parse, so treat the status code
 	// as authoritative and leave responseJson at its zero value.
 	if len(bytes.TrimSpace(body)) == 0 {
-		if resp.StatusCode >= 400 {
-			return resp, fmt.Errorf("unexpected response from P0: %s", resp.Status)
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return resp, nil
 		}
-		return resp, nil
+		return resp, fmt.Errorf("unexpected response from P0: %s", resp.Status)
 	}
 
 	parseErr := json.Unmarshal(body, &responseJson)
