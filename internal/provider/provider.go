@@ -161,6 +161,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		settings.NewAssessmentGroup,
 		settings.NewAssessmentViewerUser,
 		settings.NewAssessmentViewerGroup,
+		settings.NewAccessDurations,
+		settings.NewExpiryOptions,
 		installaws.NewAwsIamWrite,
 		installaws.NewIamWriteStagedAws,
 		installaws.NewAwsInventory,
