@@ -10,6 +10,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"reflect"
 	"time"
 )
 
@@ -98,6 +99,16 @@ func (data *P0ProviderData) Do(req *http.Request, responseJson any) (*http.Respo
 		return resp, readErr
 	}
 
+	// Some endpoints acknowledge success with an empty body (e.g. 201/204 from
+	// role-binding writes). There is no JSON to parse, so treat the status code
+	// as authoritative and leave responseJson at its zero value.
+	if len(bytes.TrimSpace(body)) == 0 {
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return resp, nil
+		}
+		return resp, fmt.Errorf("unexpected response from P0: %s", resp.Status)
+	}
+
 	parseErr := json.Unmarshal(body, &responseJson)
 	if parseErr != nil {
 		return resp, parseErr
@@ -136,10 +147,10 @@ func (data *P0ProviderData) Get(path string, responseJson any) (*http.Response, 
 
 func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
 	req, errNew := http.NewRequest("DELETE", fmt.Sprintf("%s/%s", data.BaseUrl, path), nil)
-	req.Header.Add("Authorization", data.Authentication)
 	if errNew != nil {
 		return nil, errNew
 	}
+	req.Header.Add("Authorization", data.Authentication)
 
 	resp, errDo := data.doWithRetry(req)
 	if errDo != nil {
@@ -147,28 +158,66 @@ func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Endpoints should not return content
-	// TODO: Render actual error
-	if resp.StatusCode != 204 {
-		return resp, fmt.Errorf("unexpected return code during delete: %d", resp.StatusCode)
+	// Endpoints should not return content on success.
+	if resp.StatusCode == 204 {
+		return resp, nil
 	}
-	return resp, nil
+
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return resp, readErr
+	}
+
+	// Surface the P0 backend's actual error message (e.g. "Cannot remove the
+	// last owner") instead of just the status code.
+	var generic map[string]any
+	if json.Unmarshal(body, &generic) == nil {
+		if errorText, ok := generic["error"].(string); ok {
+			return resp, fmt.Errorf("%s: %s", resp.Status, errorText)
+		}
+	}
+	return resp, fmt.Errorf("unexpected return code during delete: %d", resp.StatusCode)
+}
+
+// isNilRequestBody reports whether requestJson represents "no body": either the
+// untyped nil interface, or a typed nil (a nil pointer/map/slice/interface/
+// func/chan boxed in the `any` parameter, which is != nil as an interface
+// comparison but still marshals to the JSON literal `null`).
+func isNilRequestBody(requestJson any) bool {
+	if requestJson == nil {
+		return true
+	}
+	v := reflect.ValueOf(requestJson)
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Interface, reflect.Func, reflect.Chan:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 func (data *P0ProviderData) doBody(method string, path string, requestJson any, responseJson any) (*http.Response, error) {
-	buf, marshalErr := json.Marshal(&requestJson)
-	if marshalErr != nil {
-		return nil, marshalErr
+	// A nil requestJson (including a typed nil) means "no request body". Send an
+	// empty body rather than the literal JSON `null`, which strict body parsers
+	// (e.g. Express's express.json()) reject with a parse error.
+	var reader io.Reader
+	hasBody := !isNilRequestBody(requestJson)
+	if hasBody {
+		buf, marshalErr := json.Marshal(requestJson)
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+		reader = bytes.NewReader(buf)
 	}
 
-	reader := bytes.NewReader(buf)
-
 	req, errNew := http.NewRequest(method, fmt.Sprintf("%s/%s", data.BaseUrl, path), reader)
-	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Authorization", data.Authentication)
-	req.Header.Add("Content-Type", "application/json")
 	if errNew != nil {
 		return nil, errNew
+	}
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("Authorization", data.Authentication)
+	if hasBody {
+		req.Header.Add("Content-Type", "application/json")
 	}
 	return data.Do(req, responseJson)
 }
