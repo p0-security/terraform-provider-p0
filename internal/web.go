@@ -147,10 +147,10 @@ func (data *P0ProviderData) Get(path string, responseJson any) (*http.Response, 
 
 func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
 	req, errNew := http.NewRequest("DELETE", fmt.Sprintf("%s/%s", data.BaseUrl, path), nil)
-	req.Header.Add("Authorization", data.Authentication)
 	if errNew != nil {
 		return nil, errNew
 	}
+	req.Header.Add("Authorization", data.Authentication)
 
 	resp, errDo := data.doWithRetry(req)
 	if errDo != nil {
@@ -158,12 +158,25 @@ func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Endpoints should not return content
-	// TODO: Render actual error
-	if resp.StatusCode != 204 {
-		return resp, fmt.Errorf("unexpected return code during delete: %d", resp.StatusCode)
+	// Endpoints should not return content on success.
+	if resp.StatusCode == 204 {
+		return resp, nil
 	}
-	return resp, nil
+
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return resp, readErr
+	}
+
+	// Surface the P0 backend's actual error message (e.g. "Cannot remove the
+	// last owner") instead of just the status code.
+	var generic map[string]any
+	if json.Unmarshal(body, &generic) == nil {
+		if errorText, ok := generic["error"].(string); ok {
+			return resp, fmt.Errorf("%s: %s", resp.Status, errorText)
+		}
+	}
+	return resp, fmt.Errorf("unexpected return code during delete: %d", resp.StatusCode)
 }
 
 // isNilRequestBody reports whether requestJson represents "no body": either the
