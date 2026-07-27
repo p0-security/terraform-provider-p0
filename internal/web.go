@@ -10,6 +10,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"reflect"
 	"time"
 )
 
@@ -165,12 +166,29 @@ func (data *P0ProviderData) Delete(path string) (*http.Response, error) {
 	return resp, nil
 }
 
+// isNilRequestBody reports whether requestJson represents "no body": either the
+// untyped nil interface, or a typed nil (a nil pointer/map/slice/interface/
+// func/chan boxed in the `any` parameter, which is != nil as an interface
+// comparison but still marshals to the JSON literal `null`).
+func isNilRequestBody(requestJson any) bool {
+	if requestJson == nil {
+		return true
+	}
+	v := reflect.ValueOf(requestJson)
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Interface, reflect.Func, reflect.Chan:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
 func (data *P0ProviderData) doBody(method string, path string, requestJson any, responseJson any) (*http.Response, error) {
-	// A nil requestJson means "no request body". Send an empty body rather than
-	// the literal JSON `null`, which strict body parsers (e.g. Express's
-	// express.json()) reject with a parse error.
+	// A nil requestJson (including a typed nil) means "no request body". Send an
+	// empty body rather than the literal JSON `null`, which strict body parsers
+	// (e.g. Express's express.json()) reject with a parse error.
 	var reader io.Reader
-	hasBody := requestJson != nil
+	hasBody := !isNilRequestBody(requestJson)
 	if hasBody {
 		buf, marshalErr := json.Marshal(requestJson)
 		if marshalErr != nil {

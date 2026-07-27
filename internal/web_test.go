@@ -34,6 +34,34 @@ func TestDoBodyNilRequestSendsNoBody(t *testing.T) {
 	}
 }
 
+// TestDoBodyTypedNilRequestSendsNoBody guards against the typed-nil variant of
+// the same bug: a nil pointer boxed in the `any` parameter is != nil as an
+// interface comparison, but should still be treated as "no body" rather than
+// marshaled to the JSON literal `null`.
+func TestDoBodyTypedNilRequestSendsNoBody(t *testing.T) {
+	var gotBody, gotContentType string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		gotContentType = r.Header.Get("Content-Type")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	data := P0ProviderData{BaseUrl: server.URL, Authentication: "Bearer x", Client: server.Client()}
+	type payload struct{ Foo string }
+	var typedNil *payload
+	if _, err := data.Put("some/path", typedNil, nil); err != nil {
+		t.Fatalf("Put with typed-nil body returned error: %v", err)
+	}
+	if gotBody != "" {
+		t.Errorf("expected empty request body, got %q", gotBody)
+	}
+	if gotContentType != "" {
+		t.Errorf("expected no Content-Type header, got %q", gotContentType)
+	}
+}
+
 // TestDoBodyMarshalsRequest confirms non-nil requests are still marshaled as
 // JSON with the appropriate Content-Type.
 func TestDoBodyMarshalsRequest(t *testing.T) {
