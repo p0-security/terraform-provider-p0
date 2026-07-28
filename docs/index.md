@@ -6,6 +6,9 @@ description: |-
   You must also configure a P0 API token (on your P0 app "/settings" page). Pass it via the api_token provider
   attribute, or by setting the P0_API_TOKEN environment variable. The api_token attribute takes
   precedence when both are set.
+  All API requests made by this provider include a User-Agent header of the form
+  terraform-provider-p0/<provider-version> Terraform/<terraform-version>, so provider traffic can be
+  identified in P0 API logs.
 ---
 
 # p0 Provider
@@ -15,6 +18,10 @@ Configures a P0 organization. Requires a P0 account. Go to https://p0.app to cre
 You must also configure a P0 API token (on your P0 app "/settings" page). Pass it via the `api_token` provider
 attribute, or by setting the `P0_API_TOKEN` environment variable. The `api_token` attribute takes
 precedence when both are set.
+
+All API requests made by this provider include a `User-Agent` header of the form
+`terraform-provider-p0/<provider-version> Terraform/<terraform-version>`, so provider traffic can be
+identified in P0 API logs.
 
 ## Example Usage
 

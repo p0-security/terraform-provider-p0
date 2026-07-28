@@ -22,6 +22,7 @@ import (
 type P0ProviderData struct {
 	BaseUrl        string
 	Authentication string
+	UserAgent      string
 	Client         *http.Client
 }
 
@@ -34,6 +35,10 @@ const (
 // doWithRetry sends req via the underlying http.Client, retrying on 429
 // responses with exponential backoff plus jitter.
 func (data *P0ProviderData) doWithRetry(req *http.Request) (*http.Response, error) {
+	if data.UserAgent != "" {
+		req.Header.Set("User-Agent", data.UserAgent)
+	}
+
 	var lastResp *http.Response
 	var lastErr error
 

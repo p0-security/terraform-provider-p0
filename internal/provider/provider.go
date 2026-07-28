@@ -67,7 +67,11 @@ func (p *P0Provider) Schema(ctx context.Context, req provider.SchemaRequest, res
 
 You must also configure a P0 API token (on your P0 app "/settings" page). Pass it via the ` + "`api_token`" + ` provider
 attribute, or by setting the ` + "`P0_API_TOKEN`" + ` environment variable. The ` + "`api_token`" + ` attribute takes
-precedence when both are set.`,
+precedence when both are set.
+
+All API requests made by this provider include a ` + "`User-Agent`" + ` header of the form
+` + "`terraform-provider-p0/<provider-version> Terraform/<terraform-version>`" + `, so provider traffic can be
+identified in P0 API logs.`,
 		Attributes: map[string]schema.Attribute{
 			"host": schema.StringAttribute{
 				MarkdownDescription: "Your P0 application API host (defaults to `https://api.p0.app`)",
@@ -142,6 +146,7 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 
 	data := internal.P0ProviderData{
 		Authentication: fmt.Sprintf("Bearer %s", api_token),
+		UserAgent:      fmt.Sprintf("terraform-provider-p0/%s Terraform/%s", p.version, req.TerraformVersion),
 		Client:         http.DefaultClient,
 		BaseUrl:        fmt.Sprintf("%s/o/%s", p0_host, model.Org.ValueString()),
 	}

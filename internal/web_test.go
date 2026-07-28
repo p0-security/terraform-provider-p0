@@ -104,6 +104,36 @@ func TestDeleteFallsBackWhenBodyIsNotJsonError(t *testing.T) {
 	}
 }
 
+// TestUserAgentSentOnAllMethods confirms every request shape (GET, POST, and
+// DELETE, which bypasses Do) carries the configured User-Agent so P0 can
+// attribute API traffic to the Terraform provider.
+func TestUserAgentSentOnAllMethods(t *testing.T) {
+	var gotUserAgent string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUserAgent = r.Header.Get("User-Agent")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	const ua = "terraform-provider-p0/test Terraform/1.9.0"
+	data := P0ProviderData{BaseUrl: server.URL, Authentication: "Bearer x", UserAgent: ua, Client: server.Client()}
+
+	calls := map[string]func() error{
+		"Get":    func() error { _, err := data.Get("some/path", nil); return err },
+		"Post":   func() error { _, err := data.Post("some/path", nil, nil); return err },
+		"Delete": func() error { _, err := data.Delete("some/path"); return err },
+	}
+	for name, call := range calls {
+		gotUserAgent = ""
+		if err := call(); err != nil {
+			t.Fatalf("%s returned error: %v", name, err)
+		}
+		if gotUserAgent != ua {
+			t.Errorf("%s: expected User-Agent %q, got %q", name, ua, gotUserAgent)
+		}
+	}
+}
+
 // TestDoBodyMarshalsRequest confirms non-nil requests are still marshaled as
 // JSON with the appropriate Content-Type.
 func TestDoBodyMarshalsRequest(t *testing.T) {
