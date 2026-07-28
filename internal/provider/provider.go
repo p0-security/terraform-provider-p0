@@ -21,6 +21,7 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal"
 	installdatadog "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/datadog"
 	installsplunk "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/splunk"
+	accesspolicy "github.com/p0-security/terraform-provider-p0/internal/provider/resources/access_policy"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
@@ -33,7 +34,6 @@ import (
 	installpostgres "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/postgres"
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
-	routingrules "github.com/p0-security/terraform-provider-p0/internal/provider/resources/routing_rules"
 	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/settings"
 )
 
@@ -156,7 +156,8 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 
 func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		routingrules.NewRoutingRule,
+		accesspolicy.NewAccessPolicy,
+		accesspolicy.NewRoutingRule, // deprecated alias of p0_access_policy
 		settings.NewOwnerUser,
 		settings.NewOwnerGroup,
 		settings.NewSecurityReviewerUser,
