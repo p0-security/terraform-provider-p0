@@ -1,7 +1,7 @@
 // Copyright (c) 2025 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package routingrules
+package accesspolicy
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -89,21 +89,21 @@ type ApprovalModelV2 struct {
 	Effect          *string               `json:"effect" tfsdk:"effect"`
 }
 
-type RoutingRuleModelV0 struct {
+type AccessPolicyModelV0 struct {
 	Name      *string           `json:"name" tfsdk:"name"`
 	Requestor *RequestorModelV0 `json:"requestor" tfsdk:"requestor"`
 	Resource  *ResourceModel    `json:"resource" tfsdk:"resource"`
 	Approval  []ApprovalModelV0 `json:"approval" tfsdk:"approval"`
 }
 
-type RoutingRuleModelV1 struct {
+type AccessPolicyModelV1 struct {
 	Name      *string           `json:"name" tfsdk:"name"`
 	Requestor *RequestorModelV1 `json:"requestor" tfsdk:"requestor"`
 	Resource  *ResourceModel    `json:"resource" tfsdk:"resource"`
 	Approval  []ApprovalModelV1 `json:"approval" tfsdk:"approval"`
 }
 
-type RoutingRuleModelV2 struct {
+type AccessPolicyModelV2 struct {
 	Name      *string           `json:"name" tfsdk:"name"`
 	Disabled  *bool             `json:"disabled,omitempty" tfsdk:"disabled"`
 	Requestor *RequestorModelV2 `json:"requestor" tfsdk:"requestor"`

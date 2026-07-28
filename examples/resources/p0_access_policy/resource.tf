@@ -1,9 +1,6 @@
-# p0_routing_rule is deprecated: routing rules are now called access policies.
-# To migrate an existing routing rule, rename the resource type to
-# p0_access_policy and add a `moved` block (requires Terraform 1.8 or later).
-# Terraform then renames the resource in state instead of destroying and
-# recreating it.
-
+# Must pre-exist in the P0 app: the Okta group (via an installed Okta directory
+# listing integration, see p0_okta_directory_listing), the "aws" integration (see
+# p0_aws_iam_write), and the PagerDuty integration (connected in-app, not via Terraform).
 resource "p0_access_policy" "example" {
   name = "okta-aws-developers-oncall"
   requestor = {
@@ -33,9 +30,4 @@ resource "p0_access_policy" "example" {
       require_reason = true
     }
   }]
-}
-
-moved {
-  from = p0_routing_rule.example
-  to   = p0_access_policy.example
 }

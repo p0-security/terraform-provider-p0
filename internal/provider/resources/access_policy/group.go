@@ -1,7 +1,7 @@
 // Copyright (c) 2025 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package routingrules
+package accesspolicy
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
