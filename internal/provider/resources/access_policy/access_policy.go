@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -387,11 +386,13 @@ func (policy *AccessPolicy) UpgradeState(ctx context.Context) map[int64]resource
 }
 
 // isRoutingRuleMoveRequest reports whether a MoveState request originates from
-// this provider's deprecated p0_routing_rule resource at the given schema version.
+// the deprecated p0_routing_rule resource at the given schema version. The
+// provider address is deliberately not checked: it varies across registry
+// mirrors, forks, and local -plugin-dir development, while the type name and
+// schema version already pin the state shape.
 func isRoutingRuleMoveRequest(req resource.MoveStateRequest, version int64) bool {
 	return req.SourceTypeName == "p0_routing_rule" &&
-		req.SourceSchemaVersion == version &&
-		strings.HasSuffix(req.SourceProviderAddress, "p0-security/p0")
+		req.SourceSchemaVersion == version
 }
 
 // MoveState enables `moved` blocks from the deprecated p0_routing_rule
