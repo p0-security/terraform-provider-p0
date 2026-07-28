@@ -113,8 +113,6 @@ type RoutingRuleModelV2 struct {
 
 const currentSchemaVersion int64 = 2
 
-var False = false
-
 func requestorAttribute(version int64) schema.SingleNestedAttribute {
 	return schema.SingleNestedAttribute{
 		Required:            true,
