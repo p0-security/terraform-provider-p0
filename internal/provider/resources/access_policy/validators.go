@@ -62,7 +62,7 @@ func (v requiredWhenType) ValidateObject(_ context.Context, req validator.Object
 		value, present := attributes[name]
 		if !present || value.IsNull() {
 			resp.Diagnostics.AddAttributeError(
-				req.Path,
+				req.Path.AtName(name),
 				"Missing required attribute",
 				fmt.Sprintf("`%s` is required when `type` is %q.", name, typeValue.ValueString()),
 			)

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -92,6 +93,35 @@ func TestRequiredWhenType(t *testing.T) {
 				t.Errorf("HasError() = %v; want %v (%v)", got, c.wantErr, resp.Diagnostics)
 			}
 		})
+	}
+}
+
+// TestRequiredWhenTypeErrorPath verifies the diagnostic is anchored to the
+// specific missing attribute (e.g. requestor.uid) rather than the parent object.
+func TestRequiredWhenTypeErrorPath(t *testing.T) {
+	object, diags := types.ObjectValue(requestorAttrTypes, map[string]attr.Value{
+		"type": types.StringValue("user"), "uid": types.StringNull(), "groups": types.StringNull(), "effect": types.StringNull(),
+	})
+	if diags.HasError() {
+		t.Fatalf("failed to build object: %v", diags)
+	}
+
+	resp := &validator.ObjectResponse{}
+	RequiredWhenType(requestorRequirements).ValidateObject(
+		context.Background(),
+		validator.ObjectRequest{Path: path.Root("requestor"), ConfigValue: object},
+		resp,
+	)
+
+	if len(resp.Diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d: %v", len(resp.Diagnostics), resp.Diagnostics)
+	}
+	withPath, ok := resp.Diagnostics[0].(diag.DiagnosticWithPath)
+	if !ok {
+		t.Fatalf("expected a diagnostic with a path, got %T", resp.Diagnostics[0])
+	}
+	if got, want := withPath.Path().String(), "requestor.uid"; got != want {
+		t.Errorf("diagnostic path = %q; want %q", got, want)
 	}
 }
 
