@@ -29,9 +29,14 @@ func IdAttribute(version int) schema.StringAttribute {
 }
 
 func LabelAttribute(version int) schema.StringAttribute {
+	// The P0 API requires a label on every group (IdpGroup requires id, label,
+	// and directory), so it is required alongside id and directory. Version 0
+	// stored it as an optional attribute; keep that shape so old state still
+	// decodes during upgrades and `moved` migrations.
 	return schema.StringAttribute{
 		MarkdownDescription: prefixDescription(version, `This is any human-readable name for the directory group specified in the 'id' attribute.`),
-		Optional:            true,
+		Required:            version >= 1,
+		Optional:            version < 1,
 	}
 }
 
@@ -46,7 +51,7 @@ func AttachGroupAttributes(version int64, attributes map[string]schema.Attribute
 	default:
 		{
 			attributes["groups"] = schema.ListNestedAttribute{
-				MarkdownDescription: `May only be used if 'type' is 'group'. If the user is a member of any of these groups, the rule will match.`,
+				MarkdownDescription: `Required, and may only be used, if 'type' is 'group'. If the user is a member of any of these groups, the rule will match.`,
 				Optional:            true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
@@ -69,7 +74,7 @@ func AttachGroupFilterEffectAttribute(version int64, attributes map[string]schem
 	default:
 		{
 			attributes["effect"] = schema.StringAttribute{
-				MarkdownDescription: `The filter effect. May be one of:
+				MarkdownDescription: `Required, and may only be used, if 'type' is 'group'. The filter effect. May be one of:
 	 - 'keep': Access rule only applies when a requestor is a member of any of the specified groups
 	 - 'remove': Access rule only applies when a requestor is _not_ a member of any of the specified groups`,
 				Optional: true,
