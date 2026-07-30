@@ -80,17 +80,17 @@ Required:
 
 Optional:
 
-- `directory` (String) May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "entra-id", "okta", or "workspace".
-- `effect` (String) The filter effect. May be one of:
+- `directory` (String) Required, and may only be used, if 'type' is 'requestor-profile'. One of "azure-ad", "entra-id", "okta", or "workspace".
+- `effect` (String) Required, and may only be used, if 'type' is 'group'. The filter effect. May be one of:
 	 - 'keep': Access rule only applies when a requestor is a member of any of the specified groups
 	 - 'remove': Access rule only applies when a requestor is _not_ a member of any of the specified groups
-- `groups` (Attributes List) May only be used if 'type' is 'group'. If the user is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--approval--groups))
-- `integration` (String) May only be used if 'type' is 'auto' or 'escalation'. Possible values:
+- `groups` (Attributes List) Required, and may only be used, if 'type' is 'group'. If the user is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--approval--groups))
+- `integration` (String) Required, and may only be used, if 'type' is 'auto' or 'escalation'. Possible values:
 - 'pagerduty': Access is granted if the requestor is on-call in PagerDuty.
 - 'incidentio': Access is granted if the requestor is on-call in incident.io.
 - `options` (Attributes) If present, determines additional trust requirements. (see [below for nested schema](#nestedatt--approval--options))
 - `profile_property` (String) May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.
-- `services` (List of String) May only be used if 'type' is 'escalation'. Defines which services to page on escalation.
+- `services` (List of String) Required, and may only be used, if 'type' is 'escalation'. Defines which services to page on escalation.
 
 <a id="nestedatt--approval--groups"></a>
 ### Nested Schema for `approval.groups`
@@ -99,9 +99,6 @@ Required:
 
 - `directory` (String) One of "azure-ad", "entra-id", "okta", or "workspace".
 - `id` (String) This is the directory's internal group identifier.
-
-Optional:
-
 - `label` (String) This is any human-readable name for the directory group specified in the 'id' attribute.
 
 
@@ -130,11 +127,11 @@ Required:
 
 Optional:
 
-- `effect` (String) The filter effect. May be one of:
+- `effect` (String) Required, and may only be used, if 'type' is 'group'. The filter effect. May be one of:
 	 - 'keep': Access rule only applies when a requestor is a member of any of the specified groups
 	 - 'remove': Access rule only applies when a requestor is _not_ a member of any of the specified groups
-- `groups` (Attributes List) May only be used if 'type' is 'group'. If the user is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--requestor--groups))
-- `uid` (String) May only be used if 'type' is 'user'. This is the user's email address.
+- `groups` (Attributes List) Required, and may only be used, if 'type' is 'group'. If the user is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--requestor--groups))
+- `uid` (String) Required, and may only be used, if 'type' is 'user'. This is the user's email address.
 
 <a id="nestedatt--requestor--groups"></a>
 ### Nested Schema for `requestor.groups`
@@ -143,9 +140,6 @@ Required:
 
 - `directory` (String) One of "azure-ad", "entra-id", "okta", or "workspace".
 - `id` (String) This is the directory's internal group identifier.
-
-Optional:
-
 - `label` (String) This is any human-readable name for the directory group specified in the 'id' attribute.
 
 
@@ -164,7 +158,7 @@ Optional:
 - `access_type` (String) May only be used if 'type' is 'integration' and must be a valid access type for a given service integration or 'any'. Defaults to 'any' if not specified.
 - `filters` (Attributes Map) May only be used if 'type' is 'integration'. Available filters depend on the value of 'service'.
 See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for a list of available filters. (see [below for nested schema](#nestedatt--resource--filters))
-- `service` (String) May only be used if 'type' is 'integration'.
+- `service` (String) Required, and may only be used, if 'type' is 'integration'.
 See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for a list of available services.
 
 <a id="nestedatt--resource--filters"></a>

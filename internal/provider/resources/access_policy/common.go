@@ -5,6 +5,7 @@ package accesspolicy
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -114,7 +115,7 @@ type AccessPolicyModelV2 struct {
 const currentSchemaVersion int64 = 2
 
 func requestorAttribute(version int64) schema.SingleNestedAttribute {
-	return schema.SingleNestedAttribute{
+	attribute := schema.SingleNestedAttribute{
 		Required:            true,
 		MarkdownDescription: `Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor).`,
 		Attributes: AttachGroupFilterEffectAttribute(version, AttachGroupAttributes(version,
@@ -126,14 +127,30 @@ func requestorAttribute(version int64) schema.SingleNestedAttribute {
     - 'user': Only match a single user`,
 					Required: true,
 				},
-				"uid": schema.StringAttribute{MarkdownDescription: `May only be used if 'type' is 'user'. This is the user's email address.`, Optional: true},
+				"uid": schema.StringAttribute{MarkdownDescription: `Required, and may only be used, if 'type' is 'user'. This is the user's email address.`, Optional: true},
 			})),
 	}
+	// `groups` and `effect` only exist from schema version 2 onward, so only the
+	// current schema can enforce their type-conditional requiredness.
+	if version >= currentSchemaVersion {
+		attribute.Validators = []validator.Object{
+			RequiredWhenType(map[string][]string{
+				"user":  {"uid"},
+				"group": {"groups", "effect"},
+			}),
+		}
+	}
+	return attribute
 }
 
 var resourceAttribute = schema.SingleNestedAttribute{
 	Required:            true,
 	MarkdownDescription: `Controls what is accessed. See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource).`,
+	Validators: []validator.Object{
+		RequiredWhenType(map[string][]string{
+			"integration": {"service"},
+		}),
+	},
 	Attributes: map[string]schema.Attribute{
 		"filters": schema.MapNestedAttribute{
 			MarkdownDescription: `May only be used if 'type' is 'integration'. Available filters depend on the value of 'service'.
@@ -165,7 +182,7 @@ See [docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for
 			Optional: true,
 		},
 		"service": schema.StringAttribute{
-			MarkdownDescription: `May only be used if 'type' is 'integration'.
+			MarkdownDescription: `Required, and may only be used, if 'type' is 'integration'.
 See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#resource) for a list of available services.`,
 			Optional: true,
 		},
@@ -183,58 +200,55 @@ See [the Resource docs](https://docs.p0.dev/just-in-time-access/request-routing#
 }
 
 func approvalAttribute(version int64) schema.ListNestedAttribute {
-	return schema.ListNestedAttribute{
-		MarkdownDescription: `Determines access requirements. See [the Approval docs](https://docs.p0.dev/just-in-time-access/request-routing#approval).`,
-		Required:            true,
-		NestedObject: schema.NestedAttributeObject{
-			Attributes: AttachGroupFilterEffectAttribute(version, AttachGroupAttributes(version, map[string]schema.Attribute{
-				"directory": schema.StringAttribute{
-					MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. One of "azure-ad", "entra-id", "okta", or "workspace".`,
-					Optional:            true,
-				},
-				"integration": schema.StringAttribute{
-					MarkdownDescription: `May only be used if 'type' is 'auto' or 'escalation'. Possible values:
+	nestedObject := schema.NestedAttributeObject{
+		Attributes: AttachGroupFilterEffectAttribute(version, AttachGroupAttributes(version, map[string]schema.Attribute{
+			"directory": schema.StringAttribute{
+				MarkdownDescription: `Required, and may only be used, if 'type' is 'requestor-profile'. One of "azure-ad", "entra-id", "okta", or "workspace".`,
+				Optional:            true,
+			},
+			"integration": schema.StringAttribute{
+				MarkdownDescription: `Required, and may only be used, if 'type' is 'auto' or 'escalation'. Possible values:
 - 'pagerduty': Access is granted if the requestor is on-call in PagerDuty.
 - 'incidentio': Access is granted if the requestor is on-call in incident.io.`,
-					Optional: true,
-				},
-				"options": schema.SingleNestedAttribute{
-					MarkdownDescription: `If present, determines additional trust requirements.`,
-					Attributes: map[string]schema.Attribute{
-						"allow_one_party": schema.BoolAttribute{
-							MarkdownDescription: `If true, allows requestors to approve their own requests. Does not apply to 'auto' approval rules.`,
-							Optional:            true,
-						},
-						"require_reason": schema.BoolAttribute{
-							MarkdownDescription: `If true, requires access requests to include a reason.`,
-							Optional:            true,
-						},
-						"require_duration": schema.BoolAttribute{
-							MarkdownDescription: `If true, requires access requests to include a duration.`,
-							Optional:            true,
-						},
-						"require_preapproval": schema.BoolAttribute{
-							MarkdownDescription: `If true, requires access requests to be pre-approved.`,
-							Optional:            true,
-						},
-						"break_glass_approver": schema.BoolAttribute{
-							MarkdownDescription: `If true, allows the approver to approve break-glass requests. Does not apply to 'auto' approval rules.`,
-							Optional:            true,
-						},
+				Optional: true,
+			},
+			"options": schema.SingleNestedAttribute{
+				MarkdownDescription: `If present, determines additional trust requirements.`,
+				Attributes: map[string]schema.Attribute{
+					"allow_one_party": schema.BoolAttribute{
+						MarkdownDescription: `If true, allows requestors to approve their own requests. Does not apply to 'auto' approval rules.`,
+						Optional:            true,
 					},
-					Optional: true,
+					"require_reason": schema.BoolAttribute{
+						MarkdownDescription: `If true, requires access requests to include a reason.`,
+						Optional:            true,
+					},
+					"require_duration": schema.BoolAttribute{
+						MarkdownDescription: `If true, requires access requests to include a duration.`,
+						Optional:            true,
+					},
+					"require_preapproval": schema.BoolAttribute{
+						MarkdownDescription: `If true, requires access requests to be pre-approved.`,
+						Optional:            true,
+					},
+					"break_glass_approver": schema.BoolAttribute{
+						MarkdownDescription: `If true, allows the approver to approve break-glass requests. Does not apply to 'auto' approval rules.`,
+						Optional:            true,
+					},
 				},
-				"profile_property": schema.StringAttribute{
-					MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.`,
-					Optional:            true,
-				},
-				"services": schema.ListAttribute{
-					MarkdownDescription: `May only be used if 'type' is 'escalation'. Defines which services to page on escalation.`,
-					ElementType:         types.StringType,
-					Optional:            true,
-				},
-				"type": schema.StringAttribute{
-					MarkdownDescription: `Determines trust requirements for access. If empty, access is disallowed. Except for 'deny', meeting any requirement is sufficient to grant access. Possible values:
+				Optional: true,
+			},
+			"profile_property": schema.StringAttribute{
+				MarkdownDescription: `May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.`,
+				Optional:            true,
+			},
+			"services": schema.ListAttribute{
+				MarkdownDescription: `Required, and may only be used, if 'type' is 'escalation'. Defines which services to page on escalation.`,
+				ElementType:         types.StringType,
+				Optional:            true,
+			},
+			"type": schema.StringAttribute{
+				MarkdownDescription: `Determines trust requirements for access. If empty, access is disallowed. Except for 'deny', meeting any requirement is sufficient to grant access. Possible values:
     - 'auto': Access is granted according to the requirements of the specified 'integration'
     - 'deny': Access is always denied
     - 'escalation': Access may be approved by on-call members of the specified services, who are paged when access is manually escalated by the requestor
@@ -242,9 +256,25 @@ func approvalAttribute(version int64) schema.ListNestedAttribute {
     - 'persistent': Access is always granted
     - 'requestor-profile': Allows approval by a user specified by a field in the requestor's IDP profile
     - 'p0': Access may be granted by any user with the P0 "security reviewer" role (defined in the P0 app)`,
-					Required: true,
-				},
-			})),
-		},
+				Required: true,
+			},
+		})),
+	}
+	// `groups` and `effect` only exist from schema version 2 onward, so only the
+	// current schema can enforce their type-conditional requiredness.
+	if version >= currentSchemaVersion {
+		nestedObject.Validators = []validator.Object{
+			RequiredWhenType(map[string][]string{
+				"auto":              {"integration"},
+				"escalation":        {"integration", "services"},
+				"group":             {"groups", "effect"},
+				"requestor-profile": {"directory"},
+			}),
+		}
+	}
+	return schema.ListNestedAttribute{
+		MarkdownDescription: `Determines access requirements. See [the Approval docs](https://docs.p0.dev/just-in-time-access/request-routing#approval).`,
+		Required:            true,
+		NestedObject:        nestedObject,
 	}
 }
