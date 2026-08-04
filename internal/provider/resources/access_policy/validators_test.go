@@ -137,3 +137,223 @@ func TestRequiredWhenTypeNullObject(t *testing.T) {
 		t.Errorf("null object should not error: %v", resp.Diagnostics)
 	}
 }
+
+// agentRequirements mirrors the type-conditional requirements enforced on
+// the `requestor.agent` object (see agentAttribute).
+var agentRequirements = map[string][]string{
+	"mcp-client":  {"client_id"},
+	"agent-owner": {"owner"},
+	"owner-group": {"groups", "effect"},
+	"provider":    {"provider_id"},
+}
+
+var agentAttrTypes = map[string]attr.Type{
+	"type":            types.StringType,
+	"client_id":       types.StringType,
+	"owner":           types.StringType,
+	"groups":          types.StringType, // stand-in; the validator only checks null-ness
+	"effect":          types.StringType,
+	"provider_id":     types.StringType,
+	"subject_pattern": types.StringType,
+}
+
+// TestRequiredWhenTypeAgent verifies the type-conditional requirements for
+// each `requestor.agent` variant, mirroring the `required` arrays for
+// AgentOwnerRule/AgentOwnerGroupRule/AgentProviderRule/McpClientRequestorRule
+// in the P0 app's shared/src/types/policy/types.json.
+func TestRequiredWhenTypeAgent(t *testing.T) {
+	set := types.StringValue("x")
+	null := types.StringNull()
+	base := func(overrides map[string]attr.Value) map[string]attr.Value {
+		attrs := map[string]attr.Value{
+			"type": null, "client_id": null, "owner": null, "groups": null, "effect": null, "provider_id": null, "subject_pattern": null,
+		}
+		for k, v := range overrides {
+			attrs[k] = v
+		}
+		return attrs
+	}
+
+	cases := []struct {
+		name    string
+		attrs   map[string]attr.Value
+		wantErr bool
+	}{
+		{"any needs nothing", base(map[string]attr.Value{"type": types.StringValue("any")}), false},
+		{"mcp-client missing client_id errors", base(map[string]attr.Value{"type": types.StringValue("mcp-client")}), true},
+		{"mcp-client with client_id passes", base(map[string]attr.Value{"type": types.StringValue("mcp-client"), "client_id": set}), false},
+		{"agent-owner missing owner errors", base(map[string]attr.Value{"type": types.StringValue("agent-owner")}), true},
+		{"agent-owner with owner passes", base(map[string]attr.Value{"type": types.StringValue("agent-owner"), "owner": set}), false},
+		{"owner-group missing groups and effect errors", base(map[string]attr.Value{"type": types.StringValue("owner-group")}), true},
+		{"owner-group with groups and effect passes", base(map[string]attr.Value{"type": types.StringValue("owner-group"), "groups": set, "effect": set}), false},
+		{"provider missing provider_id errors", base(map[string]attr.Value{"type": types.StringValue("provider")}), true},
+		{"provider with only provider_id passes (subject_pattern optional)", base(map[string]attr.Value{"type": types.StringValue("provider"), "provider_id": set}), false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			object, diags := types.ObjectValue(agentAttrTypes, c.attrs)
+			if diags.HasError() {
+				t.Fatalf("failed to build object: %v", diags)
+			}
+			resp := &validator.ObjectResponse{}
+			RequiredWhenType(agentRequirements).ValidateObject(
+				context.Background(),
+				validator.ObjectRequest{Path: path.Root("requestor").AtName("agent"), ConfigValue: object},
+				resp,
+			)
+			if got := resp.Diagnostics.HasError(); got != c.wantErr {
+				t.Errorf("HasError() = %v; want %v (%v)", got, c.wantErr, resp.Diagnostics)
+			}
+		})
+	}
+}
+
+// agentExclusivity mirrors the `ExclusiveToType` map attached to
+// `requestor.agent` (see agentAttribute): `groups`/`effect` are only
+// forwarded to the API for the "owner-group" variant (see agentToJson), so
+// setting them for any other type must fail at plan time instead of being
+// silently dropped.
+var agentExclusivity = map[string][]string{
+	"owner-group": {"groups", "effect"},
+}
+
+// TestExclusiveToTypeAgent verifies `groups`/`effect` are rejected on
+// `requestor.agent` for every type except "owner-group".
+func TestExclusiveToTypeAgent(t *testing.T) {
+	set := types.StringValue("x")
+	null := types.StringNull()
+	base := func(overrides map[string]attr.Value) map[string]attr.Value {
+		attrs := map[string]attr.Value{
+			"type": null, "client_id": null, "owner": null, "groups": null, "effect": null, "provider_id": null, "subject_pattern": null,
+		}
+		for k, v := range overrides {
+			attrs[k] = v
+		}
+		return attrs
+	}
+
+	cases := []struct {
+		name    string
+		attrs   map[string]attr.Value
+		wantErr bool
+	}{
+		{"owner-group with groups and effect passes", base(map[string]attr.Value{"type": types.StringValue("owner-group"), "groups": set, "effect": set}), false},
+		{"provider with groups errors", base(map[string]attr.Value{"type": types.StringValue("provider"), "provider_id": set, "groups": set}), true},
+		{"provider with effect errors", base(map[string]attr.Value{"type": types.StringValue("provider"), "provider_id": set, "effect": set}), true},
+		{"mcp-client with groups and effect errors", base(map[string]attr.Value{"type": types.StringValue("mcp-client"), "client_id": set, "groups": set, "effect": set}), true},
+		{"any without groups or effect passes", base(map[string]attr.Value{"type": types.StringValue("any")}), false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			object, diags := types.ObjectValue(agentAttrTypes, c.attrs)
+			if diags.HasError() {
+				t.Fatalf("failed to build object: %v", diags)
+			}
+			resp := &validator.ObjectResponse{}
+			ExclusiveToType(agentExclusivity).ValidateObject(
+				context.Background(),
+				validator.ObjectRequest{Path: path.Root("requestor").AtName("agent"), ConfigValue: object},
+				resp,
+			)
+			if got := resp.Diagnostics.HasError(); got != c.wantErr {
+				t.Errorf("HasError() = %v; want %v (%v)", got, c.wantErr, resp.Diagnostics)
+			}
+		})
+	}
+}
+
+// TestRequiredWhenTypeAgenticUser verifies the type-conditional requirements
+// for each `requestor.user` variant (an `agentic` requestor's human-user
+// sub-rule), mirroring AnyRule/GroupRequestorRule/NoUserRule/UserRequestorRule.
+func TestRequiredWhenTypeAgenticUser(t *testing.T) {
+	set := types.StringValue("x")
+	null := types.StringNull()
+
+	cases := []struct {
+		name    string
+		attrs   map[string]attr.Value
+		wantErr bool
+	}{
+		{"any needs nothing", map[string]attr.Value{"type": types.StringValue("any"), "uid": null, "groups": null, "effect": null}, false},
+		{"none needs nothing", map[string]attr.Value{"type": types.StringValue("none"), "uid": null, "groups": null, "effect": null}, false},
+		{"user without uid errors", map[string]attr.Value{"type": types.StringValue("user"), "uid": null, "groups": null, "effect": null}, true},
+		{"user with uid passes", map[string]attr.Value{"type": types.StringValue("user"), "uid": set, "groups": null, "effect": null}, false},
+		{"group missing effect errors", map[string]attr.Value{"type": types.StringValue("group"), "uid": null, "groups": set, "effect": null}, true},
+		{"group with groups and effect passes", map[string]attr.Value{"type": types.StringValue("group"), "uid": null, "groups": set, "effect": set}, false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			object, diags := types.ObjectValue(requestorAttrTypes, c.attrs)
+			if diags.HasError() {
+				t.Fatalf("failed to build object: %v", diags)
+			}
+			resp := &validator.ObjectResponse{}
+			RequiredWhenType(requestorRequirements).ValidateObject(
+				context.Background(),
+				validator.ObjectRequest{Path: path.Root("requestor").AtName("user"), ConfigValue: object},
+				resp,
+			)
+			if got := resp.Diagnostics.HasError(); got != c.wantErr {
+				t.Errorf("HasError() = %v; want %v (%v)", got, c.wantErr, resp.Diagnostics)
+			}
+		})
+	}
+}
+
+// TestRequiredWhenTypeRequestorAgentic verifies the outer `requestor` object
+// requires `agent`/`user` when `type` is 'agentic'.
+func TestRequiredWhenTypeRequestorAgentic(t *testing.T) {
+	set := types.StringValue("x")
+	null := types.StringNull()
+	requirements := map[string][]string{
+		"user":    {"uid"},
+		"group":   {"groups", "effect"},
+		"agentic": {"agent", "user"},
+	}
+	attrTypes := map[string]attr.Type{
+		"type":   types.StringType,
+		"uid":    types.StringType,
+		"groups": types.StringType,
+		"effect": types.StringType,
+		"agent":  types.StringType,
+		"user":   types.StringType,
+	}
+
+	cases := []struct {
+		name    string
+		attrs   map[string]attr.Value
+		wantErr bool
+	}{
+		{
+			name:    "agentic missing agent and user errors",
+			attrs:   map[string]attr.Value{"type": types.StringValue("agentic"), "uid": null, "groups": null, "effect": null, "agent": null, "user": null},
+			wantErr: true,
+		},
+		{
+			name:    "agentic with agent and user passes",
+			attrs:   map[string]attr.Value{"type": types.StringValue("agentic"), "uid": null, "groups": null, "effect": null, "agent": set, "user": set},
+			wantErr: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			object, diags := types.ObjectValue(attrTypes, c.attrs)
+			if diags.HasError() {
+				t.Fatalf("failed to build object: %v", diags)
+			}
+			resp := &validator.ObjectResponse{}
+			RequiredWhenType(requirements).ValidateObject(
+				context.Background(),
+				validator.ObjectRequest{Path: path.Root("requestor"), ConfigValue: object},
+				resp,
+			)
+			if got := resp.Diagnostics.HasError(); got != c.wantErr {
+				t.Errorf("HasError() = %v; want %v (%v)", got, c.wantErr, resp.Diagnostics)
+			}
+		})
+	}
+}
