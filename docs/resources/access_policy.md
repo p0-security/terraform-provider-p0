@@ -50,8 +50,8 @@ resource "p0_access_policy" "example" {
 }
 
 # Agentic requestor: matches agent sessions rather than a human directly.
-# This example allows any MCP client agent, as long as no human user is
-# present (a headless agent session).
+# This example matches only the "my-mcp-client" MCP client agent, as long as
+# no human user is present (a headless agent session), and denies access.
 resource "p0_access_policy" "agentic_headless" {
   name = "mcp-agent-headless"
   requestor = {
@@ -259,9 +259,9 @@ Required:
 Optional:
 
 - `effect` (String) Required, and may only be used, if 'type' is 'group'. The filter effect. May be one of:
-	 - 'keep': Access rule only applies when a requestor is a member of any of the specified groups
-	 - 'remove': Access rule only applies when a requestor is _not_ a member of any of the specified groups
-- `groups` (Attributes List) Required, and may only be used, if 'type' is 'group'. If the user is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--requestor--user--groups))
+    - 'keep': Access rule only applies when the human user behind the agent is a member of any of the specified groups
+    - 'remove': Access rule only applies when the human user behind the agent is _not_ a member of any of the specified groups
+- `groups` (Attributes List) Required, and may only be used, if 'type' is 'group'. If the human user behind the agent is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--requestor--user--groups))
 - `uid` (String) Required, and may only be used, if 'type' is 'user'. This is the user's email address.
 
 <a id="nestedatt--requestor--user--groups"></a>

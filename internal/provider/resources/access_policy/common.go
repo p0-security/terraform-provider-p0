@@ -191,8 +191,9 @@ func requestorAttribute(version int64) schema.SingleNestedAttribute {
 		MarkdownDescription: `Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor).`,
 		Attributes:          attributes,
 	}
-	// `groups` and `effect` only exist from schema version 2 onward, so only the
-	// current schema can enforce their type-conditional requiredness.
+	// Only the current schema validates configuration; earlier versions exist
+	// solely to decode prior state. The `agentic` requirement also references
+	// `agent`/`user`, which only exist at the current version.
 	if version >= currentSchemaVersion {
 		attribute.Validators = []validator.Object{
 			RequiredWhenType(requirements),
@@ -250,6 +251,12 @@ func agentAttribute(version int64) schema.SingleNestedAttribute {
 				"owner-group": {"groups", "effect"},
 				"provider":    {"provider_id"},
 			}),
+			// agentToJson only forwards `groups`/`effect` to the API when
+			// `type` is "owner-group"; without this, setting them for any
+			// other type would silently vanish instead of failing the plan.
+			ExclusiveToType(map[string][]string{
+				"owner-group": {"groups", "effect"},
+			}),
 		},
 	}
 }
@@ -263,6 +270,18 @@ func agenticUserAttribute(version int64) schema.SingleNestedAttribute {
     - 'group': Members of a directory group will match
     - 'user': Only match a single user
     - 'none': Only match a headless agent session with no human user`)
+	// requestorUnionAttributes' descriptions assume this is the top-level
+	// requestor; here it's the human user (if any) behind an agentic session.
+	if groups, ok := attributes["groups"].(schema.ListNestedAttribute); ok {
+		groups.MarkdownDescription = `Required, and may only be used, if 'type' is 'group'. If the human user behind the agent is a member of any of these groups, the rule will match.`
+		attributes["groups"] = groups
+	}
+	if effect, ok := attributes["effect"].(schema.StringAttribute); ok {
+		effect.MarkdownDescription = `Required, and may only be used, if 'type' is 'group'. The filter effect. May be one of:
+    - 'keep': Access rule only applies when the human user behind the agent is a member of any of the specified groups
+    - 'remove': Access rule only applies when the human user behind the agent is _not_ a member of any of the specified groups`
+		attributes["effect"] = effect
+	}
 	return schema.SingleNestedAttribute{
 		Optional:            true,
 		MarkdownDescription: `Required, and may only be used, if the requestor 'type' is 'agentic'. Describes the human user (if any) behind the agent.`,

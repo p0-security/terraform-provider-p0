@@ -43,9 +43,14 @@ func TestAgentToJsonOwnerGroup(t *testing.T) {
 // happen to be set (which the schema-level validator should prevent, but
 // the conversion itself shouldn't silently wrap them either).
 func TestAgentToJsonOtherVariants(t *testing.T) {
+	effect := "keep"
 	for _, variant := range []string{"any", "mcp-client", "agent-owner", "provider"} {
 		t.Run(variant, func(t *testing.T) {
-			model := &AgentModel{Type: variant}
+			model := &AgentModel{
+				Type:   variant,
+				Groups: []GroupModelV1{{Directory: strPtr("okta"), Id: strPtr("1"), Label: strPtr("L")}},
+				Effect: &effect,
+			}
 			got := agentToJson(model)
 			if got.Groups != nil {
 				t.Errorf("Groups = %+v; want nil for variant %q", got.Groups, variant)

@@ -33,8 +33,8 @@ resource "p0_access_policy" "example" {
 }
 
 # Agentic requestor: matches agent sessions rather than a human directly.
-# This example allows any MCP client agent, as long as no human user is
-# present (a headless agent session).
+# This example matches only the "my-mcp-client" MCP client agent, as long as
+# no human user is present (a headless agent session), and denies access.
 resource "p0_access_policy" "agentic_headless" {
   name = "mcp-agent-headless"
   requestor = {

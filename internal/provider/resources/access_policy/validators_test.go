@@ -209,6 +209,61 @@ func TestRequiredWhenTypeAgent(t *testing.T) {
 	}
 }
 
+// agentExclusivity mirrors the `ExclusiveToType` map attached to
+// `requestor.agent` (see agentAttribute): `groups`/`effect` are only
+// forwarded to the API for the "owner-group" variant (see agentToJson), so
+// setting them for any other type must fail at plan time instead of being
+// silently dropped.
+var agentExclusivity = map[string][]string{
+	"owner-group": {"groups", "effect"},
+}
+
+// TestExclusiveToTypeAgent verifies `groups`/`effect` are rejected on
+// `requestor.agent` for every type except "owner-group".
+func TestExclusiveToTypeAgent(t *testing.T) {
+	set := types.StringValue("x")
+	null := types.StringNull()
+	base := func(overrides map[string]attr.Value) map[string]attr.Value {
+		attrs := map[string]attr.Value{
+			"type": null, "client_id": null, "owner": null, "groups": null, "effect": null, "provider_id": null, "subject_pattern": null,
+		}
+		for k, v := range overrides {
+			attrs[k] = v
+		}
+		return attrs
+	}
+
+	cases := []struct {
+		name    string
+		attrs   map[string]attr.Value
+		wantErr bool
+	}{
+		{"owner-group with groups and effect passes", base(map[string]attr.Value{"type": types.StringValue("owner-group"), "groups": set, "effect": set}), false},
+		{"provider with groups errors", base(map[string]attr.Value{"type": types.StringValue("provider"), "provider_id": set, "groups": set}), true},
+		{"provider with effect errors", base(map[string]attr.Value{"type": types.StringValue("provider"), "provider_id": set, "effect": set}), true},
+		{"mcp-client with groups and effect errors", base(map[string]attr.Value{"type": types.StringValue("mcp-client"), "client_id": set, "groups": set, "effect": set}), true},
+		{"any without groups or effect passes", base(map[string]attr.Value{"type": types.StringValue("any")}), false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			object, diags := types.ObjectValue(agentAttrTypes, c.attrs)
+			if diags.HasError() {
+				t.Fatalf("failed to build object: %v", diags)
+			}
+			resp := &validator.ObjectResponse{}
+			ExclusiveToType(agentExclusivity).ValidateObject(
+				context.Background(),
+				validator.ObjectRequest{Path: path.Root("requestor").AtName("agent"), ConfigValue: object},
+				resp,
+			)
+			if got := resp.Diagnostics.HasError(); got != c.wantErr {
+				t.Errorf("HasError() = %v; want %v (%v)", got, c.wantErr, resp.Diagnostics)
+			}
+		})
+	}
+}
+
 // TestRequiredWhenTypeAgenticUser verifies the type-conditional requirements
 // for each `requestor.user` variant (an `agentic` requestor's human-user
 // sub-rule), mirroring AnyRule/GroupRequestorRule/NoUserRule/UserRequestorRule.
