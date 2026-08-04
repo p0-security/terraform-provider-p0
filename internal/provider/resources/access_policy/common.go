@@ -36,6 +36,40 @@ type RequestorModelV2 struct {
 	Effect *string        `json:"effect" tfsdk:"effect"`
 }
 
+// AgentModel is the TF-facing shape of an `agentic` requestor rule's `agent`
+// sub-rule. `Groups`/`Effect` are kept flat (siblings of `Type`), matching
+// every other groups+effect usage in this schema, even though the wire
+// format nests them under a `groups: IdpGroups` object for the "owner-group"
+// variant — see agentToJson/agentFromJson in access_policy.go.
+type AgentModel struct {
+	Type           string         `tfsdk:"type"`
+	ClientId       *string        `tfsdk:"client_id"`
+	Owner          *string        `tfsdk:"owner"`
+	Groups         []GroupModelV1 `tfsdk:"groups"`
+	Effect         *string        `tfsdk:"effect"`
+	ProviderId     *string        `tfsdk:"provider_id"`
+	SubjectPattern *string        `tfsdk:"subject_pattern"`
+}
+
+// AgenticUserModel is the shape of an `agentic` requestor rule's `user`
+// sub-rule. It's flat on the wire (same as the outer requestor), so it needs
+// no JSON conversion.
+type AgenticUserModel struct {
+	Type   string         `json:"type" tfsdk:"type"`
+	Uid    *string        `json:"uid,omitempty" tfsdk:"uid"`
+	Groups []GroupModelV1 `json:"groups,omitempty" tfsdk:"groups"`
+	Effect *string        `json:"effect,omitempty" tfsdk:"effect"`
+}
+
+type RequestorModelV3 struct {
+	Type   string            `json:"type" tfsdk:"type"`
+	Groups []GroupModelV1    `json:"groups,omitempty" tfsdk:"groups"`
+	Uid    *string           `json:"uid,omitempty" tfsdk:"uid"`
+	Effect *string           `json:"effect,omitempty" tfsdk:"effect"`
+	Agent  *AgentModel       `tfsdk:"agent"`
+	User   *AgenticUserModel `json:"user,omitempty" tfsdk:"user"`
+}
+
 type ResourceFilterModel struct {
 	Effect  string  `json:"effect" tfsdk:"effect"`
 	Key     *string `json:"key" tfsdk:"key"`
@@ -112,35 +146,134 @@ type AccessPolicyModelV2 struct {
 	Approval  []ApprovalModelV2 `json:"approval" tfsdk:"approval"`
 }
 
-const currentSchemaVersion int64 = 2
+type AccessPolicyModelV3 struct {
+	Name      *string           `json:"name" tfsdk:"name"`
+	Disabled  *bool             `json:"disabled,omitempty" tfsdk:"disabled"`
+	Requestor *RequestorModelV3 `json:"requestor" tfsdk:"requestor"`
+	Resource  *ResourceModel    `json:"resource" tfsdk:"resource"`
+	Approval  []ApprovalModelV2 `json:"approval" tfsdk:"approval"`
+}
+
+const currentSchemaVersion int64 = 3
+
+// requestorUnionAttributes builds the `type`/`uid`/`groups`/`effect`
+// attributes shared by the top-level `requestor` object and the `agentic`
+// requestor's nested `user` object — both are the same `any`/`group`/`user`
+// union, just with `none` (headless agent, no fields) added for `user`.
+func requestorUnionAttributes(version int64, typeDescription string) map[string]schema.Attribute {
+	return AttachGroupFilterEffectAttribute(version, AttachGroupAttributes(version,
+		map[string]schema.Attribute{
+			"type": schema.StringAttribute{
+				MarkdownDescription: typeDescription,
+				Required:            true,
+			},
+			"uid": schema.StringAttribute{MarkdownDescription: `Required, and may only be used, if 'type' is 'user'. This is the user's email address.`, Optional: true},
+		}))
+}
 
 func requestorAttribute(version int64) schema.SingleNestedAttribute {
+	attributes := requestorUnionAttributes(version, `How P0 matches requestors:
+    - 'any': Any requestor will match
+    - 'group': Members of a directory group will match
+    - 'user': Only match a single user
+    - 'agentic': Match agent sessions, based on the agent's identity and the human user (if any) behind it`)
+	requirements := map[string][]string{
+		"user":  {"uid"},
+		"group": {"groups", "effect"},
+	}
+	if version >= currentSchemaVersion {
+		attributes["agent"] = agentAttribute(version)
+		attributes["user"] = agenticUserAttribute(version)
+		requirements["agentic"] = []string{"agent", "user"}
+	}
 	attribute := schema.SingleNestedAttribute{
 		Required:            true,
 		MarkdownDescription: `Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor).`,
-		Attributes: AttachGroupFilterEffectAttribute(version, AttachGroupAttributes(version,
-			map[string]schema.Attribute{
-				"type": schema.StringAttribute{
-					MarkdownDescription: `How P0 matches requestors:
-    - 'any': Any requestor will match
-    - 'group': Members of a directory group will match
-    - 'user': Only match a single user`,
-					Required: true,
-				},
-				"uid": schema.StringAttribute{MarkdownDescription: `Required, and may only be used, if 'type' is 'user'. This is the user's email address.`, Optional: true},
-			})),
+		Attributes:          attributes,
 	}
 	// `groups` and `effect` only exist from schema version 2 onward, so only the
 	// current schema can enforce their type-conditional requiredness.
 	if version >= currentSchemaVersion {
 		attribute.Validators = []validator.Object{
+			RequiredWhenType(requirements),
+		}
+	}
+	return attribute
+}
+
+// agentAttribute builds the `requestor.agent` schema: a discriminated union
+// describing the agent's own identity, used only when `requestor.type` is
+// 'agentic'.
+func agentAttribute(version int64) schema.SingleNestedAttribute {
+	attributes := AttachGroupFilterEffectAttribute(version, AttachGroupAttributes(version,
+		map[string]schema.Attribute{
+			"type": schema.StringAttribute{
+				MarkdownDescription: `How P0 matches the agent:
+    - 'any': Any agent will match
+    - 'mcp-client': Only agents connecting through a specific MCP client will match
+    - 'agent-owner': Only an agent owned by a specific user will match
+    - 'owner-group': Only an agent owned by a member of a directory group will match
+    - 'provider': Only an agent federated by a specific identity provider will match`,
+				Required: true,
+			},
+			"client_id": schema.StringAttribute{MarkdownDescription: `Required, and may only be used, if 'type' is 'mcp-client'. The MCP client's identifier.`, Optional: true},
+			"owner":     schema.StringAttribute{MarkdownDescription: `Required, and may only be used, if 'type' is 'agent-owner'. The agent owner's email address.`, Optional: true},
+			"provider_id": schema.StringAttribute{
+				MarkdownDescription: `Required, and may only be used, if 'type' is 'provider'. The identifier of an installed identity-provider integration.`,
+				Optional:            true,
+			},
+			"subject_pattern": schema.StringAttribute{
+				MarkdownDescription: `May only be used if 'type' is 'provider'. An optional regular expression used to further narrow the agent's subject claim.`,
+				Optional:            true,
+			},
+		}))
+	// AttachGroupAttributes/AttachGroupFilterEffectAttribute's descriptions
+	// assume the discriminator value is 'group'; here it's 'owner-group'.
+	if groups, ok := attributes["groups"].(schema.ListNestedAttribute); ok {
+		groups.MarkdownDescription = `Required, and may only be used, if 'type' is 'owner-group'. If the agent's owner is a member of any of these groups, the rule will match.`
+		attributes["groups"] = groups
+	}
+	if effect, ok := attributes["effect"].(schema.StringAttribute); ok {
+		effect.MarkdownDescription = `Required, and may only be used, if 'type' is 'owner-group'. The filter effect. May be one of:
+    - 'keep': Access rule only applies when the agent's owner is a member of any of the specified groups
+    - 'remove': Access rule only applies when the agent's owner is _not_ a member of any of the specified groups`
+		attributes["effect"] = effect
+	}
+	return schema.SingleNestedAttribute{
+		Optional:            true,
+		MarkdownDescription: `Required, and may only be used, if the requestor 'type' is 'agentic'. Describes the agent's own identity.`,
+		Attributes:          attributes,
+		Validators: []validator.Object{
+			RequiredWhenType(map[string][]string{
+				"mcp-client":  {"client_id"},
+				"agent-owner": {"owner"},
+				"owner-group": {"groups", "effect"},
+				"provider":    {"provider_id"},
+			}),
+		},
+	}
+}
+
+// agenticUserAttribute builds the `requestor.user` schema: a discriminated
+// union describing the human (if any) behind an agentic session, used only
+// when `requestor.type` is 'agentic'.
+func agenticUserAttribute(version int64) schema.SingleNestedAttribute {
+	attributes := requestorUnionAttributes(version, `How P0 matches the human user behind the agent:
+    - 'any': Any user, or no user, will match
+    - 'group': Members of a directory group will match
+    - 'user': Only match a single user
+    - 'none': Only match a headless agent session with no human user`)
+	return schema.SingleNestedAttribute{
+		Optional:            true,
+		MarkdownDescription: `Required, and may only be used, if the requestor 'type' is 'agentic'. Describes the human user (if any) behind the agent.`,
+		Attributes:          attributes,
+		Validators: []validator.Object{
 			RequiredWhenType(map[string][]string{
 				"user":  {"uid"},
 				"group": {"groups", "effect"},
 			}),
-		}
+		},
 	}
-	return attribute
 }
 
 var resourceAttribute = schema.SingleNestedAttribute{
