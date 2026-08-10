@@ -1,7 +1,23 @@
+# See the p0_agentic_gateway example for the full staged-install pattern.
+resource "p0_agentic_gateway_staged" "example" {
+  id  = "primary"
+  url = "https://gateway.example.com"
+}
+
+resource "helm_release" "oauthed_mcp" {
+  name  = "oauthed-mcp"
+  chart = "oci://registry-1.docker.io/p0security/p0-helm-oauthed-mcp"
+
+  set = [{
+    name  = "oauthed-mcp.mcpServer.manageAllowedEmails"
+    value = p0_agentic_gateway_staged.example.service_account_email
+  }]
+}
+
 resource "p0_agentic_gateway" "example" {
-  id             = "primary"
-  url            = "https://gateway.example.com"
+  id             = p0_agentic_gateway_staged.example.id
   oauth_endpoint = "https://oauth.gateway.example.com"
+  depends_on     = [helm_release.oauthed_mcp]
 }
 
 resource "p0_agentic_identity_provider" "example" {

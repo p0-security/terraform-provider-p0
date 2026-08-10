@@ -34,7 +34,7 @@ type Gateway struct {
 
 type gatewayModel struct {
 	Id                  string       `tfsdk:"id"`
-	Url                 string       `tfsdk:"url"`
+	Url                 types.String `tfsdk:"url"`
 	OauthEndpoint       string       `tfsdk:"oauth_endpoint"`
 	LogProjectId        types.String `tfsdk:"log_project_id"`
 	ServiceAccountEmail types.String `tfsdk:"service_account_email"`
@@ -55,9 +55,10 @@ type gatewayApi struct {
 // gatewayStageJson carries only the "step: new" fields from the DSL (see
 // app/shared/src/integrations/resources/agentic/components.ts's `gateway`
 // component): fields tagged `step: "new"` may only be sent on the initial
-// PUT (stage) call; resending them from the later verify/configure calls
-// (see toJson) is rejected by the backend with "can only be altered on
-// initial installation."
+// PUT (stage) call — that's why `url` is owned by p0_agentic_gateway_staged,
+// not this resource; resending it from the verify/configure calls (see
+// toJson) is rejected by the backend with "can only be altered on initial
+// installation."
 type gatewayStageJson struct {
 	Url string `json:"url"`
 }
@@ -76,18 +77,25 @@ func (r *Gateway) Metadata(ctx context.Context, req resource.MetadataRequest, re
 
 func (r *Gateway) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `Registers an Agentic gateway, which hosts MCP servers and applies P0 access policy to
-agent tool calls. Requires a gateway (and its OAuth server) to already be deployed and reachable at the given URLs.`,
+		MarkdownDescription: `Final installation of an Agentic gateway, which hosts MCP servers and applies P0 access
+policy to agent tool calls.
+
+To use this resource, you must also:
+- install the ` + "`p0_agentic_gateway_staged`" + ` resource, and
+- configure your gateway to trust the service account returned by that resource (e.g. the
+  ` + "`manageAllowedEmails`" + ` value in the ` + "`oauthed-mcp-tools`" + ` Helm chart).
+
+See the example usage for the recommended pattern to define this infrastructure.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "A unique identifier for this gateway",
+				MarkdownDescription: "The `id` of the `p0_agentic_gateway_staged` resource being finalized",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"url": schema.StringAttribute{
-				Required:            true,
+				Computed:            true,
 				MarkdownDescription: "Agentic gateway URL; your servers will be hosted here",
 			},
 			"oauth_endpoint": schema.StringAttribute{
@@ -144,7 +152,7 @@ func (r *Gateway) fromJson(ctx context.Context, diags *diag.Diagnostics, id stri
 	}
 	return &gatewayModel{
 		Id:                  id,
-		Url:                 json.Url,
+		Url:                 types.StringValue(json.Url),
 		OauthEndpoint:       json.OauthEndpoint,
 		LogProjectId:        types.StringPointerValue(json.LogProjectId),
 		ServiceAccountEmail: types.StringPointerValue(json.ServiceAccountEmail),
@@ -164,17 +172,8 @@ func (r *Gateway) toJson(data any) any {
 }
 
 func (r *Gateway) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &gatewayModel{})
-
-	var inputData gatewayModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &inputData)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	var json gatewayApi
 	var data gatewayModel
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &gatewayStageJson{Url: inputData.Url})
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
@@ -185,7 +184,6 @@ func (r *Gateway) Read(ctx context.Context, req resource.ReadRequest, resp *reso
 }
 
 func (r *Gateway) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &gatewayModel{})
 	var json gatewayApi
 	var data gatewayModel
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
@@ -193,7 +191,7 @@ func (r *Gateway) Update(ctx context.Context, req resource.UpdateRequest, resp *
 
 func (r *Gateway) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var data gatewayModel
-	r.installer.Delete(ctx, &resp.Diagnostics, &req.State, &data)
+	r.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &data)
 }
 
 func (r *Gateway) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

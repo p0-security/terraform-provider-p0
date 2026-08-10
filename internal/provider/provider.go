@@ -216,6 +216,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installdatadog.NewAuditLogs,
 		installawsoidc.NewAwsOidcIdentity,
 		installgcpwif.NewGcpWifIdentity,
+		installagentic.NewGatewayStaged,
 		installagentic.NewGateway,
 		installagentic.NewIdentityProvider,
 		installagentic.NewServer,

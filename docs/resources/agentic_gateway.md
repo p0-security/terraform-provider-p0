@@ -3,23 +3,55 @@
 page_title: "p0_agentic_gateway Resource - p0"
 subcategory: ""
 description: |-
-  Registers an Agentic gateway, which hosts MCP servers and applies P0 access policy to
-  agent tool calls. Requires a gateway (and its OAuth server) to already be deployed and reachable at the given URLs.
+  Final installation of an Agentic gateway, which hosts MCP servers and applies P0 access
+  policy to agent tool calls.
+  To use this resource, you must also:
+  install the p0_agentic_gateway_staged resource, andconfigure your gateway to trust the service account returned by that resource (e.g. the
+  manageAllowedEmails value in the oauthed-mcp-tools Helm chart).
+  See the example usage for the recommended pattern to define this infrastructure.
 ---
 
 # p0_agentic_gateway (Resource)
 
-Registers an Agentic gateway, which hosts MCP servers and applies P0 access policy to
-agent tool calls. Requires a gateway (and its OAuth server) to already be deployed and reachable at the given URLs.
+Final installation of an Agentic gateway, which hosts MCP servers and applies P0 access
+policy to agent tool calls.
+
+To use this resource, you must also:
+- install the `p0_agentic_gateway_staged` resource, and
+- configure your gateway to trust the service account returned by that resource (e.g. the
+  `manageAllowedEmails` value in the `oauthed-mcp-tools` Helm chart).
+
+See the example usage for the recommended pattern to define this infrastructure.
 
 ## Example Usage
 
 ```terraform
+# See the p0_agentic_gateway_staged example for the preceding steps
+# (staging the gateway, and configuring it to trust the assigned service
+# account) that this resource depends on.
+
+resource "p0_agentic_gateway_staged" "example" {
+  id  = "primary"
+  url = "https://gateway.example.com"
+}
+
+resource "helm_release" "oauthed_mcp" {
+  name  = "oauthed-mcp"
+  chart = "oci://registry-1.docker.io/p0security/p0-helm-oauthed-mcp"
+
+  set = [{
+    name  = "oauthed-mcp.mcpServer.manageAllowedEmails"
+    value = p0_agentic_gateway_staged.example.service_account_email
+  }]
+}
+
+# Finalizes the install; depends_on ensures the gateway trusts P0's service
+# account before verification is attempted.
 resource "p0_agentic_gateway" "example" {
-  id             = "primary"
-  url            = "https://gateway.example.com"
+  id             = p0_agentic_gateway_staged.example.id
   oauth_endpoint = "https://oauth.gateway.example.com"
   log_project_id = "my-gcp-logging-project"
+  depends_on     = [helm_release.oauthed_mcp]
 }
 ```
 
@@ -28,9 +60,8 @@ resource "p0_agentic_gateway" "example" {
 
 ### Required
 
-- `id` (String) A unique identifier for this gateway
+- `id` (String) The `id` of the `p0_agentic_gateway_staged` resource being finalized
 - `oauth_endpoint` (String) OAuth server endpoint; must be publicly accessible and host `.well-known/jwks.json`
-- `url` (String) Agentic gateway URL; your servers will be hosted here
 
 ### Optional
 
@@ -41,3 +72,4 @@ itself runs in (e.g. if logs are routed to a centralized logging project).
 ### Read-Only
 
 - `service_account_email` (String) Email address of the service account identity that P0 uses to communicate with your gateway
+- `url` (String) Agentic gateway URL; your servers will be hosted here
