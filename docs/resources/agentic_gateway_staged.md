@@ -32,15 +32,21 @@ resource "p0_agentic_gateway_staged" "example" {
 }
 
 # Your gateway must trust that service account before P0 can finish
-# installing (see the p0_agentic_gateway example for the next step).
-resource "helm_release" "oauthed_mcp" {
-  name  = "oauthed-mcp"
-  chart = "oci://registry-1.docker.io/p0security/p0-helm-oauthed-mcp"
+# installing (see the p0_agentic_gateway example for the next step). Uses the
+# p0-security/oauthed-mcp/kubernetes module: https://github.com/p0-security/terraform-kubernetes-p0-oauthed-mcp
+module "oauthed_mcp" {
+  source  = "p0-security/oauthed-mcp/kubernetes"
+  version = "0.1.9"
 
-  set = [{
-    name  = "oauthed-mcp.mcpServer.manageAllowedEmails"
-    value = p0_agentic_gateway_staged.example.service_account_email
-  }]
+  values = [
+    yamlencode({
+      "oauthed-mcp" = {
+        mcpServer = {
+          manageAllowedEmails = p0_agentic_gateway_staged.example.service_account_email
+        }
+      }
+    }),
+  ]
 }
 ```
 

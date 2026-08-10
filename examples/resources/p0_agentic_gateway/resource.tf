@@ -7,14 +7,21 @@ resource "p0_agentic_gateway_staged" "example" {
   url = "https://gateway.example.com"
 }
 
-resource "helm_release" "oauthed_mcp" {
-  name  = "oauthed-mcp"
-  chart = "oci://registry-1.docker.io/p0security/p0-helm-oauthed-mcp"
+# Uses the p0-security/oauthed-mcp/kubernetes module:
+# https://github.com/p0-security/terraform-kubernetes-p0-oauthed-mcp
+module "oauthed_mcp" {
+  source  = "p0-security/oauthed-mcp/kubernetes"
+  version = "0.1.9"
 
-  set = [{
-    name  = "oauthed-mcp.mcpServer.manageAllowedEmails"
-    value = p0_agentic_gateway_staged.example.service_account_email
-  }]
+  values = [
+    yamlencode({
+      "oauthed-mcp" = {
+        mcpServer = {
+          manageAllowedEmails = p0_agentic_gateway_staged.example.service_account_email
+        }
+      }
+    }),
+  ]
 }
 
 # Finalizes the install; depends_on ensures the gateway trusts P0's service
@@ -23,5 +30,5 @@ resource "p0_agentic_gateway" "example" {
   id             = p0_agentic_gateway_staged.example.id
   oauth_endpoint = "https://oauth.gateway.example.com"
   log_project_id = "my-gcp-logging-project"
-  depends_on     = [helm_release.oauthed_mcp]
+  depends_on     = [module.oauthed_mcp]
 }
