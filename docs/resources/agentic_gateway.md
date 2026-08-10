@@ -5,9 +5,9 @@ subcategory: ""
 description: |-
   Final installation of an Agentic gateway, which hosts MCP servers and applies P0 access
   policy to agent tool calls.
-  To use this resource, you must also:
-  install the p0_agentic_gateway_staged resource, andconfigure your gateway to trust the service account returned by that resource (e.g. the
-  manageAllowedEmails value in the oauthed-mcp-tools Helm chart).
+  To use this resource, you must also install the p0_agentic_gateway_staged resource, and configure your
+  gateway to trust the service account returned by that resource (e.g. the manageAllowedEmails value in the
+  oauthed-mcp-tools Helm chart).
   See the example usage for the recommended pattern to define this infrastructure.
 ---
 
@@ -16,10 +16,9 @@ description: |-
 Final installation of an Agentic gateway, which hosts MCP servers and applies P0 access
 policy to agent tool calls.
 
-To use this resource, you must also:
-- install the `p0_agentic_gateway_staged` resource, and
-- configure your gateway to trust the service account returned by that resource (e.g. the
-  `manageAllowedEmails` value in the `oauthed-mcp-tools` Helm chart).
+To use this resource, you must also install the `p0_agentic_gateway_staged` resource, and configure your
+gateway to trust the service account returned by that resource (e.g. the `manageAllowedEmails` value in the
+`oauthed-mcp-tools` Helm chart).
 
 See the example usage for the recommended pattern to define this infrastructure.
 
