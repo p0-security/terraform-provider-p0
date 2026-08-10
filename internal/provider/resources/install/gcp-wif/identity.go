@@ -91,10 +91,16 @@ computed by P0 from ` + "`project_id`" + ` once the identity is staged.`,
 			"project_id": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The GCP project ID to federate access into",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"oidc_provider_url": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Issuer URL of your OIDC provider (e.g. `https://token.actions.githubusercontent.com`)",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"audience": schema.StringAttribute{
 				Computed:            true,
@@ -171,6 +177,9 @@ func (r *GcpWifIdentity) Create(ctx context.Context, req resource.CreateRequest,
 		ProjectId:       inputData.ProjectId,
 		OidcProviderUrl: inputData.OidcProviderUrl,
 	})
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 

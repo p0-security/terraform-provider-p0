@@ -58,7 +58,7 @@ type gatewayApi struct {
 // PUT (stage) call — that's why `url` is owned by p0_agentic_gateway_staged,
 // not this resource; resending it from the verify/configure calls (see
 // toJson) is rejected by the backend with "can only be altered on initial
-// installation."
+// installation".
 type gatewayStageJson struct {
 	Url string `json:"url"`
 }

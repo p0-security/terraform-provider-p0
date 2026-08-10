@@ -54,7 +54,7 @@ type identityProviderApi struct {
 // app/shared/src/integrations/resources/agentic/components.ts's
 // `identityProvider` component); resending it from the later verify/configure
 // calls (see toJson) is rejected by the backend with "can only be altered on
-// initial installation."
+// initial installation".
 type identityProviderStageJson struct {
 	Issuer string `json:"issuer"`
 }
@@ -86,6 +86,9 @@ func (r *IdentityProvider) Schema(ctx context.Context, req resource.SchemaReques
 			"issuer": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Issuer URL (the `iss` claim) of the identity provider to enroll",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"audience_pattern": schema.StringAttribute{
 				Optional:            true,
@@ -172,6 +175,9 @@ func (r *IdentityProvider) Create(ctx context.Context, req resource.CreateReques
 	var json identityProviderApi
 	var data identityProviderModel
 	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &identityProviderStageJson{Issuer: inputData.Issuer})
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 

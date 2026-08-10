@@ -94,6 +94,9 @@ registering the identity provider; it does not create the AWS-side identity prov
 			"account_id": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The AWS account ID to federate access into",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"aws_partition": schema.StringAttribute{
 				Computed:            true,
@@ -102,10 +105,16 @@ registering the identity provider; it does not create the AWS-side identity prov
 			"oidc_provider_url": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Issuer URL of your OIDC provider (e.g. `https://token.actions.githubusercontent.com`)",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"audience": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The `aud` claim the identity will send to AWS when calling APIs",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}
@@ -180,6 +189,9 @@ func (r *AwsOidcIdentity) Create(ctx context.Context, req resource.CreateRequest
 		OidcProviderUrl: inputData.OidcProviderUrl,
 		Audience:        inputData.Audience,
 	})
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 

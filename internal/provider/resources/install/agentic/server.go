@@ -92,7 +92,7 @@ type serverApi struct {
 // app/shared/src/integrations/resources/agentic/components.ts's
 // `gatewaySelect` element); resending it from the later verify/configure
 // calls (see toJson) is rejected by the backend with "can only be altered on
-// initial installation."
+// initial installation".
 type serverStageJson struct {
 	Gateway string `json:"gateway"`
 }
@@ -126,6 +126,9 @@ To reference an AWS- or GCP-federated credential, install the corresponding ` + 
 			"gateway": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The `id` of the `p0_agentic_gateway` that hosts this server",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"credential": schema.SingleNestedAttribute{
 				Required: true,
@@ -162,6 +165,9 @@ federation-provider identity (a ` + "`p0_aws_oidc_identity`" + ` or ` + "`p0_gcp
 						},
 						Validators: []validator.Object{
 							RequiredWhenAttr("type", map[string][]string{
+								"authorization_code": {"pkce", "client_id"},
+							}),
+							ExclusiveToAttr("type", map[string][]string{
 								"authorization_code": {"pkce", "client_id"},
 							}),
 						},
@@ -321,6 +327,9 @@ func (r *Server) Create(ctx context.Context, req resource.CreateRequest, resp *r
 	var json serverApi
 	var data serverModel
 	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &serverStageJson{Gateway: inputData.Gateway})
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
