@@ -188,9 +188,18 @@ func (r *AwsOidcIdentity) Update(ctx context.Context, req resource.UpdateRequest
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
+// Delete fully removes the item rather than rolling it back to "stage" (as
+// other final resources in this provider do): toJson only returns the
+// reduced configure-time payload (see awsOidcIdentityConfigureJson), which
+// omits `accountId`. Rollback PUTs that payload back to the stage/assemble
+// endpoint, which re-runs the `awsPartition` field's assembler, and can fail
+// or clear the value when `accountId` is missing. A full delete needs no
+// body, so it sidesteps the problem entirely; the paired
+// p0_aws_oidc_identity_staged resource's own Delete already tolerates a 404
+// from double-deletion when both are destroyed together.
 func (r *AwsOidcIdentity) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var data awsOidcIdentityModel
-	r.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &data)
+	r.installer.Delete(ctx, &resp.Diagnostics, &req.State, &data)
 }
 
 func (r *AwsOidcIdentity) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
