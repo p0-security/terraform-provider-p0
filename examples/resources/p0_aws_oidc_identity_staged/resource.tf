@@ -1,7 +1,5 @@
-# See the p0_aws_oidc_identity_staged example for the preceding steps
-# (staging the identity, and creating the AWS-side OIDC provider and role)
-# that this resource depends on.
-
+# Requires the p0_aws_iam_write integration to already be installed for the same account
+# (see its own example for the full staged-role setup).
 resource "p0_aws_oidc_identity_staged" "example" {
   id                = "github-actions"
   account_id        = "123456789012"
@@ -19,6 +17,8 @@ resource "aws_iam_openid_connect_provider" "p0" {
   thumbprint_list = [data.tls_certificate.oidc_provider.certificates[0].sha1_fingerprint]
 }
 
+# P0 federates into a pool of pre-created roles; check the P0 app's generated
+# setup instructions for the exact role count expected for your organization.
 resource "aws_iam_role" "p0_oidc_grants" {
   name = "P0OidcGrantsRole-${p0_aws_oidc_identity_staged.example.id}"
   assume_role_policy = jsonencode({
@@ -36,10 +36,4 @@ resource "aws_iam_role" "p0_oidc_grants" {
       }
     }]
   })
-}
-
-# Finalizes the install; depends_on ensures the AWS-side trust exists first.
-resource "p0_aws_oidc_identity" "example" {
-  id         = p0_aws_oidc_identity_staged.example.id
-  depends_on = [aws_iam_openid_connect_provider.p0, aws_iam_role.p0_oidc_grants]
 }

@@ -34,8 +34,8 @@ type GcpWifIdentity struct {
 
 type gcpWifIdentityModel struct {
 	Id              string       `tfsdk:"id"`
-	ProjectId       string       `tfsdk:"project_id"`
-	OidcProviderUrl string       `tfsdk:"oidc_provider_url"`
+	ProjectId       types.String `tfsdk:"project_id"`
+	OidcProviderUrl types.String `tfsdk:"oidc_provider_url"`
 	Audience        types.String `tfsdk:"audience"`
 }
 
@@ -55,7 +55,8 @@ type gcpWifIdentityApi struct {
 // component, where `projectId` and `oidcProviderUrl` are `step: "new"`);
 // resending them from the later verify/configure calls (see toJson) is
 // rejected by the backend with "can only be altered on initial
-// installation." `audience` is `type: "generated"` and never sent by us.
+// installation". `audience` is `type: "generated"` and never sent by us —
+// that's why these fields are only settable on p0_gcp_wif_identity_staged.
 type gcpWifIdentityStageJson struct {
 	ProjectId       string `json:"projectId"`
 	OidcProviderUrl string `json:"oidcProviderUrl"`
@@ -73,34 +74,31 @@ func (r *GcpWifIdentity) Metadata(ctx context.Context, req resource.MetadataRequ
 
 func (r *GcpWifIdentity) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `Allows P0 to grant and revoke GCP access for OIDC-authenticated agents (e.g. CI/CD pipelines), via
-a Workload Identity Federation pool on your GCP project. Requires the Google Cloud integration (` + "`p0_gcp`" + `)
-to be installed for the same project.
+		MarkdownDescription: `Final installation of a GCP Workload Identity Federation identity, allowing P0 to grant and
+revoke GCP access for OIDC-authenticated agents (e.g. CI/CD pipelines).
 
-P0 uses ` + "`oidc_provider_url`" + ` to generate gcloud CLI/Terraform instructions for creating the Workload
-Identity Pool and provider; it does not create the GCP-side resources on your behalf. ` + "`audience`" + ` is
-computed by P0 from ` + "`project_id`" + ` once the identity is staged.`,
+To use this resource, you must also:
+- install the ` + "`p0_gcp_wif_identity_staged`" + ` resource, and
+- create a Workload Identity Pool and provider matching the ` + "`audience`" + ` from that resource
+  (` + "`google_iam_workload_identity_pool`" + ` and ` + "`google_iam_workload_identity_pool_provider`" + `).
+
+Requires the Google Cloud integration (` + "`p0_gcp`" + `) to be installed for the same project. See the example
+usage for the recommended pattern to define this infrastructure.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "A unique identifier for this identity",
+				MarkdownDescription: "The `id` of the `p0_gcp_wif_identity_staged` resource being finalized",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"project_id": schema.StringAttribute{
-				Required:            true,
+				Computed:            true,
 				MarkdownDescription: "The GCP project ID to federate access into",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"oidc_provider_url": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "Issuer URL of your OIDC provider (e.g. `https://token.actions.githubusercontent.com`)",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				Computed:            true,
+				MarkdownDescription: "Issuer URL of your OIDC provider",
 			},
 			"audience": schema.StringAttribute{
 				Computed:            true,
@@ -146,8 +144,8 @@ func (r *GcpWifIdentity) fromJson(ctx context.Context, diags *diag.Diagnostics, 
 	}
 	return &gcpWifIdentityModel{
 		Id:              id,
-		ProjectId:       json.ProjectId,
-		OidcProviderUrl: json.OidcProviderUrl,
+		ProjectId:       types.StringValue(json.ProjectId),
+		OidcProviderUrl: types.StringValue(json.OidcProviderUrl),
 		Audience:        types.StringPointerValue(json.Audience),
 	}
 }
@@ -163,23 +161,8 @@ func (r *GcpWifIdentity) toJson(data any) any {
 }
 
 func (r *GcpWifIdentity) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &gcpWifIdentityModel{})
-
-	var inputData gcpWifIdentityModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &inputData)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	var json gcpWifIdentityApi
 	var data gcpWifIdentityModel
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &gcpWifIdentityStageJson{
-		ProjectId:       inputData.ProjectId,
-		OidcProviderUrl: inputData.OidcProviderUrl,
-	})
-	if resp.Diagnostics.HasError() {
-		return
-	}
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
@@ -190,7 +173,6 @@ func (r *GcpWifIdentity) Read(ctx context.Context, req resource.ReadRequest, res
 }
 
 func (r *GcpWifIdentity) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &gcpWifIdentityModel{})
 	var json gcpWifIdentityApi
 	var data gcpWifIdentityModel
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
@@ -198,7 +180,7 @@ func (r *GcpWifIdentity) Update(ctx context.Context, req resource.UpdateRequest,
 
 func (r *GcpWifIdentity) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var data gcpWifIdentityModel
-	r.installer.Delete(ctx, &resp.Diagnostics, &req.State, &data)
+	r.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &data)
 }
 
 func (r *GcpWifIdentity) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

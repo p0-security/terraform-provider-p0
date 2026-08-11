@@ -3,37 +3,70 @@
 page_title: "p0_gcp_wif_identity Resource - p0"
 subcategory: ""
 description: |-
-  Allows P0 to grant and revoke GCP access for OIDC-authenticated agents (e.g. CI/CD pipelines), via
-  a Workload Identity Federation pool on your GCP project. Requires the Google Cloud integration (p0_gcp)
-  to be installed for the same project.
-  P0 uses oidc_provider_url to generate gcloud CLI/Terraform instructions for creating the Workload
-  Identity Pool and provider; it does not create the GCP-side resources on your behalf. audience is
-  computed by P0 from project_id once the identity is staged.
+  Final installation of a GCP Workload Identity Federation identity, allowing P0 to grant and
+  revoke GCP access for OIDC-authenticated agents (e.g. CI/CD pipelines).
+  To use this resource, you must also:
+  install the p0_gcp_wif_identity_staged resource, andcreate a Workload Identity Pool and provider matching the audience from that resource
+  (google_iam_workload_identity_pool and google_iam_workload_identity_pool_provider).
+  Requires the Google Cloud integration (p0_gcp) to be installed for the same project. See the example
+  usage for the recommended pattern to define this infrastructure.
 ---
 
 # p0_gcp_wif_identity (Resource)
 
-Allows P0 to grant and revoke GCP access for OIDC-authenticated agents (e.g. CI/CD pipelines), via
-a Workload Identity Federation pool on your GCP project. Requires the Google Cloud integration (`p0_gcp`)
-to be installed for the same project.
+Final installation of a GCP Workload Identity Federation identity, allowing P0 to grant and
+revoke GCP access for OIDC-authenticated agents (e.g. CI/CD pipelines).
 
-P0 uses `oidc_provider_url` to generate gcloud CLI/Terraform instructions for creating the Workload
-Identity Pool and provider; it does not create the GCP-side resources on your behalf. `audience` is
-computed by P0 from `project_id` once the identity is staged.
+To use this resource, you must also:
+- install the `p0_gcp_wif_identity_staged` resource, and
+- create a Workload Identity Pool and provider matching the `audience` from that resource
+  (`google_iam_workload_identity_pool` and `google_iam_workload_identity_pool_provider`).
+
+Requires the Google Cloud integration (`p0_gcp`) to be installed for the same project. See the example
+usage for the recommended pattern to define this infrastructure.
 
 ## Example Usage
 
 ```terraform
-# Requires the p0_gcp integration to already be installed for the same project
-# (see its own example).
+# See the p0_gcp_wif_identity_staged example for the preceding steps
+# (staging the identity, and creating the matching Workload Identity Pool
+# and provider) that this resource depends on.
 
-# P0 renders gcloud CLI/Terraform instructions for creating the Workload Identity
-# Pool and provider; it does not create GCP-side infrastructure on your behalf.
-# `audience` is computed by P0 from `project_id` once the identity is staged.
-resource "p0_gcp_wif_identity" "example" {
+resource "p0_gcp_wif_identity_staged" "example" {
   id                = "github-actions"
   project_id        = "my-project-id"
   oidc_provider_url = "https://token.actions.githubusercontent.com"
+}
+
+locals {
+  wif_pool_id     = regex("workloadIdentityPools/([^/]+)/providers", p0_gcp_wif_identity_staged.example.audience)
+  wif_provider_id = regex("providers/([^/]+)$", p0_gcp_wif_identity_staged.example.audience)
+}
+
+resource "google_iam_workload_identity_pool" "p0" {
+  project                   = p0_gcp_wif_identity_staged.example.project_id
+  workload_identity_pool_id = local.wif_pool_id
+}
+
+resource "google_iam_workload_identity_pool_provider" "p0" {
+  project                            = p0_gcp_wif_identity_staged.example.project_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.p0.workload_identity_pool_id
+  workload_identity_pool_provider_id = local.wif_provider_id
+
+  attribute_mapping = {
+    "google.subject" = "assertion.sub"
+  }
+
+  oidc {
+    issuer_uri = p0_gcp_wif_identity_staged.example.oidc_provider_url
+  }
+}
+
+# Finalizes the install; depends_on ensures the matching GCP-side
+# infrastructure exists first.
+resource "p0_gcp_wif_identity" "example" {
+  id         = p0_gcp_wif_identity_staged.example.id
+  depends_on = [google_iam_workload_identity_pool_provider.p0]
 }
 ```
 
@@ -42,10 +75,10 @@ resource "p0_gcp_wif_identity" "example" {
 
 ### Required
 
-- `id` (String) A unique identifier for this identity
-- `oidc_provider_url` (String) Issuer URL of your OIDC provider (e.g. `https://token.actions.githubusercontent.com`)
-- `project_id` (String) The GCP project ID to federate access into
+- `id` (String) The `id` of the `p0_gcp_wif_identity_staged` resource being finalized
 
 ### Read-Only
 
 - `audience` (String) The `aud` claim the identity will send to GCP when calling APIs
+- `oidc_provider_url` (String) Issuer URL of your OIDC provider
+- `project_id` (String) The GCP project ID to federate access into

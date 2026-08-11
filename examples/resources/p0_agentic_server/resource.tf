@@ -33,12 +33,18 @@ resource "p0_agentic_identity_provider" "example" {
   dynamic_registration = true
 }
 
-# Requires the p0_aws_iam_write integration to already be installed for the same account.
-resource "p0_aws_oidc_identity" "example" {
+# See the p0_aws_oidc_identity example for the full staged-install pattern
+# (creating the AWS-side OIDC provider and role). Requires the
+# p0_aws_iam_write integration to already be installed for the same account.
+resource "p0_aws_oidc_identity_staged" "example" {
   id                = "github-actions"
   account_id        = "123456789012"
   oidc_provider_url = p0_agentic_identity_provider.example.issuer
   audience          = "https://github.com/my-org"
+}
+
+resource "p0_aws_oidc_identity" "example" {
+  id = p0_aws_oidc_identity_staged.example.id
 }
 
 # An MCP server that federates AWS credentials via the identity above.

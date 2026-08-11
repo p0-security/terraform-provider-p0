@@ -1,13 +1,12 @@
-# See the p0_gcp_wif_identity_staged example for the preceding steps
-# (staging the identity, and creating the matching Workload Identity Pool
-# and provider) that this resource depends on.
-
+# Requires the p0_gcp integration to already be installed for the same project.
 resource "p0_gcp_wif_identity_staged" "example" {
   id                = "github-actions"
   project_id        = "my-project-id"
   oidc_provider_url = "https://token.actions.githubusercontent.com"
 }
 
+# `audience` is P0's expected Workload Identity Pool provider resource name:
+# //iam.googleapis.com/projects/{number}/locations/global/workloadIdentityPools/{pool}/providers/{provider}
 locals {
   wif_pool_id     = regex("workloadIdentityPools/([^/]+)/providers", p0_gcp_wif_identity_staged.example.audience)
   wif_provider_id = regex("providers/([^/]+)$", p0_gcp_wif_identity_staged.example.audience)
@@ -30,11 +29,4 @@ resource "google_iam_workload_identity_pool_provider" "p0" {
   oidc {
     issuer_uri = p0_gcp_wif_identity_staged.example.oidc_provider_url
   }
-}
-
-# Finalizes the install; depends_on ensures the matching GCP-side
-# infrastructure exists first.
-resource "p0_gcp_wif_identity" "example" {
-  id         = p0_gcp_wif_identity_staged.example.id
-  depends_on = [google_iam_workload_identity_pool_provider.p0]
 }

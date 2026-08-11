@@ -34,10 +34,10 @@ type AwsOidcIdentity struct {
 
 type awsOidcIdentityModel struct {
 	Id              string       `tfsdk:"id"`
-	AccountId       string       `tfsdk:"account_id"`
+	AccountId       types.String `tfsdk:"account_id"`
 	AwsPartition    types.String `tfsdk:"aws_partition"`
-	OidcProviderUrl string       `tfsdk:"oidc_provider_url"`
-	Audience        string       `tfsdk:"audience"`
+	OidcProviderUrl types.String `tfsdk:"oidc_provider_url"`
+	Audience        types.String `tfsdk:"audience"`
 }
 
 type awsOidcIdentityJson struct {
@@ -57,7 +57,8 @@ type awsOidcIdentityApi struct {
 // component, where `accountId`, `oidcProviderUrl`, and `audience` are all
 // `step: "new"`); resending them from the later verify/configure calls (see
 // toJson) is rejected by the backend with "can only be altered on initial
-// installation." None of this component's fields are mutable after creation.
+// installation". None of this component's fields are mutable after creation
+// — that's why they're only settable on p0_aws_oidc_identity_staged.
 type awsOidcIdentityStageJson struct {
 	AccountId       string `json:"accountId"`
 	OidcProviderUrl string `json:"oidcProviderUrl"`
@@ -77,44 +78,40 @@ func (r *AwsOidcIdentity) Metadata(ctx context.Context, req resource.MetadataReq
 
 func (r *AwsOidcIdentity) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `Allows P0 to grant and revoke AWS access for OIDC-authenticated agents (e.g. CI/CD pipelines), via
-an AWS IAM identity provider federated on your OIDC provider. Requires the AWS integration (` + "`p0_aws_iam_write`" + `)
-to be installed for the same account.
+		MarkdownDescription: `Final installation of an AWS OIDC identity federation, allowing P0 to grant and revoke AWS
+access for OIDC-authenticated agents (e.g. CI/CD pipelines).
 
-P0 uses ` + "`oidc_provider_url`" + ` and ` + "`audience`" + ` to generate AWS CLI/Terraform instructions for
-registering the identity provider; it does not create the AWS-side identity provider on your behalf.`,
+To use this resource, you must also:
+- install the ` + "`p0_aws_oidc_identity_staged`" + ` resource,
+- create an AWS IAM OIDC identity provider trusting your OIDC provider (` + "`aws_iam_openid_connect_provider`" + `), and
+- create the IAM role(s) P0 federates into, with a trust policy scoped to that provider and the ` + "`audience`" + `
+  from the staged resource.
+
+Requires the AWS integration (` + "`p0_aws_iam_write`" + `) to be installed for the same account. See the example
+usage for the recommended pattern to define this infrastructure.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "A unique identifier for this identity",
+				MarkdownDescription: "The `id` of the `p0_aws_oidc_identity_staged` resource being finalized",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"account_id": schema.StringAttribute{
-				Required:            true,
+				Computed:            true,
 				MarkdownDescription: "The AWS account ID to federate access into",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"aws_partition": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The AWS partition (e.g. `aws`, `aws-us-gov`) that the account belongs to",
 			},
 			"oidc_provider_url": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "Issuer URL of your OIDC provider (e.g. `https://token.actions.githubusercontent.com`)",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				Computed:            true,
+				MarkdownDescription: "Issuer URL of your OIDC provider",
 			},
 			"audience": schema.StringAttribute{
-				Required:            true,
+				Computed:            true,
 				MarkdownDescription: "The `aud` claim the identity will send to AWS when calling APIs",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 		},
 	}
@@ -156,10 +153,10 @@ func (r *AwsOidcIdentity) fromJson(ctx context.Context, diags *diag.Diagnostics,
 	}
 	return &awsOidcIdentityModel{
 		Id:              id,
-		AccountId:       json.AccountId,
+		AccountId:       types.StringValue(json.AccountId),
 		AwsPartition:    types.StringPointerValue(json.AwsPartition),
-		OidcProviderUrl: json.OidcProviderUrl,
-		Audience:        json.Audience,
+		OidcProviderUrl: types.StringValue(json.OidcProviderUrl),
+		Audience:        types.StringValue(json.Audience),
 	}
 }
 
@@ -174,24 +171,8 @@ func (r *AwsOidcIdentity) toJson(data any) any {
 }
 
 func (r *AwsOidcIdentity) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &awsOidcIdentityModel{})
-
-	var inputData awsOidcIdentityModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &inputData)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	var json awsOidcIdentityApi
 	var data awsOidcIdentityModel
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &awsOidcIdentityStageJson{
-		AccountId:       inputData.AccountId,
-		OidcProviderUrl: inputData.OidcProviderUrl,
-		Audience:        inputData.Audience,
-	})
-	if resp.Diagnostics.HasError() {
-		return
-	}
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
@@ -202,7 +183,6 @@ func (r *AwsOidcIdentity) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 func (r *AwsOidcIdentity) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &awsOidcIdentityModel{})
 	var json awsOidcIdentityApi
 	var data awsOidcIdentityModel
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
@@ -210,7 +190,7 @@ func (r *AwsOidcIdentity) Update(ctx context.Context, req resource.UpdateRequest
 
 func (r *AwsOidcIdentity) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var data awsOidcIdentityModel
-	r.installer.Delete(ctx, &resp.Diagnostics, &req.State, &data)
+	r.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &data)
 }
 
 func (r *AwsOidcIdentity) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

@@ -3,36 +3,76 @@
 page_title: "p0_aws_oidc_identity Resource - p0"
 subcategory: ""
 description: |-
-  Allows P0 to grant and revoke AWS access for OIDC-authenticated agents (e.g. CI/CD pipelines), via
-  an AWS IAM identity provider federated on your OIDC provider. Requires the AWS integration (p0_aws_iam_write)
-  to be installed for the same account.
-  P0 uses oidc_provider_url and audience to generate AWS CLI/Terraform instructions for
-  registering the identity provider; it does not create the AWS-side identity provider on your behalf.
+  Final installation of an AWS OIDC identity federation, allowing P0 to grant and revoke AWS
+  access for OIDC-authenticated agents (e.g. CI/CD pipelines).
+  To use this resource, you must also:
+  install the p0_aws_oidc_identity_staged resource,create an AWS IAM OIDC identity provider trusting your OIDC provider (aws_iam_openid_connect_provider), andcreate the IAM role(s) P0 federates into, with a trust policy scoped to that provider and the audience
+  from the staged resource.
+  Requires the AWS integration (p0_aws_iam_write) to be installed for the same account. See the example
+  usage for the recommended pattern to define this infrastructure.
 ---
 
 # p0_aws_oidc_identity (Resource)
 
-Allows P0 to grant and revoke AWS access for OIDC-authenticated agents (e.g. CI/CD pipelines), via
-an AWS IAM identity provider federated on your OIDC provider. Requires the AWS integration (`p0_aws_iam_write`)
-to be installed for the same account.
+Final installation of an AWS OIDC identity federation, allowing P0 to grant and revoke AWS
+access for OIDC-authenticated agents (e.g. CI/CD pipelines).
 
-P0 uses `oidc_provider_url` and `audience` to generate AWS CLI/Terraform instructions for
-registering the identity provider; it does not create the AWS-side identity provider on your behalf.
+To use this resource, you must also:
+- install the `p0_aws_oidc_identity_staged` resource,
+- create an AWS IAM OIDC identity provider trusting your OIDC provider (`aws_iam_openid_connect_provider`), and
+- create the IAM role(s) P0 federates into, with a trust policy scoped to that provider and the `audience`
+  from the staged resource.
+
+Requires the AWS integration (`p0_aws_iam_write`) to be installed for the same account. See the example
+usage for the recommended pattern to define this infrastructure.
 
 ## Example Usage
 
 ```terraform
-# Requires the p0_aws_iam_write integration to already be installed for the same account
-# (see its own example for the full staged-role setup).
+# See the p0_aws_oidc_identity_staged example for the preceding steps
+# (staging the identity, and creating the AWS-side OIDC provider and role)
+# that this resource depends on.
 
-# P0 renders CLI/Terraform instructions (from oidc_provider_url + audience) for
-# creating the AWS IAM identity provider and role that federate this identity;
-# it does not create AWS-side infrastructure on your behalf.
-resource "p0_aws_oidc_identity" "example" {
+resource "p0_aws_oidc_identity_staged" "example" {
   id                = "github-actions"
   account_id        = "123456789012"
   oidc_provider_url = "https://token.actions.githubusercontent.com"
   audience          = "https://github.com/my-org"
+}
+
+data "tls_certificate" "oidc_provider" {
+  url = p0_aws_oidc_identity_staged.example.oidc_provider_url
+}
+
+resource "aws_iam_openid_connect_provider" "p0" {
+  url             = p0_aws_oidc_identity_staged.example.oidc_provider_url
+  client_id_list  = [p0_aws_oidc_identity_staged.example.audience]
+  thumbprint_list = [data.tls_certificate.oidc_provider.certificates[0].sha1_fingerprint]
+}
+
+resource "aws_iam_role" "p0_oidc_grants" {
+  name = "P0OidcGrantsRole-${p0_aws_oidc_identity_staged.example.id}"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = aws_iam_openid_connect_provider.p0.arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${replace(p0_aws_oidc_identity_staged.example.oidc_provider_url, "https://", "")}:aud" = p0_aws_oidc_identity_staged.example.audience
+        }
+      }
+    }]
+  })
+}
+
+# Finalizes the install; depends_on ensures the AWS-side trust exists first.
+resource "p0_aws_oidc_identity" "example" {
+  id         = p0_aws_oidc_identity_staged.example.id
+  depends_on = [aws_iam_openid_connect_provider.p0, aws_iam_role.p0_oidc_grants]
 }
 ```
 
@@ -41,11 +81,11 @@ resource "p0_aws_oidc_identity" "example" {
 
 ### Required
 
-- `account_id` (String) The AWS account ID to federate access into
-- `audience` (String) The `aud` claim the identity will send to AWS when calling APIs
-- `id` (String) A unique identifier for this identity
-- `oidc_provider_url` (String) Issuer URL of your OIDC provider (e.g. `https://token.actions.githubusercontent.com`)
+- `id` (String) The `id` of the `p0_aws_oidc_identity_staged` resource being finalized
 
 ### Read-Only
 
+- `account_id` (String) The AWS account ID to federate access into
+- `audience` (String) The `aud` claim the identity will send to AWS when calling APIs
 - `aws_partition` (String) The AWS partition (e.g. `aws`, `aws-us-gov`) that the account belongs to
+- `oidc_provider_url` (String) Issuer URL of your OIDC provider
