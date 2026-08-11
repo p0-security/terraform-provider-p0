@@ -23,6 +23,7 @@ module "oauthed_mcp" {
 
 resource "p0_agentic_gateway" "example" {
   id             = p0_agentic_gateway_staged.example.id
+  url            = p0_agentic_gateway_staged.example.url
   oauth_endpoint = "https://oauth.gateway.example.com"
   depends_on     = [module.oauthed_mcp]
 }
@@ -44,7 +45,10 @@ resource "p0_aws_oidc_identity_staged" "example" {
 }
 
 resource "p0_aws_oidc_identity" "example" {
-  id = p0_aws_oidc_identity_staged.example.id
+  id                = p0_aws_oidc_identity_staged.example.id
+  account_id        = p0_aws_oidc_identity_staged.example.account_id
+  oidc_provider_url = p0_aws_oidc_identity_staged.example.oidc_provider_url
+  audience          = p0_aws_oidc_identity_staged.example.audience
 }
 
 # An MCP server that federates AWS credentials via the identity above.

@@ -71,8 +71,11 @@ resource "aws_iam_role" "p0_oidc_grants" {
 
 # Finalizes the install; depends_on ensures the AWS-side trust exists first.
 resource "p0_aws_oidc_identity" "example" {
-  id         = p0_aws_oidc_identity_staged.example.id
-  depends_on = [aws_iam_openid_connect_provider.p0, aws_iam_role.p0_oidc_grants]
+  id                = p0_aws_oidc_identity_staged.example.id
+  account_id        = p0_aws_oidc_identity_staged.example.account_id
+  oidc_provider_url = p0_aws_oidc_identity_staged.example.oidc_provider_url
+  audience          = p0_aws_oidc_identity_staged.example.audience
+  depends_on        = [aws_iam_openid_connect_provider.p0, aws_iam_role.p0_oidc_grants]
 }
 ```
 
@@ -81,11 +84,11 @@ resource "p0_aws_oidc_identity" "example" {
 
 ### Required
 
+- `account_id` (String) The AWS account ID to federate access into. Must match `account_id` on the `p0_aws_oidc_identity_staged` resource.
+- `audience` (String) The `aud` claim the identity will send to AWS when calling APIs. Must match `audience` on the `p0_aws_oidc_identity_staged` resource.
 - `id` (String) The `id` of the `p0_aws_oidc_identity_staged` resource being finalized
+- `oidc_provider_url` (String) Issuer URL of your OIDC provider. Must match `oidc_provider_url` on the `p0_aws_oidc_identity_staged` resource.
 
 ### Read-Only
 
-- `account_id` (String) The AWS account ID to federate access into
-- `audience` (String) The `aud` claim the identity will send to AWS when calling APIs
 - `aws_partition` (String) The AWS partition (e.g. `aws`, `aws-us-gov`) that the account belongs to
-- `oidc_provider_url` (String) Issuer URL of your OIDC provider

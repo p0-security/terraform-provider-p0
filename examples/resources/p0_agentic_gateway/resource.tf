@@ -28,6 +28,7 @@ module "oauthed_mcp" {
 # account before verification is attempted.
 resource "p0_agentic_gateway" "example" {
   id             = p0_agentic_gateway_staged.example.id
+  url            = p0_agentic_gateway_staged.example.url
   oauth_endpoint = "https://oauth.gateway.example.com"
   log_project_id = "my-gcp-logging-project"
   depends_on     = [module.oauthed_mcp]

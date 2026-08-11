@@ -35,6 +35,8 @@ resource "google_iam_workload_identity_pool_provider" "p0" {
 # Finalizes the install; depends_on ensures the matching GCP-side
 # infrastructure exists first.
 resource "p0_gcp_wif_identity" "example" {
-  id         = p0_gcp_wif_identity_staged.example.id
-  depends_on = [google_iam_workload_identity_pool_provider.p0]
+  id                = p0_gcp_wif_identity_staged.example.id
+  project_id        = p0_gcp_wif_identity_staged.example.project_id
+  oidc_provider_url = p0_gcp_wif_identity_staged.example.oidc_provider_url
+  depends_on        = [google_iam_workload_identity_pool_provider.p0]
 }

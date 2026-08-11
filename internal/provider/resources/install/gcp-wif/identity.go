@@ -34,8 +34,8 @@ type GcpWifIdentity struct {
 
 type gcpWifIdentityModel struct {
 	Id              string       `tfsdk:"id"`
-	ProjectId       types.String `tfsdk:"project_id"`
-	OidcProviderUrl types.String `tfsdk:"oidc_provider_url"`
+	ProjectId       string       `tfsdk:"project_id"`
+	OidcProviderUrl string       `tfsdk:"oidc_provider_url"`
 	Audience        types.String `tfsdk:"audience"`
 }
 
@@ -62,10 +62,19 @@ type gcpWifIdentityStageJson struct {
 	OidcProviderUrl string `json:"oidcProviderUrl"`
 }
 
-// gcpWifIdentityConfigureJson carries the (empty) payload sent by toJson for
-// the verify/configure calls issued by UpsertFromStage.
+// gcpWifIdentityConfigureJson carries the payload sent by toJson for the
+// verify/configure calls issued by UpsertFromStage (and the PUT issued by
+// Rollback on delete). `projectId`/`oidcProviderUrl` are resent here even
+// though they're `step: "new"` — the same, unchanged values the user already
+// staged — because omitting them would silently drop the stored values from
+// the merged item (the `audience` field's assembler reads the raw unmerged
+// request body, not the merged one) rather than just failing to change them;
+// this mirrors p0_okta_directory_listing's final resource, which resends its
+// own immutable fields the same way.
 type gcpWifIdentityConfigureJson struct {
-	State string `json:"state"`
+	ProjectId       string `json:"projectId"`
+	OidcProviderUrl string `json:"oidcProviderUrl"`
+	State           string `json:"state"`
 }
 
 func (r *GcpWifIdentity) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -93,12 +102,12 @@ usage for the recommended pattern to define this infrastructure.`,
 				},
 			},
 			"project_id": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The GCP project ID to federate access into",
+				Required:            true,
+				MarkdownDescription: "The GCP project ID to federate access into. Must match `project_id` on the `p0_gcp_wif_identity_staged` resource.",
 			},
 			"oidc_provider_url": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Issuer URL of your OIDC provider",
+				Required:            true,
+				MarkdownDescription: "Issuer URL of your OIDC provider. Must match `oidc_provider_url` on the `p0_gcp_wif_identity_staged` resource.",
 			},
 			"audience": schema.StringAttribute{
 				Computed:            true,
@@ -144,19 +153,21 @@ func (r *GcpWifIdentity) fromJson(ctx context.Context, diags *diag.Diagnostics, 
 	}
 	return &gcpWifIdentityModel{
 		Id:              id,
-		ProjectId:       types.StringValue(json.ProjectId),
-		OidcProviderUrl: types.StringValue(json.OidcProviderUrl),
+		ProjectId:       json.ProjectId,
+		OidcProviderUrl: json.OidcProviderUrl,
 		Audience:        types.StringPointerValue(json.Audience),
 	}
 }
 
 func (r *GcpWifIdentity) toJson(data any) any {
-	_, ok := data.(*gcpWifIdentityModel)
+	model, ok := data.(*gcpWifIdentityModel)
 	if !ok {
 		return nil
 	}
 	return &gcpWifIdentityConfigureJson{
-		State: common.Config,
+		ProjectId:       model.ProjectId,
+		OidcProviderUrl: model.OidcProviderUrl,
+		State:           common.Config,
 	}
 }
 
@@ -178,18 +189,9 @@ func (r *GcpWifIdentity) Update(ctx context.Context, req resource.UpdateRequest,
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
-// Delete fully removes the item rather than rolling it back to "stage" (as
-// other final resources in this provider do): toJson only returns the
-// reduced configure-time payload (see gcpWifIdentityConfigureJson), which
-// omits `projectId`. Rollback PUTs that payload back to the stage/assemble
-// endpoint, which re-runs the `audience` field's assembler — a live GCP API
-// call requiring `projectId` — and 502s when it's missing. A full delete
-// needs no body, so it sidesteps the problem entirely; the paired
-// p0_gcp_wif_identity_staged resource's own Delete already tolerates a 404
-// from double-deletion when both are destroyed together.
 func (r *GcpWifIdentity) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var data gcpWifIdentityModel
-	r.installer.Delete(ctx, &resp.Diagnostics, &req.State, &data)
+	r.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &data)
 }
 
 func (r *GcpWifIdentity) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

@@ -40,6 +40,9 @@ resource "aws_iam_role" "p0_oidc_grants" {
 
 # Finalizes the install; depends_on ensures the AWS-side trust exists first.
 resource "p0_aws_oidc_identity" "example" {
-  id         = p0_aws_oidc_identity_staged.example.id
-  depends_on = [aws_iam_openid_connect_provider.p0, aws_iam_role.p0_oidc_grants]
+  id                = p0_aws_oidc_identity_staged.example.id
+  account_id        = p0_aws_oidc_identity_staged.example.account_id
+  oidc_provider_url = p0_aws_oidc_identity_staged.example.oidc_provider_url
+  audience          = p0_aws_oidc_identity_staged.example.audience
+  depends_on        = [aws_iam_openid_connect_provider.p0, aws_iam_role.p0_oidc_grants]
 }

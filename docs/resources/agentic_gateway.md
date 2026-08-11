@@ -55,6 +55,7 @@ module "oauthed_mcp" {
 # account before verification is attempted.
 resource "p0_agentic_gateway" "example" {
   id             = p0_agentic_gateway_staged.example.id
+  url            = p0_agentic_gateway_staged.example.url
   oauth_endpoint = "https://oauth.gateway.example.com"
   log_project_id = "my-gcp-logging-project"
   depends_on     = [module.oauthed_mcp]
@@ -68,6 +69,7 @@ resource "p0_agentic_gateway" "example" {
 
 - `id` (String) The `id` of the `p0_agentic_gateway_staged` resource being finalized
 - `oauth_endpoint` (String) OAuth server endpoint; must be publicly accessible and host `.well-known/jwks.json`
+- `url` (String) Agentic gateway URL; your servers will be hosted here. Must match the `url` on the `p0_agentic_gateway_staged` resource.
 
 ### Optional
 
@@ -78,4 +80,3 @@ itself runs in (e.g. if logs are routed to a centralized logging project).
 ### Read-Only
 
 - `service_account_email` (String) Email address of the service account identity that P0 uses to communicate with your gateway
-- `url` (String) Agentic gateway URL; your servers will be hosted here

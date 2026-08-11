@@ -65,8 +65,10 @@ resource "google_iam_workload_identity_pool_provider" "p0" {
 # Finalizes the install; depends_on ensures the matching GCP-side
 # infrastructure exists first.
 resource "p0_gcp_wif_identity" "example" {
-  id         = p0_gcp_wif_identity_staged.example.id
-  depends_on = [google_iam_workload_identity_pool_provider.p0]
+  id                = p0_gcp_wif_identity_staged.example.id
+  project_id        = p0_gcp_wif_identity_staged.example.project_id
+  oidc_provider_url = p0_gcp_wif_identity_staged.example.oidc_provider_url
+  depends_on        = [google_iam_workload_identity_pool_provider.p0]
 }
 ```
 
@@ -76,9 +78,9 @@ resource "p0_gcp_wif_identity" "example" {
 ### Required
 
 - `id` (String) The `id` of the `p0_gcp_wif_identity_staged` resource being finalized
+- `oidc_provider_url` (String) Issuer URL of your OIDC provider. Must match `oidc_provider_url` on the `p0_gcp_wif_identity_staged` resource.
+- `project_id` (String) The GCP project ID to federate access into. Must match `project_id` on the `p0_gcp_wif_identity_staged` resource.
 
 ### Read-Only
 
 - `audience` (String) The `aud` claim the identity will send to GCP when calling APIs
-- `oidc_provider_url` (String) Issuer URL of your OIDC provider
-- `project_id` (String) The GCP project ID to federate access into

@@ -34,10 +34,10 @@ type AwsOidcIdentity struct {
 
 type awsOidcIdentityModel struct {
 	Id              string       `tfsdk:"id"`
-	AccountId       types.String `tfsdk:"account_id"`
+	AccountId       string       `tfsdk:"account_id"`
 	AwsPartition    types.String `tfsdk:"aws_partition"`
-	OidcProviderUrl types.String `tfsdk:"oidc_provider_url"`
-	Audience        types.String `tfsdk:"audience"`
+	OidcProviderUrl string       `tfsdk:"oidc_provider_url"`
+	Audience        string       `tfsdk:"audience"`
 }
 
 type awsOidcIdentityJson struct {
@@ -65,11 +65,21 @@ type awsOidcIdentityStageJson struct {
 	Audience        string `json:"audience"`
 }
 
-// awsOidcIdentityConfigureJson carries the (empty) payload sent by toJson for
-// the verify/configure calls issued by UpsertFromStage; state is filled in by
-// the backend from the stage step.
+// awsOidcIdentityConfigureJson carries the payload sent by toJson for the
+// verify/configure calls issued by UpsertFromStage (and the PUT issued by
+// Rollback on delete). These fields are resent here even though they're
+// `step: "new"` — the same, unchanged values the user already staged —
+// because `accountId` is read by the `awsPartition` field's assembler from
+// the raw unmerged request body, so omitting it would silently clear
+// `awsPartition` rather than just failing to change it; `oidcProviderUrl`
+// and `audience` are resent alongside it for consistency. This mirrors
+// p0_okta_directory_listing's final resource, which resends its own
+// immutable fields the same way.
 type awsOidcIdentityConfigureJson struct {
-	State string `json:"state"`
+	AccountId       string `json:"accountId"`
+	OidcProviderUrl string `json:"oidcProviderUrl"`
+	Audience        string `json:"audience"`
+	State           string `json:"state"`
 }
 
 func (r *AwsOidcIdentity) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -98,20 +108,20 @@ usage for the recommended pattern to define this infrastructure.`,
 				},
 			},
 			"account_id": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The AWS account ID to federate access into",
+				Required:            true,
+				MarkdownDescription: "The AWS account ID to federate access into. Must match `account_id` on the `p0_aws_oidc_identity_staged` resource.",
 			},
 			"aws_partition": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The AWS partition (e.g. `aws`, `aws-us-gov`) that the account belongs to",
 			},
 			"oidc_provider_url": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Issuer URL of your OIDC provider",
+				Required:            true,
+				MarkdownDescription: "Issuer URL of your OIDC provider. Must match `oidc_provider_url` on the `p0_aws_oidc_identity_staged` resource.",
 			},
 			"audience": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The `aud` claim the identity will send to AWS when calling APIs",
+				Required:            true,
+				MarkdownDescription: "The `aud` claim the identity will send to AWS when calling APIs. Must match `audience` on the `p0_aws_oidc_identity_staged` resource.",
 			},
 		},
 	}
@@ -153,20 +163,23 @@ func (r *AwsOidcIdentity) fromJson(ctx context.Context, diags *diag.Diagnostics,
 	}
 	return &awsOidcIdentityModel{
 		Id:              id,
-		AccountId:       types.StringValue(json.AccountId),
+		AccountId:       json.AccountId,
 		AwsPartition:    types.StringPointerValue(json.AwsPartition),
-		OidcProviderUrl: types.StringValue(json.OidcProviderUrl),
-		Audience:        types.StringValue(json.Audience),
+		OidcProviderUrl: json.OidcProviderUrl,
+		Audience:        json.Audience,
 	}
 }
 
 func (r *AwsOidcIdentity) toJson(data any) any {
-	_, ok := data.(*awsOidcIdentityModel)
+	model, ok := data.(*awsOidcIdentityModel)
 	if !ok {
 		return nil
 	}
 	return &awsOidcIdentityConfigureJson{
-		State: common.Config,
+		AccountId:       model.AccountId,
+		OidcProviderUrl: model.OidcProviderUrl,
+		Audience:        model.Audience,
+		State:           common.Config,
 	}
 }
 
@@ -188,18 +201,9 @@ func (r *AwsOidcIdentity) Update(ctx context.Context, req resource.UpdateRequest
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
-// Delete fully removes the item rather than rolling it back to "stage" (as
-// other final resources in this provider do): toJson only returns the
-// reduced configure-time payload (see awsOidcIdentityConfigureJson), which
-// omits `accountId`. Rollback PUTs that payload back to the stage/assemble
-// endpoint, which re-runs the `awsPartition` field's assembler, and can fail
-// or clear the value when `accountId` is missing. A full delete needs no
-// body, so it sidesteps the problem entirely; the paired
-// p0_aws_oidc_identity_staged resource's own Delete already tolerates a 404
-// from double-deletion when both are destroyed together.
 func (r *AwsOidcIdentity) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var data awsOidcIdentityModel
-	r.installer.Delete(ctx, &resp.Diagnostics, &req.State, &data)
+	r.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &data)
 }
 
 func (r *AwsOidcIdentity) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

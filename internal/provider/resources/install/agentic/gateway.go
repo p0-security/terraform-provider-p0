@@ -34,7 +34,7 @@ type Gateway struct {
 
 type gatewayModel struct {
 	Id                  string       `tfsdk:"id"`
-	Url                 types.String `tfsdk:"url"`
+	Url                 string       `tfsdk:"url"`
 	OauthEndpoint       string       `tfsdk:"oauth_endpoint"`
 	LogProjectId        types.String `tfsdk:"log_project_id"`
 	ServiceAccountEmail types.String `tfsdk:"service_account_email"`
@@ -63,9 +63,16 @@ type gatewayStageJson struct {
 	Url string `json:"url"`
 }
 
-// gatewayConfigureJson carries the mutable fields sent by toJson, used for
-// the verify/configure calls issued by UpsertFromStage.
+// gatewayConfigureJson carries the payload sent by toJson for the
+// verify/configure calls issued by UpsertFromStage (and the PUT issued by
+// Rollback on delete). `url` is resent here even though it's `step: "new"`
+// — the same, unchanged value the user already staged — because `gateway`'s
+// backend installer functions are top-level (not per-field), so they always
+// see the correctly merged item and never actually reject an unchanged
+// resend; this mirrors p0_okta_directory_listing's final resource, which
+// resends its own immutable fields the same way.
 type gatewayConfigureJson struct {
+	Url           string  `json:"url"`
 	OauthEndpoint string  `json:"oauth-endpoint"`
 	LogProjectId  *string `json:"log-project-id,omitempty"`
 	State         string  `json:"state"`
@@ -94,8 +101,8 @@ See the example usage for the recommended pattern to define this infrastructure.
 				},
 			},
 			"url": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Agentic gateway URL; your servers will be hosted here",
+				Required:            true,
+				MarkdownDescription: "Agentic gateway URL; your servers will be hosted here. Must match the `url` on the `p0_agentic_gateway_staged` resource.",
 			},
 			"oauth_endpoint": schema.StringAttribute{
 				Required:            true,
@@ -151,7 +158,7 @@ func (r *Gateway) fromJson(ctx context.Context, diags *diag.Diagnostics, id stri
 	}
 	return &gatewayModel{
 		Id:                  id,
-		Url:                 types.StringValue(json.Url),
+		Url:                 json.Url,
 		OauthEndpoint:       json.OauthEndpoint,
 		LogProjectId:        types.StringPointerValue(json.LogProjectId),
 		ServiceAccountEmail: types.StringPointerValue(json.ServiceAccountEmail),
@@ -164,6 +171,7 @@ func (r *Gateway) toJson(data any) any {
 		return nil
 	}
 	return &gatewayConfigureJson{
+		Url:           model.Url,
 		OauthEndpoint: model.OauthEndpoint,
 		LogProjectId:  model.LogProjectId.ValueStringPointer(),
 		State:         common.Config,
