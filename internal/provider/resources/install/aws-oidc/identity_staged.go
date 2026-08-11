@@ -32,10 +32,10 @@ type AwsOidcIdentityStaged struct {
 
 type awsOidcIdentityStagedModel struct {
 	Id              string       `tfsdk:"id"`
-	AccountId       string       `tfsdk:"account_id"`
+	AccountId       types.String `tfsdk:"account_id"`
 	AwsPartition    types.String `tfsdk:"aws_partition"`
-	OidcProviderUrl string       `tfsdk:"oidc_provider_url"`
-	Audience        string       `tfsdk:"audience"`
+	OidcProviderUrl types.String `tfsdk:"oidc_provider_url"`
+	Audience        types.String `tfsdk:"audience"`
 }
 
 type awsOidcIdentityStagedApi struct {
@@ -128,10 +128,10 @@ func (r *AwsOidcIdentityStaged) fromJson(ctx context.Context, diags *diag.Diagno
 	}
 	return &awsOidcIdentityStagedModel{
 		Id:              id,
-		AccountId:       json.AccountId,
+		AccountId:       types.StringValue(json.AccountId),
 		AwsPartition:    types.StringPointerValue(json.AwsPartition),
-		OidcProviderUrl: json.OidcProviderUrl,
-		Audience:        json.Audience,
+		OidcProviderUrl: types.StringValue(json.OidcProviderUrl),
+		Audience:        types.StringValue(json.Audience),
 	}
 }
 
@@ -146,9 +146,9 @@ func (r *AwsOidcIdentityStaged) Create(ctx context.Context, req resource.CreateR
 	var data awsOidcIdentityStagedModel
 	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
 	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &awsOidcIdentityStageJson{
-		AccountId:       inputData.AccountId,
-		OidcProviderUrl: inputData.OidcProviderUrl,
-		Audience:        inputData.Audience,
+		AccountId:       inputData.AccountId.ValueString(),
+		OidcProviderUrl: inputData.OidcProviderUrl.ValueString(),
+		Audience:        inputData.Audience.ValueString(),
 	})
 }
 
@@ -169,9 +169,9 @@ func (r *AwsOidcIdentityStaged) Update(ctx context.Context, req resource.UpdateR
 	var data awsOidcIdentityStagedModel
 	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
 	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &awsOidcIdentityStageJson{
-		AccountId:       inputData.AccountId,
-		OidcProviderUrl: inputData.OidcProviderUrl,
-		Audience:        inputData.Audience,
+		AccountId:       inputData.AccountId.ValueString(),
+		OidcProviderUrl: inputData.OidcProviderUrl.ValueString(),
+		Audience:        inputData.Audience.ValueString(),
 	})
 }
 
