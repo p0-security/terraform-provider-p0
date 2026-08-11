@@ -22,12 +22,15 @@ import (
 	installdatadog "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/datadog"
 	installsplunk "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/splunk"
 	accesspolicy "github.com/p0-security/terraform-provider-p0/internal/provider/resources/access_policy"
+	installagentic "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/agentic"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
+	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
 	installfiletransfer "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/file_transfer"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
 	installgcpcloudsql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloudsql"
+	installgcpwif "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-wif"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
@@ -211,6 +214,14 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installfiletransfer.NewFileTransferIamWrite,
 		installsplunk.NewAuditLogs,
 		installdatadog.NewAuditLogs,
+		installawsoidc.NewAwsOidcIdentityStaged,
+		installawsoidc.NewAwsOidcIdentity,
+		installgcpwif.NewGcpWifIdentityStaged,
+		installgcpwif.NewGcpWifIdentity,
+		installagentic.NewGatewayStaged,
+		installagentic.NewGateway,
+		installagentic.NewIdentityProvider,
+		installagentic.NewServer,
 	}
 }
 

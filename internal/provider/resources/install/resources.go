@@ -10,4 +10,7 @@ const (
 	DirectoryListing = "listing"
 	GroupAssignment  = "group-assignment"
 	Kubernetes       = "k8s"
+	Gateway          = "gateway"
+	Server           = "server"
+	IdentityProvider = "identity-provider"
 )
