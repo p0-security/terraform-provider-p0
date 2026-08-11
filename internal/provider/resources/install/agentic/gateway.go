@@ -34,8 +34,8 @@ type Gateway struct {
 
 type gatewayModel struct {
 	Id                  string       `tfsdk:"id"`
-	Url                 string       `tfsdk:"url"`
-	OauthEndpoint       string       `tfsdk:"oauth_endpoint"`
+	Url                 types.String `tfsdk:"url"`
+	OauthEndpoint       types.String `tfsdk:"oauth_endpoint"`
 	LogProjectId        types.String `tfsdk:"log_project_id"`
 	ServiceAccountEmail types.String `tfsdk:"service_account_email"`
 }
@@ -158,8 +158,8 @@ func (r *Gateway) fromJson(ctx context.Context, diags *diag.Diagnostics, id stri
 	}
 	return &gatewayModel{
 		Id:                  id,
-		Url:                 json.Url,
-		OauthEndpoint:       json.OauthEndpoint,
+		Url:                 types.StringValue(json.Url),
+		OauthEndpoint:       types.StringValue(json.OauthEndpoint),
 		LogProjectId:        types.StringPointerValue(json.LogProjectId),
 		ServiceAccountEmail: types.StringPointerValue(json.ServiceAccountEmail),
 	}
@@ -171,8 +171,8 @@ func (r *Gateway) toJson(data any) any {
 		return nil
 	}
 	return &gatewayConfigureJson{
-		Url:           model.Url,
-		OauthEndpoint: model.OauthEndpoint,
+		Url:           model.Url.ValueString(),
+		OauthEndpoint: model.OauthEndpoint.ValueString(),
 		LogProjectId:  model.LogProjectId.ValueStringPointer(),
 		State:         common.Config,
 	}

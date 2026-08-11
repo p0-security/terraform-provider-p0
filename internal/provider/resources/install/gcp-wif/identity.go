@@ -34,8 +34,8 @@ type GcpWifIdentity struct {
 
 type gcpWifIdentityModel struct {
 	Id              string       `tfsdk:"id"`
-	ProjectId       string       `tfsdk:"project_id"`
-	OidcProviderUrl string       `tfsdk:"oidc_provider_url"`
+	ProjectId       types.String `tfsdk:"project_id"`
+	OidcProviderUrl types.String `tfsdk:"oidc_provider_url"`
 	Audience        types.String `tfsdk:"audience"`
 }
 
@@ -153,8 +153,8 @@ func (r *GcpWifIdentity) fromJson(ctx context.Context, diags *diag.Diagnostics, 
 	}
 	return &gcpWifIdentityModel{
 		Id:              id,
-		ProjectId:       json.ProjectId,
-		OidcProviderUrl: json.OidcProviderUrl,
+		ProjectId:       types.StringValue(json.ProjectId),
+		OidcProviderUrl: types.StringValue(json.OidcProviderUrl),
 		Audience:        types.StringPointerValue(json.Audience),
 	}
 }
@@ -165,8 +165,8 @@ func (r *GcpWifIdentity) toJson(data any) any {
 		return nil
 	}
 	return &gcpWifIdentityConfigureJson{
-		ProjectId:       model.ProjectId,
-		OidcProviderUrl: model.OidcProviderUrl,
+		ProjectId:       model.ProjectId.ValueString(),
+		OidcProviderUrl: model.OidcProviderUrl.ValueString(),
 		State:           common.Config,
 	}
 }
