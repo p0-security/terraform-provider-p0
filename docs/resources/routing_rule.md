@@ -174,14 +174,14 @@ Required:
 
 - `type` (String) How P0 matches the agent:
     - 'any': Any agent will match
-    - 'mcp-client': Only agents connecting through a specific MCP client will match
+    - 'agent-client': Only agents connecting through a specific gateway client will match ('mcp-client' is a deprecated alias)
     - 'agent-owner': Only an agent owned by a specific user will match
     - 'owner-group': Only an agent owned by a member of a directory group will match
     - 'provider': Only an agent federated by a specific identity provider will match
 
 Optional:
 
-- `client_id` (String) Required, and may only be used, if 'type' is 'mcp-client'. The MCP client's identifier.
+- `client_id` (String) Required, and may only be used, if 'type' is 'agent-client' (or its deprecated alias 'mcp-client'). The gateway client's identifier.
 - `effect` (String) Required, and may only be used, if 'type' is 'owner-group'. The filter effect. May be one of:
     - 'keep': Access rule only applies when the agent's owner is a member of any of the specified groups
     - 'remove': Access rule only applies when the agent's owner is _not_ a member of any of the specified groups
