@@ -427,6 +427,9 @@ func TestAgentAttributeDocumentsAgentClient(t *testing.T) {
 	if !strings.Contains(typeAttr.MarkdownDescription, "'agent-client'") {
 		t.Errorf("agent `type` description does not document 'agent-client':\n%s", typeAttr.MarkdownDescription)
 	}
+	if !strings.Contains(typeAttr.MarkdownDescription, "'mcp-client' is a deprecated alias") {
+		t.Errorf("agent `type` description does not note the deprecated 'mcp-client' alias:\n%s", typeAttr.MarkdownDescription)
+	}
 
 	clientIdAttr, ok := attribute.Attributes["client_id"].(schema.StringAttribute)
 	if !ok {
@@ -434,5 +437,8 @@ func TestAgentAttributeDocumentsAgentClient(t *testing.T) {
 	}
 	if !strings.Contains(clientIdAttr.MarkdownDescription, "'agent-client'") {
 		t.Errorf("`client_id` description does not document 'agent-client':\n%s", clientIdAttr.MarkdownDescription)
+	}
+	if !strings.Contains(clientIdAttr.MarkdownDescription, "deprecated alias 'mcp-client'") {
+		t.Errorf("`client_id` description does not note the deprecated 'mcp-client' alias:\n%s", clientIdAttr.MarkdownDescription)
 	}
 }
