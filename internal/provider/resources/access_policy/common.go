@@ -211,13 +211,13 @@ func agentAttribute(version int64) schema.SingleNestedAttribute {
 			"type": schema.StringAttribute{
 				MarkdownDescription: `How P0 matches the agent:
     - 'any': Any agent will match
-    - 'mcp-client': Only agents connecting through a specific MCP client will match
+    - 'agent-client': Only agents connecting through a specific gateway client will match ('mcp-client' is a deprecated alias)
     - 'agent-owner': Only an agent owned by a specific user will match
     - 'owner-group': Only an agent owned by a member of a directory group will match
     - 'provider': Only an agent federated by a specific identity provider will match`,
 				Required: true,
 			},
-			"client_id": schema.StringAttribute{MarkdownDescription: `Required, and may only be used, if 'type' is 'mcp-client'. The MCP client's identifier.`, Optional: true},
+			"client_id": schema.StringAttribute{MarkdownDescription: `Required, and may only be used, if 'type' is 'agent-client' (or its deprecated alias 'mcp-client'). The gateway client's identifier.`, Optional: true},
 			"owner":     schema.StringAttribute{MarkdownDescription: `Required, and may only be used, if 'type' is 'agent-owner'. The agent owner's email address.`, Optional: true},
 			"provider_id": schema.StringAttribute{
 				MarkdownDescription: `Required, and may only be used, if 'type' is 'provider'. The identifier of an installed identity-provider integration.`,
@@ -246,6 +246,8 @@ func agentAttribute(version int64) schema.SingleNestedAttribute {
 		Attributes:          attributes,
 		Validators: []validator.Object{
 			RequiredWhenType(map[string][]string{
+				"agent-client": {"client_id"},
+				// Deprecated alias for "agent-client"; the API accepts both.
 				"mcp-client":  {"client_id"},
 				"agent-owner": {"owner"},
 				"owner-group": {"groups", "effect"},

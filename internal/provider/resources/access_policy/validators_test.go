@@ -5,11 +5,13 @@ package accesspolicy
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -141,6 +143,8 @@ func TestRequiredWhenTypeNullObject(t *testing.T) {
 // agentRequirements mirrors the type-conditional requirements enforced on
 // the `requestor.agent` object (see agentAttribute).
 var agentRequirements = map[string][]string{
+	"agent-client": {"client_id"},
+	// Deprecated alias for "agent-client"; the API accepts both.
 	"mcp-client":  {"client_id"},
 	"agent-owner": {"owner"},
 	"owner-group": {"groups", "effect"},
@@ -355,5 +359,80 @@ func TestRequiredWhenTypeRequestorAgentic(t *testing.T) {
 				t.Errorf("HasError() = %v; want %v (%v)", got, c.wantErr, resp.Diagnostics)
 			}
 		})
+	}
+}
+
+// TestAgentAttributeValidators runs the validators attached to the real
+// `requestor.agent` schema (agentAttribute), so the requirement map in the
+// production schema is under test rather than a mirrored copy. The backend
+// accepts both "agent-client" and its deprecated alias "mcp-client" for the
+// client-scoped variant (AgentClientRequestorRule in the P0 app's
+// shared/src/types/policy/types.ts), and requires clientId for both.
+func TestAgentAttributeValidators(t *testing.T) {
+	set := types.StringValue("x")
+	null := types.StringNull()
+	base := func(overrides map[string]attr.Value) map[string]attr.Value {
+		attrs := map[string]attr.Value{
+			"type": null, "client_id": null, "owner": null, "groups": null, "effect": null, "provider_id": null, "subject_pattern": null,
+		}
+		for k, v := range overrides {
+			attrs[k] = v
+		}
+		return attrs
+	}
+
+	cases := []struct {
+		name    string
+		attrs   map[string]attr.Value
+		wantErr bool
+	}{
+		{"agent-client missing client_id errors", base(map[string]attr.Value{"type": types.StringValue("agent-client")}), true},
+		{"agent-client with client_id passes", base(map[string]attr.Value{"type": types.StringValue("agent-client"), "client_id": set}), false},
+		{"mcp-client (deprecated alias) missing client_id errors", base(map[string]attr.Value{"type": types.StringValue("mcp-client")}), true},
+		{"mcp-client (deprecated alias) with client_id passes", base(map[string]attr.Value{"type": types.StringValue("mcp-client"), "client_id": set}), false},
+	}
+
+	attribute := agentAttribute(currentSchemaVersion)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			object, diags := types.ObjectValue(agentAttrTypes, c.attrs)
+			if diags.HasError() {
+				t.Fatalf("failed to build object: %v", diags)
+			}
+			resp := &validator.ObjectResponse{}
+			for _, v := range attribute.Validators {
+				v.ValidateObject(
+					context.Background(),
+					validator.ObjectRequest{Path: path.Root("requestor").AtName("agent"), ConfigValue: object},
+					resp,
+				)
+			}
+			if got := resp.Diagnostics.HasError(); got != c.wantErr {
+				t.Errorf("HasError() = %v; want %v (%v)", got, c.wantErr, resp.Diagnostics)
+			}
+		})
+	}
+}
+
+// TestAgentAttributeDocumentsAgentClient guards the schema documentation the
+// registry docs are generated from: the primary client-scoped value is
+// "agent-client"; "mcp-client" remains only as a deprecated alias.
+func TestAgentAttributeDocumentsAgentClient(t *testing.T) {
+	attribute := agentAttribute(currentSchemaVersion)
+
+	typeAttr, ok := attribute.Attributes["type"].(schema.StringAttribute)
+	if !ok {
+		t.Fatal("agent `type` attribute is not a StringAttribute")
+	}
+	if !strings.Contains(typeAttr.MarkdownDescription, "'agent-client'") {
+		t.Errorf("agent `type` description does not document 'agent-client':\n%s", typeAttr.MarkdownDescription)
+	}
+
+	clientIdAttr, ok := attribute.Attributes["client_id"].(schema.StringAttribute)
+	if !ok {
+		t.Fatal("agent `client_id` attribute is not a StringAttribute")
+	}
+	if !strings.Contains(clientIdAttr.MarkdownDescription, "'agent-client'") {
+		t.Errorf("`client_id` description does not document 'agent-client':\n%s", clientIdAttr.MarkdownDescription)
 	}
 }
