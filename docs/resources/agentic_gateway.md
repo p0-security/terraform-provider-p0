@@ -7,7 +7,7 @@ description: |-
   policy to agent tool calls.
   To use this resource, you must also install the p0_agentic_gateway_staged resource, and configure your
   gateway to trust the service account returned by that resource (e.g. the manageAllowedEmails value in the
-  oauthed-mcp-tools Helm chart).
+  agentic-gateway-stack Helm chart).
   See the example usage for the recommended pattern to define this infrastructure.
 ---
 
@@ -18,7 +18,7 @@ policy to agent tool calls.
 
 To use this resource, you must also install the `p0_agentic_gateway_staged` resource, and configure your
 gateway to trust the service account returned by that resource (e.g. the `manageAllowedEmails` value in the
-`oauthed-mcp-tools` Helm chart).
+`agentic-gateway-stack` Helm chart).
 
 See the example usage for the recommended pattern to define this infrastructure.
 
@@ -30,20 +30,25 @@ See the example usage for the recommended pattern to define this infrastructure.
 # account) that this resource depends on.
 
 resource "p0_agentic_gateway_staged" "example" {
-  id  = "primary"
-  url = "https://gateway.example.com"
+  id = "primary"
+  domain_hosting = {
+    url = "https://gateway.example.com"
+  }
+  lets_encrypt_email = "admin@example.com"
+  oidc_client_id     = "your-upstream-oidc-client-id"
+  storage_class      = "gp2"
 }
 
-# Uses the p0-security/oauthed-mcp/kubernetes module:
+# Uses the p0-security/p0-agentic-gateway-stack/kubernetes module:
 # https://github.com/p0-security/terraform-kubernetes-p0-oauthed-mcp
-module "oauthed_mcp" {
-  source  = "p0-security/oauthed-mcp/kubernetes"
-  version = "0.1.9"
+module "agentic_gateway_stack" {
+  source  = "p0-security/p0-agentic-gateway-stack/kubernetes"
+  version = "0.1.10"
 
   values = [
     yamlencode({
-      "oauthed-mcp" = {
-        mcpServer = {
+      "agentic-gateway" = {
+        agenticGatewayServer = {
           manageAllowedEmails = p0_agentic_gateway_staged.example.service_account_email
         }
       }
@@ -54,11 +59,12 @@ module "oauthed_mcp" {
 # Finalizes the install; depends_on ensures the gateway trusts P0's service
 # account before verification is attempted.
 resource "p0_agentic_gateway" "example" {
-  id             = p0_agentic_gateway_staged.example.id
-  url            = p0_agentic_gateway_staged.example.url
-  oauth_endpoint = "https://oauth.gateway.example.com"
+  id = p0_agentic_gateway_staged.example.id
+  domain_hosting = {
+    load_balancer_ip = "<your-gateway-loadbalancer-ip>"
+  }
   log_project_id = "my-gcp-logging-project"
-  depends_on     = [module.oauthed_mcp]
+  depends_on     = [module.agentic_gateway_stack]
 }
 ```
 
@@ -68,15 +74,23 @@ resource "p0_agentic_gateway" "example" {
 ### Required
 
 - `id` (String) The `id` of the `p0_agentic_gateway_staged` resource being finalized
-- `oauth_endpoint` (String) OAuth server endpoint; must be publicly accessible and host `.well-known/jwks.json`
-- `url` (String) Agentic gateway URL; your servers will be hosted here. Must match the `url` on the `p0_agentic_gateway_staged` resource.
 
 ### Optional
 
+- `domain_hosting` (Attributes) How this gateway's public hostname and DNS records are managed. (see [below for nested schema](#nestedatt--domain_hosting))
 - `log_project_id` (String) GCP project ID where this gateway's Cloud Logging entries actually land, so P0 can show its
-MCP tool-call activity. This is the project holding the log bucket, which may not be the same project the gateway
-itself runs in (e.g. if logs are routed to a centralized logging project).
+MCP tool-call and A2A activity. This is the project holding the log bucket, which may not be the same project the
+gateway itself runs in (e.g. if logs are routed to a centralized logging project).
 
 ### Read-Only
 
 - `service_account_email` (String) Email address of the service account identity that P0 uses to communicate with your gateway
+
+<a id="nestedatt--domain_hosting"></a>
+### Nested Schema for `domain_hosting`
+
+Optional:
+
+- `load_balancer_ip` (String) Your gateway's LoadBalancer address (IP or hostname). Create a DNS record for the `url` on the
+`p0_agentic_gateway_staged` resource pointing here: an A record for an IPv4 address, AAAA for IPv6, or CNAME
+if your cloud provider (e.g. AWS) gave you a hostname instead of a static IP.

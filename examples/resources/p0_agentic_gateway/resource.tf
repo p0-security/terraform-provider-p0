@@ -3,20 +3,25 @@
 # account) that this resource depends on.
 
 resource "p0_agentic_gateway_staged" "example" {
-  id  = "primary"
-  url = "https://gateway.example.com"
+  id = "primary"
+  domain_hosting = {
+    url = "https://gateway.example.com"
+  }
+  lets_encrypt_email = "admin@example.com"
+  oidc_client_id     = "your-upstream-oidc-client-id"
+  storage_class      = "gp2"
 }
 
-# Uses the p0-security/oauthed-mcp/kubernetes module:
+# Uses the p0-security/p0-agentic-gateway-stack/kubernetes module:
 # https://github.com/p0-security/terraform-kubernetes-p0-oauthed-mcp
-module "oauthed_mcp" {
-  source  = "p0-security/oauthed-mcp/kubernetes"
-  version = "0.1.9"
+module "agentic_gateway_stack" {
+  source  = "p0-security/p0-agentic-gateway-stack/kubernetes"
+  version = "0.1.10"
 
   values = [
     yamlencode({
-      "oauthed-mcp" = {
-        mcpServer = {
+      "agentic-gateway" = {
+        agenticGatewayServer = {
           manageAllowedEmails = p0_agentic_gateway_staged.example.service_account_email
         }
       }
@@ -27,9 +32,10 @@ module "oauthed_mcp" {
 # Finalizes the install; depends_on ensures the gateway trusts P0's service
 # account before verification is attempted.
 resource "p0_agentic_gateway" "example" {
-  id             = p0_agentic_gateway_staged.example.id
-  url            = p0_agentic_gateway_staged.example.url
-  oauth_endpoint = "https://oauth.gateway.example.com"
+  id = p0_agentic_gateway_staged.example.id
+  domain_hosting = {
+    load_balancer_ip = "<your-gateway-loadbalancer-ip>"
+  }
   log_project_id = "my-gcp-logging-project"
-  depends_on     = [module.oauthed_mcp]
+  depends_on     = [module.agentic_gateway_stack]
 }
