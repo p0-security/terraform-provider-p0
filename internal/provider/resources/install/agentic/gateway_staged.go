@@ -32,7 +32,7 @@ type GatewayStaged struct {
 
 type gatewayStagedModel struct {
 	Id                  string       `tfsdk:"id"`
-	Url                 string       `tfsdk:"url"`
+	Url                 types.String `tfsdk:"url"`
 	ServiceAccountEmail types.String `tfsdk:"service_account_email"`
 }
 
@@ -115,7 +115,7 @@ func (r *GatewayStaged) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 	}
 	return &gatewayStagedModel{
 		Id:                  id,
-		Url:                 json.Url,
+		Url:                 types.StringValue(json.Url),
 		ServiceAccountEmail: types.StringPointerValue(json.ServiceAccountEmail),
 	}
 }
@@ -130,7 +130,7 @@ func (r *GatewayStaged) Create(ctx context.Context, req resource.CreateRequest, 
 	var json gatewayStagedApi
 	var data gatewayStagedModel
 	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &gatewayStageJson{Url: inputData.Url})
+	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &gatewayStageJson{Url: inputData.Url.ValueString()})
 }
 
 func (r *GatewayStaged) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -148,7 +148,7 @@ func (r *GatewayStaged) Update(ctx context.Context, req resource.UpdateRequest, 
 
 	var json gatewayStagedApi
 	var data gatewayStagedModel
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &gatewayStageJson{Url: inputData.Url})
+	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &gatewayStageJson{Url: inputData.Url.ValueString()})
 }
 
 func (r *GatewayStaged) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

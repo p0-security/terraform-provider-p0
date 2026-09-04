@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
@@ -72,7 +73,7 @@ type serverDefinitionModel struct {
 
 type serverModel struct {
 	Id         string                 `tfsdk:"id"`
-	Gateway    string                 `tfsdk:"gateway"`
+	Gateway    types.String           `tfsdk:"gateway"`
 	Credential *serverCredentialModel `tfsdk:"credential"`
 	Definition *serverDefinitionModel `tfsdk:"definition"`
 }
@@ -297,7 +298,7 @@ func (r *Server) fromJson(ctx context.Context, diags *diag.Diagnostics, id strin
 	definition := json.Definition
 	return &serverModel{
 		Id:         id,
-		Gateway:    json.Gateway,
+		Gateway:    types.StringValue(json.Gateway),
 		Credential: &credential,
 		Definition: &definition,
 	}
@@ -326,7 +327,7 @@ func (r *Server) Create(ctx context.Context, req resource.CreateRequest, resp *r
 
 	var json serverApi
 	var data serverModel
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &serverStageJson{Gateway: inputData.Gateway})
+	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &serverStageJson{Gateway: inputData.Gateway.ValueString()})
 	if resp.Diagnostics.HasError() {
 		return
 	}

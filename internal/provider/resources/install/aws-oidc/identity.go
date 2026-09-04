@@ -34,10 +34,10 @@ type AwsOidcIdentity struct {
 
 type awsOidcIdentityModel struct {
 	Id              string       `tfsdk:"id"`
-	AccountId       string       `tfsdk:"account_id"`
+	AccountId       types.String `tfsdk:"account_id"`
 	AwsPartition    types.String `tfsdk:"aws_partition"`
-	OidcProviderUrl string       `tfsdk:"oidc_provider_url"`
-	Audience        string       `tfsdk:"audience"`
+	OidcProviderUrl types.String `tfsdk:"oidc_provider_url"`
+	Audience        types.String `tfsdk:"audience"`
 }
 
 type awsOidcIdentityJson struct {
@@ -163,10 +163,10 @@ func (r *AwsOidcIdentity) fromJson(ctx context.Context, diags *diag.Diagnostics,
 	}
 	return &awsOidcIdentityModel{
 		Id:              id,
-		AccountId:       json.AccountId,
+		AccountId:       types.StringValue(json.AccountId),
 		AwsPartition:    types.StringPointerValue(json.AwsPartition),
-		OidcProviderUrl: json.OidcProviderUrl,
-		Audience:        json.Audience,
+		OidcProviderUrl: types.StringValue(json.OidcProviderUrl),
+		Audience:        types.StringValue(json.Audience),
 	}
 }
 
@@ -176,9 +176,9 @@ func (r *AwsOidcIdentity) toJson(data any) any {
 		return nil
 	}
 	return &awsOidcIdentityConfigureJson{
-		AccountId:       model.AccountId,
-		OidcProviderUrl: model.OidcProviderUrl,
-		Audience:        model.Audience,
+		AccountId:       model.AccountId.ValueString(),
+		OidcProviderUrl: model.OidcProviderUrl.ValueString(),
+		Audience:        model.Audience.ValueString(),
 		State:           common.Config,
 	}
 }
