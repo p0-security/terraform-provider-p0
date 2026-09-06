@@ -208,9 +208,13 @@ func (r *Gateway) toJson(data any) any {
 		if asDiags.HasError() {
 			return nil
 		}
+		var loadBalancerIp *string
+		if !dh.LoadBalancerIp.IsNull() && !dh.LoadBalancerIp.IsUnknown() {
+			loadBalancerIp = dh.LoadBalancerIp.ValueStringPointer()
+		}
 		domainHosting = &gatewayDomainHostingConfigureJson{
 			Type:           "selfHosted",
-			LoadBalancerIp: dh.LoadBalancerIp.ValueStringPointer(),
+			LoadBalancerIp: loadBalancerIp,
 		}
 	}
 	return &gatewayConfigureJson{
