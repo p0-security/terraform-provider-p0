@@ -11,7 +11,7 @@ resource "p0_agentic_gateway_staged" "example" {
 
 # Your gateway must trust that service account before P0 can finish
 # installing (see the p0_agentic_gateway example for the next step). Uses the
-# p0-security/p0-agentic-gateway-stack/kubernetes module: https://github.com/p0-security/terraform-kubernetes-p0-oauthed-mcp
+# p0-security/p0-agentic-gateway-stack/kubernetes module: https://github.com/p0-security/terraform-kubernetes-p0-agentic-gateway-stack
 module "agentic_gateway_stack" {
   source  = "p0-security/p0-agentic-gateway-stack/kubernetes"
   version = "0.1.10"

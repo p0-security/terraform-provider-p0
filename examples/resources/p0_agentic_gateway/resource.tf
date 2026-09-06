@@ -13,7 +13,7 @@ resource "p0_agentic_gateway_staged" "example" {
 }
 
 # Uses the p0-security/p0-agentic-gateway-stack/kubernetes module:
-# https://github.com/p0-security/terraform-kubernetes-p0-oauthed-mcp
+# https://github.com/p0-security/terraform-kubernetes-p0-agentic-gateway-stack
 module "agentic_gateway_stack" {
   source  = "p0-security/p0-agentic-gateway-stack/kubernetes"
   version = "0.1.10"

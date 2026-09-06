@@ -6,6 +6,7 @@ package installagentic
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
@@ -36,11 +38,20 @@ type gatewayDomainHostingModel struct {
 	LoadBalancerIp types.String `tfsdk:"load_balancer_ip"`
 }
 
+// gatewayDomainHostingAttrTypes describes gatewayDomainHostingModel's shape
+// for conversion to/from types.Object — required because domain_hosting is
+// Optional+Computed, so its value may be Unknown at plan time (e.g. omitted
+// from config on Create); a plain Go struct/pointer field can't represent
+// that, only a framework attr.Value type can.
+var gatewayDomainHostingAttrTypes = map[string]attr.Type{
+	"load_balancer_ip": types.StringType,
+}
+
 type gatewayModel struct {
-	Id                  string                     `tfsdk:"id"`
-	DomainHosting       *gatewayDomainHostingModel `tfsdk:"domain_hosting"`
-	LogProjectId        types.String               `tfsdk:"log_project_id"`
-	ServiceAccountEmail types.String               `tfsdk:"service_account_email"`
+	Id                  string       `tfsdk:"id"`
+	DomainHosting       types.Object `tfsdk:"domain_hosting"`
+	LogProjectId        types.String `tfsdk:"log_project_id"`
+	ServiceAccountEmail types.String `tfsdk:"service_account_email"`
 }
 
 type gatewayDomainHostingJson struct {
@@ -102,7 +113,13 @@ See the example usage for the recommended pattern to define this infrastructure.
 				},
 			},
 			"domain_hosting": schema.SingleNestedAttribute{
-				Optional:            true,
+				Optional: true,
+				// Computed: fromJson always populates this from the backend's
+				// response (which always returns a domainHosting object), even
+				// when config omits it entirely — without Computed, that would
+				// mismatch the planned null value and fail Terraform's
+				// post-apply consistency check.
+				Computed:            true,
 				MarkdownDescription: "How this gateway's public hostname and DNS records are managed.",
 				Attributes: map[string]schema.Attribute{
 					"load_balancer_ip": schema.StringAttribute{
@@ -161,11 +178,16 @@ func (r *Gateway) fromJson(ctx context.Context, diags *diag.Diagnostics, id stri
 	if !ok {
 		return nil
 	}
+	domainHosting, dhDiags := types.ObjectValueFrom(ctx, gatewayDomainHostingAttrTypes, gatewayDomainHostingModel{
+		LoadBalancerIp: types.StringPointerValue(json.DomainHosting.LoadBalancerIp),
+	})
+	diags.Append(dhDiags...)
+	if dhDiags.HasError() {
+		return nil
+	}
 	return &gatewayModel{
-		Id: id,
-		DomainHosting: &gatewayDomainHostingModel{
-			LoadBalancerIp: types.StringPointerValue(json.DomainHosting.LoadBalancerIp),
-		},
+		Id:                  id,
+		DomainHosting:       domainHosting,
 		LogProjectId:        types.StringPointerValue(json.LogProjectId),
 		ServiceAccountEmail: types.StringPointerValue(json.ServiceAccountEmail),
 	}
@@ -177,10 +199,18 @@ func (r *Gateway) toJson(data any) any {
 		return nil
 	}
 	var domainHosting *gatewayDomainHostingConfigureJson
-	if model.DomainHosting != nil {
+	// Unknown when config omits domain_hosting entirely on Create (it's
+	// Optional+Computed, so ToJson — called against the plan, before the
+	// backend has computed a value — sees Unknown rather than Null here).
+	if !model.DomainHosting.IsNull() && !model.DomainHosting.IsUnknown() {
+		var dh gatewayDomainHostingModel
+		asDiags := model.DomainHosting.As(context.Background(), &dh, basetypes.ObjectAsOptions{})
+		if asDiags.HasError() {
+			return nil
+		}
 		domainHosting = &gatewayDomainHostingConfigureJson{
 			Type:           "selfHosted",
-			LoadBalancerIp: model.DomainHosting.LoadBalancerIp.ValueStringPointer(),
+			LoadBalancerIp: dh.LoadBalancerIp.ValueStringPointer(),
 		}
 	}
 	return &gatewayConfigureJson{

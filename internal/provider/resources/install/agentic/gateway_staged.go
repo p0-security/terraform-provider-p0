@@ -204,12 +204,20 @@ func (inputData *gatewayStagedModel) stageJson() *gatewayStageJson {
 	if inputData.DomainHosting == nil {
 		return nil
 	}
+	domainHosting := gatewayDomainHostingStageJson{
+		Type: inputData.DomainHosting.Type.ValueString(),
+		Url:  inputData.DomainHosting.Url,
+	}
+	// oauth_endpoint is Optional+Computed: when left unset, its planned value is
+	// Unknown (not Null), and ValueStringPointer() on an Unknown value returns a
+	// pointer to "" rather than nil — omit it explicitly instead of sending that
+	// empty string to the backend.
+	oauthEndpoint := inputData.DomainHosting.OauthEndpoint
+	if !oauthEndpoint.IsNull() && !oauthEndpoint.IsUnknown() {
+		domainHosting.OauthEndpoint = oauthEndpoint.ValueStringPointer()
+	}
 	return &gatewayStageJson{
-		DomainHosting: gatewayDomainHostingStageJson{
-			Type:          inputData.DomainHosting.Type.ValueString(),
-			Url:           inputData.DomainHosting.Url,
-			OauthEndpoint: inputData.DomainHosting.OauthEndpoint.ValueStringPointer(),
-		},
+		DomainHosting:       domainHosting,
 		LetsEncryptEmail:    inputData.LetsEncryptEmail,
 		OidcClientId:        inputData.OidcClientId,
 		StorageClass:        inputData.StorageClass,
