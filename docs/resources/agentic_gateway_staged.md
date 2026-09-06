@@ -6,7 +6,7 @@ description: |-
   A staged installation of an Agentic gateway.
   P0 assigns a service account to communicate with your gateway, returned as service_account_email. Your
   gateway must be configured to trust this service account (e.g. the manageAllowedEmails value in the
-  oauthed-mcp-tools Helm chart) before p0_agentic_gateway can finish installing — P0 cannot
+  agentic-gateway-stack Helm chart) before p0_agentic_gateway can finish installing — P0 cannot
   authenticate to your gateway's management API otherwise. See the example usage for the recommended pattern.
   For instructions on using this resource, see the documentation for p0_agentic_gateway.
 ---
@@ -17,7 +17,7 @@ A staged installation of an Agentic gateway.
 
 P0 assigns a service account to communicate with your gateway, returned as `service_account_email`. Your
 gateway must be configured to trust this service account (e.g. the `manageAllowedEmails` value in the
-`oauthed-mcp-tools` Helm chart) before `p0_agentic_gateway` can finish installing — P0 cannot
+`agentic-gateway-stack` Helm chart) before `p0_agentic_gateway` can finish installing — P0 cannot
 authenticate to your gateway's management API otherwise. See the example usage for the recommended pattern.
 
 For instructions on using this resource, see the documentation for `p0_agentic_gateway`.
@@ -27,21 +27,26 @@ For instructions on using this resource, see the documentation for `p0_agentic_g
 ```terraform
 # P0 assigns a service account to communicate with your gateway.
 resource "p0_agentic_gateway_staged" "example" {
-  id  = "primary"
-  url = "https://gateway.example.com"
+  id = "primary"
+  domain_hosting = {
+    url = "https://gateway.example.com"
+  }
+  lets_encrypt_email = "admin@example.com"
+  oidc_client_id     = "your-upstream-oidc-client-id"
+  storage_class      = "gp2"
 }
 
 # Your gateway must trust that service account before P0 can finish
 # installing (see the p0_agentic_gateway example for the next step). Uses the
-# p0-security/oauthed-mcp/kubernetes module: https://github.com/p0-security/terraform-kubernetes-p0-oauthed-mcp
-module "oauthed_mcp" {
-  source  = "p0-security/oauthed-mcp/kubernetes"
-  version = "0.1.9"
+# p0-security/p0-agentic-gateway-stack/kubernetes module: https://github.com/p0-security/terraform-kubernetes-p0-agentic-gateway-stack
+module "agentic_gateway_stack" {
+  source  = "p0-security/p0-agentic-gateway-stack/kubernetes"
+  version = "0.1.10"
 
   values = [
     yamlencode({
-      "oauthed-mcp" = {
-        mcpServer = {
+      "agentic-gateway" = {
+        agenticGatewayServer = {
           manageAllowedEmails = p0_agentic_gateway_staged.example.service_account_email
         }
       }
@@ -55,9 +60,29 @@ module "oauthed_mcp" {
 
 ### Required
 
+- `domain_hosting` (Attributes) How this gateway's public hostname and DNS records are managed. (see [below for nested schema](#nestedatt--domain_hosting))
 - `id` (String) A unique identifier for this gateway
-- `url` (String) Agentic gateway URL; your servers will be hosted here
+- `lets_encrypt_email` (String) Email address used for the ACME account (renewal notifications, account recovery); not shared publicly.
+- `oidc_client_id` (String) OAuth client ID from your upstream OAuth provider (e.g. Google Cloud Console) that end users authenticate against.
+- `storage_class` (String) The Kubernetes StorageClass your cluster provides for the gateway's bundled PostgreSQL PersistentVolume, e.g. `gp2` (AWS EKS), `standard-rwo` (GKE), or `managed-premium` (AKS).
+
+### Optional
+
+- `kubernetes_namespace` (String) The namespace this gateway is deployed into. Defaults to `p0-agentic-gateway` if left blank.
 
 ### Read-Only
 
 - `service_account_email` (String) Email address of the service account identity that P0 uses to communicate with your gateway
+
+<a id="nestedatt--domain_hosting"></a>
+### Nested Schema for `domain_hosting`
+
+Required:
+
+- `url` (String) Agentic gateway URL; your servers will be hosted here.
+
+Optional:
+
+- `oauth_endpoint` (String) OAuth server endpoint; must be publicly accessible and host `.well-known/jwks.json`. Defaults to
+`url` — only set this if your OAuth/JWKS endpoint runs on a different host than the gateway itself.
+- `type` (String) Currently only 'selfHosted' (bring your own domain and manage its DNS records yourself) is supported.
