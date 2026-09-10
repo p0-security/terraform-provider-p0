@@ -31,9 +31,10 @@ resource "p0_agentic_gateway_staged" "example" {
   domain_hosting = {
     url = "https://gateway.example.com"
   }
-  lets_encrypt_email = "admin@example.com"
-  oidc_client_id     = "your-upstream-oidc-client-id"
-  storage_class      = "gp2"
+  lets_encrypt_email   = "admin@example.com"
+  oidc_client_id       = "your-upstream-oidc-client-id"
+  storage_class        = "gp2"
+  kubernetes_namespace = "p0-agentic-gateway"
 }
 
 # Your gateway must trust that service account before P0 can finish
@@ -43,8 +44,10 @@ module "agentic_gateway_stack" {
   source  = "p0-security/p0-agentic-gateway-stack/kubernetes"
   version = "1.0.0"
 
-  release_name             = p0_agentic_gateway_staged.example.id
-  namespace                = p0_agentic_gateway_staged.example.kubernetes_namespace
+  release_name = p0_agentic_gateway_staged.example.id
+  namespace    = p0_agentic_gateway_staged.example.kubernetes_namespace
+  # The module requires https:// plus a bare lowercase hostname, with no port,
+  # path or trailing slash, and rejects anything else at plan time.
   gateway_url              = p0_agentic_gateway_staged.example.domain_hosting.url
   lets_encrypt_email       = p0_agentic_gateway_staged.example.lets_encrypt_email
   oidc_client_id           = p0_agentic_gateway_staged.example.oidc_client_id
