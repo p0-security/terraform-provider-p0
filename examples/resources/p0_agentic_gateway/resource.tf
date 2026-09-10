@@ -16,17 +16,17 @@ resource "p0_agentic_gateway_staged" "example" {
 # https://github.com/p0-security/terraform-kubernetes-p0-agentic-gateway-stack
 module "agentic_gateway_stack" {
   source  = "p0-security/p0-agentic-gateway-stack/kubernetes"
-  version = "0.1.10"
+  version = "1.0.0"
 
-  values = [
-    yamlencode({
-      "agentic-gateway" = {
-        agenticGatewayServer = {
-          manageAllowedEmails = p0_agentic_gateway_staged.example.service_account_email
-        }
-      }
-    }),
-  ]
+  release_name             = p0_agentic_gateway_staged.example.id
+  namespace                = p0_agentic_gateway_staged.example.kubernetes_namespace
+  gateway_url              = p0_agentic_gateway_staged.example.domain_hosting.url
+  lets_encrypt_email       = p0_agentic_gateway_staged.example.lets_encrypt_email
+  oidc_client_id           = p0_agentic_gateway_staged.example.oidc_client_id
+  storage_class            = p0_agentic_gateway_staged.example.storage_class
+  p0_url                   = "https://api.p0.app/o/your-org"
+  p0_audience              = "https://api.p0.app/o/your-org"
+  p0_service_account_email = p0_agentic_gateway_staged.example.service_account_email
 }
 
 # Finalizes the install; depends_on ensures the gateway trusts P0's service
