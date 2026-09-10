@@ -14,11 +14,15 @@ resource "p0_agentic_gateway_staged" "example" {
 }
 
 locals {
-  # Scheme and host only, so a URL carrying a port, path or trailing slash
-  # still satisfies the module's gateway_url validation.
+  # The hostname only, so a URL carrying credentials, a port, a path, a query
+  # or a fragment still satisfies the module's gateway_url validation. A URL
+  # with no hostname fails here rather than at the module boundary.
   gateway_url = format(
     "https://%s",
-    lower(regex("^https?://([^/:]+)", p0_agentic_gateway_staged.example.domain_hosting.url)[0]),
+    lower(regex(
+      "^https?://(?:[^@/?#]*@)?([A-Za-z0-9](?:[-A-Za-z0-9]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[-A-Za-z0-9]*[A-Za-z0-9])?)+)",
+      p0_agentic_gateway_staged.example.domain_hosting.url,
+    )[0]),
   )
 }
 
