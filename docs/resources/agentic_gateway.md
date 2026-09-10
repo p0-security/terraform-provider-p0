@@ -42,12 +42,14 @@ resource "p0_agentic_gateway_staged" "example" {
 
 locals {
   # The hostname only, so a URL carrying credentials, a port, a path, a query
-  # or a fragment still satisfies the module's gateway_url validation. A URL
-  # with no hostname fails here rather than at the module boundary.
+  # or a fragment still satisfies the module's gateway_url validation. The
+  # hostname has to run up to a delimiter or the end of the string, so a URL
+  # this cannot reduce exactly fails here rather than quietly deploying for a
+  # truncated hostname.
   gateway_url = format(
     "https://%s",
     lower(regex(
-      "^https?://(?:[^@/?#]*@)?([A-Za-z0-9](?:[-A-Za-z0-9]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[-A-Za-z0-9]*[A-Za-z0-9])?)+)",
+      "^https?://(?:[^@/?#]*@)?([A-Za-z0-9](?:[-A-Za-z0-9]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[-A-Za-z0-9]*[A-Za-z0-9])?)+)(?:[:/?#]|$)",
       p0_agentic_gateway_staged.example.domain_hosting.url,
     )[0]),
   )
