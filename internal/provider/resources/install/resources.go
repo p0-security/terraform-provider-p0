@@ -12,5 +12,5 @@ const (
 	Kubernetes       = "k8s"
 	Gateway          = "gateway"
 	Server           = "server"
-	IdentityProvider = "identity-provider"
+	Provider         = "provider"
 )
