@@ -1,7 +1,7 @@
 // Copyright (c) 2025 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package installagentic
+package installidentityprovider
 
 import (
 	"context"
@@ -17,6 +17,9 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
+
+// IntegrationKey is the P0 integration that identity providers install under.
+const IntegrationKey = "identity-provider"
 
 var _ resource.Resource = &IdentityProvider{}
 var _ resource.ResourceWithImportState = &IdentityProvider{}
@@ -51,8 +54,8 @@ type identityProviderApi struct {
 }
 
 // identityProviderStageJson carries only the "step: new" `issuer` field (see
-// app/shared/src/integrations/resources/agentic/components.ts's
-// `identityProvider` component); resending it from the later verify/configure
+// app/shared/src/integrations/resources/identity-provider/components.ts's
+// `provider` component); resending it from the later verify/configure
 // calls (see toJson) is rejected by the backend with "can only be altered on
 // initial installation".
 type identityProviderStageJson struct {
@@ -69,12 +72,12 @@ type identityProviderConfigureJson struct {
 }
 
 func (r *IdentityProvider) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_agentic_identity_provider"
+	resp.TypeName = req.ProviderTypeName + "_identity_provider"
 }
 
 func (r *IdentityProvider) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `Enrolls an identity provider whose JWT-authenticated agents may access an Agentic gateway.`,
+		MarkdownDescription: `Enrolls an identity provider, allowing headless agents to authenticate as P0-managed identities.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
@@ -111,7 +114,7 @@ func (r *IdentityProvider) Configure(ctx context.Context, req resource.Configure
 	providerData := internal.Configure(&req, resp)
 	r.installer = &common.Install{
 		Integration:  IntegrationKey,
-		Component:    installresources.IdentityProvider,
+		Component:    installresources.Provider,
 		ProviderData: providerData,
 		GetId:        r.getId,
 		GetItemJson:  r.getItemJson,
