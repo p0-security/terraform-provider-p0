@@ -48,7 +48,7 @@ resource "p0_agentic_gateway" "example" {
   depends_on     = [module.oauthed_mcp]
 }
 
-resource "p0_agentic_identity_provider" "example" {
+resource "p0_identity_provider" "example" {
   id                   = "github-actions"
   issuer               = "https://token.actions.githubusercontent.com"
   dynamic_registration = true
@@ -60,7 +60,7 @@ resource "p0_agentic_identity_provider" "example" {
 resource "p0_aws_oidc_identity_staged" "example" {
   id                = "github-actions"
   account_id        = "123456789012"
-  oidc_provider_url = p0_agentic_identity_provider.example.issuer
+  oidc_provider_url = p0_identity_provider.example.issuer
   audience          = "https://github.com/my-org"
 }
 
