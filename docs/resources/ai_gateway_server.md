@@ -20,8 +20,14 @@ To reference an AWS- or GCP-federated credential, install the corresponding `p0_
 ```terraform
 # See the p0_ai_gateway example for the full staged-install pattern.
 resource "p0_ai_gateway_staged" "example" {
-  id  = "primary"
-  url = "https://gateway.example.com"
+  id = "primary"
+  domain_hosting = {
+    url            = "https://gateway.example.com"
+    oauth_endpoint = "https://oauth.gateway.example.com"
+  }
+  lets_encrypt_email = "admin@example.com"
+  oidc_client_id     = "your-upstream-oidc-client-id"
+  storage_class      = "gp2"
 }
 
 # Uses the p0-security/oauthed-mcp/kubernetes module:
@@ -42,10 +48,11 @@ module "oauthed_mcp" {
 }
 
 resource "p0_ai_gateway" "example" {
-  id             = p0_ai_gateway_staged.example.id
-  url            = p0_ai_gateway_staged.example.url
-  oauth_endpoint = "https://oauth.gateway.example.com"
-  depends_on     = [module.oauthed_mcp]
+  id = p0_ai_gateway_staged.example.id
+  domain_hosting = {
+    load_balancer_ip = "<your-gateway-loadbalancer-ip>"
+  }
+  depends_on = [module.oauthed_mcp]
 }
 
 resource "p0_identity_provider" "example" {

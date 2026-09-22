@@ -8,12 +8,23 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
+// IsMoveFrom reports whether a MoveResourceState request comes from the given
+// resource type at the given schema version. A StateMover should leave its
+// response untouched when this is false, so that an unrecognized source is
+// reported as "implementation not found" rather than moving unrelated state.
+func IsMoveFrom(req resource.MoveStateRequest, sourceTypeName string, sourceSchemaVersion int64) bool {
+	// The provider address is deliberately unchecked: it varies across mirrors
+	// and forks, while type name plus schema version already pin the state shape.
+	return req.SourceTypeName == sourceTypeName && req.SourceSchemaVersion == sourceSchemaVersion
+}
+
 // RenamedFrom builds the StateMover list for a resource type that was renamed,
 // to be returned from the renamed resource's MoveState method. Pass the former
 // type name and the schema version it was last published at, e.g.
-// ("p0_agentic_gateway", 0). It moves state only between types that share a
-// schema, so it suits a pure rename; a rename that also changes the schema needs
-// its own mover that transforms the prior model.
+// ("p0_agentic_gateway", 0). It copies every attribute the target schema still
+// declares and drops the rest, so it suits a resource whose model can decode
+// that result; one whose model cannot, or whose data moved to a new attribute,
+// needs its own mover.
 //
 // Given this, a user migrates by editing the type name and adding:
 //
@@ -26,26 +37,13 @@ import (
 func RenamedFrom(sourceTypeName string, sourceSchemaVersion int64) []resource.StateMover {
 	return []resource.StateMover{{
 		StateMover: func(ctx context.Context, req resource.MoveStateRequest, resp *resource.MoveStateResponse) {
-			// Leaving the response untouched skips this mover, so an
-			// unrecognized source is reported as "implementation not found"
-			// rather than moving unrelated state. The provider address is
-			// deliberately unchecked: it varies across mirrors and forks, while
-			// type name plus schema version already pin the state shape.
-			if req.SourceTypeName != sourceTypeName ||
-				req.SourceSchemaVersion != sourceSchemaVersion ||
-				req.SourceRawState == nil {
+			if !IsMoveFrom(req, sourceTypeName, sourceSchemaVersion) || req.SourceRawState == nil {
 				return
 			}
 
-			// The framework pre-populates TargetState with the target's schema,
-			// and the rename left that schema alone, so the source state decodes
-			// as-is and needs no transformation.
-			//
-			// IgnoreUndefinedAttributes matches what the framework itself does
-			// when it reads prior state, so a rename never rejects state that a
-			// plain refresh would have accepted: a resource whose schema drifted
-			// under a stable version still moves, and is then reconciled by the
-			// same plan that would have reconciled it without the rename.
+			// IgnoreUndefinedAttributes matches how the framework itself reads
+			// prior state, so a rename never rejects state that a plain refresh
+			// would accept.
 			rawState, err := req.SourceRawState.UnmarshalWithOpts(
 				resp.TargetState.Schema.Type().TerraformType(ctx),
 				tfprotov6.UnmarshalOpts{

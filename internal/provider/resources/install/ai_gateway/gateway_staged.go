@@ -67,10 +67,52 @@ type gatewayStageJson struct {
 	KubernetesNamespace *string                       `json:"kubernetesNamespace,omitempty"`
 }
 
+// gatewayStagedV053Schema is this resource's schema as v0.53.0 released it,
+// under its former name p0_agentic_gateway_staged.
+var gatewayStagedV053Schema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"id":                    schema.StringAttribute{Required: true},
+		"url":                   schema.StringAttribute{Required: true},
+		"service_account_email": schema.StringAttribute{Computed: true},
+	},
+}
+
+type gatewayStagedV053Model struct {
+	Id                  string       `tfsdk:"id"`
+	Url                 string       `tfsdk:"url"`
+	ServiceAccountEmail types.String `tfsdk:"service_account_email"`
+}
+
 // MoveState enables `moved` blocks from this resource's former name,
-// p0_agentic_gateway_staged. Its schema is unchanged by the rename.
+// p0_agentic_gateway_staged, as v0.53.0 released it.
 func (r *GatewayStaged) MoveState(ctx context.Context) []resource.StateMover {
-	return internal.RenamedFrom("p0_agentic_gateway_staged", 0)
+	return []resource.StateMover{{
+		SourceSchema: &gatewayStagedV053Schema,
+		StateMover: func(ctx context.Context, req resource.MoveStateRequest, resp *resource.MoveStateResponse) {
+			if !internal.IsMoveFrom(req, "p0_agentic_gateway_staged", 0) || req.SourceState == nil {
+				return
+			}
+			var prior gatewayStagedV053Model
+			resp.Diagnostics.Append(req.SourceState.Get(ctx, &prior)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+			// v0.53.0's top-level url now lives under domain_hosting. Attributes
+			// added since have no prior value, and are left empty because Read
+			// cannot decode null into them; Read then fetches their real values.
+			resp.Diagnostics.Append(resp.TargetState.Set(ctx, &gatewayStagedModel{
+				Id: prior.Id,
+				DomainHosting: &gatewayDomainHostingStagedModel{
+					Type:          types.StringValue("selfHosted"),
+					Url:           prior.Url,
+					OauthEndpoint: types.StringNull(),
+				},
+				KubernetesNamespace: types.StringNull(),
+				ServiceAccountEmail: prior.ServiceAccountEmail,
+			})...)
+			resp.TargetPrivate = req.SourcePrivate
+		},
+	}}
 }
 
 func (r *GatewayStaged) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {

@@ -22,16 +22,19 @@ them will not plan until it is updated.
 The rename changed names only: the schemas are untouched by it, and so is the
 gateway's installation in P0. Moving state across the rename destroys nothing.
 
-Note that if you are upgrading from v0.53.0 you also cross an unrelated schema
-change released alongside this rename, which replaced the gateway's `url` and
-`oauth_endpoint` attributes with a nested `domain_hosting` block. Update those
-attributes in the same edit as the type names. Terraform will plan a change for
-them, and on `p0_ai_gateway_staged` it may plan a replacement, because
-`domain_hosting` cannot be altered after installation. That change comes from the
-new attribute, not from the rename — a plan reporting it has still moved your
-state correctly.
+If you are upgrading from v0.53.0, you also cross an unrelated schema change
+released alongside this rename. The gateway's `url` and `oauth_endpoint` moved
+into a nested `domain_hosting` block, and the staged gateway gained
+`lets_encrypt_email`, `oidc_client_id` and `storage_class`. Update those
+attributes in the same edit as the type names, with the values your gateway is
+installed with. The move carries the staged gateway's `url` across, and a
+refreshing plan reads the rest from P0.
 
-## Terraform 1.8 and later
+## Migrating
+
+This migration requires Terraform 1.8 or later, the first version whose `moved`
+blocks can change a resource type. Earlier versions have no equivalent:
+`terraform state mv` refuses to change a resource type.
 
 Rename the type on each resource and each reference to it, then add a `moved`
 block per resource. Terraform matches the pair and moves the state entry.
@@ -58,25 +61,22 @@ moved {
 }
 ```
 
-Run `terraform plan`. It should report the moves, plus any `domain_hosting`
-change noted above and nothing else. Apply, then delete the `moved` blocks in a
-later change.
+A `moved` block names the whole resource, so one block also moves every
+instance of a resource declared with `count` or `for_each`. If the resources are
+declared inside a module, put the `moved` blocks in that module.
 
-Resources declared with `count` or `for_each` move per instance, so include the
-index or key: `from = p0_agentic_server.example["aws-tools"]`.
+Run `terraform plan` with refresh enabled, which is the default. It should
+report each resource as moved, with no changes. Do not plan this migration with
+`-refresh=false`: the move carries only what v0.53.0 recorded, so without a
+refresh Terraform compares your configuration against empty values and proposes
+replacing the staged gateway. If a refreshing plan still proposes destroying or
+replacing a gateway, stop — your configuration differs from what is installed in
+P0.
 
-## Terraform 1.7 and earlier
-
-`moved` blocks cannot change a resource type before Terraform 1.8. Rename the
-types in your configuration, then move each state entry from the command line:
-
-```shell
-terraform state mv p0_agentic_gateway_staged.example p0_ai_gateway_staged.example
-terraform state mv p0_agentic_gateway.example p0_ai_gateway.example
-terraform state mv p0_agentic_server.aws_example p0_ai_gateway_server.aws_example
-```
-
-Then run `terraform plan` and confirm it reports only the changes noted above.
+Apply in every workspace and state that uses this configuration or module.
+Terraform only moves a state when it plans against it, so keep the `moved`
+blocks until every one of them has been applied, and delete them in a later
+change.
 
 ## What did not change
 
