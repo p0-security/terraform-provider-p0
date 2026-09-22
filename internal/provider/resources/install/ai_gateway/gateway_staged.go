@@ -86,10 +86,9 @@ type gatewayStagedV053Model struct {
 // MoveState enables `moved` blocks from this resource's former name,
 // p0_agentic_gateway_staged, as either v0.53.0 or v0.54.0 released it.
 func (r *GatewayStaged) MoveState(ctx context.Context) []resource.StateMover {
-	// Both releases wrote schema version 0, so the state's shape tells them
-	// apart: only v0.53.0 has a top-level url. v0.54.0 state already matches
-	// the current schema and moves verbatim.
-	return append([]resource.StateMover{{
+	// Both releases wrote schema version 0; this mover must precede RenamedFrom,
+	// which would also accept v0.53.0 state and drop its url.
+	v053Mover := resource.StateMover{
 		SourceSchema: &gatewayStagedV053Schema,
 		StateMover: func(ctx context.Context, req resource.MoveStateRequest, resp *resource.MoveStateResponse) {
 			if !internal.IsMoveFrom(req, "p0_agentic_gateway_staged", 0) || req.SourceState == nil {
@@ -114,7 +113,8 @@ func (r *GatewayStaged) MoveState(ctx context.Context) []resource.StateMover {
 			})...)
 			resp.TargetPrivate = req.SourcePrivate
 		},
-	}}, internal.RenamedFrom("p0_agentic_gateway_staged", 0)...)
+	}
+	return append([]resource.StateMover{v053Mover}, internal.RenamedFrom("p0_agentic_gateway_staged", 0)...)
 }
 
 func (r *GatewayStaged) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {

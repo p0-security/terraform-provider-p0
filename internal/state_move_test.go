@@ -39,6 +39,25 @@ func callRenameMover(ctx context.Context, req resource.MoveStateRequest) *resour
 	return resp
 }
 
+// assertMovedIdAndUrl checks that the moved state decodes under the target
+// schema with the declared attributes the fixtures use.
+func assertMovedIdAndUrl(ctx context.Context, t *testing.T, resp *resource.MoveStateResponse) {
+	t.Helper()
+	var moved struct {
+		Id  string `tfsdk:"id"`
+		Url string `tfsdk:"url"`
+	}
+	if diags := resp.TargetState.Get(ctx, &moved); diags.HasError() {
+		t.Fatalf("moved state does not decode under the target schema: %v", diags)
+	}
+	if moved.Id != "primary" {
+		t.Errorf("id: got %q, want %q", moved.Id, "primary")
+	}
+	if moved.Url != "https://gateway.example.com" {
+		t.Errorf("url: got %q, want %q", moved.Url, "https://gateway.example.com")
+	}
+}
+
 func TestRenamedFromCopiesStateVerbatim(t *testing.T) {
 	ctx := context.Background()
 	resp := callRenameMover(ctx, resource.MoveStateRequest{
@@ -53,19 +72,7 @@ func TestRenamedFromCopiesStateVerbatim(t *testing.T) {
 		t.Fatalf("expected no error diagnostics, got %v", resp.Diagnostics)
 	}
 
-	var moved struct {
-		Id  string `tfsdk:"id"`
-		Url string `tfsdk:"url"`
-	}
-	if diags := resp.TargetState.Get(ctx, &moved); diags.HasError() {
-		t.Fatalf("moved state did not decode under the target schema: %v", diags)
-	}
-	if moved.Id != "primary" {
-		t.Errorf("id: got %q, want %q", moved.Id, "primary")
-	}
-	if moved.Url != "https://gateway.example.com" {
-		t.Errorf("url: got %q, want %q", moved.Url, "https://gateway.example.com")
-	}
+	assertMovedIdAndUrl(ctx, t, resp)
 }
 
 // A skipped mover leaves the response untouched; that is what tells the
@@ -159,4 +166,6 @@ func TestRenamedFromDropsUndeclaredAttributes(t *testing.T) {
 	if resp.TargetState.Raw.IsNull() {
 		t.Fatal("mover declined state that carried an undeclared attribute")
 	}
+
+	assertMovedIdAndUrl(ctx, t, resp)
 }

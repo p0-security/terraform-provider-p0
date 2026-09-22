@@ -23,12 +23,14 @@ The rename itself changed only names. The gateway's installation in P0 is
 untouched, and moving state across the rename destroys nothing.
 
 If you are upgrading from v0.53.0, you also cross an unrelated schema change
-released in v0.54.0. The gateway's `url` and `oauth_endpoint` now live in a
-nested `domain_hosting` block, and the staged gateway gained
-`lets_encrypt_email`, `oidc_client_id` and `storage_class`. Update those
-attributes in the same edit as the type names, with the values your gateway is
-installed with. The move carries the staged gateway's `url` across, and a
-refreshing plan reads the rest from P0.
+released in v0.54.0. `url` and `oauth_endpoint` are now set only on
+`p0_ai_gateway_staged`, in its nested `domain_hosting` block, while
+`p0_ai_gateway`'s `domain_hosting` holds `load_balancer_ip`. The staged gateway
+also gained `lets_encrypt_email`, `oidc_client_id`, `storage_class` and the
+optional `kubernetes_namespace`. Update those attributes in the same edit as the
+type names, with the values your gateway is installed with: on the staged
+gateway, any that differs forces a replacement. The move carries the staged
+gateway's `url` across, and a refreshing plan reads the rest from P0.
 
 ## Migrating
 
@@ -72,7 +74,7 @@ If you are upgrading from v0.53.0, do not plan this migration with
 `-refresh=false`. The move carries only what v0.53.0 recorded, so without a
 refresh Terraform compares your configuration against empty values and proposes
 replacing the staged gateway. State from v0.54.0 is complete, and moves intact
-either way.
+with or without a refresh.
 
 If a refreshing plan still proposes destroying or replacing a gateway, stop:
 your configuration differs from what is installed in P0. Correct it before
@@ -80,7 +82,8 @@ applying.
 
 Apply in every workspace and state that uses this configuration or module.
 Terraform moves a state only when it plans against it, so keep the `moved`
-blocks until every state has been applied, then delete them in a later change.
+blocks until the change has been applied to every state, then delete them in a
+later change.
 
 ## What did not change
 

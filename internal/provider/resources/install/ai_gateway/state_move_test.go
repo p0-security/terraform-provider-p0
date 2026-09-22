@@ -34,14 +34,7 @@ func (p *moveTestProvider) DataSources(ctx context.Context) []func() datasource.
 	return nil
 }
 
-// The prior states below are what each release wrote under the former type
-// names. v0.53.0's differ from the current schemas, since its top-level `url` and
-// `oauth_endpoint` were replaced by `domain_hosting` in v0.54.0; the server's
-// schema is the same in both.
-const v054GatewayState = `{"id":"primary",` +
-	`"domain_hosting":{"load_balancer_ip":"203.0.113.10"},` +
-	`"log_project_id":null,"service_account_email":"p0@example.iam.gserviceaccount.com"}`
-
+// v054GatewayStagedState is shared by moveTests and TestMoveStateKeepsV054StagedState.
 const v054GatewayStagedState = `{"id":"primary",` +
 	`"domain_hosting":{"type":"selfHosted","url":"https://gateway.example.com",` +
 	`"oauth_endpoint":"https://oauth.gateway.example.com"},` +
@@ -49,6 +42,8 @@ const v054GatewayStagedState = `{"id":"primary",` +
 	`"storage_class":"gp2","kubernetes_namespace":null,` +
 	`"service_account_email":"p0@example.iam.gserviceaccount.com"}`
 
+// Each case's prior state is what that release wrote under the former type name;
+// v0.53.0's predates v0.54.0's `domain_hosting` attributes.
 var moveTests = []struct {
 	name       string
 	newTarget  func() resource.Resource
@@ -82,7 +77,8 @@ var moveTests = []struct {
 		newModel:   func() any { return &gatewayModel{} },
 		sourceType: "p0_agentic_gateway",
 		targetType: "p0_ai_gateway",
-		priorState: v054GatewayState,
+		priorState: `{"id":"primary","domain_hosting":{"load_balancer_ip":"203.0.113.10"},` +
+			`"log_project_id":null,"service_account_email":"p0@example.iam.gserviceaccount.com"}`,
 	},
 	{
 		name:       "staged gateway from v0.54.0",
@@ -93,7 +89,7 @@ var moveTests = []struct {
 		priorState: v054GatewayStagedState,
 	},
 	{
-		name:       "server",
+		name:       "server from v0.53.0 or v0.54.0",
 		newTarget:  NewServer,
 		newModel:   func() any { return &serverModel{} },
 		sourceType: "p0_agentic_server",
@@ -211,8 +207,8 @@ func TestMoveStateCarriesStagedUrlIntoDomainHosting(t *testing.T) {
 }
 
 // TestMoveStateKeepsV054StagedState guards the v0.54.0 path: that state already
-// matches the current schema, so every attribute must survive the move. Losing
-// any of them would make even an unrefreshed plan propose replacement.
+// matches the current schema, and losing any attribute would make an unrefreshed
+// plan propose replacement.
 func TestMoveStateKeepsV054StagedState(t *testing.T) {
 	ctx := context.Background()
 	resp := moveState(ctx, t, "p0_agentic_gateway_staged", "p0_ai_gateway_staged", v054GatewayStagedState)
