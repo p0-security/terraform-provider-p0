@@ -107,7 +107,7 @@ type serverConfigureJson struct {
 }
 
 // MoveState enables `moved` blocks from this resource's former name,
-// p0_agentic_server. Its schema is unchanged by the rename.
+// p0_agentic_server.
 func (r *Server) MoveState(ctx context.Context) []resource.StateMover {
 	return internal.RenamedFrom("p0_agentic_server", 0)
 }

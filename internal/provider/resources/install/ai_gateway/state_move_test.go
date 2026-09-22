@@ -12,9 +12,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 )
 
-// moveTestProvider serves only this package's resources, so the tests below go
-// through the framework's real MoveResourceState handling rather than an
-// imitation of it.
+// moveTestProvider serves only this package's resources, so tests exercise the
+// framework's real MoveResourceState handling.
 type moveTestProvider struct{}
 
 func (p *moveTestProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -35,9 +34,21 @@ func (p *moveTestProvider) DataSources(ctx context.Context) []func() datasource.
 	return nil
 }
 
-// The prior states below are what v0.53.0 wrote under the former type names.
-// They deliberately differ from the current schemas: v0.53.0's top-level `url`
-// and `oauth_endpoint` were since replaced by `domain_hosting`.
+// The prior states below are what each release wrote under the former type
+// names. v0.53.0's differ from the current schemas, since its top-level `url` and
+// `oauth_endpoint` were replaced by `domain_hosting` in v0.54.0; the server's
+// schema is the same in both.
+const v054GatewayState = `{"id":"primary",` +
+	`"domain_hosting":{"load_balancer_ip":"203.0.113.10"},` +
+	`"log_project_id":null,"service_account_email":"p0@example.iam.gserviceaccount.com"}`
+
+const v054GatewayStagedState = `{"id":"primary",` +
+	`"domain_hosting":{"type":"selfHosted","url":"https://gateway.example.com",` +
+	`"oauth_endpoint":"https://oauth.gateway.example.com"},` +
+	`"lets_encrypt_email":"admin@example.com","oidc_client_id":"your-upstream-oidc-client-id",` +
+	`"storage_class":"gp2","kubernetes_namespace":null,` +
+	`"service_account_email":"p0@example.iam.gserviceaccount.com"}`
+
 var moveTests = []struct {
 	name       string
 	newTarget  func() resource.Resource
@@ -47,7 +58,7 @@ var moveTests = []struct {
 	priorState string
 }{
 	{
-		name:       "gateway",
+		name:       "gateway from v0.53.0",
 		newTarget:  NewGateway,
 		newModel:   func() any { return &gatewayModel{} },
 		sourceType: "p0_agentic_gateway",
@@ -57,13 +68,29 @@ var moveTests = []struct {
 			`"service_account_email":"p0@example.iam.gserviceaccount.com"}`,
 	},
 	{
-		name:       "staged gateway",
+		name:       "staged gateway from v0.53.0",
 		newTarget:  NewGatewayStaged,
 		newModel:   func() any { return &gatewayStagedModel{} },
 		sourceType: "p0_agentic_gateway_staged",
 		targetType: "p0_ai_gateway_staged",
 		priorState: `{"id":"primary","url":"https://gateway.example.com",` +
 			`"service_account_email":"p0@example.iam.gserviceaccount.com"}`,
+	},
+	{
+		name:       "gateway from v0.54.0",
+		newTarget:  NewGateway,
+		newModel:   func() any { return &gatewayModel{} },
+		sourceType: "p0_agentic_gateway",
+		targetType: "p0_ai_gateway",
+		priorState: v054GatewayState,
+	},
+	{
+		name:       "staged gateway from v0.54.0",
+		newTarget:  NewGatewayStaged,
+		newModel:   func() any { return &gatewayStagedModel{} },
+		sourceType: "p0_agentic_gateway_staged",
+		targetType: "p0_ai_gateway_staged",
+		priorState: v054GatewayStagedState,
 	},
 	{
 		name:       "server",
@@ -154,8 +181,9 @@ func TestMoveStateDeclinesOtherResources(t *testing.T) {
 	}
 }
 
-// v0.53.0 kept the staged gateway's url at the top level; it now lives under
-// domain_hosting, and a move that dropped it would leave the gateway urlless.
+// TestMoveStateCarriesStagedUrlIntoDomainHosting guards v0.53.0's top-level url,
+// which now lives under domain_hosting; dropping it would leave the gateway
+// without a url.
 func TestMoveStateCarriesStagedUrlIntoDomainHosting(t *testing.T) {
 	ctx := context.Background()
 	resp := moveState(ctx, t, "p0_agentic_gateway_staged", "p0_ai_gateway_staged",
@@ -179,5 +207,33 @@ func TestMoveStateCarriesStagedUrlIntoDomainHosting(t *testing.T) {
 	// anything else would register as a change to domain_hosting.
 	if moved.DomainHosting.Type.ValueString() != "selfHosted" {
 		t.Errorf("domain_hosting.type: got %q, want selfHosted", moved.DomainHosting.Type.ValueString())
+	}
+}
+
+// TestMoveStateKeepsV054StagedState guards the v0.54.0 path: that state already
+// matches the current schema, so every attribute must survive the move. Losing
+// any of them would make even an unrefreshed plan propose replacement.
+func TestMoveStateKeepsV054StagedState(t *testing.T) {
+	ctx := context.Background()
+	resp := moveState(ctx, t, "p0_agentic_gateway_staged", "p0_ai_gateway_staged", v054GatewayStagedState)
+	state := movedState(ctx, t, NewGatewayStaged(), resp)
+
+	var moved gatewayStagedModel
+	if diags := state.Get(ctx, &moved); diags.HasError() {
+		t.Fatalf("moved state does not decode: %v", diags)
+	}
+	if moved.DomainHosting == nil {
+		t.Fatal("moved state has no domain_hosting")
+	}
+	for _, check := range []struct{ attr, got, want string }{
+		{"domain_hosting.url", moved.DomainHosting.Url, "https://gateway.example.com"},
+		{"domain_hosting.oauth_endpoint", moved.DomainHosting.OauthEndpoint.ValueString(), "https://oauth.gateway.example.com"},
+		{"lets_encrypt_email", moved.LetsEncryptEmail, "admin@example.com"},
+		{"oidc_client_id", moved.OidcClientId, "your-upstream-oidc-client-id"},
+		{"storage_class", moved.StorageClass, "gp2"},
+	} {
+		if check.got != check.want {
+			t.Errorf("%s: got %q, want %q", check.attr, check.got, check.want)
+		}
 	}
 }

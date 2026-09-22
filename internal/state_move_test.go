@@ -139,3 +139,24 @@ func TestRenamedFromSkipsNilPriorState(t *testing.T) {
 		t.Error("a skipped mover must leave target state null")
 	}
 }
+
+// TestRenamedFromDropsUndeclaredAttributes covers state written before the
+// target schema dropped an attribute: the move must still succeed, as a plain
+// refresh of that state would.
+func TestRenamedFromDropsUndeclaredAttributes(t *testing.T) {
+	ctx := context.Background()
+	resp := callRenameMover(ctx, resource.MoveStateRequest{
+		SourceTypeName:      renameSourceType,
+		SourceSchemaVersion: 0,
+		SourceRawState: &tfprotov6.RawState{
+			JSON: []byte(`{"id":"primary","url":"https://gateway.example.com","oauth_endpoint":"https://oauth.example.com"}`),
+		},
+	})
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("expected undeclared attributes to be dropped, got %v", resp.Diagnostics)
+	}
+	if resp.TargetState.Raw.IsNull() {
+		t.Fatal("mover declined state that carried an undeclared attribute")
+	}
+}

@@ -95,7 +95,7 @@ type gatewayConfigureJson struct {
 }
 
 // MoveState enables `moved` blocks from this resource's former name,
-// p0_agentic_gateway. Its schema is unchanged by the rename.
+// p0_agentic_gateway.
 func (r *Gateway) MoveState(ctx context.Context) []resource.StateMover {
 	return internal.RenamedFrom("p0_agentic_gateway", 0)
 }
