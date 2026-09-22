@@ -23,6 +23,7 @@ import (
 	installsplunk "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/splunk"
 	accesspolicy "github.com/p0-security/terraform-provider-p0/internal/provider/resources/access_policy"
 	installaigateway "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ai_gateway"
+	installapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/app"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
 	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
@@ -213,6 +214,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installgcpcloudsql.NewGcpCloudSqlIamWriteStaged,
 		installgcpcloudsql.NewGcpCloudSqlIamWrite,
 		installfiletransfer.NewFileTransferIamWrite,
+		installapp.NewAppIamWrite,
 		installsplunk.NewAuditLogs,
 		installdatadog.NewAuditLogs,
 		installawsoidc.NewAwsOidcIdentityStaged,
