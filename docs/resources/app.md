@@ -9,8 +9,10 @@ description: |-
   Deploy the connector and grant P0 permission to invoke it before applying this resource. Creating it verifies that
   P0 can reach the connector, and fails if it cannot.
   Prerequisites:
+  
   For AWS Lambda hosting, p0_aws_iam_write must be installed for the account the connector runs in. Grant
-  that installation's role lambda:InvokeFunction on the connector's function.For Google Cloud Run hosting, p0_gcp must be installed. Grant its service account
+  that installation's role lambda:InvokeFunction on the connector's function.
+  For Google Cloud Run hosting, p0_gcp must be installed. Grant its service account
   roles/run.invoker on the connector's service, and pass the same address to the connector as its
   INVOKER_SA_EMAIL environment variable.
 ---
@@ -26,8 +28,10 @@ Deploy the connector and grant P0 permission to invoke it before applying this r
 P0 can reach the connector, and fails if it cannot.
 
 **Prerequisites:**
+
 - For AWS Lambda hosting, `p0_aws_iam_write` must be installed for the account the connector runs in. Grant
   that installation's role `lambda:InvokeFunction` on the connector's function.
+
 - For Google Cloud Run hosting, `p0_gcp` must be installed. Grant its service account
   `roles/run.invoker` on the connector's service, and pass the same address to the connector as its
   `INVOKER_SA_EMAIL` environment variable.
