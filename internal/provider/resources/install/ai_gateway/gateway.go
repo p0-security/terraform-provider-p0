@@ -1,7 +1,7 @@
 // Copyright (c) 2025 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package installagentic
+package installaigateway
 
 import (
 	"context"
@@ -20,11 +20,15 @@ import (
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
+// IntegrationKey identifies this integration in P0's backend API paths; it is
+// independent of the p0_ai_gateway* resource type names and is never surfaced
+// to users.
 const IntegrationKey = "agentic"
 
 var _ resource.Resource = &Gateway{}
 var _ resource.ResourceWithImportState = &Gateway{}
 var _ resource.ResourceWithConfigure = &Gateway{}
+var _ resource.ResourceWithMoveState = &Gateway{}
 
 func NewGateway() resource.Resource {
 	return &Gateway{}
@@ -90,16 +94,22 @@ type gatewayConfigureJson struct {
 	State         string                             `json:"state"`
 }
 
+// MoveState enables `moved` blocks from this resource's former name,
+// p0_agentic_gateway. Its schema is unchanged by the rename.
+func (r *Gateway) MoveState(ctx context.Context) []resource.StateMover {
+	return internal.RenamedFrom("p0_agentic_gateway", 0)
+}
+
 func (r *Gateway) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_agentic_gateway"
+	resp.TypeName = req.ProviderTypeName + "_ai_gateway"
 }
 
 func (r *Gateway) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `Final installation of an Agentic gateway, which hosts MCP servers and applies P0 access
+		MarkdownDescription: `Final installation of an AI gateway, which hosts MCP servers and applies P0 access
 policy to agent tool calls.
 
-To use this resource, you must also install the ` + "`p0_agentic_gateway_staged`" + ` resource, and configure your
+To use this resource, you must also install the ` + "`p0_ai_gateway_staged`" + ` resource, and configure your
 gateway to trust the service account returned by that resource (e.g. the ` + "`manageAllowedEmails`" + ` value in the
 ` + "`agentic-gateway-stack`" + ` Helm chart).
 
@@ -107,7 +117,7 @@ See the example usage for the recommended pattern to define this infrastructure.
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The `id` of the `p0_agentic_gateway_staged` resource being finalized",
+				MarkdownDescription: "The `id` of the `p0_ai_gateway_staged` resource being finalized",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -125,7 +135,7 @@ See the example usage for the recommended pattern to define this infrastructure.
 					"load_balancer_ip": schema.StringAttribute{
 						Optional: true,
 						MarkdownDescription: `Your gateway's LoadBalancer address (IP or hostname). Create a DNS record for the ` + "`url`" + ` on the
-` + "`p0_agentic_gateway_staged`" + ` resource pointing here: an A record for an IPv4 address, AAAA for IPv6, or CNAME
+` + "`p0_ai_gateway_staged`" + ` resource pointing here: an A record for an IPv4 address, AAAA for IPv6, or CNAME
 if your cloud provider (e.g. AWS) gave you a hostname instead of a static IP.`,
 					},
 				},

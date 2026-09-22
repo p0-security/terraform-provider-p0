@@ -1,7 +1,7 @@
 // Copyright (c) 2025 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package installagentic
+package installaigateway
 
 import (
 	"context"
@@ -21,6 +21,7 @@ import (
 var _ resource.Resource = &Server{}
 var _ resource.ResourceWithImportState = &Server{}
 var _ resource.ResourceWithConfigure = &Server{}
+var _ resource.ResourceWithMoveState = &Server{}
 
 func NewServer() resource.Resource {
 	return &Server{}
@@ -105,13 +106,19 @@ type serverConfigureJson struct {
 	State      string                `json:"state"`
 }
 
+// MoveState enables `moved` blocks from this resource's former name,
+// p0_agentic_server. Its schema is unchanged by the rename.
+func (r *Server) MoveState(ctx context.Context) []resource.StateMover {
+	return internal.RenamedFrom("p0_agentic_server", 0)
+}
+
 func (r *Server) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_agentic_server"
+	resp.TypeName = req.ProviderTypeName + "_ai_gateway_server"
 }
 
 func (r *Server) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `Registers an MCP server behind an Agentic gateway, giving agents access to your resources.
+		MarkdownDescription: `Registers an MCP server behind an AI gateway, giving agents access to your resources.
 
 To reference an AWS- or GCP-federated credential, install the corresponding ` + "`p0_aws_oidc_identity`" + ` or
 ` + "`p0_gcp_wif_identity`" + ` resource first and pass its ` + "`id`" + ` as ` + "`credential.provider`" + `.`,
@@ -125,7 +132,7 @@ To reference an AWS- or GCP-federated credential, install the corresponding ` + 
 			},
 			"gateway": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The `id` of the `p0_agentic_gateway` that hosts this server",
+				MarkdownDescription: "The `id` of the `p0_ai_gateway` that hosts this server",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

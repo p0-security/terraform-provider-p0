@@ -1,8 +1,8 @@
-# See the p0_agentic_gateway_staged example for the preceding steps
+# See the p0_ai_gateway_staged example for the preceding steps
 # (staging the gateway, and configuring it to trust the assigned service
 # account) that this resource depends on.
 
-resource "p0_agentic_gateway_staged" "example" {
+resource "p0_ai_gateway_staged" "example" {
   id = "primary"
   domain_hosting = {
     url = "https://gateway.example.com"
@@ -22,7 +22,7 @@ module "agentic_gateway_stack" {
     yamlencode({
       "agentic-gateway" = {
         agenticGatewayServer = {
-          manageAllowedEmails = p0_agentic_gateway_staged.example.service_account_email
+          manageAllowedEmails = p0_ai_gateway_staged.example.service_account_email
         }
       }
     }),
@@ -31,8 +31,8 @@ module "agentic_gateway_stack" {
 
 # Finalizes the install; depends_on ensures the gateway trusts P0's service
 # account before verification is attempted.
-resource "p0_agentic_gateway" "example" {
-  id = p0_agentic_gateway_staged.example.id
+resource "p0_ai_gateway" "example" {
+  id = p0_ai_gateway_staged.example.id
   domain_hosting = {
     load_balancer_ip = "<your-gateway-loadbalancer-ip>"
   }

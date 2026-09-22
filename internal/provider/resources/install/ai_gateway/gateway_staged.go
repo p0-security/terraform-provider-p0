@@ -1,7 +1,7 @@
 // Copyright (c) 2025 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package installagentic
+package installaigateway
 
 import (
 	"context"
@@ -23,6 +23,7 @@ import (
 var _ resource.Resource = &GatewayStaged{}
 var _ resource.ResourceWithImportState = &GatewayStaged{}
 var _ resource.ResourceWithConfigure = &GatewayStaged{}
+var _ resource.ResourceWithMoveState = &GatewayStaged{}
 
 func NewGatewayStaged() resource.Resource {
 	return &GatewayStaged{}
@@ -66,20 +67,26 @@ type gatewayStageJson struct {
 	KubernetesNamespace *string                       `json:"kubernetesNamespace,omitempty"`
 }
 
+// MoveState enables `moved` blocks from this resource's former name,
+// p0_agentic_gateway_staged. Its schema is unchanged by the rename.
+func (r *GatewayStaged) MoveState(ctx context.Context) []resource.StateMover {
+	return internal.RenamedFrom("p0_agentic_gateway_staged", 0)
+}
+
 func (r *GatewayStaged) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_agentic_gateway_staged"
+	resp.TypeName = req.ProviderTypeName + "_ai_gateway_staged"
 }
 
 func (r *GatewayStaged) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A staged installation of an Agentic gateway.
+		MarkdownDescription: `A staged installation of an AI gateway.
 
 P0 assigns a service account to communicate with your gateway, returned as ` + "`service_account_email`" + `. Your
 gateway must be configured to trust this service account (e.g. the ` + "`manageAllowedEmails`" + ` value in the
-` + "`agentic-gateway-stack`" + ` Helm chart) before ` + "`p0_agentic_gateway`" + ` can finish installing — P0 cannot
+` + "`agentic-gateway-stack`" + ` Helm chart) before ` + "`p0_ai_gateway`" + ` can finish installing — P0 cannot
 authenticate to your gateway's management API otherwise. See the example usage for the recommended pattern.
 
-For instructions on using this resource, see the documentation for ` + "`p0_agentic_gateway`" + `.`,
+For instructions on using this resource, see the documentation for ` + "`p0_ai_gateway`" + `.`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
@@ -100,7 +107,7 @@ For instructions on using this resource, see the documentation for ` + "`p0_agen
 					},
 					"url": schema.StringAttribute{
 						Required:            true,
-						MarkdownDescription: "Agentic gateway URL; your servers will be hosted here.",
+						MarkdownDescription: "AI gateway URL; your servers will be hosted here.",
 					},
 					"oauth_endpoint": schema.StringAttribute{
 						Optional: true,

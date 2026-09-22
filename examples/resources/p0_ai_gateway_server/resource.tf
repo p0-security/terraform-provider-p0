@@ -1,5 +1,5 @@
-# See the p0_agentic_gateway example for the full staged-install pattern.
-resource "p0_agentic_gateway_staged" "example" {
+# See the p0_ai_gateway example for the full staged-install pattern.
+resource "p0_ai_gateway_staged" "example" {
   id  = "primary"
   url = "https://gateway.example.com"
 }
@@ -14,16 +14,16 @@ module "oauthed_mcp" {
     yamlencode({
       "oauthed-mcp" = {
         mcpServer = {
-          manageAllowedEmails = p0_agentic_gateway_staged.example.service_account_email
+          manageAllowedEmails = p0_ai_gateway_staged.example.service_account_email
         }
       }
     }),
   ]
 }
 
-resource "p0_agentic_gateway" "example" {
-  id             = p0_agentic_gateway_staged.example.id
-  url            = p0_agentic_gateway_staged.example.url
+resource "p0_ai_gateway" "example" {
+  id             = p0_ai_gateway_staged.example.id
+  url            = p0_ai_gateway_staged.example.url
   oauth_endpoint = "https://oauth.gateway.example.com"
   depends_on     = [module.oauthed_mcp]
 }
@@ -52,9 +52,9 @@ resource "p0_aws_oidc_identity" "example" {
 }
 
 # An MCP server that federates AWS credentials via the identity above.
-resource "p0_agentic_server" "aws_example" {
+resource "p0_ai_gateway_server" "aws_example" {
   id      = "aws-tools"
-  gateway = p0_agentic_gateway.example.id
+  gateway = p0_ai_gateway.example.id
   credential = {
     type     = "aws"
     provider = p0_aws_oidc_identity.example.id
@@ -66,9 +66,9 @@ resource "p0_agentic_server" "aws_example" {
 }
 
 # A custom, externally hosted MCP server that authenticates end users via OAuth.
-resource "p0_agentic_server" "custom_example" {
+resource "p0_ai_gateway_server" "custom_example" {
   id      = "custom-tools"
-  gateway = p0_agentic_gateway.example.id
+  gateway = p0_ai_gateway.example.id
   credential = {
     type = "oauth"
     grant = {

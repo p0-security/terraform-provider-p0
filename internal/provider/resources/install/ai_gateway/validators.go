@@ -1,7 +1,7 @@
 // Copyright (c) 2025 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package installagentic
+package installaigateway
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 
 // requiredWhenAttr and exclusiveToAttr are generalizations of the
 // RequiredWhenType/ExclusiveToType validators in
-// internal/provider/resources/access_policy/validators.go: `p0_agentic_server`
+// internal/provider/resources/access_policy/validators.go: `p0_ai_gateway_server`
 // discriminates its `definition` object on two sibling attributes at the same
 // nesting level (`type`: p0/custom, then `hosting`: container/external), so a
 // single discriminator hardcoded to "type" isn't enough. These take the
