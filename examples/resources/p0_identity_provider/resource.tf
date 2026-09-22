@@ -4,4 +4,9 @@ resource "p0_identity_provider" "example" {
   audience_pattern     = "https://github.com/my-org/*"
   subject_pattern      = "repo:my-org/*"
   dynamic_registration = true
+
+  replay_protection = {
+    type          = "grace"
+    grace_seconds = "30"
+  }
 }
