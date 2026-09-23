@@ -7,7 +7,7 @@ description: |-
   policy to agent tool calls.
   To use this resource, you must also install the p0_ai_gateway_staged resource, and configure your
   gateway to trust the service account returned by that resource (e.g. the manageAllowedEmails value in the
-  agentic-gateway-stack Helm chart).
+  ai-gateway-stack Helm chart).
   See the example usage for the recommended pattern to define this infrastructure.
 ---
 
@@ -18,7 +18,7 @@ policy to agent tool calls.
 
 To use this resource, you must also install the `p0_ai_gateway_staged` resource, and configure your
 gateway to trust the service account returned by that resource (e.g. the `manageAllowedEmails` value in the
-`agentic-gateway-stack` Helm chart).
+`ai-gateway-stack` Helm chart).
 
 See the example usage for the recommended pattern to define this infrastructure.
 
@@ -39,11 +39,11 @@ resource "p0_ai_gateway_staged" "example" {
   storage_class      = "gp2"
 }
 
-# Uses the p0-security/p0-agentic-gateway-stack/kubernetes module:
-# https://github.com/p0-security/terraform-kubernetes-p0-agentic-gateway-stack
-module "agentic_gateway_stack" {
-  source  = "p0-security/p0-agentic-gateway-stack/kubernetes"
-  version = "0.2.2"
+# Uses the p0-security/p0-ai-gateway-stack/kubernetes module:
+# https://github.com/p0-security/terraform-kubernetes-p0-ai-gateway-stack
+module "ai_gateway_stack" {
+  source  = "p0-security/p0-ai-gateway-stack/kubernetes"
+  version = "0.3.0"
 
   values = [
     yamlencode({
@@ -64,7 +64,7 @@ resource "p0_ai_gateway" "example" {
     load_balancer_ip = "<your-gateway-loadbalancer-ip>"
   }
   log_project_id = "my-gcp-logging-project"
-  depends_on     = [module.agentic_gateway_stack]
+  depends_on     = [module.ai_gateway_stack]
 }
 ```
 

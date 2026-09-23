@@ -111,7 +111,7 @@ policy to agent tool calls.
 
 To use this resource, you must also install the ` + "`p0_ai_gateway_staged`" + ` resource, and configure your
 gateway to trust the service account returned by that resource (e.g. the ` + "`manageAllowedEmails`" + ` value in the
-` + "`agentic-gateway-stack`" + ` Helm chart).
+` + "`ai-gateway-stack`" + ` Helm chart).
 
 See the example usage for the recommended pattern to define this infrastructure.`,
 		Attributes: map[string]schema.Attribute{

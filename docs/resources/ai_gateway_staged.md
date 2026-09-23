@@ -6,7 +6,7 @@ description: |-
   A staged installation of an AI gateway.
   P0 assigns a service account to communicate with your gateway, returned as service_account_email. Your
   gateway must be configured to trust this service account (e.g. the manageAllowedEmails value in the
-  agentic-gateway-stack Helm chart) before p0_ai_gateway can finish installing — P0 cannot
+  ai-gateway-stack Helm chart) before p0_ai_gateway can finish installing — P0 cannot
   authenticate to your gateway's management API otherwise. See the example usage for the recommended pattern.
   For instructions on using this resource, see the documentation for p0_ai_gateway.
 ---
@@ -17,7 +17,7 @@ A staged installation of an AI gateway.
 
 P0 assigns a service account to communicate with your gateway, returned as `service_account_email`. Your
 gateway must be configured to trust this service account (e.g. the `manageAllowedEmails` value in the
-`agentic-gateway-stack` Helm chart) before `p0_ai_gateway` can finish installing — P0 cannot
+`ai-gateway-stack` Helm chart) before `p0_ai_gateway` can finish installing — P0 cannot
 authenticate to your gateway's management API otherwise. See the example usage for the recommended pattern.
 
 For instructions on using this resource, see the documentation for `p0_ai_gateway`.
@@ -38,10 +38,10 @@ resource "p0_ai_gateway_staged" "example" {
 
 # Your gateway must trust that service account before P0 can finish
 # installing (see the p0_ai_gateway example for the next step). Uses the
-# p0-security/p0-agentic-gateway-stack/kubernetes module: https://github.com/p0-security/terraform-kubernetes-p0-agentic-gateway-stack
-module "agentic_gateway_stack" {
-  source  = "p0-security/p0-agentic-gateway-stack/kubernetes"
-  version = "0.2.2"
+# p0-security/p0-ai-gateway-stack/kubernetes module: https://github.com/p0-security/terraform-kubernetes-p0-ai-gateway-stack
+module "ai_gateway_stack" {
+  source  = "p0-security/p0-ai-gateway-stack/kubernetes"
+  version = "0.3.0"
 
   values = [
     yamlencode({

@@ -22,15 +22,10 @@ them will not plan until it is updated.
 The rename itself changed only names. The gateway's installation in P0 is
 untouched, and moving state across the rename destroys nothing.
 
-If you are upgrading from v0.53.0, you also cross an unrelated schema change
-released in v0.54.0. `url` and `oauth_endpoint` are now set only on
-`p0_ai_gateway_staged`, in its nested `domain_hosting` block, while
-`p0_ai_gateway`'s `domain_hosting` holds `load_balancer_ip`. The staged gateway
-also gained `lets_encrypt_email`, `oidc_client_id`, `storage_class` and the
-optional `kubernetes_namespace`. Update those attributes in the same edit as the
-type names, with the values your gateway is installed with: on the staged
-gateway, any that differs forces a replacement. The move carries the staged
-gateway's `url` across, and a refreshing plan reads the rest from P0.
+If you are upgrading from v0.53.0, note that v0.54.0 also changed the gateway
+attributes. Update them in the same edit, following the
+[`p0_ai_gateway_staged`](https://registry.terraform.io/providers/p0-security/p0/latest/docs/resources/ai_gateway_staged) and
+[`p0_ai_gateway`](https://registry.terraform.io/providers/p0-security/p0/latest/docs/resources/ai_gateway) documentation.
 
 ## Migrating
 
@@ -85,8 +80,15 @@ Terraform moves a state only when it plans against it, so keep the `moved`
 blocks until the change has been applied to every state, then delete them in a
 later change.
 
-## What did not change
+## Helm chart and Terraform module
 
-The Helm chart `agentic-gateway-stack` and the Terraform module
-`p0-security/p0-agentic-gateway-stack/kubernetes` keep their names, so module
-blocks referring to them need no edit.
+The Helm chart and Terraform module were renamed separately. The chart is now
+`ai-gateway-stack`, and the module is published as
+`p0-security/p0-ai-gateway-stack/kubernetes` from version 0.3.0. Its previous
+address, `p0-security/p0-agentic-gateway-stack/kubernetes`, is archived at
+0.2.3. Moving to the new address is a `source` and `version` change; the
+module's values keys and defaults are unchanged.
+
+Keep your module block's label as it is, even though the examples now call it
+`ai_gateway_stack`. Renaming the label moves every resource in the module, so it
+needs a `moved` block of its own.

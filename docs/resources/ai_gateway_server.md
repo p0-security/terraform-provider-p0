@@ -30,16 +30,16 @@ resource "p0_ai_gateway_staged" "example" {
   storage_class      = "gp2"
 }
 
-# Uses the p0-security/oauthed-mcp/kubernetes module:
-# https://github.com/p0-security/terraform-kubernetes-p0-oauthed-mcp
-module "oauthed_mcp" {
-  source  = "p0-security/oauthed-mcp/kubernetes"
-  version = "0.1.9"
+# Uses the p0-security/p0-ai-gateway-stack/kubernetes module:
+# https://github.com/p0-security/terraform-kubernetes-p0-ai-gateway-stack
+module "ai_gateway_stack" {
+  source  = "p0-security/p0-ai-gateway-stack/kubernetes"
+  version = "0.3.0"
 
   values = [
     yamlencode({
-      "oauthed-mcp" = {
-        mcpServer = {
+      "agentic-gateway" = {
+        agenticGatewayServer = {
           manageAllowedEmails = p0_ai_gateway_staged.example.service_account_email
         }
       }
@@ -52,7 +52,7 @@ resource "p0_ai_gateway" "example" {
   domain_hosting = {
     load_balancer_ip = "<your-gateway-loadbalancer-ip>"
   }
-  depends_on = [module.oauthed_mcp]
+  depends_on = [module.ai_gateway_stack]
 }
 
 resource "p0_identity_provider" "example" {
