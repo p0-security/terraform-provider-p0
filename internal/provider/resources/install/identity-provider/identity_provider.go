@@ -16,8 +16,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
-	accesspolicy "github.com/p0-security/terraform-provider-p0/internal/provider/resources/access_policy"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
+	installagentic "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/agentic"
 )
 
 // IntegrationKey is the P0 integration that identity providers install under.
@@ -138,10 +138,10 @@ otherwise, identities must be manually pre-registered`,
 					},
 				},
 				Validators: []validator.Object{
-					accesspolicy.RequiredWhenType(map[string][]string{
+					installagentic.RequiredWhenAttr("type", map[string][]string{
 						"grace": {"grace_seconds"},
 					}),
-					accesspolicy.ExclusiveToType(map[string][]string{
+					installagentic.ExclusiveToAttr("type", map[string][]string{
 						"grace": {"grace_seconds"},
 					}),
 				},
