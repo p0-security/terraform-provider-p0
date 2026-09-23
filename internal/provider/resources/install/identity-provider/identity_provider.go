@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
+	accesspolicy "github.com/p0-security/terraform-provider-p0/internal/provider/resources/access_policy"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
@@ -137,10 +138,10 @@ otherwise, identities must be manually pre-registered`,
 					},
 				},
 				Validators: []validator.Object{
-					RequiredWhenAttr(map[string][]string{
+					accesspolicy.RequiredWhenType(map[string][]string{
 						"grace": {"grace_seconds"},
 					}),
-					ExclusiveToAttr(map[string][]string{
+					accesspolicy.ExclusiveToType(map[string][]string{
 						"grace": {"grace_seconds"},
 					}),
 				},
