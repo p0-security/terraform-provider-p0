@@ -17,7 +17,7 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
-	installagentic "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/agentic"
+	installaigateway "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ai_gateway"
 )
 
 // IntegrationKey is the P0 integration that identity providers install under.
@@ -38,8 +38,8 @@ type IdentityProvider struct {
 // replayProtectionModel is a flattened discriminated union (see
 // app/packages/integrations/identity-provider-shared/src/components.ts's
 // `replayProtection` select element), matching the flattening convention used
-// for `p0_agentic_server`'s `credential`/`definition` (see
-// install/agentic/server.go's serverCredentialModel).
+// for `p0_ai_gateway_server`'s `credential`/`definition` (see
+// install/ai_gateway/server.go's serverCredentialModel).
 type replayProtectionModel struct {
 	Type         string  `tfsdk:"type" json:"type"`
 	GraceSeconds *string `tfsdk:"grace_seconds" json:"graceSeconds,omitempty"`
@@ -138,10 +138,10 @@ otherwise, identities must be manually pre-registered`,
 					},
 				},
 				Validators: []validator.Object{
-					installagentic.RequiredWhenAttr("type", map[string][]string{
+					installaigateway.RequiredWhenAttr("type", map[string][]string{
 						"grace": {"grace_seconds"},
 					}),
-					installagentic.ExclusiveToAttr("type", map[string][]string{
+					installaigateway.ExclusiveToAttr("type", map[string][]string{
 						"grace": {"grace_seconds"},
 					}),
 				},
