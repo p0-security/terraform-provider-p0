@@ -1,8 +1,8 @@
-# See the p0_agentic_gateway_staged example for the preceding steps
+# See the p0_ai_gateway_staged example for the preceding steps
 # (staging the gateway, and configuring it to trust the assigned service
 # account) that this resource depends on.
 
-resource "p0_agentic_gateway_staged" "example" {
+resource "p0_ai_gateway_staged" "example" {
   id = "primary"
   domain_hosting = {
     url = "https://gateway.example.com"
@@ -12,17 +12,17 @@ resource "p0_agentic_gateway_staged" "example" {
   storage_class      = "gp2"
 }
 
-# Uses the p0-security/p0-agentic-gateway-stack/kubernetes module:
-# https://github.com/p0-security/terraform-kubernetes-p0-agentic-gateway-stack
-module "agentic_gateway_stack" {
-  source  = "p0-security/p0-agentic-gateway-stack/kubernetes"
-  version = "0.2.2"
+# Uses the p0-security/p0-ai-gateway-stack/kubernetes module:
+# https://github.com/p0-security/terraform-kubernetes-p0-ai-gateway-stack
+module "ai_gateway_stack" {
+  source  = "p0-security/p0-ai-gateway-stack/kubernetes"
+  version = "0.3.0"
 
   values = [
     yamlencode({
       "agentic-gateway" = {
         agenticGatewayServer = {
-          manageAllowedEmails = p0_agentic_gateway_staged.example.service_account_email
+          manageAllowedEmails = p0_ai_gateway_staged.example.service_account_email
         }
       }
     }),
@@ -31,11 +31,11 @@ module "agentic_gateway_stack" {
 
 # Finalizes the install; depends_on ensures the gateway trusts P0's service
 # account before verification is attempted.
-resource "p0_agentic_gateway" "example" {
-  id = p0_agentic_gateway_staged.example.id
+resource "p0_ai_gateway" "example" {
+  id = p0_ai_gateway_staged.example.id
   domain_hosting = {
     load_balancer_ip = "<your-gateway-loadbalancer-ip>"
   }
   log_project_id = "my-gcp-logging-project"
-  depends_on     = [module.agentic_gateway_stack]
+  depends_on     = [module.ai_gateway_stack]
 }

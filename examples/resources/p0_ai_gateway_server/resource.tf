@@ -1,31 +1,38 @@
-# See the p0_agentic_gateway example for the full staged-install pattern.
-resource "p0_agentic_gateway_staged" "example" {
-  id  = "primary"
-  url = "https://gateway.example.com"
+# See the p0_ai_gateway example for the full staged-install pattern.
+resource "p0_ai_gateway_staged" "example" {
+  id = "primary"
+  domain_hosting = {
+    url            = "https://gateway.example.com"
+    oauth_endpoint = "https://oauth.gateway.example.com"
+  }
+  lets_encrypt_email = "admin@example.com"
+  oidc_client_id     = "your-upstream-oidc-client-id"
+  storage_class      = "gp2"
 }
 
-# Uses the p0-security/oauthed-mcp/kubernetes module:
-# https://github.com/p0-security/terraform-kubernetes-p0-oauthed-mcp
-module "oauthed_mcp" {
-  source  = "p0-security/oauthed-mcp/kubernetes"
-  version = "0.1.9"
+# Uses the p0-security/p0-ai-gateway-stack/kubernetes module:
+# https://github.com/p0-security/terraform-kubernetes-p0-ai-gateway-stack
+module "ai_gateway_stack" {
+  source  = "p0-security/p0-ai-gateway-stack/kubernetes"
+  version = "0.3.0"
 
   values = [
     yamlencode({
-      "oauthed-mcp" = {
-        mcpServer = {
-          manageAllowedEmails = p0_agentic_gateway_staged.example.service_account_email
+      "agentic-gateway" = {
+        agenticGatewayServer = {
+          manageAllowedEmails = p0_ai_gateway_staged.example.service_account_email
         }
       }
     }),
   ]
 }
 
-resource "p0_agentic_gateway" "example" {
-  id             = p0_agentic_gateway_staged.example.id
-  url            = p0_agentic_gateway_staged.example.url
-  oauth_endpoint = "https://oauth.gateway.example.com"
-  depends_on     = [module.oauthed_mcp]
+resource "p0_ai_gateway" "example" {
+  id = p0_ai_gateway_staged.example.id
+  domain_hosting = {
+    load_balancer_ip = "<your-gateway-loadbalancer-ip>"
+  }
+  depends_on = [module.ai_gateway_stack]
 }
 
 resource "p0_identity_provider" "example" {
@@ -52,9 +59,9 @@ resource "p0_aws_oidc_identity" "example" {
 }
 
 # An MCP server that federates AWS credentials via the identity above.
-resource "p0_agentic_server" "aws_example" {
+resource "p0_ai_gateway_server" "aws_example" {
   id      = "aws-tools"
-  gateway = p0_agentic_gateway.example.id
+  gateway = p0_ai_gateway.example.id
   credential = {
     type     = "aws"
     provider = p0_aws_oidc_identity.example.id
@@ -66,9 +73,9 @@ resource "p0_agentic_server" "aws_example" {
 }
 
 # A custom, externally hosted MCP server that authenticates end users via OAuth.
-resource "p0_agentic_server" "custom_example" {
+resource "p0_ai_gateway_server" "custom_example" {
   id      = "custom-tools"
-  gateway = p0_agentic_gateway.example.id
+  gateway = p0_ai_gateway.example.id
   credential = {
     type = "oauth"
     grant = {

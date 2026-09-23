@@ -1,7 +1,7 @@
 // Copyright (c) 2025 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package installagentic
+package installaigateway
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// definitionAttrTypes mirrors p0_agentic_server's flattened `definition`
+// definitionAttrTypes mirrors p0_ai_gateway_server's flattened `definition`
 // object, which discriminates on two sibling attributes at the same nesting
 // level ("type": p0/custom, then "hosting": container/external) — the
 // scenario RequiredWhenAttr/ExclusiveToAttr generalize

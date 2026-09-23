@@ -22,7 +22,7 @@ import (
 	installdatadog "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/datadog"
 	installsplunk "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/splunk"
 	accesspolicy "github.com/p0-security/terraform-provider-p0/internal/provider/resources/access_policy"
-	installagentic "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/agentic"
+	installaigateway "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ai_gateway"
 	installapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/app"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
@@ -221,9 +221,9 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installawsoidc.NewAwsOidcIdentity,
 		installgcpwif.NewGcpWifIdentityStaged,
 		installgcpwif.NewGcpWifIdentity,
-		installagentic.NewGatewayStaged,
-		installagentic.NewGateway,
-		installagentic.NewServer,
+		installaigateway.NewGatewayStaged,
+		installaigateway.NewGateway,
+		installaigateway.NewServer,
 		installidentityprovider.NewIdentityProvider,
 	}
 }
