@@ -12,10 +12,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
+	installaigateway "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ai_gateway"
 )
 
 // IntegrationKey is the P0 integration that identity providers install under.
@@ -33,20 +35,32 @@ type IdentityProvider struct {
 	installer *common.Install
 }
 
+// replayProtectionModel is a flattened discriminated union (see
+// app/packages/integrations/identity-provider-shared/src/components.ts's
+// `replayProtection` select element), matching the flattening convention used
+// for `p0_ai_gateway_server`'s `credential`/`definition` (see
+// install/ai_gateway/server.go's serverCredentialModel).
+type replayProtectionModel struct {
+	Type         string  `tfsdk:"type" json:"type"`
+	GraceSeconds *string `tfsdk:"grace_seconds" json:"graceSeconds,omitempty"`
+}
+
 type identityProviderModel struct {
-	Id                  string       `tfsdk:"id"`
-	Issuer              string       `tfsdk:"issuer"`
-	AudiencePattern     types.String `tfsdk:"audience_pattern"`
-	SubjectPattern      types.String `tfsdk:"subject_pattern"`
-	DynamicRegistration types.Bool   `tfsdk:"dynamic_registration"`
+	Id                  string                 `tfsdk:"id"`
+	Issuer              string                 `tfsdk:"issuer"`
+	AudiencePattern     types.String           `tfsdk:"audience_pattern"`
+	SubjectPattern      types.String           `tfsdk:"subject_pattern"`
+	DynamicRegistration types.Bool             `tfsdk:"dynamic_registration"`
+	ReplayProtection    *replayProtectionModel `tfsdk:"replay_protection"`
 }
 
 type identityProviderJson struct {
-	Issuer              string  `json:"issuer"`
-	AudiencePattern     *string `json:"audiencePattern,omitempty"`
-	SubjectPattern      *string `json:"subjectPattern,omitempty"`
-	DynamicRegistration *bool   `json:"dynamicRegistration,omitempty"`
-	State               string  `json:"state"`
+	Issuer              string                 `json:"issuer"`
+	AudiencePattern     *string                `json:"audiencePattern,omitempty"`
+	SubjectPattern      *string                `json:"subjectPattern,omitempty"`
+	DynamicRegistration *bool                  `json:"dynamicRegistration,omitempty"`
+	ReplayProtection    *replayProtectionModel `json:"replayProtection,omitempty"`
+	State               string                 `json:"state"`
 }
 
 type identityProviderApi struct {
@@ -65,10 +79,11 @@ type identityProviderStageJson struct {
 // identityProviderConfigureJson carries the mutable fields sent by toJson,
 // used for the verify/configure calls issued by UpsertFromStage.
 type identityProviderConfigureJson struct {
-	AudiencePattern     *string `json:"audiencePattern,omitempty"`
-	SubjectPattern      *string `json:"subjectPattern,omitempty"`
-	DynamicRegistration *bool   `json:"dynamicRegistration,omitempty"`
-	State               string  `json:"state"`
+	AudiencePattern     *string                `json:"audiencePattern,omitempty"`
+	SubjectPattern      *string                `json:"subjectPattern,omitempty"`
+	DynamicRegistration *bool                  `json:"dynamicRegistration,omitempty"`
+	ReplayProtection    *replayProtectionModel `json:"replayProtection,omitempty"`
+	State               string                 `json:"state"`
 }
 
 func (r *IdentityProvider) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -105,6 +120,31 @@ func (r *IdentityProvider) Schema(ctx context.Context, req resource.SchemaReques
 				Optional: true,
 				MarkdownDescription: `If set, identities matching this provider will automatically be registered with your gateways;
 otherwise, identities must be manually pre-registered`,
+			},
+			"replay_protection": schema.SingleNestedAttribute{
+				Optional: true,
+				MarkdownDescription: `Whether this provider's tokens may be presented more than once. Defaults to 'disabled' (replay allowed):
+    - 'disabled': the token may be presented any number of times
+    - 'strict': the token may only be presented once
+    - 'grace': the token may be presented more than once within 'grace_seconds' of first being seen`,
+				Attributes: map[string]schema.Attribute{
+					"type": schema.StringAttribute{
+						Required:            true,
+						MarkdownDescription: "One of 'disabled', 'strict', or 'grace'.",
+					},
+					"grace_seconds": schema.StringAttribute{
+						Optional:            true,
+						MarkdownDescription: "Required, and may only be used, if 'type' is 'grace'. How long, in seconds, after an assertion is first seen it may still legitimately be re-presented.",
+					},
+				},
+				Validators: []validator.Object{
+					installaigateway.RequiredWhenAttr("type", map[string][]string{
+						"grace": {"grace_seconds"},
+					}),
+					installaigateway.ExclusiveToAttr("type", map[string][]string{
+						"grace": {"grace_seconds"},
+					}),
+				},
 			},
 		},
 	}
@@ -150,6 +190,7 @@ func (r *IdentityProvider) fromJson(ctx context.Context, diags *diag.Diagnostics
 		AudiencePattern:     types.StringPointerValue(json.AudiencePattern),
 		SubjectPattern:      types.StringPointerValue(json.SubjectPattern),
 		DynamicRegistration: types.BoolPointerValue(json.DynamicRegistration),
+		ReplayProtection:    json.ReplayProtection,
 	}
 }
 
@@ -162,6 +203,7 @@ func (r *IdentityProvider) toJson(data any) any {
 		AudiencePattern:     model.AudiencePattern.ValueStringPointer(),
 		SubjectPattern:      model.SubjectPattern.ValueStringPointer(),
 		DynamicRegistration: model.DynamicRegistration.ValueBoolPointer(),
+		ReplayProtection:    model.ReplayProtection,
 		State:               common.Config,
 	}
 }

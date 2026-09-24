@@ -19,6 +19,11 @@ resource "p0_identity_provider" "example" {
   audience_pattern     = "https://github.com/my-org/*"
   subject_pattern      = "repo:my-org/*"
   dynamic_registration = true
+
+  replay_protection = {
+    type          = "grace"
+    grace_seconds = "30"
+  }
 }
 ```
 
@@ -35,4 +40,19 @@ resource "p0_identity_provider" "example" {
 - `audience_pattern` (String) Pattern that a token's audience (the `aud` claim) must match to be accepted
 - `dynamic_registration` (Boolean) If set, identities matching this provider will automatically be registered with your gateways;
 otherwise, identities must be manually pre-registered
+- `replay_protection` (Attributes) Whether this provider's tokens may be presented more than once. Defaults to 'disabled' (replay allowed):
+    - 'disabled': the token may be presented any number of times
+    - 'strict': the token may only be presented once
+    - 'grace': the token may be presented more than once within 'grace_seconds' of first being seen (see [below for nested schema](#nestedatt--replay_protection))
 - `subject_pattern` (String) Pattern that a token's subject (the `sub` claim) must match to be accepted (omit to accept any subject)
+
+<a id="nestedatt--replay_protection"></a>
+### Nested Schema for `replay_protection`
+
+Required:
+
+- `type` (String) One of 'disabled', 'strict', or 'grace'.
+
+Optional:
+
+- `grace_seconds` (String) Required, and may only be used, if 'type' is 'grace'. How long, in seconds, after an assertion is first seen it may still legitimately be re-presented.
