@@ -102,14 +102,32 @@ resource "google_cloud_run_v2_service_iam_member" "invoke_connector" {
   member   = "serviceAccount:${p0_gcp.example.service_account_email}"
 }
 
-# Scoped to the project because secretmanager.secrets.create cannot be granted
-# on a single secret.
-resource "google_project_iam_custom_role" "connector_secrets" {
+data "google_project" "this" {
+  project_id = local.project
+}
+
+# The connector keeps each access token in its own secret. GCP checks
+# secretmanager.secrets.create on the project, so this binding has no condition.
+resource "google_project_iam_custom_role" "connector_secret_create" {
+  project     = local.project
+  role_id     = "p0GithubConnectorSecretCreate"
+  title       = "P0 GitHub connector secret creation"
+  permissions = ["secretmanager.secrets.create"]
+
+  depends_on = [google_project_service.enable_services]
+}
+
+resource "google_project_iam_member" "connector_secret_create" {
   project = local.project
-  role_id = "p0GithubConnectorSecrets"
-  title   = "P0 GitHub connector secret management"
+  role    = google_project_iam_custom_role.connector_secret_create.name
+  member  = "serviceAccount:${google_service_account.connector.email}"
+}
+
+resource "google_project_iam_custom_role" "connector_secret_manage" {
+  project = local.project
+  role_id = "p0GithubConnectorSecretManage"
+  title   = "P0 GitHub connector access token management"
   permissions = [
-    "secretmanager.secrets.create",
     "secretmanager.secrets.delete",
     "secretmanager.secrets.get",
     "secretmanager.versions.add",
@@ -118,10 +136,17 @@ resource "google_project_iam_custom_role" "connector_secrets" {
   depends_on = [google_project_service.enable_services]
 }
 
-resource "google_project_iam_member" "connector_secrets" {
+resource "google_project_iam_member" "connector_secret_manage" {
   project = local.project
-  role    = google_project_iam_custom_role.connector_secrets.name
+  role    = google_project_iam_custom_role.connector_secret_manage.name
   member  = "serviceAccount:${google_service_account.connector.email}"
+
+  # P0 names the access token secrets with this prefix. IAM conditions use the
+  # project number, not the project ID.
+  condition {
+    title      = "P0 GitHub access token secrets"
+    expression = "resource.name.startsWith('projects/${data.google_project.this.number}/secrets/p0-access-token-github-${local.organization}-')"
+  }
 }
 
 # After apply, generate a private key on the GitHub App's settings page and add
@@ -157,7 +182,8 @@ resource "p0_github_app" "example" {
 
   depends_on = [
     google_cloud_run_v2_service_iam_member.invoke_connector,
-    google_project_iam_member.connector_secrets,
+    google_project_iam_member.connector_secret_create,
+    google_project_iam_member.connector_secret_manage,
     google_secret_manager_secret_iam_member.private_key,
   ]
 }
