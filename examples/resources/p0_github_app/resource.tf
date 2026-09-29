@@ -11,7 +11,7 @@ locals {
   project      = "my-project-id"
   organization = "my-github-org"
   # P0 reads the private key from the secret with this exact ID.
-  private_key_secret_id = "p0-install-github-${local.organization}-private-key-pem"
+  private_key_secret_id = "p0_install_github_${local.organization}_private-key-pem"
 }
 
 resource "p0_github_app_staged" "example" {
@@ -121,7 +121,7 @@ resource "google_project_iam_member" "connector_secret_manage" {
   # project number, not the project ID.
   condition {
     title      = "P0 GitHub access token secrets"
-    expression = "resource.name.startsWith('projects/${data.google_project.this.number}/secrets/p0-access-token-github-${local.organization}-')"
+    expression = "resource.name.startsWith('projects/${data.google_project.this.number}/secrets/p0_access-token_github_${local.organization}_')"
   }
 }
 
