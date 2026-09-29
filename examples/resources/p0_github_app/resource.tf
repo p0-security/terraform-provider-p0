@@ -78,6 +78,16 @@ resource "google_cloud_run_v2_service_iam_member" "invoke_connector" {
   member   = "serviceAccount:${p0_gcp.example.service_account_email}"
 }
 
+# P0 reads the service to get its invocation URL while it installs. The invoker
+# role gives run.routes.invoke only, so it cannot do this read.
+resource "google_cloud_run_v2_service_iam_member" "read_connector" {
+  project  = local.project
+  location = google_cloud_run_v2_service.connector.location
+  name     = google_cloud_run_v2_service.connector.name
+  role     = "roles/run.viewer"
+  member   = "serviceAccount:${p0_gcp.example.service_account_email}"
+}
+
 data "google_project" "this" {
   project_id = local.project
 }
@@ -158,6 +168,7 @@ resource "p0_github_app" "example" {
 
   depends_on = [
     google_cloud_run_v2_service_iam_member.invoke_connector,
+    google_cloud_run_v2_service_iam_member.read_connector,
     google_project_iam_member.connector_secret_create,
     google_project_iam_member.connector_secret_manage,
     google_secret_manager_secret_iam_member.private_key,
