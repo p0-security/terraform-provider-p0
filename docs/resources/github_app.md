@@ -180,6 +180,16 @@ resource "google_secret_manager_secret_iam_member" "private_key" {
   member    = "serviceAccount:${google_service_account.connector.email}"
 }
 
+# The accessor role gives secretmanager.versions.access only. The connector also
+# reads the secret itself, and the management role above covers the access token
+# secrets alone, so the private key needs its own grant.
+resource "google_secret_manager_secret_iam_member" "private_key_read" {
+  project   = local.project
+  secret_id = google_secret_manager_secret.private_key.secret_id
+  role      = "roles/secretmanager.viewer"
+  member    = "serviceAccount:${google_service_account.connector.email}"
+}
+
 # Completes the install; creating it verifies that the connector is deployed.
 resource "p0_github_app" "example" {
   id     = p0_github_app_staged.example.id
@@ -196,6 +206,7 @@ resource "p0_github_app" "example" {
     google_project_iam_member.connector_secret_create,
     google_project_iam_member.connector_secret_manage,
     google_secret_manager_secret_iam_member.private_key,
+    google_secret_manager_secret_iam_member.private_key_read,
   ]
 }
 ```
