@@ -144,3 +144,104 @@ func TestUpgradeModelV2(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+// TestAgenticRequestorWireShape verifies the schema's `agent` and `user` are
+// sent as P0's `actor` and `subject`, with the person's rule nested inside the
+// subject. P0 rejects a requestor that keeps them as siblings.
+func TestAgenticRequestorWireShape(t *testing.T) {
+	effect := "keep"
+	model := &RequestorModelV3{
+		Type:  "agentic",
+		Agent: &AgentModel{Type: "any"},
+		User: &AgenticUserModel{
+			Type:   "group",
+			Groups: []GroupModelV1{{Directory: strPtr("workspace"), Id: strPtr("123"), Label: strPtr("eng@p0.dev")}},
+			Effect: &effect,
+		},
+	}
+
+	got := requestorToJson(model)
+
+	if got.Actor == nil || got.Actor.Type != "any" {
+		t.Fatalf("Actor = %+v; want type %q", got.Actor, "any")
+	}
+	if got.Subject == nil || got.Subject.Type != "user" {
+		t.Fatalf("Subject = %+v; want type %q", got.Subject, "user")
+	}
+	if got.Subject.User == nil || got.Subject.User.Type != "group" {
+		t.Fatalf("Subject.User = %+v; want type %q", got.Subject.User, "group")
+	}
+	if len(got.Subject.User.Groups) != 1 {
+		t.Fatalf("Subject.User.Groups has %d entries; want 1", len(got.Subject.User.Groups))
+	}
+}
+
+// TestAgenticRequestorHeadless verifies a `user` of "none" becomes an `agent`
+// subject, with the actor marked as the same principal.
+func TestAgenticRequestorHeadless(t *testing.T) {
+	model := &RequestorModelV3{
+		Type:  "agentic",
+		Agent: &AgentModel{Type: "agent-client", ClientId: strPtr("abc")},
+		User:  &AgenticUserModel{Type: "none"},
+	}
+
+	got := requestorToJson(model)
+
+	if got.Actor == nil || got.Actor.Type != "same-as-subject" {
+		t.Fatalf("Actor = %+v; want type %q", got.Actor, "same-as-subject")
+	}
+	if got.Subject == nil || got.Subject.Type != "agent" {
+		t.Fatalf("Subject = %+v; want type %q", got.Subject, "agent")
+	}
+	if got.Subject.Agent == nil || got.Subject.Agent.Type != "agent-client" {
+		t.Fatalf("Subject.Agent = %+v; want type %q", got.Subject.Agent, "agent-client")
+	}
+}
+
+// TestAgenticRequestorRoundTrip verifies each `user` variant survives a
+// to-then-from conversion, so a read back from P0 does not show a diff.
+func TestAgenticRequestorRoundTrip(t *testing.T) {
+	effect := "keep"
+	uid := "someone@p0.dev"
+	for _, user := range []*AgenticUserModel{
+		{Type: "any"},
+		{Type: "none"},
+		{Type: "user", Uid: &uid},
+		{
+			Type:   "group",
+			Groups: []GroupModelV1{{Directory: strPtr("okta"), Id: strPtr("1"), Label: strPtr("Admins")}},
+			Effect: &effect,
+		},
+	} {
+		model := &RequestorModelV3{Type: "agentic", Agent: &AgentModel{Type: "any"}, User: user}
+
+		got := requestorFromJson(requestorToJson(model))
+
+		if !reflect.DeepEqual(got.User, user) {
+			t.Errorf("User round trip = %+v; want %+v", got.User, user)
+		}
+		if got.Agent == nil || got.Agent.Type != "any" {
+			t.Errorf("Agent round trip = %+v; want type %q", got.Agent, "any")
+		}
+	}
+}
+
+// TestNonAgenticRequestorHasNoActor verifies a group rule is unchanged, and in
+// particular carries no agentic fields.
+func TestNonAgenticRequestorHasNoActor(t *testing.T) {
+	effect := "keep"
+	model := &RequestorModelV3{
+		Type:   "group",
+		Groups: []GroupModelV1{{Directory: strPtr("okta"), Id: strPtr("1"), Label: strPtr("Admins")}},
+		Effect: &effect,
+	}
+
+	got := requestorToJson(model)
+
+	if got.Actor != nil || got.Subject != nil {
+		t.Fatalf("Actor = %+v, Subject = %+v; want both nil", got.Actor, got.Subject)
+	}
+	if len(got.Groups) != 1 {
+		t.Fatalf("Groups has %d entries; want 1", len(got.Groups))
+	}
+}
