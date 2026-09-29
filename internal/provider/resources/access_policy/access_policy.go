@@ -59,13 +59,34 @@ type AgentJson struct {
 	SubjectPattern *string        `json:"subjectPattern,omitempty"`
 }
 
+// AgenticUserJson is the rule that the person behind an agent must satisfy. It
+// is the value of a `user` subject, not a sibling of it.
+type AgenticUserJson struct {
+	Type   string         `json:"type"`
+	Uid    *string        `json:"uid,omitempty"`
+	Groups []GroupModelV1 `json:"groups,omitempty"`
+	Effect *string        `json:"effect,omitempty"`
+}
+
+// SubjectJson is the wire shape of an `agentic` requestor rule's `subject`: who
+// the request is for. A `user` subject carries the person's rule; an `agent`
+// subject means a headless session, where the agent is itself the subject.
+type SubjectJson struct {
+	Type  string           `json:"type"`
+	User  *AgenticUserJson `json:"user,omitempty"`
+	Agent *AgentJson       `json:"agent,omitempty"`
+}
+
+// The schema keeps the friendlier `agent` and `user` names, which P0 takes as
+// `actor` and `subject`. P0 also nests the person's rule inside the subject,
+// rather than beside the agent's.
 type RequestorJson struct {
-	Type   string            `json:"type"`
-	Groups []GroupModelV1    `json:"groups,omitempty"`
-	Uid    *string           `json:"uid,omitempty"`
-	Effect *string           `json:"effect,omitempty"`
-	Agent  *AgentJson        `json:"agent,omitempty"`
-	User   *AgenticUserModel `json:"user,omitempty"`
+	Type    string         `json:"type"`
+	Groups  []GroupModelV1 `json:"groups,omitempty"`
+	Uid     *string        `json:"uid,omitempty"`
+	Effect  *string        `json:"effect,omitempty"`
+	Actor   *AgentJson     `json:"actor,omitempty"`
+	Subject *SubjectJson   `json:"subject,omitempty"`
 }
 
 // agentToJson wraps AgentModel's flat Groups/Effect into a nested
@@ -107,26 +128,70 @@ func agentFromJson(json *AgentJson) *AgentModel {
 	return agent
 }
 
+// agenticToJson splits the schema's `agent` and `user` into P0's `actor` and
+// `subject`. A `user` of "none" is a headless session: P0 states that as an
+// `agent` subject, with the actor marked as the same principal.
+func agenticToJson(model *RequestorModelV3) (*AgentJson, *SubjectJson) {
+	agent := agentToJson(model.Agent)
+	if model.User != nil && model.User.Type == "none" {
+		return &AgentJson{Type: "same-as-subject"},
+			&SubjectJson{Type: "agent", Agent: agent}
+	}
+	if model.User == nil || model.User.Type == "any" {
+		return agent, &SubjectJson{Type: "any"}
+	}
+	return agent, &SubjectJson{
+		Type: "user",
+		User: &AgenticUserJson{
+			Type:   model.User.Type,
+			Uid:    model.User.Uid,
+			Groups: model.User.Groups,
+			Effect: model.User.Effect,
+		},
+	}
+}
+
+// agenticFromJson is the inverse of agenticToJson.
+func agenticFromJson(json RequestorJson) (*AgentModel, *AgenticUserModel) {
+	if json.Subject != nil && json.Subject.Type == "agent" {
+		return agentFromJson(json.Subject.Agent), &AgenticUserModel{Type: "none"}
+	}
+	agent := agentFromJson(json.Actor)
+	if json.Subject == nil || json.Subject.Type == "any" || json.Subject.User == nil {
+		return agent, &AgenticUserModel{Type: "any"}
+	}
+	return agent, &AgenticUserModel{
+		Type:   json.Subject.User.Type,
+		Uid:    json.Subject.User.Uid,
+		Groups: json.Subject.User.Groups,
+		Effect: json.Subject.User.Effect,
+	}
+}
+
 func requestorToJson(model *RequestorModelV3) RequestorJson {
-	return RequestorJson{
+	json := RequestorJson{
 		Type:   model.Type,
 		Groups: model.Groups,
 		Uid:    model.Uid,
 		Effect: model.Effect,
-		Agent:  agentToJson(model.Agent),
-		User:   model.User,
 	}
+	if model.Type == "agentic" {
+		json.Actor, json.Subject = agenticToJson(model)
+	}
+	return json
 }
 
 func requestorFromJson(json RequestorJson) *RequestorModelV3 {
-	return &RequestorModelV3{
+	model := &RequestorModelV3{
 		Type:   json.Type,
 		Groups: json.Groups,
 		Uid:    json.Uid,
 		Effect: json.Effect,
-		Agent:  agentFromJson(json.Agent),
-		User:   json.User,
 	}
+	if json.Type == "agentic" {
+		model.Agent, model.User = agenticFromJson(json)
+	}
+	return model
 }
 
 func NewAccessPolicy() resource.Resource {
