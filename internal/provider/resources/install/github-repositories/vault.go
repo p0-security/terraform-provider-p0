@@ -16,15 +16,17 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installaigateway "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ai_gateway"
 	installapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/app"
+	installvaultedcredential "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/vaulted-credential"
 )
 
-// The `vault` attribute is the app's shared `Vault` install element
-// (shared/src/integrations/resources/vault.ts): the P0 secret manager installation
-// that holds the GitHub App's private key.
+// The `vault` attribute is the app's vault-only install element, `newVaultElement` in
+// packages/integrations/vaulted-credential: the P0 secret manager installation that
+// holds the GitHub App's private key. Unlike the vaulted-credential secret manager
+// block, it names no connector, because the `hosting` block places the connector.
 
 const (
 	AwsSecretsManager = "aws-sm"
-	GcpSecretManager  = "gcp-sm"
+	GcpSecretManager  = installvaultedcredential.GcpSecretManager
 )
 
 // The hosting type that each vault type goes with. P0 rejects a vault and a connector
