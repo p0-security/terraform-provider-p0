@@ -39,9 +39,7 @@ type Server struct {
 // app/shared/src/integrations/resources/agentic/components.ts's
 // `credentialSource` and `serverDefinition` elements exactly.
 type serverCredentialGrantModel struct {
-	Type     string  `tfsdk:"type" json:"type"`
-	Pkce     *bool   `tfsdk:"pkce" json:"pkce,omitempty"`
-	ClientId *string `tfsdk:"client_id" json:"clientId,omitempty"`
+	Type string `tfsdk:"type" json:"type"`
 }
 
 type serverCredentialModel struct {
@@ -161,22 +159,6 @@ federation-provider identity (a ` + "`p0_aws_oidc_identity`" + ` or ` + "`p0_gcp
 								Required:            true,
 								MarkdownDescription: "The OAuth grant type. Currently only 'authorization_code' is supported.",
 							},
-							"pkce": schema.BoolAttribute{
-								Optional:            true,
-								MarkdownDescription: "Required, and may only be used, if grant 'type' is 'authorization_code'. Whether Proof Key for Code Exchange (PKCE) is used.",
-							},
-							"client_id": schema.StringAttribute{
-								Optional:            true,
-								MarkdownDescription: "Required, and may only be used, if grant 'type' is 'authorization_code'. OAuth client identifier registered with the upstream provider.",
-							},
-						},
-						Validators: []validator.Object{
-							RequiredWhenAttr("type", map[string][]string{
-								"authorization_code": {"pkce", "client_id"},
-							}),
-							ExclusiveToAttr("type", map[string][]string{
-								"authorization_code": {"pkce", "client_id"},
-							}),
 						},
 					},
 				},

@@ -99,9 +99,7 @@ resource "p0_ai_gateway_server" "custom_example" {
   credential = {
     type = "oauth"
     grant = {
-      type      = "authorization_code"
-      pkce      = true
-      client_id = "my-oauth-client-id"
+      type = "authorization_code"
     }
   }
   definition = {
@@ -148,11 +146,6 @@ federation-provider identity (a `p0_aws_oidc_identity` or `p0_gcp_wif_identity` 
 Required:
 
 - `type` (String) The OAuth grant type. Currently only 'authorization_code' is supported.
-
-Optional:
-
-- `client_id` (String) Required, and may only be used, if grant 'type' is 'authorization_code'. OAuth client identifier registered with the upstream provider.
-- `pkce` (Boolean) Required, and may only be used, if grant 'type' is 'authorization_code'. Whether Proof Key for Code Exchange (PKCE) is used.
 
 
 

@@ -79,9 +79,7 @@ resource "p0_ai_gateway_server" "custom_example" {
   credential = {
     type = "oauth"
     grant = {
-      type      = "authorization_code"
-      pkce      = true
-      client_id = "my-oauth-client-id"
+      type = "authorization_code"
     }
   }
   definition = {
