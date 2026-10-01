@@ -21,13 +21,9 @@ type integrationItem struct {
 }
 
 type integrationItemModel struct {
-	Integration types.String `tfsdk:"integration"`
-	Component   types.String `tfsdk:"component"`
-	Id          types.String `tfsdk:"id"`
-	Config      types.String `tfsdk:"config"`
-	Item        types.String `tfsdk:"item"`
-	Label       types.String `tfsdk:"label"`
-	State       types.String `tfsdk:"state"`
+	itemFields
+	Label types.String `tfsdk:"label"`
+	State types.String `tfsdk:"state"`
 }
 
 func NewIntegrationItem() resource.Resource {
@@ -67,17 +63,12 @@ func (r *integrationItem) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 func (r *integrationItem) installer(model *integrationItemModel, reconcile bool) *common.Install {
-	key := itemKey{Integration: model.Integration, Component: model.Component, Id: model.Id}
-	return newInstaller(r.data, key, model.Config, func(_ context.Context, diags *diag.Diagnostics, item map[string]any, _ *itemApi) any {
-		updated := *model
-		var ok bool
-		updated.Config, updated.Item, ok = itemValues(diags, model.Config, item, reconcile)
-		if !ok {
-			return nil
+	return newInstaller(r.data, model.itemFields, reconcile, func(_ context.Context, _ *diag.Diagnostics, fields itemFields, item map[string]any, _ *itemApi) any {
+		return &integrationItemModel{
+			itemFields: fields,
+			Label:      stringField(item, "label"),
+			State:      stringField(item, "state"),
 		}
-		updated.Label = stringField(item, "label")
-		updated.State = stringField(item, "state")
-		return &updated
 	})
 }
 
@@ -103,13 +94,12 @@ func (r *integrationItem) Create(ctx context.Context, req resource.CreateRequest
 
 	// Staging first lets this resource stand alone. When a p0_integration_item_staged
 	// already staged the item, this only re-assembles it.
-	stage(ctx, &resp.Diagnostics, installer, &req.Plan, &resp.State, &data)
+	installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &itemApi{}, &data, installer.ToJson(&data))
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var json itemApi
-	installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &itemApi{}, &data)
 }
 
 func (r *integrationItem) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -119,8 +109,7 @@ func (r *integrationItem) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	var json itemApi
-	r.installer(&data, true).Read(ctx, &resp.Diagnostics, &resp.State, &json, &data)
+	r.installer(&data, true).Read(ctx, &resp.Diagnostics, &resp.State, &itemApi{}, &data)
 }
 
 func (r *integrationItem) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -130,8 +119,7 @@ func (r *integrationItem) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	var json itemApi
-	r.installer(&data, false).UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	r.installer(&data, false).UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &itemApi{}, &data)
 }
 
 func (r *integrationItem) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

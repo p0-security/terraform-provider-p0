@@ -21,12 +21,8 @@ type integrationItemStaged struct {
 }
 
 type integrationItemStagedModel struct {
-	Integration types.String `tfsdk:"integration"`
-	Component   types.String `tfsdk:"component"`
-	Id          types.String `tfsdk:"id"`
-	Config      types.String `tfsdk:"config"`
-	Item        types.String `tfsdk:"item"`
-	Metadata    types.Map    `tfsdk:"metadata"`
+	itemFields
+	Metadata types.Map `tfsdk:"metadata"`
 }
 
 func NewIntegrationItemStaged() resource.Resource {
@@ -65,16 +61,11 @@ func (r *integrationItemStaged) Configure(_ context.Context, req resource.Config
 }
 
 func (r *integrationItemStaged) installer(model *integrationItemStagedModel, reconcile bool) *common.Install {
-	key := itemKey{Integration: model.Integration, Component: model.Component, Id: model.Id}
-	return newInstaller(r.data, key, model.Config, func(ctx context.Context, diags *diag.Diagnostics, item map[string]any, api *itemApi) any {
-		updated := *model
-		var ok bool
-		updated.Config, updated.Item, ok = itemValues(diags, model.Config, item, reconcile)
-		if !ok {
-			return nil
+	return newInstaller(r.data, model.itemFields, reconcile, func(ctx context.Context, diags *diag.Diagnostics, fields itemFields, _ map[string]any, api *itemApi) any {
+		return &integrationItemStagedModel{
+			itemFields: fields,
+			Metadata:   metadataMap(ctx, diags, api.Metadata),
 		}
-		updated.Metadata = metadataMap(ctx, diags, api.Metadata)
-		return &updated
 	})
 }
 
@@ -90,7 +81,7 @@ func (r *integrationItemStaged) Create(ctx context.Context, req resource.CreateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	stage(ctx, &resp.Diagnostics, installer, &req.Plan, &resp.State, &data)
+	installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &itemApi{}, &data, installer.ToJson(&data))
 }
 
 func (r *integrationItemStaged) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -100,8 +91,7 @@ func (r *integrationItemStaged) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 
-	var json itemApi
-	r.installer(&data, true).Read(ctx, &resp.Diagnostics, &resp.State, &json, &data)
+	r.installer(&data, true).Read(ctx, &resp.Diagnostics, &resp.State, &itemApi{}, &data)
 }
 
 func (r *integrationItemStaged) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -111,7 +101,8 @@ func (r *integrationItemStaged) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 
-	stage(ctx, &resp.Diagnostics, r.installer(&data, false), &req.Plan, &resp.State, &data)
+	installer := r.installer(&data, false)
+	installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &itemApi{}, &data, installer.ToJson(&data))
 }
 
 func (r *integrationItemStaged) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

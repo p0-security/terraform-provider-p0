@@ -2,13 +2,19 @@ package provider
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"testing"
 )
 
 const fakeOrg = "test-org"
+
+type fakeItemKey struct {
+	integration, component, id string
+}
 
 // An in-memory stand-in for P0's generic install API, covering the behavior the
 // install resources depend on:
@@ -18,24 +24,23 @@ const fakeOrg = "test-org"
 //   - every item response carries the component's metadata, when it has any
 //   - unknown items are 404, and DELETE answers 204 with no body
 type fakeP0 struct {
-	t      *testing.T
 	server *httptest.Server
 
-	mu sync.Mutex
-	// integration -> component -> item id -> item
-	integrations map[string]map[string]map[string]map[string]any
+	mu           sync.Mutex
+	integrations map[string]bool
+	items        map[fakeItemKey]map[string]any
 	// Called after each write, so a test can add fields the way P0's installers do.
-	normalize func(integration, component, id string, item map[string]any)
+	normalize func(key fakeItemKey, item map[string]any)
 	// Computes a component's metadata; returning nil omits the key, as P0 does.
-	metadata func(integration, component, id string, item map[string]any) map[string]any
+	metadata func(key fakeItemKey, item map[string]any) map[string]any
 }
 
 func newFakeP0(t *testing.T) *fakeP0 {
 	f := &fakeP0{
-		t:            t,
-		integrations: map[string]map[string]map[string]map[string]any{},
-		normalize:    func(string, string, string, map[string]any) {},
-		metadata:     func(string, string, string, map[string]any) map[string]any { return nil },
+		integrations: map[string]bool{},
+		items:        map[fakeItemKey]map[string]any{},
+		normalize:    func(fakeItemKey, map[string]any) {},
+		metadata:     func(fakeItemKey, map[string]any) map[string]any { return nil },
 	}
 
 	mux := http.NewServeMux()
@@ -57,16 +62,20 @@ func newFakeP0(t *testing.T) *fakeP0 {
 	return f
 }
 
+func itemKeyOf(r *http.Request) fakeItemKey {
+	return fakeItemKey{r.PathValue("integration"), r.PathValue("component"), r.PathValue("id")}
+}
+
 func (f *fakeP0) postConfig(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	integration := r.PathValue("integration")
-	if _, ok := f.integrations[integration]; ok {
+	if f.integrations[integration] {
 		http.Error(w, `{"error":"Integration is already installed"}`, http.StatusConflict)
 		return
 	}
-	f.integrations[integration] = map[string]map[string]map[string]any{}
+	f.integrations[integration] = true
 	writeJson(w, map[string]any{"ok": true, "config": map[string]any{}})
 }
 
@@ -81,19 +90,19 @@ func (f *fakeP0) step(nextState string, expectedStates []string) http.HandlerFun
 			return
 		}
 
-		integration, component, id := r.PathValue("integration"), r.PathValue("component"), r.PathValue("id")
-		components, ok := f.integrations[integration]
-		if !ok {
+		key := itemKeyOf(r)
+		if !f.integrations[key.integration] {
 			notFound(w)
 			return
 		}
-		previous, exists := components[component][id]
+		previous, exists := f.items[key]
 		// Only staging may create an item.
 		if !exists && nextState != "stage" {
 			notFound(w)
 			return
 		}
-		if expectedStates != nil && !contains(expectedStates, previous["state"]) {
+		state, _ := previous["state"].(string)
+		if expectedStates != nil && !slices.Contains(expectedStates, state) {
 			http.Error(w, `{"error":"Invalid integration state"}`, http.StatusBadRequest)
 			return
 		}
@@ -103,16 +112,13 @@ func (f *fakeP0) step(nextState string, expectedStates []string) http.HandlerFun
 		if label, ok := previous["label"]; ok {
 			updated["label"] = label
 		} else {
-			updated["label"] = id
+			updated["label"] = key.id
 		}
 		updated["state"] = nextState
-		f.normalize(integration, component, id, updated)
+		f.normalize(key, updated)
 
-		if components[component] == nil {
-			components[component] = map[string]map[string]any{}
-		}
-		components[component][id] = updated
-		f.writeItem(w, integration, component, id, updated)
+		f.items[key] = updated
+		f.writeItem(w, key, updated)
 	}
 }
 
@@ -120,31 +126,31 @@ func (f *fakeP0) getItem(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	integration, component, id := r.PathValue("integration"), r.PathValue("component"), r.PathValue("id")
-	stored, ok := f.integrations[integration][component][id]
+	key := itemKeyOf(r)
+	stored, ok := f.items[key]
 	if !ok {
 		notFound(w)
 		return
 	}
-	f.writeItem(w, integration, component, id, stored)
+	f.writeItem(w, key, stored)
 }
 
 func (f *fakeP0) deleteItem(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	integration, component, id := r.PathValue("integration"), r.PathValue("component"), r.PathValue("id")
-	if _, ok := f.integrations[integration][component][id]; !ok {
+	key := itemKeyOf(r)
+	if _, ok := f.items[key]; !ok {
 		notFound(w)
 		return
 	}
-	delete(f.integrations[integration][component], id)
+	delete(f.items, key)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (f *fakeP0) writeItem(w http.ResponseWriter, integration, component, id string, item map[string]any) {
+func (f *fakeP0) writeItem(w http.ResponseWriter, key fakeItemKey, item map[string]any) {
 	response := map[string]any{"ok": true, "item": item}
-	if metadata := f.metadata(integration, component, id, item); metadata != nil {
+	if metadata := f.metadata(key, item); metadata != nil {
 		response["metadata"] = metadata
 	}
 	writeJson(w, response)
@@ -155,7 +161,7 @@ func (f *fakeP0) item(integration, component, id string) map[string]any {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	stored, ok := f.integrations[integration][component][id]
+	stored, ok := f.items[fakeItemKey{integration, component, id}]
 	if !ok {
 		return nil
 	}
@@ -167,7 +173,7 @@ func (f *fakeP0) update(integration, component, id string, change func(item map[
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	change(f.integrations[integration][component][id])
+	change(f.items[fakeItemKey{integration, component, id}])
 }
 
 func notFound(w http.ResponseWriter) {
@@ -182,9 +188,7 @@ func writeJson(w http.ResponseWriter, value any) {
 // Merges overlay onto a copy of base, recursing into objects, like lodash's merge.
 func deepMerge(base, overlay map[string]any) map[string]any {
 	merged := map[string]any{}
-	for key, value := range base {
-		merged[key] = value
-	}
+	maps.Copy(merged, base)
 	for key, value := range overlay {
 		overlayObject, overlayIsObject := value.(map[string]any)
 		baseObject, baseIsObject := merged[key].(map[string]any)
@@ -198,13 +202,4 @@ func deepMerge(base, overlay map[string]any) map[string]any {
 		}
 	}
 	return merged
-}
-
-func contains(values []string, value any) bool {
-	for _, v := range values {
-		if v == value {
-			return true
-		}
-	}
-	return false
 }

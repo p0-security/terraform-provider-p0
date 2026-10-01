@@ -22,7 +22,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -53,44 +52,49 @@ type itemApi struct {
 	Metadata map[string]json.RawMessage `json:"metadata"`
 }
 
-// The identity of an install item, shared by both resources' models.
-type itemKey struct {
-	Integration types.String
-	Component   types.String
-	Id          types.String
+// The attributes both resources' models share.
+type itemFields struct {
+	Integration types.String `tfsdk:"integration"`
+	Component   types.String `tfsdk:"component"`
+	Id          types.String `tfsdk:"id"`
+	Config      types.String `tfsdk:"config"`
+	Item        types.String `tfsdk:"item"`
 }
 
 // Builds an installer for one resource instance. The common installer fixes the
 // integration and component when the provider is configured, but here they are
 // attributes of each instance, so a new installer is built per request.
 //
-// fromJson receives P0's decoded item; it is closed over by the caller so it can see
-// the instance's own configuration, which the common installer does not pass along.
+// The common installer passes FromJson only P0's response, so the instance's fields
+// are closed over here; build receives them updated from P0's item, and returns the
+// resource's full model.
+//
+// Only Read should reconcile `config`. Create and Update must store the planned value
+// verbatim: Terraform rejects an apply whose result differs from its plan, and P0 may
+// normalize what it stores (trimming strings, filling in defaults).
 func newInstaller(
 	data *internal.P0ProviderData,
-	key itemKey,
-	config types.String,
-	fromJson func(ctx context.Context, diags *diag.Diagnostics, item map[string]any, api *itemApi) any,
+	fields itemFields,
+	reconcile bool,
+	build func(ctx context.Context, diags *diag.Diagnostics, fields itemFields, item map[string]any, api *itemApi) any,
 ) *common.Install {
 	// The item id is free-form, and an id containing "/" or "?" would otherwise address
 	// a different path.
-	escapedId := url.PathEscape(key.Id.ValueString())
+	escapedId := url.PathEscape(fields.Id.ValueString())
+	// jsonObjectValidator has already rejected a config that is not a JSON object.
+	body, bodyErr := configBody(fields.Config)
 	return &common.Install{
-		Integration:  url.PathEscape(key.Integration.ValueString()),
-		Component:    url.PathEscape(key.Component.ValueString()),
+		Integration:  url.PathEscape(fields.Integration.ValueString()),
+		Component:    url.PathEscape(fields.Component.ValueString()),
 		ProviderData: data,
 		GetId: func(any) *string {
 			return &escapedId
 		},
-		GetItemJson: func(json any) any {
-			api, ok := json.(*itemApi)
-			if !ok || len(api.Item) == 0 || string(api.Item) == "null" {
-				return nil
-			}
-			return api
+		GetItemJson: func(response any) any {
+			return response
 		},
-		FromJson: func(ctx context.Context, diags *diag.Diagnostics, _ string, json any) any {
-			api, ok := json.(*itemApi)
+		FromJson: func(ctx context.Context, diags *diag.Diagnostics, _ string, response any) any {
+			api, ok := response.(*itemApi)
 			if !ok {
 				return nil
 			}
@@ -99,27 +103,30 @@ func newInstaller(
 				diags.AddError("Bad API response", fmt.Sprintf("Could not read the install item from P0: %s", err))
 				return nil
 			}
-			return fromJson(ctx, diags, item, api)
+
+			updated := fields
+			if reconcile {
+				updated.Config, err = reconcileConfig(fields.Config, item)
+				if err != nil {
+					diags.AddError("Invalid configuration in state", fmt.Sprintf("Could not compare 'config' with P0's item: %s", err))
+					return nil
+				}
+			}
+			encoded, err := json.Marshal(item)
+			if err != nil {
+				diags.AddError("Bad API response", fmt.Sprintf("Could not encode the install item: %s", err))
+				return nil
+			}
+			updated.Item = types.StringValue(string(encoded))
+			return build(ctx, diags, updated, item, api)
 		},
 		ToJson: func(any) any {
-			body, err := configBody(config)
-			if err != nil {
+			if bodyErr != nil {
 				return nil
 			}
 			return body
 		},
 	}
-}
-
-// PUTs the configuration to P0, which (re)assembles the item and leaves it staged.
-func stage(ctx context.Context, diags *diag.Diagnostics, installer *common.Install, plan *tfsdk.Plan, state *tfsdk.State, model any) {
-	body := installer.ToJson(model)
-	if body == nil {
-		diags.AddAttributeError(path.Root("config"), "Invalid JSON object", "'config' must be a JSON object")
-		return
-	}
-	var json itemApi
-	installer.Stage(ctx, diags, plan, state, &json, model, body)
 }
 
 // The request body P0 merges into the stored item. An unset config sends an empty
@@ -150,16 +157,6 @@ func decodeObject(raw []byte) (map[string]any, error) {
 	return object, nil
 }
 
-// Encodes like Terraform's jsonencode (compact, with sorted object keys), so that a
-// value read back from P0 compares equal to the configuration that wrote it.
-func encodeCompact(value any) (string, error) {
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return "", err
-	}
-	return string(encoded), nil
-}
-
 // Decides what to keep in state for `config` after reading the item from P0.
 //
 // Only the keys the configuration sets are compared, recursively, because P0 adds its
@@ -179,33 +176,12 @@ func reconcileConfig(prior types.String, item map[string]any) (types.String, err
 	if reflect.DeepEqual(configured, current) {
 		return prior, nil
 	}
-	encoded, err := encodeCompact(current)
+	// Encoded like Terraform's jsonencode (compact, with sorted object keys).
+	encoded, err := json.Marshal(current)
 	if err != nil {
 		return prior, err
 	}
-	return types.StringValue(encoded), nil
-}
-
-// Computes the `config` and `item` attributes from the item P0 returned.
-//
-// Only Read reconciles `config`. Create and Update must store the planned value
-// verbatim: Terraform rejects an apply whose result differs from its plan, and P0 may
-// normalize what it stores (trimming strings, filling in defaults).
-func itemValues(diags *diag.Diagnostics, config types.String, item map[string]any, reconcile bool) (types.String, types.String, bool) {
-	if reconcile {
-		var err error
-		config, err = reconcileConfig(config, item)
-		if err != nil {
-			diags.AddError("Invalid configuration in state", fmt.Sprintf("Could not compare 'config' with P0's item: %s", err))
-			return config, types.StringNull(), false
-		}
-	}
-	encoded, err := encodeCompact(item)
-	if err != nil {
-		diags.AddError("Bad API response", fmt.Sprintf("Could not encode the install item: %s", err))
-		return config, types.StringNull(), false
-	}
-	return config, types.StringValue(encoded), true
+	return types.StringValue(string(encoded)), nil
 }
 
 // Returns the parts of actual that shape describes: the keys of every nested object in

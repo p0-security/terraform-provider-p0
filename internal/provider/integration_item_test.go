@@ -5,16 +5,10 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
-
-var testProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-	"p0": providerserver.NewProtocol6WithError(New("test")()),
-}
 
 const lambdaArn = "arn:aws:lambda:us-west-2:123456789012:function:connector"
 
@@ -55,8 +49,8 @@ resource "p0_integration_item" "resource" {
 
 func newIntegrationItemFake(t *testing.T) *fakeP0 {
 	f := newFakeP0(t)
-	f.metadata = func(integration, component, id string, _ map[string]any) map[string]any {
-		if integration != "aws" || component != "function-caller" {
+	f.metadata = func(key fakeItemKey, _ map[string]any) map[string]any {
+		if key.integration != "aws" || key.component != "function-caller" {
 			return nil
 		}
 		return map[string]any{
@@ -66,8 +60,8 @@ func newIntegrationItemFake(t *testing.T) *fakeP0 {
 	}
 	// Like P0's installers, add fields the config never sets: a computed top-level
 	// field, and a default inside a nested select.
-	f.normalize = func(integration, _, _ string, item map[string]any) {
-		if integration != "example" {
+	f.normalize = func(key fakeItemKey, item map[string]any) {
+		if key.integration != "example" {
 			return
 		}
 		item["accountId"] = "123456789012"
@@ -90,7 +84,7 @@ func TestIntegrationItem(t *testing.T) {
 	lambdaConfig := `jsonencode({ service = { type = "aws", lambda = "aws:${p0_integration_item.caller.id}" } })`
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testProviderFactories,
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy: func(*terraform.State) error {
 			for _, key := range [][3]string{{"aws", "function-caller", lambdaArn}, {"example", "iam-write", "primary"}} {
 				if item := f.item(key[0], key[1], key[2]); item != nil {
@@ -206,7 +200,7 @@ resource "p0_integration_item" "caller" {
 `
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testProviderFactories,
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{Config: withFinal},
 			{
@@ -241,7 +235,7 @@ func TestIntegrationItemRejectsNonObjectConfig(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			resource.UnitTest(t, resource.TestCase{
-				ProtoV6ProviderFactories: testProviderFactories,
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 				Steps: []resource.TestStep{
 					{
 						Config: providerConfig(f) + fmt.Sprintf(`
