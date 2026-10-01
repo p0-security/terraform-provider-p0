@@ -55,6 +55,10 @@ func TestReconcileConfig(t *testing.T) {
 			prior: types.StringValue(`{"service":{"type":"aws"},"optional":null}`),
 			want:  types.StringValue(`{"service":{"type":"aws"},"optional":null}`),
 		},
+		"null array elements match the ones P0 dropped": {
+			prior: types.StringValue(`{"rules":[null,{"name":"a"},{"name":"b"},null]}`),
+			want:  types.StringValue(`{"rules":[null,{"name":"a"},{"name":"b"},null]}`),
+		},
 		"a key P0 does not store is dropped": {
 			prior: types.StringValue(`{"service":{"type":"aws"},"typo":true}`),
 			want:  types.StringValue(`{"service":{"type":"aws"}}`),

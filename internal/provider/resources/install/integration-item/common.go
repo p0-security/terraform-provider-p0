@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -207,13 +208,22 @@ func restrictTo(shape, actual any) any {
 		}
 		return restricted
 	case []any:
+		// P0 also drops null array elements, so the configured nulls are kept as they are
+		// and the remaining elements are matched, in order, against P0's.
+		nonNull := slices.DeleteFunc(slices.Clone(shapeValue), func(element any) bool { return element == nil })
 		actualArray, ok := actual.([]any)
-		if !ok || len(actualArray) != len(shapeValue) {
+		if !ok || len(actualArray) != len(nonNull) {
 			return actual
 		}
-		restricted := make([]any, len(actualArray))
-		for i := range actualArray {
-			restricted[i] = restrictTo(shapeValue[i], actualArray[i])
+		restricted := make([]any, 0, len(shapeValue))
+		next := 0
+		for _, element := range shapeValue {
+			if element == nil {
+				restricted = append(restricted, nil)
+				continue
+			}
+			restricted = append(restricted, restrictTo(element, actualArray[next]))
+			next++
 		}
 		return restricted
 	default:

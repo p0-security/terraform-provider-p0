@@ -51,6 +51,9 @@ Staging registers the item in P0 without verifying it, and exposes the ` + "`met
 it when you need that metadata to provision something before P0 can verify the item, then complete the install with
 a ` + "`p0_integration_item`" + ` for the same item. Items that need nothing provisioned first can skip this resource.
 
+Updating this resource stages the item again; if it was installed, it is then verified and installed again, so the
+update fails if P0 can no longer verify it.
+
 ` + limitations,
 		Attributes: attributes,
 	}
@@ -95,7 +98,8 @@ func (r *integrationItemStaged) Read(ctx context.Context, req resource.ReadReque
 }
 
 func (r *integrationItemStaged) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data integrationItemStagedModel
+	var prior, data integrationItemStagedModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -103,6 +107,25 @@ func (r *integrationItemStaged) Update(ctx context.Context, req resource.UpdateR
 
 	installer := r.installer(&data, false)
 	installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &itemApi{}, &data, installer.ToJson(&data))
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Re-staging leaves the item uninstalled. The p0_integration_item that installed it
+	// was planned before this update, so it would not notice until the next plan;
+	// install the item again here instead.
+	if isInstalled(prior.Item) {
+		installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &itemApi{}, &data)
+	}
+}
+
+// Whether a stored `item` attribute records the item as installed in P0.
+func isInstalled(item types.String) bool {
+	if item.IsNull() || item.IsUnknown() {
+		return false
+	}
+	parsed, err := parseObject([]byte(item.ValueString()))
+	return err == nil && parsed["state"] == "installed"
 }
 
 func (r *integrationItemStaged) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

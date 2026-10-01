@@ -10,6 +10,8 @@ description: |-
   Staging registers the item in P0 without verifying it, and exposes the metadata P0 computes for it. Use
   it when you need that metadata to provision something before P0 can verify the item, then complete the install with
   a p0_integration_item for the same item. Items that need nothing provisioned first can skip this resource.
+  Updating this resource stages the item again; if it was installed, it is then verified and installed again, so the
+  update fails if P0 can no longer verify it.
   Limitations:
   config is merged into the item P0 already stores, so removing a key from config does not remove
   it from P0.Only the keys set in config are checked for drift. Keys that P0 drops or rewrites (for example, keys the
@@ -28,6 +30,9 @@ one when P0 support has given you the configuration to apply.
 Staging registers the item in P0 without verifying it, and exposes the `metadata` P0 computes for it. Use
 it when you need that metadata to provision something before P0 can verify the item, then complete the install with
 a `p0_integration_item` for the same item. Items that need nothing provisioned first can skip this resource.
+
+Updating this resource stages the item again; if it was installed, it is then verified and installed again, so the
+update fails if P0 can no longer verify it.
 
 **Limitations:**
 

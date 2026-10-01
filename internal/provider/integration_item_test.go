@@ -246,6 +246,45 @@ resource "p0_integration_item" "caller" {
 	})
 }
 
+// Updating a staged resource re-stages its item; an item that was installed is
+// installed again in the same apply.
+func TestIntegrationItemStagedUpdateKeepsItemInstalled(t *testing.T) {
+	f := newIntegrationItemFake(t)
+	config := func(timeout int) string {
+		return providerConfig(f) + fmt.Sprintf(`
+resource "p0_integration_item_staged" "caller" {
+  integration = "aws"
+  component   = "function-caller"
+  id          = %q
+  config      = jsonencode({ timeout = %d })
+}
+
+resource "p0_integration_item" "caller" {
+  integration = p0_integration_item_staged.caller.integration
+  component   = p0_integration_item_staged.caller.component
+  id          = p0_integration_item_staged.caller.id
+}
+`, lambdaArn, timeout)
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: config(30)},
+			{
+				Config: config(60),
+				Check: func(*terraform.State) error {
+					item := f.item("aws", "function-caller", lambdaArn)
+					if item["state"] != "installed" || fmt.Sprint(item["timeout"]) != "60" {
+						return fmt.Errorf("item = %v, want installed with timeout 60", item)
+					}
+					return nil
+				},
+			},
+		},
+	})
+}
+
 func TestIntegrationItemRejectsNonObjectConfig(t *testing.T) {
 	f := newFakeP0(t)
 	for name, config := range map[string]string{
