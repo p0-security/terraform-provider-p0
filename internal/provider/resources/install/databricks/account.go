@@ -33,14 +33,15 @@ func (*Account) Metadata(_ context.Context, req resource.MetadataRequest, resp *
 
 func (*Account) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	attributes := accountStagedAttributes()
-	// The connector names the principal when it exchanges its AWS identity
-	// token, so P0 can't look the principal up through the connector before it
-	// knows it. Terraform knows it as soon as it creates the principal.
+	// The customer supplies the application ID, because P0 can't discover it:
+	// the connector needs it to authenticate, as the client ID of its token
+	// exchange. The validator and its message match the app's, which accepts
+	// exactly the IDs the connector parses.
 	attributes["application_id"] = schema.StringAttribute{
 		Required:            true,
 		MarkdownDescription: "The application ID of the service principal that the connector exchanges its AWS identity for, e.g. `databricks_service_principal.application_id`",
 		Validators: []validator.String{
-			stringvalidator.RegexMatches(common.UuidRegex, "Service principal application IDs are UUIDs"),
+			stringvalidator.RegexMatches(common.UuidRegex, "Application IDs are UUIDs, e.g. 01234567-89ab-cdef-0123-456789abcdef"),
 		},
 	}
 
