@@ -29,6 +29,7 @@ import (
 	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
 	installawssm "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-sm"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
+	installdatabricks "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/databricks"
 	installdatadogai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/datadog-ai"
 	installfiletransfer "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/file_transfer"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
@@ -250,6 +251,12 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installpagerdutyai.NewPagerdutyAiCredentialStaged,
 		installpagerdutyai.NewPagerdutyAiCredential,
 		installgithubrepositories.NewRepositoryAccess,
+		installdatabricks.NewConnectorStaged,
+		installdatabricks.NewConnector,
+		installdatabricks.NewAccountStaged,
+		installdatabricks.NewAccount,
+		installdatabricks.NewWorkspace,
+		installdatabricks.NewCatalog,
 		installaigateway.NewGatewayStaged,
 		installaigateway.NewGateway,
 		installaigateway.NewServer,
