@@ -27,7 +27,8 @@ A Databricks workspace installation. P0 manages a workspace through its account'
 terraform {
   required_providers {
     databricks = {
-      source = "databricks/databricks"
+      source  = "databricks/databricks"
+      version = ">= 1.115.0"
     }
     p0 = {
       source = "p0-security/p0"
@@ -47,7 +48,8 @@ provider "databricks" {
 }
 
 # The service principal of the account's p0_databricks_account, found by its
-# application_id.
+# application_id. If this configuration also holds the account, as P0's
+# installer arranges it, refer to its databricks_service_principal instead.
 data "databricks_service_principal" "p0" {
   application_id = "8c5e2e0a-8f0d-4a3e-9d61-3b2f4c7a1e05"
 }

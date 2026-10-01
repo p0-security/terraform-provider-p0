@@ -29,8 +29,15 @@ A Databricks account installation.
 
 terraform {
   required_providers {
+    # 6.36.0 added the aws_iam_outbound_web_identity_federation data source.
+    # Referring to the connector's resource instead needs only 6.26.0.
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.36.0"
+    }
     databricks = {
-      source = "databricks/databricks"
+      source  = "databricks/databricks"
+      version = ">= 1.115.0"
     }
     p0 = {
       source = "p0-security/p0"
@@ -50,7 +57,10 @@ provider "databricks" {
 }
 
 # The connector's AWS account, its role, and the issuer of the identity tokens
-# it mints (see the p0_databricks_connector example).
+# it mints (see the p0_databricks_connector example). If this configuration
+# also holds the connector, as P0's installer arranges it, refer to the
+# connector's aws_iam_role and aws_iam_outbound_web_identity_federation
+# resources instead.
 data "aws_caller_identity" "current" {}
 
 data "aws_iam_role" "connector" {
@@ -69,11 +79,10 @@ resource "databricks_service_principal" "p0" {
   display_name = "p0-connector"
 }
 
-# Lets the connector exchange its AWS identity token for this principal's
-# Databricks token.
+# Lets the connector's Lambda role sign in as this principal with an AWS
+# identity token, so no secret is ever issued.
 resource "databricks_service_principal_federation_policy" "p0" {
   service_principal_id = databricks_service_principal.p0.id
-
   oidc_policy = {
     issuer    = data.aws_iam_outbound_web_identity_federation.this.issuer_identifier
     subject   = data.aws_iam_role.connector.arn
@@ -81,7 +90,6 @@ resource "databricks_service_principal_federation_policy" "p0" {
   }
 }
 
-# P0 assigns workspace admin and account admin with it.
 resource "databricks_service_principal_role" "p0_account_admin" {
   service_principal_id = databricks_service_principal.p0.id
   role                 = "account_admin"
@@ -98,6 +106,12 @@ resource "p0_databricks_account" "example" {
     databricks_service_principal_federation_policy.p0,
     databricks_service_principal_role.p0_account_admin,
   ]
+}
+
+# The workspace and catalog steps name the principal by this ID.
+output "application_id" {
+  description = "The application ID of P0's service principal in this account"
+  value       = databricks_service_principal.p0.application_id
 }
 ```
 

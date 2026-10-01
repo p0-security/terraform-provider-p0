@@ -1,20 +1,32 @@
 # Installs the Databricks connector: one Lambda per AWS account, outside any
 # VPC, that P0 invokes to manage your Databricks accounts. It holds no secret:
 # it exchanges an AWS identity token for each account's service principal.
+# Apply it as an AWS admin of the connector's account.
 # Full chain: p0_aws_iam_write -> p0_databricks_connector_staged -> the
 # connector's Lambda and role, and outbound identity federation ->
 # p0_databricks_connector. Then add accounts (see p0_databricks_account).
 
+terraform {
+  required_providers {
+    # 6.26.0 added outbound identity federation.
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.26.0"
+    }
+    p0 = {
+      source = "p0-security/p0"
+    }
+  }
+}
+
 locals {
   account_id = "123456789012"
   region     = "us-east-1"
-  # Terraform copies the connector image again only when this tag changes. Pin
-  # a sha- tag to choose the version you deploy.
-  connector_image_tag = "latest"
 }
 
 provider "aws" {
-  region = local.region
+  region              = local.region
+  allowed_account_ids = [local.account_id]
 }
 
 # P0 invokes the connector as its AWS integration's role, so install that first
@@ -54,47 +66,22 @@ resource "p0_databricks_connector_staged" "example" {
   domain_pattern = "example\\.com"
 }
 
-# Lambda runs container images from ECR only, so copy P0's image into this
-# account. This needs docker and the AWS CLI where you run Terraform.
-resource "aws_ecr_repository" "connector" {
-  name         = "p0-connector-databricks"
-  force_delete = true
+# Lets the connector mint AWS identity tokens, which Databricks accepts in place
+# of a secret. This is a setting of the whole AWS account: destroying this
+# resource turns outbound identity federation off for everything in it. If it
+# is already on, import it, with the AWS account ID as its ID, rather than
+# create it:
+#   terraform import aws_iam_outbound_web_identity_federation.this <account ID>
+resource "aws_iam_outbound_web_identity_federation" "this" {}
 
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-}
-
-resource "terraform_data" "connector_image" {
-  triggers_replace = [aws_ecr_repository.connector.repository_url, local.connector_image_tag]
-
-  provisioner "local-exec" {
-    command = <<-EOT
-      aws ecr get-login-password --region ${local.region} | docker login --username AWS --password-stdin ${split("/", aws_ecr_repository.connector.repository_url)[0]}
-      docker pull --platform linux/amd64 p0security/p0-connector-databricks:${local.connector_image_tag}
-      docker tag p0security/p0-connector-databricks:${local.connector_image_tag} ${aws_ecr_repository.connector.repository_url}:${local.connector_image_tag}
-      docker push ${aws_ecr_repository.connector.repository_url}:${local.connector_image_tag}
-    EOT
-  }
-}
-
-data "aws_ecr_image" "connector" {
-  repository_name = aws_ecr_repository.connector.name
-  image_tag       = local.connector_image_tag
-  depends_on      = [terraform_data.connector_image]
-}
-
-# The connector's execution role. Each Databricks account's federation policy
-# trusts this role's ARN, which is the subject of the tokens the connector mints.
 resource "aws_iam_role" "connector" {
   name = "p0-connector-databricks"
-
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Action    = "sts:AssumeRole"
       Principal = { Service = "lambda.amazonaws.com" }
+      Action    = "sts:AssumeRole"
     }]
   })
 }
@@ -104,11 +91,11 @@ resource "aws_iam_role_policy_attachment" "connector_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# The connector mints identity tokens for the "databricks" audience only.
+# Only tokens for Databricks. Every Databricks federation policy that trusts
+# this role expects this audience.
 resource "aws_iam_role_policy" "connector_identity_token" {
-  name = "MintDatabricksIdentityToken"
-  role = aws_iam_role.connector.name
-
+  name = "p0-connector-databricks-identity-token"
+  role = aws_iam_role.connector.id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -116,19 +103,39 @@ resource "aws_iam_role_policy" "connector_identity_token" {
       Action   = "sts:GetWebIdentityToken"
       Resource = "*"
       Condition = {
-        "ForAnyValue:StringEquals" = {
-          "sts:IdentityTokenAudience" = ["databricks"]
-        }
+        "ForAllValues:StringEquals" = { "sts:IdentityTokenAudience" = ["databricks"] }
       }
     }]
   })
 }
 
-# Lets the account's roles mint identity tokens for services outside AWS. This
-# is account-wide, and destroying this resource turns it off for the whole
-# account. If it is already on, import this resource, or read the issuer with
-# the data source of the same name instead.
-resource "aws_iam_outbound_web_identity_federation" "this" {}
+# Lambda only runs images from Amazon ECR, so this copies P0's image into a
+# repository in this account. It needs docker and the AWS CLI, signed in to this
+# account, wherever Terraform runs.
+resource "aws_ecr_repository" "connector" {
+  name         = "p0-connector-databricks"
+  force_delete = true
+}
+
+resource "terraform_data" "connector_image" {
+  triggers_replace = [aws_ecr_repository.connector.repository_url, "p0security/p0-connector-databricks:latest"]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      aws ecr get-login-password --region ${aws_ecr_repository.connector.region} | docker login --username AWS --password-stdin ${split("/", aws_ecr_repository.connector.repository_url)[0]}
+      docker pull --platform linux/amd64 p0security/p0-connector-databricks:latest
+      docker tag p0security/p0-connector-databricks:latest ${aws_ecr_repository.connector.repository_url}:latest
+      docker push ${aws_ecr_repository.connector.repository_url}:latest
+    EOT
+  }
+}
+
+data "aws_ecr_image" "connector" {
+  repository_name = aws_ecr_repository.connector.name
+  image_tag       = "latest"
+
+  depends_on = [terraform_data.connector_image]
+}
 
 resource "aws_lambda_function" "connector" {
   # P0 invokes the connector by this name.
@@ -141,27 +148,19 @@ resource "aws_lambda_function" "connector" {
 
   environment {
     variables = {
-      # The connector refuses every user whose email domain doesn't match.
+      # The connector refuses any user whose whole email domain doesn't match.
       DOMAIN_ALLOW_PATTERN = p0_databricks_connector_staged.example.domain_pattern
     }
   }
-
-  depends_on = [aws_iam_role_policy_attachment.connector_logs]
 }
 
-# The only permission P0 needs on the connector.
-resource "aws_iam_role_policy" "invoke_connector" {
-  name = "InvokeP0DatabricksConnector"
-  role = aws_iam_role.p0_iam_manager.name
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = "lambda:InvokeFunction"
-      Resource = aws_lambda_function.connector.arn
-    }]
-  })
+# Lets P0 invoke the connector, through the role P0's AWS integration assumes in
+# this account.
+resource "aws_lambda_permission" "p0_invoke" {
+  statement_id  = "P0Invoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.connector.function_name
+  principal     = aws_iam_role.p0_iam_manager.arn
 }
 
 # Completes the install.
@@ -173,6 +172,6 @@ resource "p0_databricks_connector" "example" {
   depends_on = [
     aws_iam_outbound_web_identity_federation.this,
     aws_iam_role_policy.connector_identity_token,
-    aws_iam_role_policy.invoke_connector,
+    aws_lambda_permission.p0_invoke,
   ]
 }
