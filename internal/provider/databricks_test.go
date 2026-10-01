@@ -356,7 +356,10 @@ func TestDatabricksValidators(t *testing.T) {
 			invalid(func(d *databricksTestInstall) { d.domainPattern = "" }, databricksTestInstall.connectorStaged, "domain_pattern"),
 			invalid(func(d *databricksTestInstall) { d.accountId = "my-account" }, databricksTestInstall.accountStaged, "Databricks account IDs are UUIDs"),
 			invalid(func(d *databricksTestInstall) { d.accountsUrl = "https://dbc-1234abcd-5678.cloud.databricks.com" }, databricksTestInstall.accountStaged, "accounts_url"),
-			invalid(func(d *databricksTestInstall) { d.applicationId = "p0-connector" }, databricksTestInstall.account, "Service principal application IDs are UUIDs"),
+			// The application IDs that the app's validator rejects.
+			invalid(func(d *databricksTestInstall) { d.applicationId = "" }, databricksTestInstall.account, "Application IDs are UUIDs"),
+			invalid(func(d *databricksTestInstall) { d.applicationId = "p0-connector" }, databricksTestInstall.account, "Application IDs are UUIDs"),
+			invalid(func(d *databricksTestInstall) { d.applicationId = "8c5e2e0a8f0d4a3e9d613b2f4c7a1e05" }, databricksTestInstall.account, "Application IDs are UUIDs"),
 			invalid(func(d *databricksTestInstall) { d.workspaceId = "dbc-1234abcd-5678" }, databricksTestInstall.workspace, "Databricks workspace IDs are numeric"),
 			invalid(func(d *databricksTestInstall) { d.catalog = "main.default" }, databricksTestInstall.catalogConfig, "Catalog names have at most 255 characters"),
 		},
