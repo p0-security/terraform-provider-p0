@@ -184,24 +184,41 @@ func reconcileConfig(prior types.String, item map[string]any) (types.String, err
 	return types.StringValue(string(encoded)), nil
 }
 
-// Returns the parts of actual that shape describes: the keys of every nested object in
-// shape, with actual's values. A key missing from actual is left out.
-func restrictTo(shape map[string]any, actual map[string]any) map[string]any {
-	restricted := map[string]any{}
-	for key, shapeValue := range shape {
-		actualValue, ok := actual[key]
+// Returns the parts of actual that shape describes: the keys of every object nested in
+// shape, and the elements of arrays of the same length, with actual's values.
+func restrictTo(shape, actual any) any {
+	switch shapeValue := shape.(type) {
+	case map[string]any:
+		actualObject, ok := actual.(map[string]any)
 		if !ok {
-			continue
+			return actual
 		}
-		shapeObject, shapeIsObject := shapeValue.(map[string]any)
-		actualObject, actualIsObject := actualValue.(map[string]any)
-		if shapeIsObject && actualIsObject {
-			restricted[key] = restrictTo(shapeObject, actualObject)
-		} else {
-			restricted[key] = actualValue
+		restricted := map[string]any{}
+		for key, value := range shapeValue {
+			actualValue, ok := actualObject[key]
+			switch {
+			case ok:
+				restricted[key] = restrictTo(value, actualValue)
+			// P0 drops null values when it stores an item, so a key configured as null
+			// matches an absent one.
+			case value == nil:
+				restricted[key] = nil
+			}
 		}
+		return restricted
+	case []any:
+		actualArray, ok := actual.([]any)
+		if !ok || len(actualArray) != len(shapeValue) {
+			return actual
+		}
+		restricted := make([]any, len(actualArray))
+		for i := range actualArray {
+			restricted[i] = restrictTo(shapeValue[i], actualArray[i])
+		}
+		return restricted
+	default:
+		return actual
 	}
-	return restricted
 }
 
 // Converts component metadata to a map of strings. Metadata values are strings in

@@ -20,7 +20,8 @@ func mustDecode(t *testing.T, raw string) map[string]any {
 
 func TestReconcileConfig(t *testing.T) {
 	item := `{"label":"primary","state":"installed","retries":12345678901234567890,` +
-		`"service":{"type":"aws","lambda":"aws:arn","region":"us-west-2"}}`
+		`"service":{"type":"aws","lambda":"aws:arn","region":"us-west-2"},` +
+		`"rules":[{"name":"a","id":"1"},{"name":"b","id":"2"}]}`
 
 	cases := map[string]struct {
 		prior types.String
@@ -41,6 +42,18 @@ func TestReconcileConfig(t *testing.T) {
 		"a changed nested value is reported with P0's value": {
 			prior: types.StringValue(`{"service":{"lambda":"aws:other","type":"aws"}}`),
 			want:  types.StringValue(`{"service":{"lambda":"aws:arn","type":"aws"}}`),
+		},
+		"fields P0 adds inside array elements are ignored": {
+			prior: types.StringValue(`{"rules":[{"name":"a"},{"name":"b"}]}`),
+			want:  types.StringValue(`{"rules":[{"name":"a"},{"name":"b"}]}`),
+		},
+		"an array of a different length is reported with P0's value": {
+			prior: types.StringValue(`{"rules":[{"name":"a"}]}`),
+			want:  types.StringValue(`{"rules":[{"id":"1","name":"a"},{"id":"2","name":"b"}]}`),
+		},
+		"a key configured as null matches one P0 dropped": {
+			prior: types.StringValue(`{"service":{"type":"aws"},"optional":null}`),
+			want:  types.StringValue(`{"service":{"type":"aws"},"optional":null}`),
 		},
 		"a key P0 does not store is dropped": {
 			prior: types.StringValue(`{"service":{"type":"aws"},"typo":true}`),

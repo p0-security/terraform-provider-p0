@@ -12,6 +12,9 @@ import (
 
 const lambdaArn = "arn:aws:lambda:us-west-2:123456789012:function:connector"
 
+// Contains a "/", so it only addresses the right item if the provider escapes it.
+const exampleId = "primary/one"
+
 func providerConfig(f *fakeP0) string {
 	return fmt.Sprintf(`
 provider "p0" {
@@ -41,10 +44,10 @@ resource "p0_integration_item" "caller" {
 resource "p0_integration_item" "resource" {
   integration = "example"
   component   = "iam-write"
-  id          = "primary"
+  id          = %q
   config      = %s
 }
-`, lambdaArn, serviceConfig)
+`, lambdaArn, exampleId, serviceConfig)
 }
 
 func newIntegrationItemFake(t *testing.T) *fakeP0 {
@@ -75,7 +78,7 @@ func newIntegrationItemFake(t *testing.T) *fakeP0 {
 }
 
 func exampleService(f *fakeP0) map[string]any {
-	service, _ := f.item("example", "iam-write", "primary")["service"].(map[string]any)
+	service, _ := f.item("example", "iam-write", exampleId)["service"].(map[string]any)
 	return service
 }
 
@@ -86,7 +89,7 @@ func TestIntegrationItem(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy: func(*terraform.State) error {
-			for _, key := range [][3]string{{"aws", "function-caller", lambdaArn}, {"example", "iam-write", "primary"}} {
+			for _, key := range [][3]string{{"aws", "function-caller", lambdaArn}, {"example", "iam-write", exampleId}} {
 				if item := f.item(key[0], key[1], key[2]); item != nil {
 					return fmt.Errorf("%s was not removed from P0: %v", key, item)
 				}
@@ -111,8 +114,8 @@ func TestIntegrationItem(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						"p0_integration_item.resource", "item",
 						fmt.Sprintf(
-							`{"accountId":"123456789012","label":"primary","service":{"lambda":"aws:%s","region":"us-west-2","type":"aws"},"state":"installed"}`,
-							lambdaArn,
+							`{"accountId":"123456789012","label":%q,"service":{"lambda":"aws:%s","region":"us-west-2","type":"aws"},"state":"installed"}`,
+							exampleId, lambdaArn,
 						),
 					),
 				),
@@ -137,7 +140,7 @@ func TestIntegrationItem(t *testing.T) {
 			// restores it.
 			{
 				PreConfig: func() {
-					f.update("example", "iam-write", "primary", func(item map[string]any) {
+					f.update("example", "iam-write", exampleId, func(item map[string]any) {
 						item["service"] = map[string]any{"type": "gcp", "cloudRun": "gcp:somewhere-else"}
 					})
 				},
@@ -154,6 +157,22 @@ func TestIntegrationItem(t *testing.T) {
 					return nil
 				},
 			},
+			// An item P0 no longer reports as installed (e.g. re-staged by an update to its
+			// staged resource) is installed again.
+			{
+				PreConfig: func() {
+					f.update("aws", "function-caller", lambdaArn, func(item map[string]any) {
+						item["state"] = "stage"
+					})
+				},
+				Config: integrationItemConfig(f, `jsonencode({ service = { type = "gcp", cloudRun = "gcp:connector" } })`),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("p0_integration_item.caller", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.TestCheckResourceAttr("p0_integration_item.caller", "state", "installed"),
+			},
 			// A config written as a differently formatted JSON string is adopted once, then
 			// stays stable across refreshes.
 			{
@@ -166,7 +185,7 @@ func TestIntegrationItem(t *testing.T) {
 			{
 				ResourceName:            "p0_integration_item.resource",
 				ImportState:             true,
-				ImportStateId:           "example/iam-write/primary",
+				ImportStateId:           "example/iam-write/" + exampleId,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"config"},
 			},

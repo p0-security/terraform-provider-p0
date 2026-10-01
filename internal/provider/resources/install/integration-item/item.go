@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -15,6 +16,7 @@ import (
 var _ resource.Resource = &integrationItem{}
 var _ resource.ResourceWithConfigure = &integrationItem{}
 var _ resource.ResourceWithImportState = &integrationItem{}
+var _ resource.ResourceWithModifyPlan = &integrationItem{}
 
 type integrationItem struct {
 	data *internal.P0ProviderData
@@ -120,6 +122,24 @@ func (r *integrationItem) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	r.installer(&data, false).UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &itemApi{}, &data)
+}
+
+// Plans an update for an item P0 no longer reports as installed, for example after a
+// p0_integration_item_staged update re-staged it. Otherwise only the computed state
+// differs, which on its own plans no change, and the item would stay uninstalled.
+func (*integrationItem) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("state"), &state)...)
+	if resp.Diagnostics.HasError() || state.ValueString() == "installed" {
+		return
+	}
+	// Every computed attribute changes once the item is installed again.
+	for _, attribute := range []string{"state", "label", "item"} {
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root(attribute), types.StringUnknown())...)
+	}
 }
 
 func (r *integrationItem) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
