@@ -13,7 +13,7 @@ description: |-
   Limitations:
   config is merged into the item P0 already stores, so removing a key from config does not remove
   it from P0.Only the keys set in config are checked for drift. Keys that P0 drops or rewrites (for example, keys the
-  integration does not define) show as a permanent difference.Fields that P0 only accepts on a new install can not be changed in place; change id to replace the item.Integrations that need a root installation (for example gcloud) must already be installed, e.g. with
+  integration does not define) show as a permanent difference.Fields that P0 only accepts on a new install cannot be changed in place; change id to replace the item.Integrations that need a root installation (for example gcloud) must already be installed, e.g. with
   p0_gcp.Do not put secrets in config: they are stored in plain text in the Terraform state.
 ---
 
@@ -35,7 +35,7 @@ a `p0_integration_item` for the same item. Items that need nothing provisioned f
   it from P0.
 - Only the keys set in `config` are checked for drift. Keys that P0 drops or rewrites (for example, keys the
   integration does not define) show as a permanent difference.
-- Fields that P0 only accepts on a new install can not be changed in place; change `id` to replace the item.
+- Fields that P0 only accepts on a new install cannot be changed in place; change `id` to replace the item.
 - Integrations that need a root installation (for example `gcloud`) must already be installed, e.g. with
   `p0_gcp`.
 - Do not put secrets in `config`: they are stored in plain text in the Terraform state.

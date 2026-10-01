@@ -64,7 +64,7 @@ func (r *integrationItemStaged) installer(model *integrationItemStagedModel, rec
 	return newInstaller(r.data, model.itemFields, reconcile, func(ctx context.Context, diags *diag.Diagnostics, fields itemFields, _ map[string]any, api *itemApi) any {
 		return &integrationItemStagedModel{
 			itemFields: fields,
-			Metadata:   metadataMap(ctx, diags, api.Metadata),
+			Metadata:   toMetadataMap(ctx, diags, api.Metadata),
 		}
 	})
 }

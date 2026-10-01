@@ -37,7 +37,7 @@ const limitations = `**Limitations:**
   it from P0.
 - Only the keys set in ` + "`config`" + ` are checked for drift. Keys that P0 drops or rewrites (for example, keys the
   integration does not define) show as a permanent difference.
-- Fields that P0 only accepts on a new install can not be changed in place; change ` + "`id`" + ` to replace the item.
+- Fields that P0 only accepts on a new install cannot be changed in place; change ` + "`id`" + ` to replace the item.
 - Integrations that need a root installation (for example ` + "`gcloud`" + `) must already be installed, e.g. with
   ` + "`p0_gcp`" + `.
 - Do not put secrets in ` + "`config`" + `: they are stored in plain text in the Terraform state.`
@@ -82,7 +82,7 @@ func newInstaller(
 	// a different path.
 	escapedId := url.PathEscape(fields.Id.ValueString())
 	// jsonObjectValidator has already rejected a config that is not a JSON object.
-	body, bodyErr := configBody(fields.Config)
+	body, bodyErr := toConfigBody(fields.Config)
 	return &common.Install{
 		Integration:  url.PathEscape(fields.Integration.ValueString()),
 		Component:    url.PathEscape(fields.Component.ValueString()),
@@ -98,7 +98,7 @@ func newInstaller(
 			if !ok {
 				return nil
 			}
-			item, err := decodeObject(api.Item)
+			item, err := parseObject(api.Item)
 			if err != nil {
 				diags.AddError("Bad API response", fmt.Sprintf("Could not read the install item from P0: %s", err))
 				return nil
@@ -131,16 +131,16 @@ func newInstaller(
 
 // The request body P0 merges into the stored item. An unset config sends an empty
 // object, which leaves the item as it is.
-func configBody(config types.String) (map[string]any, error) {
+func toConfigBody(config types.String) (map[string]any, error) {
 	if config.IsNull() || config.IsUnknown() {
 		return map[string]any{}, nil
 	}
-	return decodeObject([]byte(config.ValueString()))
+	return parseObject([]byte(config.ValueString()))
 }
 
-// Decodes a JSON object, keeping numbers as json.Number so that re-encoding them does
+// Parses a JSON object, keeping numbers as json.Number so that re-encoding them does
 // not change their representation (e.g. a large integer becoming 1e+21).
-func decodeObject(raw []byte) (map[string]any, error) {
+func parseObject(raw []byte) (map[string]any, error) {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	var value any
@@ -168,7 +168,7 @@ func reconcileConfig(prior types.String, item map[string]any) (types.String, err
 	if prior.IsNull() || prior.IsUnknown() {
 		return prior, nil
 	}
-	configured, err := decodeObject([]byte(prior.ValueString()))
+	configured, err := parseObject([]byte(prior.ValueString()))
 	if err != nil {
 		return prior, err
 	}
@@ -208,7 +208,7 @@ func restrictTo(shape map[string]any, actual map[string]any) map[string]any {
 // practice (often JSON policy documents); any other value is kept as its raw JSON.
 // The result is never null, so that components without metadata do not flip between
 // null and empty.
-func metadataMap(ctx context.Context, diags *diag.Diagnostics, metadata map[string]json.RawMessage) types.Map {
+func toMetadataMap(ctx context.Context, diags *diag.Diagnostics, metadata map[string]json.RawMessage) types.Map {
 	values := map[string]string{}
 	for key, raw := range metadata {
 		if string(raw) == "null" {
@@ -292,7 +292,7 @@ func (jsonObjectValidator) ValidateString(_ context.Context, req validator.Strin
 	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
 		return
 	}
-	if _, err := decodeObject([]byte(req.ConfigValue.ValueString())); err != nil {
+	if _, err := parseObject([]byte(req.ConfigValue.ValueString())); err != nil {
 		resp.Diagnostics.AddAttributeError(req.Path, "Invalid JSON object", fmt.Sprintf("'config' must be a JSON object: %s", err))
 	}
 }

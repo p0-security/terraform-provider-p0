@@ -11,9 +11,9 @@ import (
 
 func mustDecode(t *testing.T, raw string) map[string]any {
 	t.Helper()
-	object, err := decodeObject([]byte(raw))
+	object, err := parseObject([]byte(raw))
 	if err != nil {
-		t.Fatalf("decodeObject(%s): %s", raw, err)
+		t.Fatalf("parseObject(%s): %s", raw, err)
 	}
 	return object
 }
@@ -61,9 +61,9 @@ func TestReconcileConfig(t *testing.T) {
 	}
 }
 
-func TestMetadataMap(t *testing.T) {
+func TestToMetadataMap(t *testing.T) {
 	var diags diag.Diagnostics
-	got := metadataMap(context.Background(), &diags, map[string]json.RawMessage{
+	got := toMetadataMap(context.Background(), &diags, map[string]json.RawMessage{
 		"roleName": json.RawMessage(`"P0Role"`),
 		"count":    json.RawMessage(`2`),
 		"absent":   json.RawMessage(`null`),
@@ -76,12 +76,12 @@ func TestMetadataMap(t *testing.T) {
 		"count":    "2",
 	})
 	if !got.Equal(want) {
-		t.Errorf("metadataMap() = %s, want %s", got, want)
+		t.Errorf("toMetadataMap() = %s, want %s", got, want)
 	}
 
-	empty := metadataMap(context.Background(), &diags, nil)
+	empty := toMetadataMap(context.Background(), &diags, nil)
 	if empty.IsNull() || len(empty.Elements()) != 0 {
-		t.Errorf("metadataMap(nil) = %s, want an empty map", empty)
+		t.Errorf("toMetadataMap(nil) = %s, want an empty map", empty)
 	}
 }
 
@@ -103,8 +103,8 @@ func TestParseImportId(t *testing.T) {
 
 func TestDecodeObjectRejectsNonObjects(t *testing.T) {
 	for _, invalid := range []string{`[]`, `"string"`, `{`, `{} {}`} {
-		if _, err := decodeObject([]byte(invalid)); err == nil {
-			t.Errorf("decodeObject(%s) succeeded, want an error", invalid)
+		if _, err := parseObject([]byte(invalid)); err == nil {
+			t.Errorf("parseObject(%s) succeeded, want an error", invalid)
 		}
 	}
 }
