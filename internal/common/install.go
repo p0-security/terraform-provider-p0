@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -19,6 +20,13 @@ const (
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured
 	- 'installed': The item is fully installed`
+)
+
+// An item's install states in P0, as its 'state' attribute holds them.
+const (
+	StateStage     = "stage"
+	StateConfigure = "configure"
+	StateInstalled = "installed"
 )
 
 var StateAttribute = schema.StringAttribute{
@@ -49,6 +57,12 @@ type Install struct {
 	FromJson func(ctx context.Context, diags *diag.Diagnostics, id string, json any) any
 	// Convert a pointer to the TF state model to a pointer to an item's JSON model
 	ToJson func(data any) any
+	// Optional. Describes an install check that failed on the verify or configure step,
+	// in place of the generic "Error communicating with P0" diagnostic. P0 runs some
+	// integrations' checks through a connector the customer deploys, so a failure
+	// usually points at the customer's own setup, which P0's message, carried in err,
+	// describes.
+	DescribeCheckError func(id string, err error) (summary string, detail string)
 }
 
 func (i *Install) itemPath(id string) string {
@@ -126,6 +140,23 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 //	var json ConfigurationApiResponseJson
 //	install.Upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
 func (i *Install) UpsertFromStage(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any) {
+	i.upsert(ctx, diags, plan, state, json, model, InstallSteps)
+}
+
+// Advances an item that P0 has already verified, one at "configure" or "installed", to
+// "installed" with the configure step alone, as UpsertFromStage does from "stage".
+//
+// P0 saves an item only once the step's installer has accepted the planned values,
+// merged over the stored item. So a failed step leaves both the item and, in an Update,
+// the resource's state as they were. An integration that checks on configure all that
+// it checks on verify can use this in Update to make the update all-or-nothing.
+func (i *Install) UpsertFromConfigure(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any) {
+	i.upsert(ctx, diags, plan, state, json, model, []string{Config})
+}
+
+// Posts the planned item to each of steps in turn, and sets state to the item that the
+// last step returns.
+func (i *Install) upsert(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any, steps []string) {
 	diags.Append(plan.Get(ctx, model)...)
 	if diags.HasError() {
 		return
@@ -143,16 +174,16 @@ func (i *Install) UpsertFromStage(ctx context.Context, diags *diag.Diagnostics, 
 		return
 	}
 
-	for _, step := range InstallSteps {
+	for _, step := range steps {
 		// in-place evolves data object
 		path := fmt.Sprintf("%s/%s", i.itemPath(*id), step)
 		resp, err := i.ProviderData.Post(path, inputJson, json)
-		if resp != nil && resp.StatusCode == 404 {
-			state.RemoveResource(ctx)
-			return
-		}
 		if err != nil {
-			diags.AddError("Error communicating with P0", fmt.Sprintf("Could not %s %s component, got error:\n%s", step, i.Component, err))
+			// A failed step leaves the state as it was, a 404 included: removing the
+			// resource here would have the framework report a provider bug in place of
+			// this error. The next apply replaces the resource, or recreates it once a
+			// refresh finds it gone.
+			diags.AddError(i.stepError(*id, step, resp, err))
 			return
 		}
 	}
@@ -173,6 +204,31 @@ func (i *Install) UpsertFromStage(ctx context.Context, diags *diag.Diagnostics, 
 	}
 
 	diags.Append(state.Set(ctx, updated)...)
+}
+
+// The diagnostic for an install step that failed.
+//
+// P0 answers a step with a 404 only when the item doesn't exist, so it was removed
+// while this apply ran. A failed install check, on either step, is a 400 or a 422, or
+// a 502 when something the check calls, such as a connector, couldn't be reached.
+// Those go to DescribeCheckError, if set. Anything else, such as an authorization
+// error, a P0 server error or a request that never reached P0, gets the generic
+// diagnostic.
+func (i *Install) stepError(id string, step string, resp *http.Response, err error) (string, string) {
+	status := 0
+	if resp != nil {
+		status = resp.StatusCode
+	}
+
+	switch {
+	case status == http.StatusNotFound:
+		return fmt.Sprintf("Could not %s %s component", step, i.Component),
+			fmt.Sprintf("P0 has no %s item %q. It may have been removed while Terraform was applying this change. Apply again to recreate it.", i.Component, id)
+	case i.DescribeCheckError != nil && (status == http.StatusBadRequest || status == http.StatusUnprocessableEntity || status == http.StatusBadGateway):
+		return i.DescribeCheckError(id, err)
+	default:
+		return "Error communicating with P0", fmt.Sprintf("Could not %s %s component, got error:\n%s", step, i.Component, err)
+	}
 }
 
 // Reads current item value.

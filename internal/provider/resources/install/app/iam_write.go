@@ -30,29 +30,8 @@ type appIamWrite struct {
 	installer *common.Install
 }
 
-// The connector's address, as P0 stores it. The JSON is a discriminated union on
-// "type": the AWS variant carries accountId, the Google Cloud variant carries
-// projectId and the connectorServiceUri P0 resolves while verifying the install.
-type connectorHostingJson struct {
-	Type                string  `json:"type"`
-	AccountId           *string `json:"accountId,omitempty"`
-	ProjectId           *string `json:"projectId,omitempty"`
-	ConnectorName       string  `json:"connectorName"`
-	ConnectorRegion     string  `json:"connectorRegion"`
-	ConnectorServiceUri *string `json:"connectorServiceUri,omitempty"`
-}
-
-type connectorHostingModel struct {
-	Type                types.String `tfsdk:"type"`
-	AccountId           types.String `tfsdk:"account_id"`
-	ProjectId           types.String `tfsdk:"project_id"`
-	ConnectorName       types.String `tfsdk:"connector_name"`
-	ConnectorRegion     types.String `tfsdk:"connector_region"`
-	ConnectorServiceUri types.String `tfsdk:"connector_service_uri"`
-}
-
 type appIamWriteJson struct {
-	Hosting *connectorHostingJson `json:"hosting,omitempty"`
+	Hosting *ConnectorHostingJson `json:"hosting,omitempty"`
 	Label   *string               `json:"label,omitempty"`
 	State   *string               `json:"state,omitempty"`
 }
@@ -63,7 +42,7 @@ type appIamWriteApi struct {
 
 type appIamWriteModel struct {
 	Id      types.String           `tfsdk:"id"`
-	Hosting *connectorHostingModel `tfsdk:"hosting"`
+	Hosting *ConnectorHostingModel `tfsdk:"hosting"`
 	Label   types.String           `tfsdk:"label"`
 	State   types.String           `tfsdk:"state"`
 }
@@ -102,71 +81,7 @@ P0 can reach the connector, and fails if it cannot.
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			// Every address field below is `step: "new"` in the app's install schema, and the
-			// backend enforces that per leaf, not per hosting block: changing one after the
-			// install exists fails the configure step instead of updating it. RequiresReplace
-			// on each makes Terraform plan the destroy-and-recreate that actually works,
-			// rather than an in-place update that is guaranteed to 422.
-			"hosting": schema.SingleNestedAttribute{
-				MarkdownDescription: `Where your connector is deployed, and how P0 addresses it`,
-				Required:            true,
-				Attributes: map[string]schema.Attribute{
-					"type": schema.StringAttribute{
-						MarkdownDescription: `The connector's hosting: either ` + "`aws`" + ` (Lambda) or ` + "`gcp`" + ` (Cloud Run)`,
-						Required:            true,
-						Validators: []validator.String{
-							stringvalidator.OneOf(AwsHosting, GcpHosting),
-						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.RequiresReplace(),
-						},
-					},
-					"account_id": schema.StringAttribute{
-						MarkdownDescription: `The AWS account ID in which the connector's Lambda function is deployed. Required for, and only valid with, ` + "`aws`" + ` hosting.`,
-						Optional:            true,
-						Validators: []validator.String{
-							stringvalidator.RegexMatches(installaws.AwsAccountIdRegex, "AWS account IDs should be numeric"),
-						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.RequiresReplace(),
-						},
-					},
-					"project_id": schema.StringAttribute{
-						MarkdownDescription: `The Google Cloud project ID in which the connector's Cloud Run service is deployed. Required for, and only valid with, ` + "`gcp`" + ` hosting.`,
-						Optional:            true,
-						Validators: []validator.String{
-							stringvalidator.RegexMatches(installgcp.GcpProjectIdRegex, "Must be a valid Google Cloud project ID"),
-						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.RequiresReplace(),
-						},
-					},
-					"connector_name": schema.StringAttribute{
-						MarkdownDescription: `The name of the Lambda function or Cloud Run service hosting the connector`,
-						Required:            true,
-						Validators: []validator.String{
-							stringvalidator.RegexMatches(ConnectorNameRegex, "Must be a valid Lambda function or Cloud Run service name"),
-						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.RequiresReplace(),
-						},
-					},
-					"connector_region": schema.StringAttribute{
-						MarkdownDescription: `The region the connector is deployed in (e.g. ` + "`us-east-1`" + ` on AWS, or ` + "`us-central1`" + ` on Google Cloud)`,
-						Required:            true,
-						Validators: []validator.String{
-							stringvalidator.RegexMatches(ConnectorRegionRegex, "Must be a valid AWS or Google Cloud region"),
-						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.RequiresReplace(),
-						},
-					},
-					"connector_service_uri": schema.StringAttribute{
-						MarkdownDescription: `The connector's invocation URL, resolved by P0 during install. Only populated for ` + "`gcp`" + ` hosting.`,
-						Computed:            true,
-					},
-				},
-			},
+			"hosting": ConnectorHostingAttribute(appHostingValidators),
 			"label": schema.StringAttribute{
 				MarkdownDescription: `The label for this installation (defaults to the application identifier)`,
 				Computed:            true,
@@ -179,70 +94,46 @@ P0 can reach the connector, and fails if it cannot.
 	}
 }
 
+// The checks on a custom application's connector address. A field's validator can't
+// see the hosting's type, so each accepts what either Lambda or Cloud Run does, and
+// ValidateConfig narrows the connector's name for `gcp`.
+var appHostingValidators = ConnectorHostingValidators{
+	AccountId: []validator.String{
+		stringvalidator.RegexMatches(installaws.AwsAccountIdRegex, "AWS account IDs should be numeric"),
+	},
+	ProjectId: []validator.String{
+		stringvalidator.RegexMatches(installgcp.GcpProjectIdRegex, "Must be a valid Google Cloud project ID"),
+	},
+	ConnectorName: []validator.String{
+		stringvalidator.RegexMatches(ConnectorNameRegex, "Must be a valid Lambda function or Cloud Run service name"),
+	},
+	ConnectorRegion: []validator.String{
+		stringvalidator.RegexMatches(ConnectorRegionRegex, "Must be a valid AWS or Google Cloud region"),
+	},
+}
+
 // Rejects a hosting block whose address fields do not match its type. Validating here
 // rather than in Create surfaces the mistake at plan time, before P0 is called.
 func (*appIamWrite) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var data appIamWriteModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
-	if resp.Diagnostics.HasError() || data.Hosting == nil {
-		return
-	}
-
-	hosting := data.Hosting
-	// An unknown type is a value only resolved at apply time; the type's own validator
-	// has already rejected anything that is known and unsupported.
-	if hosting.Type.IsUnknown() {
-		return
-	}
-
-	switch hosting.Type.ValueString() {
-	case AwsHosting:
-		if hosting.AccountId.IsNull() {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("hosting").AtName("account_id"),
-				"Missing AWS account ID",
-				"'hosting.account_id' is required when 'hosting.type' is \"aws\".",
-			)
-		}
-		if isSet(hosting.ProjectId) {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("hosting").AtName("project_id"),
-				"Unexpected Google Cloud project",
-				"'hosting.project_id' may only be set when 'hosting.type' is \"gcp\".",
-			)
-		}
-	case GcpHosting:
-		if hosting.ProjectId.IsNull() {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("hosting").AtName("project_id"),
-				"Missing Google Cloud project",
-				"'hosting.project_id' is required when 'hosting.type' is \"gcp\".",
-			)
-		}
-		if isSet(hosting.AccountId) {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("hosting").AtName("account_id"),
-				"Unexpected AWS account ID",
-				"'hosting.account_id' may only be set when 'hosting.type' is \"aws\".",
-			)
-		}
-		// Cloud Run's naming rules are stricter than the attribute's own validator, which
-		// has to accept Lambda function names too.
-		if isSet(hosting.ConnectorName) && !CloudRunServiceNameRegex.MatchString(hosting.ConnectorName.ValueString()) {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("hosting").AtName("connector_name"),
-				"Invalid Cloud Run service name",
-				"'hosting.connector_name' names a Cloud Run service when 'hosting.type' is \"gcp\": at most 49 characters of "+
-					"lowercase letters, digits and hyphens, starting with a letter and not ending with one.",
-			)
-		}
-	}
+	hosting := ConnectorHostingFromConfig(ctx, req.Config, &resp.Diagnostics)
+	ValidateConnectorHosting(hosting, &resp.Diagnostics)
+	validateCloudRunServiceName(hosting, &resp.Diagnostics)
 }
 
-// Whether an optional value is present and resolved. An unknown value is not null, so
-// checking IsNull alone would reject a field that interpolation has yet to fill in.
-func isSet(value types.String) bool {
-	return !value.IsNull() && !value.IsUnknown()
+// Cloud Run's naming rules are stricter than the connector name's own validator, which
+// has to accept Lambda function names too.
+func validateCloudRunServiceName(hosting *ConnectorHostingModel, diags *diag.Diagnostics) {
+	if hosting == nil || !IsSet(hosting.Type) || hosting.Type.ValueString() != GcpHosting || !IsSet(hosting.ConnectorName) {
+		return
+	}
+	if !CloudRunServiceNameRegex.MatchString(hosting.ConnectorName.ValueString()) {
+		diags.AddAttributeError(
+			path.Root("hosting").AtName("connector_name"),
+			"Invalid Cloud Run service name",
+			"'hosting.connector_name' names a Cloud Run service when 'hosting.type' is \"gcp\": at most 49 characters of "+
+				"lowercase letters, digits and hyphens, starting with a letter and not ending with one.",
+		)
+	}
 }
 
 func (r *appIamWrite) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -299,14 +190,7 @@ func (r *appIamWrite) fromJson(ctx context.Context, diags *diag.Diagnostics, id 
 		return nil
 	}
 
-	data.Hosting = &connectorHostingModel{
-		Type:                types.StringValue(jsonv.Hosting.Type),
-		AccountId:           types.StringPointerValue(jsonv.Hosting.AccountId),
-		ProjectId:           types.StringPointerValue(jsonv.Hosting.ProjectId),
-		ConnectorName:       types.StringValue(jsonv.Hosting.ConnectorName),
-		ConnectorRegion:     types.StringValue(jsonv.Hosting.ConnectorRegion),
-		ConnectorServiceUri: types.StringPointerValue(jsonv.Hosting.ConnectorServiceUri),
-	}
+	data.Hosting = ConnectorHostingFromJson(jsonv.Hosting)
 
 	return &data
 }
@@ -320,13 +204,7 @@ func (r *appIamWrite) toJson(data any) any {
 	}
 
 	if datav.Hosting != nil {
-		json.Hosting = &connectorHostingJson{
-			Type:            datav.Hosting.Type.ValueString(),
-			AccountId:       datav.Hosting.AccountId.ValueStringPointer(),
-			ProjectId:       datav.Hosting.ProjectId.ValueStringPointer(),
-			ConnectorName:   datav.Hosting.ConnectorName.ValueString(),
-			ConnectorRegion: datav.Hosting.ConnectorRegion.ValueString(),
-		}
+		json.Hosting = datav.Hosting.ToJson()
 	}
 
 	// label and state are omitted; P0 fills both in.

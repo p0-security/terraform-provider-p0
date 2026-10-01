@@ -14,4 +14,5 @@ const (
 	Gateway          = "gateway"
 	Server           = "server"
 	Provider         = "provider"
+	RepositoryAccess = "repository-access"
 )

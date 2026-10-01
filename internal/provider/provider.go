@@ -34,6 +34,7 @@ import (
 	installgcpcloudsql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloudsql"
 	installgcpwif "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-wif"
 	installgithubapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-app"
+	installgithubrepositories "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-repositories"
 	installidentityprovider "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/identity-provider"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
@@ -227,6 +228,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installgithubapp.NewGithubAppCredential,
 		installdatadogapp.NewDatadogAppCredentialStaged,
 		installdatadogapp.NewDatadogAppCredential,
+		installgithubrepositories.NewRepositoryAccess,
 		installaigateway.NewGatewayStaged,
 		installaigateway.NewGateway,
 		installaigateway.NewServer,
