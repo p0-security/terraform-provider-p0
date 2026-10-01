@@ -28,6 +28,7 @@ import (
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
 	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
+	installdatabricks "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/databricks"
 	installdatadogapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/datadog-app"
 	installfiletransfer "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/file_transfer"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
@@ -225,6 +226,12 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installgcpwif.NewGcpWifIdentity,
 		installgithubapp.NewGithubAppCredentialStaged,
 		installgithubapp.NewGithubAppCredential,
+		installdatabricks.NewConnectorStaged,
+		installdatabricks.NewConnector,
+		installdatabricks.NewAccountStaged,
+		installdatabricks.NewAccount,
+		installdatabricks.NewWorkspace,
+		installdatabricks.NewCatalog,
 		installdatadogapp.NewDatadogAppCredentialStaged,
 		installdatadogapp.NewDatadogAppCredential,
 		installaigateway.NewGatewayStaged,
