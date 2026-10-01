@@ -64,7 +64,7 @@ resource "p0_github_app_staged" "example" {
 
 Required:
 
-- `project_id` (String) The GCP project that hosts the connector's Cloud Run service and the private key secret.
+- `project_id` (String) The GCP project that hosts the connector's Cloud Run service and the secret that holds the GitHub App's private key.
 - `type` (String) The secret manager that stores the GitHub App's private key. Only `gcp-sm` (Google Secret Manager) is supported.
 
 Read-Only:
