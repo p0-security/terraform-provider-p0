@@ -1,6 +1,6 @@
 # Installs GitHub Repositories for the GitHub organization my-github-org, with
 # P0's GitHub Repositories connector on AWS Lambda and the GitHub App's private
-# key in AWS Secrets Manager. For Google Cloud, see gcp.tf in this directory.
+# key in AWS Secrets Manager. GitHub Repositories supports only AWS for now.
 #
 # Before you apply this, create the organization's GitHub App, store its private
 # key in Secrets Manager as github/my-github-org/private-key, and install
@@ -27,12 +27,6 @@ terraform {
       source  = "kreuzwerker/docker"
       version = "~> 3.0"
     }
-    # For gcp.tf, the Google Cloud variant in this directory: its Cloud Run
-    # service's deletion_protection needs the google provider 6.0 or later.
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 6.0"
-    }
   }
 }
 
@@ -42,10 +36,10 @@ terraform {
 # repository, which Lambda requires. Run terraform where Docker and the AWS CLI
 # are installed and the AWS CLI is signed in to account 123456789012.
 #
-# P0 runs one connector for each organization, so apply this once, in one
-# cloud. Other organizations' connectors can share this configuration, but each
-# needs its own connector name: the connector's role, repository and log group
-# are named after it, and these names are unique in an AWS account.
+# P0 runs one connector for each organization, so apply this once. Other
+# organizations' connectors can share this configuration, but each needs its own
+# connector name: the connector's role, repository and log group are named after
+# it, and these names are unique in an AWS account.
 
 locals {
   p0_github_repositories_my_github_org = {

@@ -17,10 +17,9 @@ import (
 
 // The `hosting` attribute is the app's `ConnectorHosting` install element
 // (packages/integrations/app/src/shared/components.ts). Other integrations whose
-// connector the customer deploys, such as GitHub Repositories, reuse that element as
-// is, so they reuse this attribute, its model and its validation too. Which names,
-// regions, accounts and projects are valid is up to each integration, so each
-// resource passes its own checks for those fields.
+// connector the customer deploys reuse that element as is, so P0 stores their hosting
+// in the same JSON. GitHub Repositories reuses that JSON with an attribute of its own,
+// since it supports only AWS for now.
 
 // The connector's address, as P0 stores it. The JSON is a discriminated union on
 // "type": the AWS variant carries accountId, the Google Cloud variant carries

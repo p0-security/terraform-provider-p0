@@ -4,21 +4,21 @@ page_title: "p0_github_repositories Resource - p0"
 subcategory: ""
 description: |-
   A GitHub Repositories installation for one GitHub organization.
-  Installing GitHub Repositories lets P0 grant your organization's members just-in-time roles on its repositories. P0 acts through a GitHub App that you create and install on the organization, and through a connector that you deploy in your own AWS or Google Cloud account. The App's private key stays in your secret manager, and only the connector reads it. Each organization needs its own App and its own connector.
+  Installing GitHub Repositories lets P0 grant your organization's members just-in-time roles on its repositories. P0 acts through a GitHub App that you create and install on the organization, and through a connector that you deploy in your own AWS account. The App's private key stays in your secret manager, and only the connector reads it. Each organization needs its own App and its own connector.
+  GitHub Repositories supports only AWS for now: the connector runs on AWS Lambda, and the App's private key is stored in AWS Secrets Manager.
   Important: Create the App and store its private key before you apply this resource, and deploy the connector first: in an earlier apply, or in the same one with this resource depending on the connector's access grants, as the example does. Creating this resource has P0 check the install through the connector: that P0 can invoke the connector, that the connector can read the private key, and that the App is installed on the organization with the permissions it needs. If a check fails, the apply fails with P0's message.
-  The vault and the connector must be in the same cloud: aws-sm with aws hosting, or gcp-sm with gcp hosting. Changing vault, hosting or private_key_secret_name replaces the installation. To rotate the private key, add a new version to the same secret, which needs no change here. Changing app_id updates the installation in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
-  P0 checks where the connector runs when it creates the installation, and so does a plan. hosting.connector_name has 2 to 64 characters on Lambda, or 2 to 49 on Cloud Run: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. On AWS, the connector and the secret must be in commercial regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
+  Changing vault, hosting or private_key_secret_name replaces the installation. To rotate the private key, add a new version to the same secret, which needs no change here. Changing app_id updates the installation in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
+  P0 checks where the connector runs when it creates the installation, and so does a plan. hosting.connector_name has 2 to 64 characters: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. The connector and the secret must be in commercial AWS regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
   Prerequisites:
   
   A GitHub App for the organization. Make it private, turn off its webhook, and give it these permissions:
   Repository: Administration (read and write) and Metadata (read)Organization: Members (read) and Custom repository roles (read)
-  An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager or Google Secret Manager.
+  An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager.
   Warning: Administration: write lets the App change roles on, and administer, every repository it is installed on. Select only the repositories P0 should manage.
-  P0's GitHub Repositories connector, from the image p0security/p0-connector-github-repositories on AWS Lambda or p0security/p0-connector-github-repositories-gcloud on Google Cloud Run. Lambda runs images only from Amazon ECR, so copy the Lambda image from Docker Hub into ECR first. P0's GitHub Repositories installer generates Terraform that deploys the connector with its image pinned, as in the example.
-  Grant the connector's identity read access to the private key secret alone, never through a wildcard or at the account or project level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
-  On AWS, give its execution role secretsmanager:GetSecretValue on the secret. If a customer-managed KMS key encrypts the secret, also give the role kms:Decrypt on that key, with the condition that kms:ViaService is secretsmanager.<region>.amazonaws.com. For its logs, give the role logs:CreateLogStream and logs:PutLogEvents on its own log group alone, /aws/lambda/<function name>. The role can't create that log group, so create it before the function first runs.On Google Cloud, give its service account secretmanager.versions.access and secretmanager.versions.get on the secret, for example by binding roles/secretmanager.secretAccessor and roles/secretmanager.viewer on it.
-  For AWS Lambda hosting, p0_aws_iam_write installed for the account the connector runs in. Grant that installation's role lambda:InvokeFunction on the connector's function.
-  For Google Cloud Run hosting, p0_gcp installed. Grant its service account roles/run.invoker and roles/run.viewer on the connector's service: P0 invokes the connector, and reads the service to find its URL. Set the connector's INVOKER_SA_EMAIL environment variable to the same service account.
+  P0's GitHub Repositories connector on AWS Lambda, from the image p0security/p0-connector-github-repositories. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. P0's GitHub Repositories installer generates Terraform that deploys the connector with its image pinned, as in the example.
+  Grant the connector's execution role read access to the private key secret alone, never through a wildcard or at the account level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
+  Give the role secretsmanager:GetSecretValue on the secret. If a customer-managed KMS key encrypts the secret, also give the role kms:Decrypt on that key, with the condition that kms:ViaService is secretsmanager.<region>.amazonaws.com. For its logs, give the role logs:CreateLogStream and logs:PutLogEvents on its own log group alone, /aws/lambda/<function name>. The role can't create that log group, so create it before the function first runs.
+  p0_aws_iam_write installed for the account the connector runs in. Grant that installation's role lambda:InvokeFunction on the connector's function.
   Note: This integration is currently in preview.
 ---
 
@@ -26,13 +26,15 @@ description: |-
 
 A GitHub Repositories installation for one GitHub organization.
 
-Installing GitHub Repositories lets P0 grant your organization's members just-in-time roles on its repositories. P0 acts through a GitHub App that you create and install on the organization, and through a connector that you deploy in your own AWS or Google Cloud account. The App's private key stays in your secret manager, and only the connector reads it. Each organization needs its own App and its own connector.
+Installing GitHub Repositories lets P0 grant your organization's members just-in-time roles on its repositories. P0 acts through a GitHub App that you create and install on the organization, and through a connector that you deploy in your own AWS account. The App's private key stays in your secret manager, and only the connector reads it. Each organization needs its own App and its own connector.
+
+GitHub Repositories supports only AWS for now: the connector runs on AWS Lambda, and the App's private key is stored in AWS Secrets Manager.
 
 **Important:** Create the App and store its private key before you apply this resource, and deploy the connector first: in an earlier apply, or in the same one with this resource depending on the connector's access grants, as the example does. Creating this resource has P0 check the install through the connector: that P0 can invoke the connector, that the connector can read the private key, and that the App is installed on the organization with the permissions it needs. If a check fails, the apply fails with P0's message.
 
-The vault and the connector must be in the same cloud: `aws-sm` with `aws` hosting, or `gcp-sm` with `gcp` hosting. Changing `vault`, `hosting` or `private_key_secret_name` replaces the installation. To rotate the private key, add a new version to the same secret, which needs no change here. Changing `app_id` updates the installation in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
+Changing `vault`, `hosting` or `private_key_secret_name` replaces the installation. To rotate the private key, add a new version to the same secret, which needs no change here. Changing `app_id` updates the installation in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
 
-P0 checks where the connector runs when it creates the installation, and so does a plan. `hosting.connector_name` has 2 to 64 characters on Lambda, or 2 to 49 on Cloud Run: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. On AWS, the connector and the secret must be in commercial regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
+P0 checks where the connector runs when it creates the installation, and so does a plan. `hosting.connector_name` has 2 to 64 characters: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. The connector and the secret must be in commercial AWS regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
 
 **Prerequisites:**
 
@@ -40,19 +42,17 @@ P0 checks where the connector runs when it creates the installation, and so does
   - Repository: Administration (read and write) and Metadata (read)
   - Organization: Members (read) and Custom repository roles (read)
 
-  An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager or Google Secret Manager.
+  An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager.
 
   **Warning:** Administration: write lets the App change roles on, and administer, every repository it is installed on. Select only the repositories P0 should manage.
 
-- P0's GitHub Repositories connector, from the image `p0security/p0-connector-github-repositories` on AWS Lambda or `p0security/p0-connector-github-repositories-gcloud` on Google Cloud Run. Lambda runs images only from Amazon ECR, so copy the Lambda image from Docker Hub into ECR first. P0's GitHub Repositories installer generates Terraform that deploys the connector with its image pinned, as in the example.
+- P0's GitHub Repositories connector on AWS Lambda, from the image `p0security/p0-connector-github-repositories`. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. P0's GitHub Repositories installer generates Terraform that deploys the connector with its image pinned, as in the example.
 
-  Grant the connector's identity read access to the private key secret alone, never through a wildcard or at the account or project level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
-  - On AWS, give its execution role `secretsmanager:GetSecretValue` on the secret. If a customer-managed KMS key encrypts the secret, also give the role `kms:Decrypt` on that key, with the condition that `kms:ViaService` is `secretsmanager.<region>.amazonaws.com`. For its logs, give the role `logs:CreateLogStream` and `logs:PutLogEvents` on its own log group alone, `/aws/lambda/<function name>`. The role can't create that log group, so create it before the function first runs.
-  - On Google Cloud, give its service account `secretmanager.versions.access` and `secretmanager.versions.get` on the secret, for example by binding `roles/secretmanager.secretAccessor` and `roles/secretmanager.viewer` on it.
+  Grant the connector's execution role read access to the private key secret alone, never through a wildcard or at the account level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
 
-- For AWS Lambda hosting, `p0_aws_iam_write` installed for the account the connector runs in. Grant that installation's role `lambda:InvokeFunction` on the connector's function.
+  Give the role `secretsmanager:GetSecretValue` on the secret. If a customer-managed KMS key encrypts the secret, also give the role `kms:Decrypt` on that key, with the condition that `kms:ViaService` is `secretsmanager.<region>.amazonaws.com`. For its logs, give the role `logs:CreateLogStream` and `logs:PutLogEvents` on its own log group alone, `/aws/lambda/<function name>`. The role can't create that log group, so create it before the function first runs.
 
-- For Google Cloud Run hosting, `p0_gcp` installed. Grant its service account `roles/run.invoker` and `roles/run.viewer` on the connector's service: P0 invokes the connector, and reads the service to find its URL. Set the connector's `INVOKER_SA_EMAIL` environment variable to the same service account.
+- `p0_aws_iam_write` installed for the account the connector runs in. Grant that installation's role `lambda:InvokeFunction` on the connector's function.
 
 **Note:** This integration is currently in preview.
 
@@ -61,7 +61,7 @@ P0 checks where the connector runs when it creates the installation, and so does
 ```terraform
 # Installs GitHub Repositories for the GitHub organization my-github-org, with
 # P0's GitHub Repositories connector on AWS Lambda and the GitHub App's private
-# key in AWS Secrets Manager. For Google Cloud, see gcp.tf in this directory.
+# key in AWS Secrets Manager. GitHub Repositories supports only AWS for now.
 #
 # Before you apply this, create the organization's GitHub App, store its private
 # key in Secrets Manager as github/my-github-org/private-key, and install
@@ -88,12 +88,6 @@ terraform {
       source  = "kreuzwerker/docker"
       version = "~> 3.0"
     }
-    # For gcp.tf, the Google Cloud variant in this directory: its Cloud Run
-    # service's deletion_protection needs the google provider 6.0 or later.
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 6.0"
-    }
   }
 }
 
@@ -103,10 +97,10 @@ terraform {
 # repository, which Lambda requires. Run terraform where Docker and the AWS CLI
 # are installed and the AWS CLI is signed in to account 123456789012.
 #
-# P0 runs one connector for each organization, so apply this once, in one
-# cloud. Other organizations' connectors can share this configuration, but each
-# needs its own connector name: the connector's role, repository and log group
-# are named after it, and these names are unique in an AWS account.
+# P0 runs one connector for each organization, so apply this once. Other
+# organizations' connectors can share this configuration, but each needs its own
+# connector name: the connector's role, repository and log group are named after
+# it, and these names are unique in an AWS account.
 
 locals {
   p0_github_repositories_my_github_org = {
@@ -368,10 +362,10 @@ resource "p0_github_repositories" "example" {
 ### Required
 
 - `app_id` (String) The ID of the GitHub App your connector authenticates as: the number on the App's settings page. Changing it updates the installation in place, and P0 checks the install again.
-- `hosting` (Attributes) Where your connector is deployed, and how P0 addresses it (see [below for nested schema](#nestedatt--hosting))
+- `hosting` (Attributes) Where your connector is deployed, and how P0 addresses it. Only AWS Lambda is supported for now. (see [below for nested schema](#nestedatt--hosting))
 - `org` (String) The login of the GitHub organization to install on, as in `github.com/<login>`
-- `private_key_secret_name` (String) The name or ARN of the secret that holds the GitHub App's private key. On AWS, a name is looked up in the connector's own account, in `vault.secrets_region`. Give a secret in another account as its full ARN, and allow the connector's role in the secret's resource policy and in its KMS key's policy. On Google Cloud, this is the secret's ID or its full resource name, `projects/<project>/secrets/<id>`. Changing it replaces the installation. To rotate the key, add a new version to the same secret, which needs no change here.
-- `vault` (Attributes) The secret manager that holds the GitHub App's private key. P0 never reads the key. Your connector does. It must be in the same cloud as `hosting`. (see [below for nested schema](#nestedatt--vault))
+- `private_key_secret_name` (String) The name or ARN of the secret that holds the GitHub App's private key. A name is looked up in the connector's own account, in `vault.secrets_region`. Give a secret in another account as its full ARN, and allow the connector's role in the secret's resource policy and in its KMS key's policy. Changing it replaces the installation. To rotate the key, add a new version to the same secret, which needs no change here.
+- `vault` (Attributes) The secret manager that holds the GitHub App's private key. P0 never reads the key. Your connector does. Only AWS Secrets Manager is supported for now. (see [below for nested schema](#nestedatt--vault))
 
 ### Read-Only
 
@@ -385,18 +379,10 @@ resource "p0_github_repositories" "example" {
 
 Required:
 
-- `connector_name` (String) The name of the Lambda function or Cloud Run service hosting the connector
-- `connector_region` (String) The region the connector is deployed in (e.g. `us-east-1` on AWS, or `us-central1` on Google Cloud)
-- `type` (String) The connector's hosting: either `aws` (Lambda) or `gcp` (Cloud Run)
-
-Optional:
-
-- `account_id` (String) The AWS account ID in which the connector's Lambda function is deployed. Required for, and only valid with, `aws` hosting.
-- `project_id` (String) The Google Cloud project ID in which the connector's Cloud Run service is deployed. Required for, and only valid with, `gcp` hosting.
-
-Read-Only:
-
-- `connector_service_uri` (String) The connector's invocation URL, resolved by P0 during install. Only populated for `gcp` hosting.
+- `account_id` (String) The ID of the AWS account the connector's Lambda function is deployed in
+- `connector_name` (String) The name of the Lambda function hosting the connector
+- `connector_region` (String) The AWS region the connector is deployed in, such as `us-east-1`
+- `type` (String) The connector's hosting: `aws` (AWS Lambda), the only one supported for now
 
 
 <a id="nestedatt--vault"></a>
@@ -404,10 +390,6 @@ Read-Only:
 
 Required:
 
-- `type` (String) The secret manager: either `aws-sm` (AWS Secrets Manager) or `gcp-sm` (Google Secret Manager)
-
-Optional:
-
-- `account_id` (String) The ID of the AWS account that holds the private key secret (in the P0 app, one of your AWS Secrets Manager installations). Required for, and only valid with, `aws-sm`.
-- `project_id` (String) The ID of the Google Cloud project that holds the private key secret (in the P0 app, one of your Google Secret Manager installations). Required for, and only valid with, `gcp-sm`.
-- `secrets_region` (String) The AWS region the private key secret is stored in, such as `us-west-2`. Required for, and only valid with, `aws-sm`.
+- `account_id` (String) The ID of the AWS account that holds the private key secret (in the P0 app, one of your AWS Secrets Manager installations)
+- `secrets_region` (String) The AWS region the private key secret is stored in, such as `us-west-2`
+- `type` (String) The secret manager: `aws-sm` (AWS Secrets Manager), the only one supported for now

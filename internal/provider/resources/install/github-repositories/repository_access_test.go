@@ -38,40 +38,14 @@ func awsModel() *repositoryAccessModel {
 		Vault: &vaultModel{
 			Type:          types.StringValue(AwsSecretsManager),
 			AccountId:     types.StringValue("123456789012"),
-			ProjectId:     types.StringNull(),
 			SecretsRegion: types.StringValue("us-east-1"),
 		},
 		PrivateKeySecretName: types.StringValue("github/my-github-org/private-key"),
-		Hosting: &installapp.ConnectorHostingModel{
-			Type:                types.StringValue(installapp.AwsHosting),
-			AccountId:           types.StringValue("123456789012"),
-			ProjectId:           types.StringNull(),
-			ConnectorName:       types.StringValue("p0-github-repositories-connector"),
-			ConnectorRegion:     types.StringValue("us-east-1"),
-			ConnectorServiceUri: types.StringNull(),
-		},
-		State: types.StringNull(),
-	}
-}
-
-func gcpModel() *repositoryAccessModel {
-	return &repositoryAccessModel{
-		Org:   types.StringValue("my-github-org"),
-		AppId: types.StringValue("234567"),
-		Vault: &vaultModel{
-			Type:          types.StringValue(GcpSecretManager),
-			AccountId:     types.StringNull(),
-			ProjectId:     types.StringValue("my-project-id"),
-			SecretsRegion: types.StringNull(),
-		},
-		PrivateKeySecretName: types.StringValue("github-private-key"),
-		Hosting: &installapp.ConnectorHostingModel{
-			Type:                types.StringValue(installapp.GcpHosting),
-			AccountId:           types.StringNull(),
-			ProjectId:           types.StringValue("my-project-id"),
-			ConnectorName:       types.StringValue("p0-github-repositories-connector"),
-			ConnectorRegion:     types.StringValue("us-central1"),
-			ConnectorServiceUri: types.StringNull(),
+		Hosting: &hostingModel{
+			Type:            types.StringValue(installapp.AwsHosting),
+			AccountId:       types.StringValue("123456789012"),
+			ConnectorName:   types.StringValue("p0-github-repositories-connector"),
+			ConnectorRegion: types.StringValue("us-east-1"),
 		},
 		State: types.StringNull(),
 	}
@@ -101,13 +75,6 @@ func TestRepositoryAccessStageJson(t *testing.T) {
 				`"privateKeySecretName":"github/my-github-org/private-key",` +
 				`"hosting":{"type":"aws","accountId":"123456789012","connectorName":"p0-github-repositories-connector","connectorRegion":"us-east-1"}}`,
 		},
-		"gcp": {
-			model: gcpModel(),
-			want: `{"appId":"234567",` +
-				`"vault":{"type":"gcp-sm","install":"my-project-id"},` +
-				`"privateKeySecretName":"github-private-key",` +
-				`"hosting":{"type":"gcp","projectId":"my-project-id","connectorName":"p0-github-repositories-connector","connectorRegion":"us-central1"}}`,
-		},
 	}
 
 	for name, c := range cases {
@@ -127,7 +94,6 @@ func TestRepositoryAccessStepJson(t *testing.T) {
 		want  string
 	}{
 		"aws": {model: awsModel(), want: `{"appId":"123456","privateKeySecretName":"github/my-github-org/private-key"}`},
-		"gcp": {model: gcpModel(), want: `{"appId":"234567","privateKeySecretName":"github-private-key"}`},
 	}
 
 	for name, c := range cases {
@@ -145,9 +111,8 @@ func TestRepositoryAccessFromJson(t *testing.T) {
 	cases := map[string]struct {
 		model    *repositoryAccessModel
 		response string
-		// The fields P0 fills in.
-		state      string
-		serviceUri *string
+		// The field P0 fills in.
+		state string
 	}{
 		"aws": {
 			model: awsModel(),
@@ -157,17 +122,6 @@ func TestRepositoryAccessFromJson(t *testing.T) {
 				`"hosting":{"type":"aws","accountId":"123456789012","connectorName":"p0-github-repositories-connector","connectorRegion":"us-east-1"},` +
 				`"state":"installed"}`,
 			state: "installed",
-		},
-		"gcp": {
-			model: gcpModel(),
-			response: `{"appId":"234567",` +
-				`"vault":{"type":"gcp-sm","install":"my-project-id"},` +
-				`"privateKeySecretName":"github-private-key",` +
-				`"hosting":{"type":"gcp","projectId":"my-project-id","connectorName":"p0-github-repositories-connector","connectorRegion":"us-central1",` +
-				`"connectorServiceUri":"https://p0-github-repositories-connector-abc123-uc.a.run.app"},` +
-				`"state":"installed"}`,
-			state:      "installed",
-			serviceUri: strPtr("https://p0-github-repositories-connector-abc123-uc.a.run.app"),
 		},
 	}
 
@@ -186,7 +140,6 @@ func TestRepositoryAccessFromJson(t *testing.T) {
 
 			want := c.model
 			want.State = types.StringValue(c.state)
-			want.Hosting.ConnectorServiceUri = types.StringPointerValue(c.serviceUri)
 			if !reflect.DeepEqual(got, want) {
 				t.Errorf("fromJson =\n%+v\nwant\n%+v", got, want)
 			}
@@ -196,7 +149,7 @@ func TestRepositoryAccessFromJson(t *testing.T) {
 
 func TestRepositoryAccessFromJsonRequiresVaultAndHosting(t *testing.T) {
 	for name, item := range map[string]repositoryAccessJson{
-		"no vault":   {Hosting: awsModel().Hosting.ToJson()},
+		"no vault":   {Hosting: awsModel().Hosting.toJson()},
 		"no hosting": {Vault: awsModel().Vault.toJson()},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -204,6 +157,33 @@ func TestRepositoryAccessFromJsonRequiresVaultAndHosting(t *testing.T) {
 			got := (&RepositoryAccess{}).fromJson(context.Background(), &diags, "my-github-org", &item)
 			if got != nil || !diags.HasError() {
 				t.Errorf("fromJson = %+v, %v; want nil and an error", got, diags)
+			}
+		})
+	}
+}
+
+// This resource supports only AWS for now, so an item in another cloud, such as one
+// created in the P0 app, is refused rather than read into the wrong fields.
+func TestRepositoryAccessFromJsonRequiresAws(t *testing.T) {
+	const awsVaultJson = `"vault":{"type":"aws-sm","install":"123456789012","secretsRegion":"us-east-1"}`
+	const awsHostingJson = `"hosting":{"type":"aws","accountId":"123456789012","connectorName":"p0-connector","connectorRegion":"us-east-1"}`
+	const gcpVaultJson = `"vault":{"type":"gcp-sm","install":"my-project-id"}`
+	const gcpHostingJson = `"hosting":{"type":"gcp","projectId":"my-project-id","connectorName":"p0-connector","connectorRegion":"us-central1"}`
+
+	for name, response := range map[string]string{
+		"gcp":                    `{"appId":"123456",` + gcpVaultJson + `,"privateKeySecretName":"key",` + gcpHostingJson + `}`,
+		"gcp vault, aws hosting": `{"appId":"123456",` + gcpVaultJson + `,"privateKeySecretName":"key",` + awsHostingJson + `}`,
+		"aws vault, gcp hosting": `{"appId":"123456",` + awsVaultJson + `,"privateKeySecretName":"key",` + gcpHostingJson + `}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			var item repositoryAccessJson
+			if err := json.Unmarshal([]byte(response), &item); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			var diags diag.Diagnostics
+			got := (&RepositoryAccess{}).fromJson(context.Background(), &diags, "my-github-org", &item)
+			if got != nil || len(diags.Errors()) != 1 || diags.Errors()[0].Summary() != "Unsupported GitHub Repositories install" {
+				t.Errorf("fromJson = %+v, %v; want nil and an unsupported install error", got, diags)
 			}
 		})
 	}
@@ -264,10 +244,8 @@ func TestSchemaReplacement(t *testing.T) {
 		{name: "vault.type", attribute: nested("vault")["type"], want: true},
 		{name: "vault.account_id", attribute: nested("vault")["account_id"], want: true},
 		{name: "vault.secrets_region", attribute: nested("vault")["secrets_region"], want: true},
-		{name: "vault.project_id", attribute: nested("vault")["project_id"], want: true},
 		{name: "hosting.type", attribute: nested("hosting")["type"], want: true},
 		{name: "hosting.account_id", attribute: nested("hosting")["account_id"], want: true},
-		{name: "hosting.project_id", attribute: nested("hosting")["project_id"], want: true},
 		{name: "hosting.connector_name", attribute: nested("hosting")["connector_name"], want: true},
 		{name: "hosting.connector_region", attribute: nested("hosting")["connector_region"], want: true},
 	}
@@ -319,7 +297,7 @@ func planChange(t *testing.T, configured *repositoryAccessModel) *tfprotov6.Plan
 	server := providerserver.NewProtocol6(&planTestProvider{})()
 	resp, err := server.PlanResourceChange(ctx, &tfprotov6.PlanResourceChangeRequest{
 		TypeName:         "p0_github_repositories",
-		PriorState:       dynamic(at(awsModel(), types.StringValue(common.StateInstalled), types.StringNull())),
+		PriorState:       dynamic(at(awsModel(), types.StringValue(common.StateInstalled))),
 		ProposedNewState: dynamic(&proposed),
 		Config:           dynamic(configured),
 	})
@@ -401,14 +379,10 @@ var unknownString = tftypes.NewValue(tftypes.String, tftypes.UnknownValue)
 
 var (
 	awsVaultFields   = map[string]tftypes.Value{"type": str("aws-sm"), "account_id": str("123456789012"), "secrets_region": str("us-east-1")}
-	gcpVaultFields   = map[string]tftypes.Value{"type": str("gcp-sm"), "project_id": str("my-project-id")}
 	awsHostingFields = map[string]tftypes.Value{"type": str("aws"), "account_id": str("123456789012"), "connector_name": str("p0-connector"), "connector_region": str("us-east-1")}
-	gcpHostingFields = map[string]tftypes.Value{"type": str("gcp"), "project_id": str("my-project-id"), "connector_name": str("p0-connector"), "connector_region": str("us-central1")}
 
 	awsVault   = objectOf(awsVaultFields)
-	gcpVault   = objectOf(gcpVaultFields)
 	awsHosting = objectOf(awsHostingFields)
-	gcpHosting = objectOf(gcpHostingFields)
 )
 
 // A nested object with base's fields, one of them replaced by value.
@@ -423,8 +397,8 @@ func with(base map[string]tftypes.Value, field string, value tftypes.Value) func
 }
 
 // Runs the resource's ValidateConfig against a configuration with the given vault and
-// hosting. overrides replaces the root string attributes, which are otherwise valid
-// for either cloud. The attribute and object validators don't run here, because
+// hosting. overrides replaces the root string attributes, which are otherwise valid.
+// The attribute and object validators don't run here, because
 // Terraform runs those separately.
 func validateConfig(t *testing.T, vault, hosting func(tftypes.Object) tftypes.Value, overrides map[string]tftypes.Value) diag.Diagnostics {
 	t.Helper()
@@ -466,7 +440,6 @@ func validateConfig(t *testing.T, vault, hosting func(tftypes.Object) tftypes.Va
 func TestRepositoryAccessValidateConfig(t *testing.T) {
 	const pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\n-----END RSA PRIVATE KEY-----"
 	const arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:github-key"
-	const resourceName = "projects/my-project-id/secrets/github-key"
 	unknownType := objectOf(map[string]tftypes.Value{"type": unknownString})
 	secret := func(value tftypes.Value) map[string]tftypes.Value {
 		return map[string]tftypes.Value{"private_key_secret_name": value}
@@ -481,28 +454,16 @@ func TestRepositoryAccessValidateConfig(t *testing.T) {
 		want []string
 	}{
 		{name: "aws", vault: awsVault, hosting: awsHosting},
-		{name: "gcp", vault: gcpVault, hosting: gcpHosting},
-		{name: "aws vault, gcp hosting", vault: awsVault, hosting: gcpHosting, want: []string{"Vault and connector in different clouds"}},
-		{name: "gcp vault, aws hosting", vault: gcpVault, hosting: awsHosting, want: []string{"Vault and connector in different clouds"}},
 		{name: "unknown vault type", vault: unknownType, hosting: awsHosting},
-		{name: "unknown hosting type", vault: gcpVault, hosting: unknownType},
+		{name: "unknown hosting type", vault: awsVault, hosting: unknownType},
 		{name: "unknown vault", vault: unknownObject, hosting: awsHosting},
-		{name: "unknown hosting", vault: gcpVault, hosting: unknownObject},
+		{name: "unknown hosting", vault: awsVault, hosting: unknownObject},
 		{name: "unknown vault and hosting", vault: unknownObject, hosting: unknownObject},
-		{
-			name:    "hosting fields checked as for p0_app",
-			vault:   awsVault,
-			hosting: objectOf(map[string]tftypes.Value{"type": str("aws"), "project_id": str("my-project-id"), "connector_name": str("p0-connector"), "connector_region": str("us-east-1")}),
-			want:    []string{"Missing AWS account ID", "Unexpected Google Cloud project"},
-		},
 		{name: "aws secret arn", vault: awsVault, hosting: awsHosting, overrides: secret(str(arn))},
-		{name: "gcp secret resource name", vault: gcpVault, hosting: gcpHosting, overrides: secret(str(resourceName))},
-		{name: "aws secret arn in a gcp vault", vault: gcpVault, hosting: gcpHosting, overrides: secret(str(arn)), want: []string{"Invalid private key secret name"}},
 		{name: "pasted key", vault: awsVault, hosting: awsHosting, overrides: secret(str(pem)), want: []string{"Invalid private key secret name"}},
 		{name: "unknown secret name", vault: awsVault, hosting: awsHosting, overrides: secret(unknownString)},
-		{name: "either vault's form with an unknown vault", vault: unknownObject, hosting: gcpHosting, overrides: secret(str(resourceName))},
+		{name: "aws secret arn with an unknown vault", vault: unknownObject, hosting: awsHosting, overrides: secret(str(arn))},
 		{name: "pasted key with an unknown vault", vault: unknownObject, hosting: unknownObject, overrides: secret(str(pem)), want: []string{"Invalid private key secret name"}},
-		{name: "aws secret arn with an unknown hosting", vault: gcpVault, hosting: unknownObject, overrides: secret(str(arn)), want: []string{"Invalid private key secret name"}},
 		{name: "secret name with a trailing newline", vault: awsVault, hosting: awsHosting, overrides: secret(str("private-key\n")), want: []string{"Whitespace around a value"}},
 		{name: "app id with a leading space", vault: awsVault, hosting: awsHosting, overrides: map[string]tftypes.Value{"app_id": str(" 123456")}, want: []string{"Whitespace around a value"}},
 		{name: "app id with a trailing newline", vault: awsVault, hosting: awsHosting, overrides: map[string]tftypes.Value{"app_id": str("123456\n")}, want: []string{"Whitespace around a value"}},
@@ -519,10 +480,7 @@ func TestRepositoryAccessValidateConfig(t *testing.T) {
 		{name: "govcloud connector", vault: awsVault, hosting: with(awsHostingFields, "connector_region", str("us-gov-west-1")), want: []string{"Unsupported AWS region for the connector"}},
 		{name: "china secret", vault: with(awsVaultFields, "secrets_region", str("cn-north-1")), hosting: awsHosting, want: []string{"Unsupported AWS region for the private key's secret"}},
 		{name: "unknown secrets region", vault: with(awsVaultFields, "secrets_region", unknownString), hosting: awsHosting},
-		{name: "invalid vault project", vault: with(gcpVaultFields, "project_id", str("My_Project")), hosting: gcpHosting, want: []string{"Invalid Google Cloud project ID for the private key's secret"}},
-		{name: "connector name with whitespace", vault: gcpVault, hosting: with(gcpHostingFields, "connector_name", str("p0-connector ")), want: []string{"Whitespace around a value"}},
-		// Each block is checked against its own type's rules, whatever the other's cloud.
-		{name: "aws vault with a gcp project id, gcp hosting", vault: awsVault, hosting: with(gcpHostingFields, "project_id", str("Bad")), want: []string{"Vault and connector in different clouds", "Invalid Google Cloud project ID for the connector"}},
+		{name: "connector name with whitespace", vault: awsVault, hosting: with(awsHostingFields, "connector_name", str("p0-connector ")), want: []string{"Whitespace around a value"}},
 	}
 
 	for _, c := range cases {
@@ -538,18 +496,6 @@ func TestRepositoryAccessValidateConfig(t *testing.T) {
 				t.Errorf("errors = %v; want %v", got, want)
 			}
 		})
-	}
-}
-
-// A vault and a connector in different clouds are rejected in P0's own words.
-func TestRepositoryAccessValidateConfigMixedCloudsWording(t *testing.T) {
-	errs := validateConfig(t, awsVault, gcpHosting, nil).Errors()
-	if len(errs) != 1 {
-		t.Fatalf("errors = %v; want one", errs)
-	}
-	const want = "The vault and the connector need to be in the same cloud. Pick AWS for both or GCP for both."
-	if !strings.Contains(errs[0].Detail(), want) {
-		t.Errorf("detail = %q; want it to contain %q", errs[0].Detail(), want)
 	}
 }
 
@@ -586,17 +532,9 @@ func TestDescribeCheckError(t *testing.T) {
 	}
 }
 
-func strPtr(s string) *string {
-	return &s
-}
-
-// The URL that the fake P0 below looks a Cloud Run connector up at.
-const connectorServiceUri = "https://p0-github-repositories-connector-abc123-uc.a.run.app"
-
-// model at state, with the URL P0 looked a Cloud Run connector up at.
-func at(model *repositoryAccessModel, state types.String, serviceUri types.String) *repositoryAccessModel {
+// model at state.
+func at(model *repositoryAccessModel, state types.String) *repositoryAccessModel {
 	model.State = state
-	model.Hosting.ConnectorServiceUri = serviceUri
 	return model
 }
 
@@ -617,8 +555,7 @@ func rawOf(t *testing.T, model *repositoryAccessModel) tftypes.Value {
 
 // A fake of P0's verify and configure steps for item, which records each request. A
 // step answers with item, with the App and the key's secret that the step was sent,
-// at the state that the step moves the item to, and on Cloud Run with the URL that
-// P0 looks the connector up at. With failConfigure, configure answers as P0 does when
+// at the state that the step moves the item to. With failConfigure, configure answers as P0 does when
 // it can't reach the connector, and P0 saves nothing then.
 type fakeSteps struct {
 	item          *repositoryAccessModel
@@ -663,9 +600,6 @@ func (f *fakeSteps) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	item := stageJson(f.item)
 	item.AppId = &sent.AppId
 	item.PrivateKeySecretName = &sent.PrivateKeySecretName
-	if item.Hosting.Type == installapp.GcpHosting {
-		item.Hosting.ConnectorServiceUri = strPtr(connectorServiceUri)
-	}
 	item.State = &nextState
 	_ = json.NewEncoder(w).Encode(repositoryAccessApi{Item: item})
 }
@@ -739,8 +673,8 @@ func TestRepositoryAccessUpdateSteps(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.prior, func(t *testing.T) {
 			fake, server := newFakeSteps(t, awsModel(), false)
-			prior := rawOf(t, at(awsModel(), types.StringValue(c.prior), types.StringNull()))
-			planned := at(awsModel(), types.StringUnknown(), types.StringUnknown())
+			prior := rawOf(t, at(awsModel(), types.StringValue(c.prior)))
+			planned := at(awsModel(), types.StringUnknown())
 			planned.AppId = types.StringValue("777777")
 
 			resp := update(t, configuredResource(t, server), prior, rawOf(t, planned))
@@ -751,7 +685,7 @@ func TestRepositoryAccessUpdateSteps(t *testing.T) {
 			if got := fake.Requests(); !reflect.DeepEqual(got, c.want) {
 				t.Errorf("requests =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(c.want, "\n"))
 			}
-			want := at(awsModel(), types.StringValue(common.StateInstalled), types.StringNull())
+			want := at(awsModel(), types.StringValue(common.StateInstalled))
 			want.AppId = types.StringValue("777777")
 			if !resp.State.Raw.Equal(rawOf(t, want)) {
 				t.Errorf("state = %v; want the installed item with the new App", resp.State.Raw)
@@ -765,8 +699,8 @@ func TestRepositoryAccessUpdateSteps(t *testing.T) {
 // item and its App, so the next plan shows the update again.
 func TestRepositoryAccessUpdateFailedCheck(t *testing.T) {
 	fake, server := newFakeSteps(t, awsModel(), true)
-	prior := rawOf(t, at(awsModel(), types.StringValue(common.StateInstalled), types.StringNull()))
-	planned := at(awsModel(), types.StringUnknown(), types.StringUnknown())
+	prior := rawOf(t, at(awsModel(), types.StringValue(common.StateInstalled)))
+	planned := at(awsModel(), types.StringUnknown())
 	planned.AppId = types.StringValue("777777")
 
 	resp := update(t, configuredResource(t, server), prior, rawOf(t, planned))
@@ -785,26 +719,22 @@ func TestRepositoryAccessUpdateFailedCheck(t *testing.T) {
 }
 
 // An item that P0 hasn't installed plans an update even when its configuration hasn't
-// changed, so that the next apply finishes the install, and the attributes that only
-// P0 sets are unknown in it, as in any update. Every other plan is the framework's, so
-// an installed item plans no difference.
+// changed, so that the next apply finishes the install, and its state, which only P0
+// sets, is unknown in it, as in any update. Every other plan is the framework's, so an
+// installed item plans no difference.
 func TestRepositoryAccessModifyPlan(t *testing.T) {
 	installed := types.StringValue(common.StateInstalled)
 	configured := types.StringValue(common.StateConfigure)
 	staged := types.StringValue(common.StateStage)
 	unknown := types.StringUnknown()
 	none := types.StringNull()
-	uri := types.StringValue(connectorServiceUri)
 
-	gcpAt := func(state, serviceUri types.String) tftypes.Value {
-		return rawOf(t, at(gcpModel(), state, serviceUri))
+	awsAt := func(state types.String) tftypes.Value {
+		return rawOf(t, at(awsModel(), state))
 	}
-	awsAt := func(state, serviceUri types.String) tftypes.Value {
-		return rawOf(t, at(awsModel(), state, serviceUri))
-	}
-	// The framework's plan for a new App: the attributes that only P0 sets are unknown.
+	// The framework's plan for a new App: the state, which only P0 sets, is unknown.
 	newApp := func() tftypes.Value {
-		model := at(gcpModel(), unknown, unknown)
+		model := at(awsModel(), unknown)
 		model.AppId = types.StringValue("777777")
 		return rawOf(t, model)
 	}
@@ -815,18 +745,14 @@ func TestRepositoryAccessModifyPlan(t *testing.T) {
 		plan  tftypes.Value // The framework's plan, null on destroy.
 		want  tftypes.Value
 	}{
-		{name: "installed", prior: gcpAt(installed, uri), plan: gcpAt(installed, uri), want: gcpAt(installed, uri)},
-		{name: "installed aws", prior: awsAt(installed, none), plan: awsAt(installed, none), want: awsAt(installed, none)},
-		{name: "installed, with a new App", prior: gcpAt(installed, uri), plan: newApp(), want: newApp()},
-		{name: "configure", prior: gcpAt(configured, uri), plan: gcpAt(configured, uri), want: gcpAt(unknown, unknown)},
-		{name: "configure, with a new App", prior: gcpAt(configured, uri), plan: newApp(), want: newApp()},
-		// P0 drops the connector's URL when it stages an item, and looks it up again
-		// when it verifies it.
-		{name: "stage", prior: gcpAt(staged, none), plan: gcpAt(staged, none), want: gcpAt(unknown, unknown)},
-		{name: "stage aws", prior: awsAt(staged, none), plan: awsAt(staged, none), want: awsAt(unknown, unknown)},
-		{name: "no state", prior: gcpAt(none, uri), plan: gcpAt(none, uri), want: gcpAt(unknown, unknown)},
-		{name: "create", prior: rawOf(t, nil), plan: gcpAt(unknown, unknown), want: gcpAt(unknown, unknown)},
-		{name: "destroy", prior: gcpAt(staged, none), plan: rawOf(t, nil), want: rawOf(t, nil)},
+		{name: "installed", prior: awsAt(installed), plan: awsAt(installed), want: awsAt(installed)},
+		{name: "installed, with a new App", prior: awsAt(installed), plan: newApp(), want: newApp()},
+		{name: "configure", prior: awsAt(configured), plan: awsAt(configured), want: awsAt(unknown)},
+		{name: "configure, with a new App", prior: awsAt(configured), plan: newApp(), want: newApp()},
+		{name: "stage", prior: awsAt(staged), plan: awsAt(staged), want: awsAt(unknown)},
+		{name: "no state", prior: awsAt(none), plan: awsAt(none), want: awsAt(unknown)},
+		{name: "create", prior: rawOf(t, nil), plan: awsAt(unknown), want: awsAt(unknown)},
+		{name: "destroy", prior: awsAt(staged), plan: rawOf(t, nil), want: rawOf(t, nil)},
 	}
 
 	for _, c := range cases {
@@ -851,14 +777,14 @@ func TestRepositoryAccessModifyPlanUnknownHosting(t *testing.T) {
 		t.Fatalf("hosting is not an object")
 	}
 	withUnknownHosting := func(state types.String) tftypes.Value {
-		plan := tfsdk.Plan{Schema: repositorySchema, Raw: rawOf(t, at(gcpModel(), state, types.StringNull()))}
+		plan := tfsdk.Plan{Schema: repositorySchema, Raw: rawOf(t, at(awsModel(), state))}
 		if diags := plan.SetAttribute(ctx, path.Root("hosting"), types.ObjectUnknown(hostingType.AttrTypes)); diags.HasError() {
 			t.Fatalf("SetAttribute: %v", diags)
 		}
 		return plan.Raw
 	}
 
-	prior := rawOf(t, at(gcpModel(), types.StringValue(common.StateConfigure), types.StringValue(connectorServiceUri)))
+	prior := rawOf(t, at(awsModel(), types.StringValue(common.StateConfigure)))
 	resp := modifyPlan(t, prior, withUnknownHosting(types.StringValue(common.StateConfigure)))
 
 	if resp.Diagnostics.HasError() {
@@ -872,25 +798,24 @@ func TestRepositoryAccessModifyPlanUnknownHosting(t *testing.T) {
 // An item imported at stage converges in one apply: its plan shows an update, the
 // update verifies and configures it, and the plan after that shows no difference.
 func TestRepositoryAccessStagedItemConverges(t *testing.T) {
-	// P0 drops the connector's URL when it stages an item.
-	staged := rawOf(t, at(gcpModel(), types.StringValue(common.StateStage), types.StringNull()))
+	staged := rawOf(t, at(awsModel(), types.StringValue(common.StateStage)))
 	plan := modifyPlan(t, staged, staged)
 	if plan.Diagnostics.HasError() || plan.Plan.Raw.Equal(staged) {
 		t.Fatalf("plan = %v, %v; want an update", plan.Plan.Raw, plan.Diagnostics)
 	}
 
-	fake, server := newFakeSteps(t, gcpModel(), false)
+	fake, server := newFakeSteps(t, awsModel(), false)
 	resp := update(t, configuredResource(t, server), staged, plan.Plan.Raw)
 
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("Update: %v", resp.Diagnostics)
 	}
-	const body = `{"appId":"234567","privateKeySecretName":"github-private-key"}`
+	const body = `{"appId":"123456","privateKeySecretName":"github/my-github-org/private-key"}`
 	want := []string{"POST " + itemPath + "/verify " + body, "POST " + itemPath + "/configure " + body}
 	if got := fake.Requests(); !reflect.DeepEqual(got, want) {
 		t.Errorf("requests =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
-	installed := rawOf(t, at(gcpModel(), types.StringValue(common.StateInstalled), types.StringValue(connectorServiceUri)))
+	installed := rawOf(t, at(awsModel(), types.StringValue(common.StateInstalled)))
 	if !resp.State.Raw.Equal(installed) {
 		t.Fatalf("state = %v; want the installed item", resp.State.Raw)
 	}

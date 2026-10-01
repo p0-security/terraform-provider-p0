@@ -29,12 +29,12 @@ type RepositoryAccess struct {
 }
 
 type repositoryAccessModel struct {
-	Org                  types.String                      `tfsdk:"org"`
-	AppId                types.String                      `tfsdk:"app_id"`
-	Vault                *vaultModel                       `tfsdk:"vault"`
-	PrivateKeySecretName types.String                      `tfsdk:"private_key_secret_name"`
-	Hosting              *installapp.ConnectorHostingModel `tfsdk:"hosting"`
-	State                types.String                      `tfsdk:"state"`
+	Org                  types.String  `tfsdk:"org"`
+	AppId                types.String  `tfsdk:"app_id"`
+	Vault                *vaultModel   `tfsdk:"vault"`
+	PrivateKeySecretName types.String  `tfsdk:"private_key_secret_name"`
+	Hosting              *hostingModel `tfsdk:"hosting"`
+	State                types.String  `tfsdk:"state"`
 }
 
 // The item, as P0 stores it.
@@ -71,13 +71,15 @@ func (*RepositoryAccess) Schema(_ context.Context, _ resource.SchemaRequest, res
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A GitHub Repositories installation for one GitHub organization.
 
-Installing GitHub Repositories lets P0 grant your organization's members just-in-time roles on its repositories. P0 acts through a GitHub App that you create and install on the organization, and through a connector that you deploy in your own AWS or Google Cloud account. The App's private key stays in your secret manager, and only the connector reads it. Each organization needs its own App and its own connector.
+Installing GitHub Repositories lets P0 grant your organization's members just-in-time roles on its repositories. P0 acts through a GitHub App that you create and install on the organization, and through a connector that you deploy in your own AWS account. The App's private key stays in your secret manager, and only the connector reads it. Each organization needs its own App and its own connector.
+
+GitHub Repositories supports only AWS for now: the connector runs on AWS Lambda, and the App's private key is stored in AWS Secrets Manager.
 
 **Important:** Create the App and store its private key before you apply this resource, and deploy the connector first: in an earlier apply, or in the same one with this resource depending on the connector's access grants, as the example does. Creating this resource has P0 check the install through the connector: that P0 can invoke the connector, that the connector can read the private key, and that the App is installed on the organization with the permissions it needs. If a check fails, the apply fails with P0's message.
 
-The vault and the connector must be in the same cloud: ` + "`aws-sm`" + ` with ` + "`aws`" + ` hosting, or ` + "`gcp-sm`" + ` with ` + "`gcp`" + ` hosting. Changing ` + "`vault`" + `, ` + "`hosting`" + ` or ` + "`private_key_secret_name`" + ` replaces the installation. To rotate the private key, add a new version to the same secret, which needs no change here. Changing ` + "`app_id`" + ` updates the installation in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
+Changing ` + "`vault`" + `, ` + "`hosting`" + ` or ` + "`private_key_secret_name`" + ` replaces the installation. To rotate the private key, add a new version to the same secret, which needs no change here. Changing ` + "`app_id`" + ` updates the installation in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
 
-P0 checks where the connector runs when it creates the installation, and so does a plan. ` + "`hosting.connector_name`" + ` has 2 to 64 characters on Lambda, or 2 to 49 on Cloud Run: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. On AWS, the connector and the secret must be in commercial regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
+P0 checks where the connector runs when it creates the installation, and so does a plan. ` + "`hosting.connector_name`" + ` has 2 to 64 characters: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. The connector and the secret must be in commercial AWS regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
 
 **Prerequisites:**
 
@@ -85,19 +87,17 @@ P0 checks where the connector runs when it creates the installation, and so does
   - Repository: Administration (read and write) and Metadata (read)
   - Organization: Members (read) and Custom repository roles (read)
 
-  An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager or Google Secret Manager.
+  An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager.
 
   **Warning:** Administration: write lets the App change roles on, and administer, every repository it is installed on. Select only the repositories P0 should manage.
 
-- P0's GitHub Repositories connector, from the image ` + "`p0security/p0-connector-github-repositories`" + ` on AWS Lambda or ` + "`p0security/p0-connector-github-repositories-gcloud`" + ` on Google Cloud Run. Lambda runs images only from Amazon ECR, so copy the Lambda image from Docker Hub into ECR first. P0's GitHub Repositories installer generates Terraform that deploys the connector with its image pinned, as in the example.
+- P0's GitHub Repositories connector on AWS Lambda, from the image ` + "`p0security/p0-connector-github-repositories`" + `. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. P0's GitHub Repositories installer generates Terraform that deploys the connector with its image pinned, as in the example.
 
-  Grant the connector's identity read access to the private key secret alone, never through a wildcard or at the account or project level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
-  - On AWS, give its execution role ` + "`secretsmanager:GetSecretValue`" + ` on the secret. If a customer-managed KMS key encrypts the secret, also give the role ` + "`kms:Decrypt`" + ` on that key, with the condition that ` + "`kms:ViaService`" + ` is ` + "`secretsmanager.<region>.amazonaws.com`" + `. For its logs, give the role ` + "`logs:CreateLogStream`" + ` and ` + "`logs:PutLogEvents`" + ` on its own log group alone, ` + "`/aws/lambda/<function name>`" + `. The role can't create that log group, so create it before the function first runs.
-  - On Google Cloud, give its service account ` + "`secretmanager.versions.access`" + ` and ` + "`secretmanager.versions.get`" + ` on the secret, for example by binding ` + "`roles/secretmanager.secretAccessor`" + ` and ` + "`roles/secretmanager.viewer`" + ` on it.
+  Grant the connector's execution role read access to the private key secret alone, never through a wildcard or at the account level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
 
-- For AWS Lambda hosting, ` + "`p0_aws_iam_write`" + ` installed for the account the connector runs in. Grant that installation's role ` + "`lambda:InvokeFunction`" + ` on the connector's function.
+  Give the role ` + "`secretsmanager:GetSecretValue`" + ` on the secret. If a customer-managed KMS key encrypts the secret, also give the role ` + "`kms:Decrypt`" + ` on that key, with the condition that ` + "`kms:ViaService`" + ` is ` + "`secretsmanager.<region>.amazonaws.com`" + `. For its logs, give the role ` + "`logs:CreateLogStream`" + ` and ` + "`logs:PutLogEvents`" + ` on its own log group alone, ` + "`/aws/lambda/<function name>`" + `. The role can't create that log group, so create it before the function first runs.
 
-- For Google Cloud Run hosting, ` + "`p0_gcp`" + ` installed. Grant its service account ` + "`roles/run.invoker`" + ` and ` + "`roles/run.viewer`" + ` on the connector's service: P0 invokes the connector, and reads the service to find its URL. Set the connector's ` + "`INVOKER_SA_EMAIL`" + ` environment variable to the same service account.
+- ` + "`p0_aws_iam_write`" + ` installed for the account the connector runs in. Grant that installation's role ` + "`lambda:InvokeFunction`" + ` on the connector's function.
 
 **Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
@@ -120,18 +120,14 @@ P0 checks where the connector runs when it creates the installation, and so does
 			"private_key_secret_name": schema.StringAttribute{
 				Required: true,
 				MarkdownDescription: `The name or ARN of the secret that holds the GitHub App's private key. ` +
-					`On AWS, a name is looked up in the connector's own account, in ` + "`vault.secrets_region`" + `. ` +
+					`A name is looked up in the connector's own account, in ` + "`vault.secrets_region`" + `. ` +
 					`Give a secret in another account as its full ARN, and allow the connector's role in the secret's resource policy and in its KMS key's policy. ` +
-					`On Google Cloud, this is the secret's ID or its full resource name, ` + "`projects/<project>/secrets/<id>`" + `. ` +
 					`Changing it replaces the installation. To rotate the key, add a new version to the same secret, which needs no change here.`,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			// P0's rules for the connector's name, region, account and project depend on the
-			// hosting's type, which a field's validator can't see, so ValidateConfig checks
-			// them instead.
-			"hosting": installapp.ConnectorHostingAttribute(installapp.ConnectorHostingValidators{}),
+			"hosting": hostingAttribute(),
 			"state":   common.StateAttribute,
 		},
 	}
@@ -147,14 +143,12 @@ func (*RepositoryAccess) ValidateConfig(ctx context.Context, req resource.Valida
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("app_id"), &appId)...)
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("private_key_secret_name"), &secretName)...)
 	vault := vaultFromConfig(ctx, req.Config, &resp.Diagnostics)
-	hosting := installapp.ConnectorHostingFromConfig(ctx, req.Config, &resp.Diagnostics)
+	hosting := hostingFromConfig(ctx, req.Config, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	installapp.ValidateConnectorHosting(hosting, &resp.Diagnostics)
-	// The rest in the order P0 checks them when it creates the item.
-	validateSameCloud(vault, hosting, &resp.Diagnostics)
+	// In the order P0 checks them when it creates the item.
 	validateField(path.Root("private_key_secret_name"), secretName, secretNameRules(vault), &resp.Diagnostics)
 	validateField(path.Root("app_id"), appId, appIdRules, &resp.Diagnostics)
 	validateOrgLogin(org, &resp.Diagnostics)
@@ -162,7 +156,7 @@ func (*RepositoryAccess) ValidateConfig(ctx context.Context, req resource.Valida
 }
 
 // P0's rule for the private key's secret name: a form the vault accepts, which a
-// pasted key never is. While the vault's type isn't known, either vault's forms pass.
+// pasted key never is. While the vault's type isn't known, any vault's forms pass.
 func secretNameRules(vault *vaultModel) []rule {
 	vaultType := ""
 	if vault != nil && installapp.IsSet(vault.Type) {
@@ -231,7 +225,7 @@ func (r *RepositoryAccess) Configure(ctx context.Context, req resource.Configure
 
 // P0 runs the install checks through the connector, so a failed check usually means a
 // problem in the customer's setup, which P0's message describes. The wording doesn't
-// say where: P0 also fails a check, for one, on a Cloud Run service it can't read.
+// presume where the problem is, and leaves that to P0's message.
 func describeCheckError(org string, err error) (string, string) {
 	return "GitHub Repositories install check failed",
 		fmt.Sprintf("P0 rejected the install check for the GitHub organization %q:\n\n%s", org, err)
@@ -272,12 +266,25 @@ func (r *RepositoryAccess) fromJson(_ context.Context, diags *diag.Diagnostics, 
 		return nil
 	}
 
+	// This resource supports only AWS for now, so an item in another cloud, such as one
+	// created in the P0 app, can't be read into its schema.
+	if jsonv.Vault.Type != AwsSecretsManager || jsonv.Hosting.Type != installapp.AwsHosting {
+		diags.AddError(
+			"Unsupported GitHub Repositories install",
+			fmt.Sprintf("The GitHub Repositories install %s has a %q vault and %q hosting. "+
+				"This provider supports only %q with %q for now. Manage it in the P0 app, "+
+				"or remove it from Terraform state with `terraform state rm`.",
+				id, jsonv.Vault.Type, jsonv.Hosting.Type, AwsSecretsManager, installapp.AwsHosting),
+		)
+		return nil
+	}
+
 	return &repositoryAccessModel{
 		Org:                  types.StringValue(id),
 		AppId:                types.StringPointerValue(jsonv.AppId),
 		Vault:                vaultFromJson(jsonv.Vault),
 		PrivateKeySecretName: types.StringPointerValue(jsonv.PrivateKeySecretName),
-		Hosting:              installapp.ConnectorHostingFromJson(jsonv.Hosting),
+		Hosting:              hostingFromJson(jsonv.Hosting),
 		State:                types.StringPointerValue(jsonv.State),
 	}
 }
@@ -307,7 +314,7 @@ func stageJson(data *repositoryAccessModel) *repositoryAccessJson {
 		json.Vault = data.Vault.toJson()
 	}
 	if data.Hosting != nil {
-		json.Hosting = data.Hosting.ToJson()
+		json.Hosting = data.Hosting.toJson()
 	}
 	return &json
 }
@@ -351,16 +358,9 @@ func (*RepositoryAccess) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 		return
 	}
 
-	// As in any update the framework plans, the attributes that only P0 sets are
-	// unknown until apply. Update takes both from P0's response, which has the item's
-	// new state and, on Cloud Run, the URL that P0 looked the connector up at.
+	// As in any update the framework plans, the state, which only P0 sets, is unknown
+	// until apply. Update takes it from P0's response, which has the item's new state.
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("state"), types.StringUnknown())...)
-	var hosting types.Object
-	resp.Diagnostics.Append(resp.Plan.GetAttribute(ctx, path.Root("hosting"), &hosting)...)
-	if resp.Diagnostics.HasError() || hosting.IsNull() || hosting.IsUnknown() {
-		return
-	}
-	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("hosting").AtName("connector_service_uri"), types.StringUnknown())...)
 }
 
 // Only app_id updates in place, and P0 checks the install with it. An item that P0 has

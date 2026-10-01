@@ -7,24 +7,20 @@ import (
 
 // The forms each vault accepts for the private key's secret, as P0 checks them
 // (packages/integrations/github-repositories-shared/src/secret-name.ts in the app):
-// AWS takes a secret's name or its ARN, Google a secret's ID or its full resource
-// name. None of them allows whitespace, so a pasted key never matches.
+// AWS takes a secret's name or its ARN. Neither allows whitespace, so a pasted key
+// never matches.
 var secretNamePatterns = map[string][]*regexp.Regexp{
 	AwsSecretsManager: {
 		regexp.MustCompile(`^[A-Za-z0-9/_+=.@-]{1,512}$`),
 		regexp.MustCompile(`^arn:aws[a-z-]*:secretsmanager:[a-z0-9-]+:\d{12}:secret:[A-Za-z0-9/_+=.@-]+$`),
-	},
-	GcpSecretManager: {
-		regexp.MustCompile(`^[A-Za-z0-9_-]{1,255}$`),
-		regexp.MustCompile(`^projects/[A-Za-z0-9.:-]+/secrets/[A-Za-z0-9_-]{1,255}$`),
 	},
 }
 
 // P0's message for a private key secret name it refuses.
 const InvalidSecretName = "That doesn't look like a secret name. Enter the name or ARN of the secret that holds the key, not the key itself."
 
-// Whether name names a secret in a vault of type vaultType, or in either vault when
-// the type isn't known. A PEM header alone has no whitespace, so it's refused
+// Whether name names a secret in a vault of type vaultType, or in any vault when the
+// type isn't known. A PEM header alone has no whitespace, so it's refused
 // explicitly.
 func isSecretName(name string, vaultType string) bool {
 	if strings.Contains(name, "-----BEGIN") {
