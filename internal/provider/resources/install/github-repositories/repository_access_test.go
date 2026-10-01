@@ -14,13 +14,17 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -222,8 +226,8 @@ func TestSchemaIsValid(t *testing.T) {
 	}
 }
 
-// P0 fixes the vault and the hosting when it creates the item, so changing either
-// replaces the installation. The App and the key's secret change in place.
+// P0 fixes the vault, the hosting and the key's secret when it creates the item, so
+// changing any of them replaces the installation. The App changes in place.
 func TestSchemaReplacement(t *testing.T) {
 	ctx := context.Background()
 	attributes := repositoryAccessSchema(t).Attributes
@@ -256,7 +260,7 @@ func TestSchemaReplacement(t *testing.T) {
 	}{
 		{name: "org", attribute: attributes["org"], want: true},
 		{name: "app_id", attribute: attributes["app_id"], want: false},
-		{name: "private_key_secret_name", attribute: attributes["private_key_secret_name"], want: false},
+		{name: "private_key_secret_name", attribute: attributes["private_key_secret_name"], want: true},
 		{name: "vault.type", attribute: nested("vault")["type"], want: true},
 		{name: "vault.account_id", attribute: nested("vault")["account_id"], want: true},
 		{name: "vault.secrets_region", attribute: nested("vault")["secrets_region"], want: true},
@@ -272,6 +276,100 @@ func TestSchemaReplacement(t *testing.T) {
 		if got := replaces(c.attribute); got != c.want {
 			t.Errorf("%s requires replacement = %v; want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// planTestProvider serves only this package's resource, so a test can plan through
+// the framework as Terraform does.
+type planTestProvider struct{}
+
+func (*planTestProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "p0"
+}
+
+func (*planTestProvider) Schema(context.Context, provider.SchemaRequest, *provider.SchemaResponse) {}
+
+func (*planTestProvider) Configure(context.Context, provider.ConfigureRequest, *provider.ConfigureResponse) {
+}
+
+func (*planTestProvider) Resources(context.Context) []func() resource.Resource {
+	return []func() resource.Resource{NewRepositoryAccess}
+}
+
+func (*planTestProvider) DataSources(context.Context) []func() datasource.DataSource {
+	return nil
+}
+
+// Plans an installed AWS item's change to configured, as Terraform does: the proposed
+// state is the configuration with the prior state's computed values.
+func planChange(t *testing.T, configured *repositoryAccessModel) *tfprotov6.PlanResourceChangeResponse {
+	t.Helper()
+	ctx := context.Background()
+	objectType := repositoryAccessSchema(t).Type().TerraformType(ctx)
+	dynamic := func(model *repositoryAccessModel) *tfprotov6.DynamicValue {
+		value, err := tfprotov6.NewDynamicValue(objectType, rawOf(t, model))
+		if err != nil {
+			t.Fatalf("NewDynamicValue: %v", err)
+		}
+		return &value
+	}
+	proposed := *configured
+	proposed.State = types.StringValue(common.StateInstalled)
+
+	server := providerserver.NewProtocol6(&planTestProvider{})()
+	resp, err := server.PlanResourceChange(ctx, &tfprotov6.PlanResourceChangeRequest{
+		TypeName:         "p0_github_repositories",
+		PriorState:       dynamic(at(awsModel(), types.StringValue(common.StateInstalled), types.StringNull())),
+		ProposedNewState: dynamic(&proposed),
+		Config:           dynamic(configured),
+	})
+	if err != nil {
+		t.Fatalf("PlanResourceChange: %v", err)
+	}
+	for _, d := range resp.Diagnostics {
+		if d.Severity == tfprotov6.DiagnosticSeverityError {
+			t.Fatalf("PlanResourceChange: %s: %s", d.Summary, d.Detail)
+		}
+	}
+	return resp
+}
+
+// A new secret for the key plans a replacement, since P0 refuses to change it on an
+// item. A new App plans an update in place.
+func TestRepositoryAccessPlanReplacement(t *testing.T) {
+	cases := []struct {
+		name   string
+		change func(*repositoryAccessModel)
+		want   []*tftypes.AttributePath
+	}{
+		{name: "unchanged", change: func(*repositoryAccessModel) {}},
+		{
+			name:   "new App",
+			change: func(model *repositoryAccessModel) { model.AppId = types.StringValue("777777") },
+		},
+		{
+			name: "new secret",
+			change: func(model *repositoryAccessModel) {
+				model.PrivateKeySecretName = types.StringValue("github/my-github-org/new-private-key")
+			},
+			want: []*tftypes.AttributePath{tftypes.NewAttributePath().WithAttributeName("private_key_secret_name")},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			configured := awsModel()
+			c.change(configured)
+			got := planChange(t, configured).RequiresReplace
+			if len(got) != len(c.want) {
+				t.Fatalf("requires replacement = %v; want %v", got, c.want)
+			}
+			for i := range got {
+				if !got[i].Equal(c.want[i]) {
+					t.Errorf("requires replacement = %v; want %v", got, c.want)
+				}
+			}
+		})
 	}
 }
 

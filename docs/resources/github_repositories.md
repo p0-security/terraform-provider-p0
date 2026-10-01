@@ -6,7 +6,7 @@ description: |-
   A GitHub Repositories installation for one GitHub organization.
   Installing GitHub Repositories lets P0 grant your organization's members just-in-time roles on its repositories. P0 acts through a GitHub App that you create and install on the organization, and through a connector that you deploy in your own AWS or Google Cloud account. The App's private key stays in your secret manager, and only the connector reads it. Each organization needs its own App and its own connector.
   Important: Create the App and store its private key before you apply this resource, and deploy the connector first: in an earlier apply, or in the same one with this resource depending on the connector's access grants, as the example does. Creating this resource has P0 check the install through the connector: that P0 can invoke the connector, that the connector can read the private key, and that the App is installed on the organization with the permissions it needs. If a check fails, the apply fails with P0's message.
-  The vault and the connector must be in the same cloud: aws-sm with aws hosting, or gcp-sm with gcp hosting. Changing vault or hosting replaces the installation. Changing app_id or private_key_secret_name updates it in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App and secret. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
+  The vault and the connector must be in the same cloud: aws-sm with aws hosting, or gcp-sm with gcp hosting. Changing vault, hosting or private_key_secret_name replaces the installation. To rotate the private key, add a new version to the same secret, which needs no change here. Changing app_id updates the installation in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
   P0 checks where the connector runs when it creates the installation, and so does a plan. hosting.connector_name has 2 to 64 characters on Lambda, or 2 to 49 on Cloud Run: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. On AWS, the connector and the secret must be in commercial regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
   Prerequisites:
   
@@ -30,7 +30,7 @@ Installing GitHub Repositories lets P0 grant your organization's members just-in
 
 **Important:** Create the App and store its private key before you apply this resource, and deploy the connector first: in an earlier apply, or in the same one with this resource depending on the connector's access grants, as the example does. Creating this resource has P0 check the install through the connector: that P0 can invoke the connector, that the connector can read the private key, and that the App is installed on the organization with the permissions it needs. If a check fails, the apply fails with P0's message.
 
-The vault and the connector must be in the same cloud: `aws-sm` with `aws` hosting, or `gcp-sm` with `gcp` hosting. Changing `vault` or `hosting` replaces the installation. Changing `app_id` or `private_key_secret_name` updates it in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App and secret. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
+The vault and the connector must be in the same cloud: `aws-sm` with `aws` hosting, or `gcp-sm` with `gcp` hosting. Changing `vault`, `hosting` or `private_key_secret_name` replaces the installation. To rotate the private key, add a new version to the same secret, which needs no change here. Changing `app_id` updates the installation in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
 
 P0 checks where the connector runs when it creates the installation, and so does a plan. `hosting.connector_name` has 2 to 64 characters on Lambda, or 2 to 49 on Cloud Run: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. On AWS, the connector and the secret must be in commercial regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
 
@@ -115,7 +115,9 @@ locals {
     connector_name   = "p0-github-my-github-org"
     connector_region = "us-east-1"
     # The name of the secret, in this account, that holds the GitHub App's
-    # private key. The connector can read this secret and no other.
+    # private key. The connector can read this secret and no other. A new name
+    # replaces the installation. To rotate the key, add a new version to this
+    # secret instead.
     private_key_secret_name = "github/my-github-org/private-key"
     secrets_region          = "us-east-1"
     # The ARN of the KMS key that encrypts the secret, if that's a
@@ -365,10 +367,10 @@ resource "p0_github_repositories" "example" {
 
 ### Required
 
-- `app_id` (String) The ID of the GitHub App your connector authenticates as: the number on the App's settings page
+- `app_id` (String) The ID of the GitHub App your connector authenticates as: the number on the App's settings page. Changing it updates the installation in place, and P0 checks the install again.
 - `hosting` (Attributes) Where your connector is deployed, and how P0 addresses it (see [below for nested schema](#nestedatt--hosting))
 - `org` (String) The login of the GitHub organization to install on, as in `github.com/<login>`
-- `private_key_secret_name` (String) The name or ARN of the secret that holds the GitHub App's private key. On AWS, a name is looked up in the connector's own account, in `vault.secrets_region`. Give a secret in another account as its full ARN, and allow the connector's role in the secret's resource policy and in its KMS key's policy. On Google Cloud, this is the secret's ID or its full resource name, `projects/<project>/secrets/<id>`.
+- `private_key_secret_name` (String) The name or ARN of the secret that holds the GitHub App's private key. On AWS, a name is looked up in the connector's own account, in `vault.secrets_region`. Give a secret in another account as its full ARN, and allow the connector's role in the secret's resource policy and in its KMS key's policy. On Google Cloud, this is the secret's ID or its full resource name, `projects/<project>/secrets/<id>`. Changing it replaces the installation. To rotate the key, add a new version to the same secret, which needs no change here.
 - `vault` (Attributes) The secret manager that holds the GitHub App's private key. P0 never reads the key. Your connector does. It must be in the same cloud as `hosting`. (see [below for nested schema](#nestedatt--vault))
 
 ### Read-Only

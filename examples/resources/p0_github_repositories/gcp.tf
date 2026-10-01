@@ -26,7 +26,9 @@ locals {
     connector_name   = "p0-github-my-other-github-org"
     connector_region = "us-central1"
     # The id of the secret that holds the GitHub App's private key, and its
-    # project. The connector can read this secret and no other.
+    # project. The connector can read this secret and no other. A new id
+    # replaces the installation. To rotate the key, add a new version to this
+    # secret instead.
     private_key_secret_id = "github-my-other-github-org-private-key"
     secrets_project_id    = "my-project-id"
     # P0's service account, which invokes the connector: p0_gcp's

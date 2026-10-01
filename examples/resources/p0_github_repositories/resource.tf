@@ -54,7 +54,9 @@ locals {
     connector_name   = "p0-github-my-github-org"
     connector_region = "us-east-1"
     # The name of the secret, in this account, that holds the GitHub App's
-    # private key. The connector can read this secret and no other.
+    # private key. The connector can read this secret and no other. A new name
+    # replaces the installation. To rotate the key, add a new version to this
+    # secret instead.
     private_key_secret_name = "github/my-github-org/private-key"
     secrets_region          = "us-east-1"
     # The ARN of the KMS key that encrypts the secret, if that's a

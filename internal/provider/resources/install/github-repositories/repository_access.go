@@ -50,10 +50,10 @@ type repositoryAccessApi struct {
 	Item *repositoryAccessJson `json:"item"`
 }
 
-// The body of verify and configure: the GitHub App and the key's secret, which can
-// change in place. Verify gets them too, so that its install check, which runs
-// whenever both are set, checks these rather than the ones P0 stored for a staged
-// item.
+// The body of verify and configure: the GitHub App, which can change in place, and
+// the key's secret, which P0 fixed when it created the item. Verify gets them too, so
+// that its install check, which runs whenever both are set, checks these rather than
+// the ones P0 stored for a staged item.
 type repositoryAccessConfigureJson struct {
 	AppId                string `json:"appId"`
 	PrivateKeySecretName string `json:"privateKeySecretName"`
@@ -75,7 +75,7 @@ Installing GitHub Repositories lets P0 grant your organization's members just-in
 
 **Important:** Create the App and store its private key before you apply this resource, and deploy the connector first: in an earlier apply, or in the same one with this resource depending on the connector's access grants, as the example does. Creating this resource has P0 check the install through the connector: that P0 can invoke the connector, that the connector can read the private key, and that the App is installed on the organization with the permissions it needs. If a check fails, the apply fails with P0's message.
 
-The vault and the connector must be in the same cloud: ` + "`aws-sm`" + ` with ` + "`aws`" + ` hosting, or ` + "`gcp-sm`" + ` with ` + "`gcp`" + ` hosting. Changing ` + "`vault`" + ` or ` + "`hosting`" + ` replaces the installation. Changing ` + "`app_id`" + ` or ` + "`private_key_secret_name`" + ` updates it in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App and secret. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
+The vault and the connector must be in the same cloud: ` + "`aws-sm`" + ` with ` + "`aws`" + ` hosting, or ` + "`gcp-sm`" + ` with ` + "`gcp`" + ` hosting. Changing ` + "`vault`" + `, ` + "`hosting`" + ` or ` + "`private_key_secret_name`" + ` replaces the installation. To rotate the private key, add a new version to the same secret, which needs no change here. Changing ` + "`app_id`" + ` updates the installation in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
 
 P0 checks where the connector runs when it creates the installation, and so does a plan. ` + "`hosting.connector_name`" + ` has 2 to 64 characters on Lambda, or 2 to 49 on Cloud Run: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. On AWS, the connector and the secret must be in commercial regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
 
@@ -108,20 +108,25 @@ P0 checks where the connector runs when it creates the installation, and so does
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			// app_id and private_key_secret_name can change in place, for a new App or a
-			// rotated key, so neither requires replacement. P0 checks the install again
-			// when either changes.
+			// app_id can change in place, for a new App, so it doesn't require
+			// replacement. P0 checks the install again when it changes.
 			"app_id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The ID of the GitHub App your connector authenticates as: the number on the App's settings page`,
+				MarkdownDescription: `The ID of the GitHub App your connector authenticates as: the number on the App's settings page. Changing it updates the installation in place, and P0 checks the install again.`,
 			},
 			"vault": vaultAttribute(),
+			// P0 fixes the key's secret when it creates the item, and refuses a change to
+			// it, so a new secret replaces the installation.
 			"private_key_secret_name": schema.StringAttribute{
 				Required: true,
 				MarkdownDescription: `The name or ARN of the secret that holds the GitHub App's private key. ` +
 					`On AWS, a name is looked up in the connector's own account, in ` + "`vault.secrets_region`" + `. ` +
 					`Give a secret in another account as its full ARN, and allow the connector's role in the secret's resource policy and in its KMS key's policy. ` +
-					`On Google Cloud, this is the secret's ID or its full resource name, ` + "`projects/<project>/secrets/<id>`" + `.`,
+					`On Google Cloud, this is the secret's ID or its full resource name, ` + "`projects/<project>/secrets/<id>`" + `. ` +
+					`Changing it replaces the installation. To rotate the key, add a new version to the same secret, which needs no change here.`,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			// P0's rules for the connector's name, region, account and project depend on the
 			// hosting's type, which a field's validator can't see, so ValidateConfig checks
@@ -358,11 +363,10 @@ func (*RepositoryAccess) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("hosting").AtName("connector_service_uri"), types.StringUnknown())...)
 }
 
-// Only app_id and private_key_secret_name update in place, and P0 checks the install
-// with both. An item that P0 has verified, at configure or installed, gets the
-// configure step alone: P0 checks the new values and saves nothing if the check fails,
-// so the update is all-or-nothing, with one check. Any other item, such as a staged
-// one, is verified first, as Create does.
+// Only app_id updates in place, and P0 checks the install with it. An item that P0 has
+// verified, at configure or installed, gets the configure step alone: P0 checks the
+// new App and saves nothing if the check fails, so a failed update keeps the current
+// App. Any other item, such as a staged one, is verified first, as Create does.
 func (r *RepositoryAccess) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var state types.String
 	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("state"), &state)...)
