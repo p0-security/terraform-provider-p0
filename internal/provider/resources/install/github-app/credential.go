@@ -11,6 +11,7 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
+	installvaultedcredential "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/vaulted-credential"
 )
 
 var _ resource.Resource = &GithubAppCredential{}
@@ -22,16 +23,16 @@ type GithubAppCredential struct {
 }
 
 type githubAppCredentialModel struct {
-	Id            types.String        `tfsdk:"id"`
-	SecretManager *secretManagerModel `tfsdk:"secret_manager"`
-	AppId         types.String        `tfsdk:"app_id"`
-	State         types.String        `tfsdk:"state"`
+	Id            types.String                                 `tfsdk:"id"`
+	SecretManager *installvaultedcredential.SecretManagerModel `tfsdk:"secret_manager"`
+	AppId         types.String                                 `tfsdk:"app_id"`
+	State         types.String                                 `tfsdk:"state"`
 }
 
 type githubAppCredentialJson struct {
-	SecretManager *secretManagerJson `json:"secretManager,omitempty"`
-	AppId         *string            `json:"appId,omitempty"`
-	State         *string            `json:"state,omitempty"`
+	SecretManager *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
+	AppId         *string                                     `json:"appId,omitempty"`
+	State         *string                                     `json:"state,omitempty"`
 }
 
 type githubAppCredentialApi struct {
@@ -47,12 +48,6 @@ func (*GithubAppCredential) Metadata(_ context.Context, req resource.MetadataReq
 }
 
 func (*GithubAppCredential) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	secretManager := secretManagerAttributes(" Must match the `p0_github_app_staged` resource.")
-	secretManager["connector_service_uri"] = schema.StringAttribute{
-		Computed:            true,
-		MarkdownDescription: `The invocation URL of the connector's Cloud Run service, resolved by P0 during install`,
-	}
-
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A GitHub App installation.
 
@@ -62,11 +57,11 @@ Installing the GitHub App allows P0 to grant machines just-in-time, scoped acces
 
 **Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
-			"id": idAttribute("The `id` of the `p0_github_app_staged` resource being finalized"),
+			"id": installvaultedcredential.IdAttribute("The `id` of the `p0_github_app_staged` resource being finalized"),
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's GitHub connector runs and stores the GitHub App's private key`,
-				Attributes:          secretManager,
+				Attributes:          installvaultedcredential.FinalSecretManagerAttributes(secretLabel, " Must match the `p0_github_app_staged` resource."),
 			},
 			"app_id": schema.StringAttribute{
 				Required:            true,
@@ -112,18 +107,16 @@ func (r *GithubAppCredential) fromJson(_ context.Context, diags *diag.Diagnostic
 	if !ok {
 		return nil
 	}
-	if !requireSecretManager(diags, id, jsonv.SecretManager) {
+	if !installvaultedcredential.RequireSecretManager(diags, integrationLabel, id, jsonv.SecretManager) {
 		return nil
 	}
 
+	secretManager := installvaultedcredential.SecretManagerFromJson(jsonv.SecretManager)
 	return &githubAppCredentialModel{
-		Id: types.StringValue(id),
-		SecretManager: &secretManagerModel{
-			secretManagerStagedModel: secretManagerStagedFromJson(jsonv.SecretManager),
-			ConnectorServiceUri:      types.StringPointerValue(jsonv.SecretManager.ConnectorServiceUri),
-		},
-		AppId: types.StringPointerValue(jsonv.AppId),
-		State: types.StringPointerValue(jsonv.State),
+		Id:            types.StringValue(id),
+		SecretManager: &secretManager,
+		AppId:         types.StringPointerValue(jsonv.AppId),
+		State:         types.StringPointerValue(jsonv.State),
 	}
 }
 
@@ -137,7 +130,7 @@ func (r *GithubAppCredential) toJson(data any) any {
 		AppId: datav.AppId.ValueStringPointer(),
 	}
 	if datav.SecretManager != nil {
-		json.SecretManager = datav.SecretManager.toJson()
+		json.SecretManager = datav.SecretManager.ToJson()
 	}
 	return &json
 }

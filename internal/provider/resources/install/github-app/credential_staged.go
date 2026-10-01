@@ -11,6 +11,7 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
+	installvaultedcredential "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/vaulted-credential"
 )
 
 var _ resource.Resource = &GithubAppCredentialStaged{}
@@ -22,14 +23,14 @@ type GithubAppCredentialStaged struct {
 }
 
 type githubAppCredentialStagedModel struct {
-	Id            types.String              `tfsdk:"id"`
-	SecretManager *secretManagerStagedModel `tfsdk:"secret_manager"`
-	State         types.String              `tfsdk:"state"`
+	Id            types.String                                       `tfsdk:"id"`
+	SecretManager *installvaultedcredential.SecretManagerStagedModel `tfsdk:"secret_manager"`
+	State         types.String                                       `tfsdk:"state"`
 }
 
 type githubAppCredentialStagedJson struct {
-	SecretManager *secretManagerJson `json:"secretManager,omitempty"`
-	State         *string            `json:"state,omitempty"`
+	SecretManager *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
+	State         *string                                     `json:"state,omitempty"`
 }
 
 type githubAppCredentialStagedApi struct {
@@ -54,11 +55,11 @@ Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the 
 
 **Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
-			"id": idAttribute(`The login of the GitHub organization that the GitHub App is installed on`),
+			"id": installvaultedcredential.IdAttribute(`The login of the GitHub organization that the GitHub App is installed on`),
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's GitHub connector runs and stores the GitHub App's private key`,
-				Attributes:          secretManagerAttributes(""),
+				Attributes:          installvaultedcredential.SecretManagerAttributes(secretLabel, ""),
 			},
 			"state": common.StateAttribute,
 		},
@@ -100,11 +101,11 @@ func (r *GithubAppCredentialStaged) fromJson(_ context.Context, diags *diag.Diag
 	if !ok {
 		return nil
 	}
-	if !requireSecretManager(diags, id, jsonv.SecretManager) {
+	if !installvaultedcredential.RequireSecretManager(diags, integrationLabel, id, jsonv.SecretManager) {
 		return nil
 	}
 
-	secretManager := secretManagerStagedFromJson(jsonv.SecretManager)
+	secretManager := installvaultedcredential.SecretManagerStagedFromJson(jsonv.SecretManager)
 	return &githubAppCredentialStagedModel{
 		Id:            types.StringValue(id),
 		SecretManager: &secretManager,
@@ -120,7 +121,7 @@ func (r *GithubAppCredentialStaged) toJson(data any) any {
 
 	json := githubAppCredentialStagedJson{}
 	if datav.SecretManager != nil {
-		json.SecretManager = datav.SecretManager.toJson()
+		json.SecretManager = datav.SecretManager.ToJson()
 	}
 	return &json
 }
