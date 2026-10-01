@@ -34,6 +34,7 @@ import (
 	installgcpwif "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-wif"
 	installgithubapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-app"
 	installidentityprovider "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/identity-provider"
+	installintegrationitem "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/integration-item"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
@@ -228,6 +229,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installaigateway.NewGateway,
 		installaigateway.NewServer,
 		installidentityprovider.NewIdentityProvider,
+		installintegrationitem.NewIntegrationItemStaged,
+		installintegrationitem.NewIntegrationItem,
 	}
 }
 
