@@ -14,4 +14,8 @@ const (
 	Gateway          = "gateway"
 	Server           = "server"
 	Provider         = "provider"
+	Connector        = "connector"
+	Account          = "account"
+	Workspace        = "workspace"
+	Catalog          = "catalog"
 )
