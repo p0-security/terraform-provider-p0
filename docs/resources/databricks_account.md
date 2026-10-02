@@ -4,7 +4,7 @@ page_title: "p0_databricks_account Resource - p0"
 subcategory: ""
 description: |-
   A Databricks account installation.
-  Important: Before creating this resource you must stage the account with p0_databricks_account_staged, and create a service principal in the account with the account_admin role and a federation policy that trusts the connector. The policy's issuer is the issuer of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is databricks. Creating them takes a Databricks account admin.
+  Important: Before creating this resource you must stage the account with p0_databricks_account_staged, and create a service principal in the account with the account_admin role and a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is federation_audience (databricks). Creating them takes a Databricks account admin.
   Note: This integration is currently in preview.
 ---
 
@@ -12,7 +12,7 @@ description: |-
 
 A Databricks account installation.
 
-**Important:** Before creating this resource you must stage the account with `p0_databricks_account_staged`, and create a service principal in the account with the `account_admin` role and a federation policy that trusts the connector. The policy's issuer is the issuer of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is `databricks`. Creating them takes a Databricks account admin.
+**Important:** Before creating this resource you must stage the account with `p0_databricks_account_staged`, and create a service principal in the account with the `account_admin` role and a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is `federation_audience` (`databricks`). Creating them takes a Databricks account admin.
 
 **Note:** This integration is currently in preview.
 
@@ -21,8 +21,7 @@ A Databricks account installation.
 ```terraform
 # Adds a Databricks account: a service principal there that holds account
 # admin, and that the connector exchanges its AWS identity for. Apply it as a
-# Databricks account admin, with the aws provider set to the connector's
-# account.
+# Databricks account admin, signed in to the connector's AWS account.
 # Full chain: p0_databricks_connector -> p0_databricks_account_staged ->
 # service principal, federation policy and account admin role ->
 # p0_databricks_account. Then add workspaces (see p0_databricks_workspace).
@@ -46,8 +45,18 @@ terraform {
 }
 
 locals {
+  # The AWS account and region that the connector runs in.
+  aws_account_id        = "123456789012"
+  aws_region            = "us-east-1"
   databricks_account_id = "01234567-89ab-cdef-0123-456789abcdef"
   accounts_url          = "https://accounts.cloud.databricks.com"
+}
+
+# Reads the connector's role and issuer, so it must be signed in to the
+# connector's AWS account.
+provider "aws" {
+  region              = local.aws_region
+  allowed_account_ids = [local.aws_account_id]
 }
 
 # Service principals and their roles live at the account level.
@@ -56,13 +65,10 @@ provider "databricks" {
   account_id = local.databricks_account_id
 }
 
-# The connector's AWS account, its role, and the issuer of the identity tokens
-# it mints (see the p0_databricks_connector example). If this configuration
-# also holds the connector, as P0's installer arranges it, refer to the
-# connector's aws_iam_role and aws_iam_outbound_web_identity_federation
-# resources instead.
-data "aws_caller_identity" "current" {}
-
+# The connector's role, and the issuer of the identity tokens it mints (see the
+# p0_databricks_connector example). If this configuration also holds the
+# connector, as P0's installer arranges it, refer to the connector's
+# aws_iam_role and aws_iam_outbound_web_identity_federation resources instead.
 data "aws_iam_role" "connector" {
   name = "p0-connector-databricks"
 }
@@ -71,7 +77,7 @@ data "aws_iam_outbound_web_identity_federation" "this" {}
 
 resource "p0_databricks_account_staged" "example" {
   id           = local.databricks_account_id
-  connector    = data.aws_caller_identity.current.account_id
+  connector    = local.aws_account_id
   accounts_url = local.accounts_url
 }
 
@@ -86,7 +92,7 @@ resource "databricks_service_principal_federation_policy" "p0" {
   oidc_policy = {
     issuer    = data.aws_iam_outbound_web_identity_federation.this.issuer_identifier
     subject   = data.aws_iam_role.connector.arn
-    audiences = ["databricks"]
+    audiences = [p0_databricks_account_staged.example.federation_audience]
   }
 }
 
@@ -121,12 +127,13 @@ output "application_id" {
 ### Required
 
 - `accounts_url` (String) The URL of this account's console: `https://accounts.cloud.databricks.com` (AWS), `https://accounts.cloud.databricks.us` (AWS GovCloud), `https://accounts.azuredatabricks.net` (Azure) or `https://accounts.gcp.databricks.com` (Google Cloud)
-- `application_id` (String) The application ID of the service principal that the connector exchanges its AWS identity for, e.g. `databricks_service_principal.application_id`
+- `application_id` (String) The application ID of the service principal that the connector signs in to Databricks as, e.g. `databricks_service_principal.application_id`
 - `connector` (String) The `id` of the `p0_databricks_connector` that reaches this account, which is the ID of the AWS account that the connector runs in
 - `id` (String) The Databricks account ID
 
 ### Read-Only
 
+- `federation_audience` (String) The audience of the AWS identity tokens that the connector exchanges for Databricks tokens. The connector's role may request tokens only for this audience, and the federation policy of each account's service principal must accept it.
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured

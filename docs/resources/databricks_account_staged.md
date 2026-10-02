@@ -47,6 +47,7 @@ resource "p0_databricks_account_staged" "example" {
 
 ### Read-Only
 
+- `federation_audience` (String) The audience of the AWS identity tokens that the connector exchanges for Databricks tokens. The connector's role may request tokens only for this audience, and the federation policy of each account's service principal must accept it.
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured

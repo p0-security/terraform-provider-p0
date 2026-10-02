@@ -1,7 +1,6 @@
 # Adds a Databricks account: a service principal there that holds account
 # admin, and that the connector exchanges its AWS identity for. Apply it as a
-# Databricks account admin, with the aws provider set to the connector's
-# account.
+# Databricks account admin, signed in to the connector's AWS account.
 # Full chain: p0_databricks_connector -> p0_databricks_account_staged ->
 # service principal, federation policy and account admin role ->
 # p0_databricks_account. Then add workspaces (see p0_databricks_workspace).
@@ -25,8 +24,18 @@ terraform {
 }
 
 locals {
+  # The AWS account and region that the connector runs in.
+  aws_account_id        = "123456789012"
+  aws_region            = "us-east-1"
   databricks_account_id = "01234567-89ab-cdef-0123-456789abcdef"
   accounts_url          = "https://accounts.cloud.databricks.com"
+}
+
+# Reads the connector's role and issuer, so it must be signed in to the
+# connector's AWS account.
+provider "aws" {
+  region              = local.aws_region
+  allowed_account_ids = [local.aws_account_id]
 }
 
 # Service principals and their roles live at the account level.
@@ -35,13 +44,10 @@ provider "databricks" {
   account_id = local.databricks_account_id
 }
 
-# The connector's AWS account, its role, and the issuer of the identity tokens
-# it mints (see the p0_databricks_connector example). If this configuration
-# also holds the connector, as P0's installer arranges it, refer to the
-# connector's aws_iam_role and aws_iam_outbound_web_identity_federation
-# resources instead.
-data "aws_caller_identity" "current" {}
-
+# The connector's role, and the issuer of the identity tokens it mints (see the
+# p0_databricks_connector example). If this configuration also holds the
+# connector, as P0's installer arranges it, refer to the connector's
+# aws_iam_role and aws_iam_outbound_web_identity_federation resources instead.
 data "aws_iam_role" "connector" {
   name = "p0-connector-databricks"
 }
@@ -50,7 +56,7 @@ data "aws_iam_outbound_web_identity_federation" "this" {}
 
 resource "p0_databricks_account_staged" "example" {
   id           = local.databricks_account_id
-  connector    = data.aws_caller_identity.current.account_id
+  connector    = local.aws_account_id
   accounts_url = local.accounts_url
 }
 
@@ -65,7 +71,7 @@ resource "databricks_service_principal_federation_policy" "p0" {
   oidc_policy = {
     issuer    = data.aws_iam_outbound_web_identity_federation.this.issuer_identifier
     subject   = data.aws_iam_role.connector.arn
-    audiences = ["databricks"]
+    audiences = [p0_databricks_account_staged.example.federation_audience]
   }
 }
 

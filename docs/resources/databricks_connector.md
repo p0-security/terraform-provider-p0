@@ -5,7 +5,8 @@ subcategory: ""
 description: |-
   A Databricks connector installation.
   The connector lets P0 grant Unity Catalog privileges, workspace admin and account admin in your Databricks accounts. After you install it, add each Databricks account with p0_databricks_account, then the account's workspaces with p0_databricks_workspace and their catalogs with p0_databricks_catalog.
-  Important: Before creating this resource you must stage the connector with p0_databricks_connector_staged, deploy the p0-connector-databricks Lambda in the staged AWS account and region, enable outbound web identity federation for that account, and allow P0's AWS integration role to invoke the Lambda.
+  Important: Before creating this resource you must stage the connector with p0_databricks_connector_staged, and set up the following in the staged AWS account and region:
+  Outbound identity federation, enabled for the AWS account (aws_iam_outbound_web_identity_federation).An IAM role named p0-connector-databricks that Lambda can assume. Each Databricks account's federation policy trusts this role's ARN.A policy on that role that allows sts:GetWebIdentityToken only for the audience databricks (this resource's federation_audience).The p0-connector-databricks Lambda, running as that role, with its DOMAIN_PATTERN environment variable set to domain_pattern.A policy on P0's AWS integration role that allows lambda:InvokeFunction on the Lambda.
   Note: This integration is currently in preview.
 ---
 
@@ -15,7 +16,13 @@ A Databricks connector installation.
 
 The connector lets P0 grant Unity Catalog privileges, workspace admin and account admin in your Databricks accounts. After you install it, add each Databricks account with `p0_databricks_account`, then the account's workspaces with `p0_databricks_workspace` and their catalogs with `p0_databricks_catalog`.
 
-**Important:** Before creating this resource you must stage the connector with `p0_databricks_connector_staged`, deploy the `p0-connector-databricks` Lambda in the staged AWS account and region, enable outbound web identity federation for that account, and allow P0's AWS integration role to invoke the Lambda.
+**Important:** Before creating this resource you must stage the connector with `p0_databricks_connector_staged`, and set up the following in the staged AWS account and region:
+
+- Outbound identity federation, enabled for the AWS account (`aws_iam_outbound_web_identity_federation`).
+- An IAM role named `p0-connector-databricks` that Lambda can assume. Each Databricks account's federation policy trusts this role's ARN.
+- A policy on that role that allows `sts:GetWebIdentityToken` only for the audience `databricks` (this resource's `federation_audience`).
+- The `p0-connector-databricks` Lambda, running as that role, with its `DOMAIN_PATTERN` environment variable set to `domain_pattern`.
+- A policy on P0's AWS integration role that allows `lambda:InvokeFunction` on the Lambda.
 
 **Note:** This integration is currently in preview.
 
@@ -26,11 +33,14 @@ The connector lets P0 grant Unity Catalog privileges, workspace admin and accoun
 # VPC, that P0 invokes to manage your Databricks accounts. It holds no secret:
 # it exchanges an AWS identity token for each account's service principal.
 # Apply it as an AWS admin of the connector's account.
-# Full chain: p0_aws_iam_write -> p0_databricks_connector_staged -> the
-# connector's Lambda and role, and outbound identity federation ->
-# p0_databricks_connector. Then add accounts (see p0_databricks_account).
+# Full chain: p0_aws_iam_write -> p0_databricks_connector_staged -> outbound
+# identity federation, the connector's role, Lambda and image, and P0's
+# permission to invoke it -> p0_databricks_connector. Then add accounts (see p0_databricks_account).
 
 terraform {
+  # 1.4 added terraform_data.
+  required_version = ">= 1.4"
+
   required_providers {
     # 6.26.0 added outbound identity federation.
     aws = {
@@ -46,6 +56,19 @@ terraform {
 locals {
   account_id = "123456789012"
   region     = "us-east-1"
+
+  # The connector image's version: the sha- tag that P0 publishes each release
+  # under. Bump it to roll out a new release, which copies the image again and
+  # redeploys the Lambda. A digest pin (tag@sha256:...) follows once the first
+  # image is published, as terraform-aws-p0-connector pins its images, because
+  # a tag can be pushed again.
+  connector_image_tag = "sha-b21deb4"
+  connector_image     = "p0security/p0-connector-databricks:${local.connector_image_tag}"
+
+  tags = {
+    ManagedBy  = "Terraform"
+    ManagedFor = "P0"
+  }
 }
 
 provider "aws" {
@@ -96,10 +119,22 @@ resource "p0_databricks_connector_staged" "example" {
 # is already on, import it, with the AWS account ID as its ID, rather than
 # create it:
 #   terraform import aws_iam_outbound_web_identity_federation.this <account ID>
+# To remove the connector but leave federation on, replace this block with a
+# removed block (Terraform 1.7+) before you destroy the rest. Terraform then
+# forgets the setting without turning it off:
+#   removed {
+#     from = aws_iam_outbound_web_identity_federation.this
+#     lifecycle {
+#       destroy = false
+#     }
+#   }
 resource "aws_iam_outbound_web_identity_federation" "this" {}
 
+# Each Databricks account's federation policy trusts this role by its ARN, so
+# it must have this name.
 resource "aws_iam_role" "connector" {
   name = "p0-connector-databricks"
+  tags = local.tags
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -116,7 +151,7 @@ resource "aws_iam_role_policy_attachment" "connector_logs" {
 }
 
 # Only tokens for Databricks. Every Databricks federation policy that trusts
-# this role expects this audience.
+# this role expects this audience, "databricks".
 resource "aws_iam_role_policy" "connector_identity_token" {
   name = "p0-connector-databricks-identity-token"
   role = aws_iam_role.connector.id
@@ -127,7 +162,9 @@ resource "aws_iam_role_policy" "connector_identity_token" {
       Action   = "sts:GetWebIdentityToken"
       Resource = "*"
       Condition = {
-        "ForAllValues:StringEquals" = { "sts:IdentityTokenAudience" = ["databricks"] }
+        "ForAllValues:StringEquals" = {
+          "sts:IdentityTokenAudience" = [p0_databricks_connector_staged.example.federation_audience]
+        }
       }
     }]
   })
@@ -139,24 +176,30 @@ resource "aws_iam_role_policy" "connector_identity_token" {
 resource "aws_ecr_repository" "connector" {
   name         = "p0-connector-databricks"
   force_delete = true
+  tags         = local.tags
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
 }
 
+# Copies the image again whenever local.connector_image_tag changes.
 resource "terraform_data" "connector_image" {
-  triggers_replace = [aws_ecr_repository.connector.repository_url, "p0security/p0-connector-databricks:latest"]
+  triggers_replace = [aws_ecr_repository.connector.repository_url, local.connector_image]
 
   provisioner "local-exec" {
     command = <<-EOT
       aws ecr get-login-password --region ${aws_ecr_repository.connector.region} | docker login --username AWS --password-stdin ${split("/", aws_ecr_repository.connector.repository_url)[0]}
-      docker pull --platform linux/amd64 p0security/p0-connector-databricks:latest
-      docker tag p0security/p0-connector-databricks:latest ${aws_ecr_repository.connector.repository_url}:latest
-      docker push ${aws_ecr_repository.connector.repository_url}:latest
+      docker pull --platform linux/amd64 ${local.connector_image}
+      docker tag ${local.connector_image} ${aws_ecr_repository.connector.repository_url}:${local.connector_image_tag}
+      docker push ${aws_ecr_repository.connector.repository_url}:${local.connector_image_tag}
     EOT
   }
 }
 
 data "aws_ecr_image" "connector" {
   repository_name = aws_ecr_repository.connector.name
-  image_tag       = "latest"
+  image_tag       = local.connector_image_tag
 
   depends_on = [terraform_data.connector_image]
 }
@@ -169,22 +212,29 @@ resource "aws_lambda_function" "connector" {
   image_uri     = "${aws_ecr_repository.connector.repository_url}@${data.aws_ecr_image.connector.image_digest}"
   architectures = ["x86_64"]
   timeout       = 30
+  tags          = local.tags
 
   environment {
     variables = {
       # The connector refuses any user whose whole email domain doesn't match.
-      DOMAIN_ALLOW_PATTERN = p0_databricks_connector_staged.example.domain_pattern
+      DOMAIN_PATTERN = p0_databricks_connector_staged.example.domain_pattern
     }
   }
 }
 
 # Lets P0 invoke the connector, through the role P0's AWS integration assumes in
 # this account.
-resource "aws_lambda_permission" "p0_invoke" {
-  statement_id  = "P0Invoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.connector.function_name
-  principal     = aws_iam_role.p0_iam_manager.arn
+resource "aws_iam_role_policy" "p0_invoke_connector" {
+  name = "p0-connector-databricks-invoke"
+  role = aws_iam_role.p0_iam_manager.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "lambda:InvokeFunction"
+      Resource = aws_lambda_function.connector.arn
+    }]
+  })
 }
 
 # Completes the install.
@@ -196,7 +246,7 @@ resource "p0_databricks_connector" "example" {
   depends_on = [
     aws_iam_outbound_web_identity_federation.this,
     aws_iam_role_policy.connector_identity_token,
-    aws_lambda_permission.p0_invoke,
+    aws_iam_role_policy.p0_invoke_connector,
   ]
 }
 ```
@@ -206,12 +256,13 @@ resource "p0_databricks_connector" "example" {
 
 ### Required
 
-- `domain_pattern` (String) A regular expression that the connector matches against the whole email domain of every user it grants to, e.g. `example\.com`. The connector refuses any other user. Set the same value as the Lambda's `DOMAIN_ALLOW_PATTERN` environment variable.
+- `domain_pattern` (String) A regular expression that the connector matches against the whole email domain of every user it grants to, e.g. `example\.com`. The connector refuses any other user. Set the same value as the Lambda's `DOMAIN_PATTERN` environment variable.
 - `id` (String) The ID of the AWS account that the connector's Lambda runs in
-- `region` (String) The AWS region that the connector's Lambda runs in
+- `region` (String) The AWS region that the connector's Lambda runs in. The connector runs only in commercial AWS regions.
 
 ### Read-Only
 
+- `federation_audience` (String) The audience of the AWS identity tokens that the connector exchanges for Databricks tokens. The connector's role may request tokens only for this audience, and the federation policy of each account's service principal must accept it.
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured
