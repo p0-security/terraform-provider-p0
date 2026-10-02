@@ -27,6 +27,7 @@ import (
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
 	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
+	installawssm "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-sm"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
 	installdatadogai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/datadog-ai"
 	installfiletransfer "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/file_transfer"
@@ -217,6 +218,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installgcpcloudsql.NewGcpCloudSqlIamWriteStaged,
 		installgcpcloudsql.NewGcpCloudSqlIamWrite,
 		installfiletransfer.NewFileTransferIamWrite,
+		installawssm.NewAwsSmVault,
 		installapp.NewAppIamWrite,
 		installsplunk.NewAuditLogs,
 		installdatadog.NewAuditLogs,
