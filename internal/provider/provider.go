@@ -28,12 +28,12 @@ import (
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
 	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
-	installdatadogapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/datadog-app"
+	installdatadogai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/datadog-ai"
 	installfiletransfer "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/file_transfer"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
 	installgcpcloudsql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloudsql"
 	installgcpwif "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-wif"
-	installgithubapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-app"
+	installgithubai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-ai"
 	installgithubrepositories "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-repositories"
 	installidentityprovider "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/identity-provider"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
@@ -224,10 +224,10 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installawsoidc.NewAwsOidcIdentity,
 		installgcpwif.NewGcpWifIdentityStaged,
 		installgcpwif.NewGcpWifIdentity,
-		installgithubapp.NewGithubAppCredentialStaged,
-		installgithubapp.NewGithubAppCredential,
-		installdatadogapp.NewDatadogAppCredentialStaged,
-		installdatadogapp.NewDatadogAppCredential,
+		installgithubai.NewGithubAiCredentialStaged,
+		installgithubai.NewGithubAiCredential,
+		installdatadogai.NewDatadogAiCredentialStaged,
+		installdatadogai.NewDatadogAiCredential,
 		installgithubrepositories.NewRepositoryAccess,
 		installaigateway.NewGatewayStaged,
 		installaigateway.NewGateway,

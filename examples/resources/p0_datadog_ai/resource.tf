@@ -1,7 +1,7 @@
 # Installs Datadog for agentic access, with P0's Datadog connector on Cloud Run
 # and the organization's admin keys in Google Secret Manager.
-# Full chain: p0_gcp -> p0_datadog_app_staged -> Cloud Run connector and admin
-# keys secret -> admin keys version (added outside Terraform) -> p0_datadog_app.
+# Full chain: p0_gcp -> p0_datadog_ai_staged -> Cloud Run connector and admin
+# keys secret -> admin keys version (added outside Terraform) -> p0_datadog_ai.
 
 resource "p0_gcp" "example" {
   organization_id = "123456789012"
@@ -14,7 +14,7 @@ locals {
   admin_keys_secret_id = "p0_install_datadog_${local.organization}_admin-keys"
 }
 
-resource "p0_datadog_app_staged" "example" {
+resource "p0_datadog_ai_staged" "example" {
   id   = local.organization
   site = "us5"
 
@@ -40,7 +40,7 @@ resource "google_project_service" "enable_services" {
 
 resource "google_service_account" "connector" {
   project      = local.project
-  account_id   = split("@", p0_datadog_app_staged.example.secret_manager.connector_service_account)[0]
+  account_id   = split("@", p0_datadog_ai_staged.example.secret_manager.connector_service_account)[0]
   display_name = "P0 Cloud Run Datadog connector"
 
   depends_on = [google_project_service.enable_services]
@@ -48,8 +48,8 @@ resource "google_service_account" "connector" {
 
 resource "google_cloud_run_v2_service" "connector" {
   project             = local.project
-  name                = p0_datadog_app_staged.example.secret_manager.connector_service_name
-  location            = p0_datadog_app_staged.example.secret_manager.connector_region
+  name                = p0_datadog_ai_staged.example.secret_manager.connector_service_name
+  location            = p0_datadog_ai_staged.example.secret_manager.connector_region
   deletion_protection = false
   # P0 calls the connector from outside GCP; IAM, not origin, gates access.
   ingress = "INGRESS_TRAFFIC_ALL"
@@ -172,16 +172,16 @@ resource "google_secret_manager_secret_iam_member" "admin_keys_read" {
 }
 
 # Completes the install; creating it verifies that the connector is deployed.
-resource "p0_datadog_app" "example" {
-  id   = p0_datadog_app_staged.example.id
-  site = p0_datadog_app_staged.example.site
+resource "p0_datadog_ai" "example" {
+  id   = p0_datadog_ai_staged.example.id
+  site = p0_datadog_ai_staged.example.site
   # The Datadog service account that owns the access tokens. Its role limits
   # which scopes can be requested.
   service_account_id = "00000000-0000-0000-0000-000000000000"
 
   secret_manager = {
-    type       = p0_datadog_app_staged.example.secret_manager.type
-    project_id = p0_datadog_app_staged.example.secret_manager.project_id
+    type       = p0_datadog_ai_staged.example.secret_manager.type
+    project_id = p0_datadog_ai_staged.example.secret_manager.project_id
   }
 
   depends_on = [

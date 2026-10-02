@@ -1,7 +1,7 @@
 # Installs the GitHub App, with P0's GitHub connector on Cloud Run and the
 # App's private key in Google Secret Manager.
-# Full chain: p0_gcp -> p0_github_app_staged -> Cloud Run connector and private
-# key secret -> private key version (added outside Terraform) -> p0_github_app.
+# Full chain: p0_gcp -> p0_github_ai_staged -> Cloud Run connector and private
+# key secret -> private key version (added outside Terraform) -> p0_github_ai.
 
 resource "p0_gcp" "example" {
   organization_id = "123456789012"
@@ -14,7 +14,7 @@ locals {
   private_key_secret_id = "p0_install_github_${local.organization}_private-key-pem"
 }
 
-resource "p0_github_app_staged" "example" {
+resource "p0_github_ai_staged" "example" {
   id = local.organization
 
   secret_manager = {
@@ -39,7 +39,7 @@ resource "google_project_service" "enable_services" {
 
 resource "google_service_account" "connector" {
   project      = local.project
-  account_id   = split("@", p0_github_app_staged.example.secret_manager.connector_service_account)[0]
+  account_id   = split("@", p0_github_ai_staged.example.secret_manager.connector_service_account)[0]
   display_name = "P0 Cloud Run GitHub connector"
 
   depends_on = [google_project_service.enable_services]
@@ -47,8 +47,8 @@ resource "google_service_account" "connector" {
 
 resource "google_cloud_run_v2_service" "connector" {
   project             = local.project
-  name                = p0_github_app_staged.example.secret_manager.connector_service_name
-  location            = p0_github_app_staged.example.secret_manager.connector_region
+  name                = p0_github_ai_staged.example.secret_manager.connector_service_name
+  location            = p0_github_ai_staged.example.secret_manager.connector_region
   deletion_protection = false
   # P0 calls the connector from outside GCP; IAM, not origin, gates access.
   ingress = "INGRESS_TRAFFIC_ALL"
@@ -167,13 +167,13 @@ resource "google_secret_manager_secret_iam_member" "private_key_read" {
 }
 
 # Completes the install; creating it verifies that the connector is deployed.
-resource "p0_github_app" "example" {
-  id     = p0_github_app_staged.example.id
+resource "p0_github_ai" "example" {
+  id     = p0_github_ai_staged.example.id
   app_id = "123456"
 
   secret_manager = {
-    type       = p0_github_app_staged.example.secret_manager.type
-    project_id = p0_github_app_staged.example.secret_manager.project_id
+    type       = p0_github_ai_staged.example.secret_manager.type
+    project_id = p0_github_ai_staged.example.secret_manager.project_id
   }
 
   depends_on = [

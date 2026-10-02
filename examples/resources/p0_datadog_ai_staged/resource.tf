@@ -5,7 +5,7 @@ resource "p0_gcp" "example" {
   organization_id = "123456789012"
 }
 
-resource "p0_datadog_app_staged" "example" {
+resource "p0_datadog_ai_staged" "example" {
   id   = "my-datadog-org"
   site = "us5"
 
@@ -17,5 +17,5 @@ resource "p0_datadog_app_staged" "example" {
   depends_on = [p0_gcp.example]
 }
 
-# See the p0_datadog_app example for the next steps (deploying the connector and
+# See the p0_datadog_ai example for the next steps (deploying the connector and
 # its admin keys secret) that complete the install.

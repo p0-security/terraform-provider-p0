@@ -5,7 +5,7 @@ resource "p0_gcp" "example" {
   organization_id = "123456789012"
 }
 
-resource "p0_github_app_staged" "example" {
+resource "p0_github_ai_staged" "example" {
   id = "my-github-org"
 
   secret_manager = {
@@ -16,5 +16,5 @@ resource "p0_github_app_staged" "example" {
   depends_on = [p0_gcp.example]
 }
 
-# See the p0_github_app example for the next steps (deploying the connector and
+# See the p0_github_ai example for the next steps (deploying the connector and
 # its private key secret) that complete the install.
