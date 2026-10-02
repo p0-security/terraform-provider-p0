@@ -22,6 +22,9 @@ const (
 	unsupported      = "GitHub Repositories doesn't support AWS GovCloud or China regions yet."
 	invalidOrg       = "Enter the organization's GitHub login, as in github.com/<login>"
 	invalidAppId     = "The GitHub App ID is a number. Find it on the app's settings page."
+	// The private key's secret name.
+	invalidSecretName  = "That doesn't look like a secret name. Enter the name of the secret that holds the key, not its ARN or the key itself."
+	suffixedSecretName = "Secrets Manager can't find a secret by its name when the name ends in a hyphen and six characters, like -AbCdEf. Use a secret whose name doesn't end that way."
 )
 
 // Each error as "<path>: <detail>".

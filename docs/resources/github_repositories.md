@@ -8,16 +8,16 @@ description: |-
   GitHub Repositories supports only AWS for now: the connector runs on AWS Lambda, and the App's private key is stored in AWS Secrets Manager.
   Important: Create the App and store its private key before you apply this resource, and deploy the connector first: in an earlier apply, or in the same one with this resource depending on the connector's access grants, as the example does. Creating this resource has P0 check the install through the connector: that P0 can invoke the connector, that the connector can read the private key, and that the App is installed on the organization with the permissions it needs. If a check fails, the apply fails with P0's message.
   Changing vault, hosting or private_key_secret_name replaces the installation. To rotate the private key, add a new version to the same secret, which needs no change here. Changing app_id updates the installation in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
-  P0 checks where the connector runs when it creates the installation, and so does a plan. hosting.connector_name has 2 to 64 characters: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. The connector and the secret must be in commercial AWS regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
+  P0 checks where the connector runs, and the secret's name, when it creates the installation, and so does a plan. hosting.connector_name has 2 to 64 characters: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. private_key_secret_name is the secret's name, not its ARN, and can't end in a hyphen and six letters or digits, like -AbCdEf. The connector and the secret must be in commercial AWS regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
   Prerequisites:
   
   A GitHub App for the organization. Make it private, turn off its webhook, and give it these permissions:
   Repository: Administration (read and write) and Metadata (read)Organization: Members (read) and Custom repository roles (read)
-  An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager.
+  An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager, in the account and region that vault names.
   Warning: Administration: write lets the App change roles on, and administer, every repository it is installed on. Select only the repositories P0 should manage.
   P0's GitHub Repositories connector on AWS Lambda, from the image p0security/p0-connector-github-repositories. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. P0's GitHub Repositories installer generates Terraform that deploys the connector with its image pinned, as in the example.
-  Grant the connector's execution role read access to the private key secret alone, never through a wildcard or at the account level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
-  Give the role secretsmanager:GetSecretValue on the secret. If a customer-managed KMS key encrypts the secret, also give the role kms:Decrypt on that key, with the condition that kms:ViaService is secretsmanager.<region>.amazonaws.com. For its logs, give the role logs:CreateLogStream and logs:PutLogEvents on its own log group alone, /aws/lambda/<function name>. The role can't create that log group, so create it before the function first runs.
+  Grant the connector's execution role read access to the private key secret alone, never through a wildcard that matches other secrets, or at the account level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
+  Give the role secretsmanager:GetSecretValue on arn:aws:secretsmanager:<secrets_region>:<account_id>:secret:<name>-??????, with the vault's region and account and the secret's name. Secrets Manager adds a hyphen and six random characters to the name in a secret's ARN, and ?????? matches those, so the grant covers this one secret. If a customer-managed KMS key encrypts the secret, also give the role kms:Decrypt on that key, with the condition that kms:ViaService is secretsmanager.<secrets_region>.amazonaws.com. A secret in an account other than the connector's needs a customer-managed key, because the default aws/secretsmanager key can't be used from another account, and in that account the secret's resource policy and the key's policy must allow the connector's role too. For its logs, give the role logs:CreateLogStream and logs:PutLogEvents on its own log group alone, /aws/lambda/<function name>. The role can't create that log group, so create it before the function first runs.
   p0_aws_iam_write installed for the account the connector runs in. Grant that installation's role lambda:InvokeFunction on the connector's function.
   Note: This integration is currently in preview.
 ---
@@ -34,7 +34,7 @@ GitHub Repositories supports only AWS for now: the connector runs on AWS Lambda,
 
 Changing `vault`, `hosting` or `private_key_secret_name` replaces the installation. To rotate the private key, add a new version to the same secret, which needs no change here. Changing `app_id` updates the installation in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
 
-P0 checks where the connector runs when it creates the installation, and so does a plan. `hosting.connector_name` has 2 to 64 characters: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. The connector and the secret must be in commercial AWS regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
+P0 checks where the connector runs, and the secret's name, when it creates the installation, and so does a plan. `hosting.connector_name` has 2 to 64 characters: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. `private_key_secret_name` is the secret's name, not its ARN, and can't end in a hyphen and six letters or digits, like `-AbCdEf`. The connector and the secret must be in commercial AWS regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
 
 **Prerequisites:**
 
@@ -42,15 +42,15 @@ P0 checks where the connector runs when it creates the installation, and so does
   - Repository: Administration (read and write) and Metadata (read)
   - Organization: Members (read) and Custom repository roles (read)
 
-  An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager.
+  An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager, in the account and region that `vault` names.
 
   **Warning:** Administration: write lets the App change roles on, and administer, every repository it is installed on. Select only the repositories P0 should manage.
 
 - P0's GitHub Repositories connector on AWS Lambda, from the image `p0security/p0-connector-github-repositories`. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. P0's GitHub Repositories installer generates Terraform that deploys the connector with its image pinned, as in the example.
 
-  Grant the connector's execution role read access to the private key secret alone, never through a wildcard or at the account level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
+  Grant the connector's execution role read access to the private key secret alone, never through a wildcard that matches other secrets, or at the account level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
 
-  Give the role `secretsmanager:GetSecretValue` on the secret. If a customer-managed KMS key encrypts the secret, also give the role `kms:Decrypt` on that key, with the condition that `kms:ViaService` is `secretsmanager.<region>.amazonaws.com`. For its logs, give the role `logs:CreateLogStream` and `logs:PutLogEvents` on its own log group alone, `/aws/lambda/<function name>`. The role can't create that log group, so create it before the function first runs.
+  Give the role `secretsmanager:GetSecretValue` on `arn:aws:secretsmanager:<secrets_region>:<account_id>:secret:<name>-??????`, with the vault's region and account and the secret's name. Secrets Manager adds a hyphen and six random characters to the name in a secret's ARN, and `??????` matches those, so the grant covers this one secret. If a customer-managed KMS key encrypts the secret, also give the role `kms:Decrypt` on that key, with the condition that `kms:ViaService` is `secretsmanager.<secrets_region>.amazonaws.com`. A secret in an account other than the connector's needs a customer-managed key, because the default `aws/secretsmanager` key can't be used from another account, and in that account the secret's resource policy and the key's policy must allow the connector's role too. For its logs, give the role `logs:CreateLogStream` and `logs:PutLogEvents` on its own log group alone, `/aws/lambda/<function name>`. The role can't create that log group, so create it before the function first runs.
 
 - `p0_aws_iam_write` installed for the account the connector runs in. Grant that installation's role `lambda:InvokeFunction` on the connector's function.
 
@@ -68,6 +68,25 @@ P0 checks where the connector runs when it creates the installation, and so does
 # p0_aws_iam_write for the account the connector runs in. This resource's page
 # lists what the App needs. The example doesn't create the key's secret, which
 # keeps the key out of Terraform's state.
+#
+# Creating p0_github_repositories has the connector read the key, so the key
+# must be in its secret by then. To store it, with the AWS CLI signed in to the
+# secret's account:
+#
+#   aws secretsmanager create-secret \
+#     --name github/my-github-org/private-key \
+#     --secret-string file://key.pem --region us-east-1
+#
+# If the secret exists, put the key in it instead:
+#
+#   aws secretsmanager put-secret-value \
+#     --secret-id github/my-github-org/private-key \
+#     --secret-string file://key.pem --region us-east-1
+#
+# key.pem is the private key you generated for the App, and us-east-1 is the
+# secret's region, secrets_region below. To encrypt the secret with a
+# customer-managed KMS key, which a secret in another account needs, add
+# --kms-key-id with the key's ARN to create-secret.
 #
 # The connector's Terraform is what P0's GitHub Repositories installer generates
 # for the organization, with p0_github_repositories in place of its output. Copy
@@ -108,15 +127,21 @@ locals {
     account_id       = "123456789012"
     connector_name   = "p0-github-my-github-org"
     connector_region = "us-east-1"
-    # The name of the secret, in this account, that holds the GitHub App's
-    # private key. The connector can read this secret and no other. A new name
-    # replaces the installation. To rotate the key, add a new version to this
-    # secret instead.
+    # The secret that holds the GitHub App's private key: its name, and the
+    # account and region it's in. P0 has the connector read the secret by this
+    # name there, and the connector can read this secret and no other. A new
+    # secret replaces the installation. To rotate the key, add a new version to
+    # this secret instead.
     private_key_secret_name = "github/my-github-org/private-key"
+    secrets_account_id      = "123456789012"
     secrets_region          = "us-east-1"
     # The ARN of the KMS key that encrypts the secret, if that's a
     # customer-managed key. The default aws/secretsmanager key needs nothing
-    # for a secret in this account.
+    # for a secret in the connector's account, but can't be used from another
+    # one. For a secret in another account, set this to its customer-managed
+    # key, and in that account allow the connector's role
+    # secretsmanager:GetSecretValue in the secret's resource policy and
+    # kms:Decrypt through Secrets Manager in the key's policy.
     kms_key_arn = null
     # How many days CloudWatch keeps the connector's logs.
     log_retention_days = 30
@@ -263,14 +288,14 @@ resource "aws_iam_role_policy" "p0_github_repositories_my_github_org_private_key
         Sid    = "ReadPrivateKey"
         Effect = "Allow"
         Action = "secretsmanager:GetSecretValue"
-        # A secret's ARN ends in a hyphen and six random characters. "??????"
-        # matches those, so the name gets this one secret and no other.
+        # P0 has the connector read the secret by its name, in the account and
+        # region above. Secrets Manager adds a hyphen and six random characters
+        # to the name in the secret's ARN, and "??????" matches those, so the
+        # grant gets this one secret and no other.
         Resource = join(":", [
-          "arn",
-          data.aws_partition.p0_github_repositories_my_github_org.partition,
-          "secretsmanager",
+          "arn:aws:secretsmanager",
           local.p0_github_repositories_my_github_org.secrets_region,
-          local.p0_github_repositories_my_github_org.account_id,
+          local.p0_github_repositories_my_github_org.secrets_account_id,
           "secret",
           "${local.p0_github_repositories_my_github_org.private_key_secret_name}-??????",
         ])
@@ -288,6 +313,14 @@ resource "aws_iam_role_policy" "p0_github_repositories_my_github_org_private_key
       }],
     )
   })
+
+  # A secret in another account can't use the default aws/secretsmanager key.
+  lifecycle {
+    precondition {
+      condition     = local.p0_github_repositories_my_github_org.secrets_account_id == local.p0_github_repositories_my_github_org.account_id || local.p0_github_repositories_my_github_org.kms_key_arn != null
+      error_message = "The private key's secret is in another AWS account, so it must be encrypted with a customer-managed KMS key. Set kms_key_arn to that key's ARN, and allow the connector's role in the secret's resource policy and in the key's policy."
+    }
+  }
 }
 
 # No vpc_config: the connector calls api.github.com over the internet.
@@ -337,7 +370,7 @@ resource "p0_github_repositories" "example" {
 
   vault = {
     type           = "aws-sm"
-    account_id     = local.p0_github_repositories_my_github_org.account_id
+    account_id     = local.p0_github_repositories_my_github_org.secrets_account_id
     secrets_region = local.p0_github_repositories_my_github_org.secrets_region
   }
   private_key_secret_name = local.p0_github_repositories_my_github_org.private_key_secret_name
@@ -364,7 +397,7 @@ resource "p0_github_repositories" "example" {
 - `app_id` (String) The ID of the GitHub App your connector authenticates as: the number on the App's settings page. Changing it updates the installation in place, and P0 checks the install again.
 - `hosting` (Attributes) Where your connector is deployed, and how P0 addresses it. Only AWS Lambda is supported for now. (see [below for nested schema](#nestedatt--hosting))
 - `org` (String) The login of the GitHub organization to install on, as in `github.com/<login>`
-- `private_key_secret_name` (String) The name or ARN of the secret that holds the GitHub App's private key. A name is looked up in the connector's own account, in `vault.secrets_region`. Give a secret in another account as its full ARN, and allow the connector's role in the secret's resource policy and in its KMS key's policy. Changing it replaces the installation. To rotate the key, add a new version to the same secret, which needs no change here.
+- `private_key_secret_name` (String) The name of the AWS Secrets Manager secret that holds the GitHub App's private key, such as `github/my-github-org/private-key`: the name alone, not the secret's ARN. The connector reads the secret by its name in `vault.account_id` and `vault.secrets_region`, as `arn:aws:secretsmanager:<secrets_region>:<account_id>:secret:<name>`. The name can't end in a hyphen and six letters or digits, like `-AbCdEf`, because Secrets Manager can't find a secret by such a name. If the secret is in an account other than the connector's, encrypt it with a customer-managed KMS key, and allow the connector's role in the secret's resource policy and in the key's policy. Changing it replaces the installation. To rotate the key, add a new version to the same secret, which needs no change here.
 - `vault` (Attributes) The secret manager that holds the GitHub App's private key. P0 never reads the key. Your connector does. Only AWS Secrets Manager is supported for now. (see [below for nested schema](#nestedatt--vault))
 
 ### Read-Only

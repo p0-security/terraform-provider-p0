@@ -8,6 +8,25 @@
 # lists what the App needs. The example doesn't create the key's secret, which
 # keeps the key out of Terraform's state.
 #
+# Creating p0_github_repositories has the connector read the key, so the key
+# must be in its secret by then. To store it, with the AWS CLI signed in to the
+# secret's account:
+#
+#   aws secretsmanager create-secret \
+#     --name github/my-github-org/private-key \
+#     --secret-string file://key.pem --region us-east-1
+#
+# If the secret exists, put the key in it instead:
+#
+#   aws secretsmanager put-secret-value \
+#     --secret-id github/my-github-org/private-key \
+#     --secret-string file://key.pem --region us-east-1
+#
+# key.pem is the private key you generated for the App, and us-east-1 is the
+# secret's region, secrets_region below. To encrypt the secret with a
+# customer-managed KMS key, which a secret in another account needs, add
+# --kms-key-id with the key's ARN to create-secret.
+#
 # The connector's Terraform is what P0's GitHub Repositories installer generates
 # for the organization, with p0_github_repositories in place of its output. Copy
 # it from the installer, which pins the current connector image.
@@ -47,15 +66,21 @@ locals {
     account_id       = "123456789012"
     connector_name   = "p0-github-my-github-org"
     connector_region = "us-east-1"
-    # The name of the secret, in this account, that holds the GitHub App's
-    # private key. The connector can read this secret and no other. A new name
-    # replaces the installation. To rotate the key, add a new version to this
-    # secret instead.
+    # The secret that holds the GitHub App's private key: its name, and the
+    # account and region it's in. P0 has the connector read the secret by this
+    # name there, and the connector can read this secret and no other. A new
+    # secret replaces the installation. To rotate the key, add a new version to
+    # this secret instead.
     private_key_secret_name = "github/my-github-org/private-key"
+    secrets_account_id      = "123456789012"
     secrets_region          = "us-east-1"
     # The ARN of the KMS key that encrypts the secret, if that's a
     # customer-managed key. The default aws/secretsmanager key needs nothing
-    # for a secret in this account.
+    # for a secret in the connector's account, but can't be used from another
+    # one. For a secret in another account, set this to its customer-managed
+    # key, and in that account allow the connector's role
+    # secretsmanager:GetSecretValue in the secret's resource policy and
+    # kms:Decrypt through Secrets Manager in the key's policy.
     kms_key_arn = null
     # How many days CloudWatch keeps the connector's logs.
     log_retention_days = 30
@@ -202,14 +227,14 @@ resource "aws_iam_role_policy" "p0_github_repositories_my_github_org_private_key
         Sid    = "ReadPrivateKey"
         Effect = "Allow"
         Action = "secretsmanager:GetSecretValue"
-        # A secret's ARN ends in a hyphen and six random characters. "??????"
-        # matches those, so the name gets this one secret and no other.
+        # P0 has the connector read the secret by its name, in the account and
+        # region above. Secrets Manager adds a hyphen and six random characters
+        # to the name in the secret's ARN, and "??????" matches those, so the
+        # grant gets this one secret and no other.
         Resource = join(":", [
-          "arn",
-          data.aws_partition.p0_github_repositories_my_github_org.partition,
-          "secretsmanager",
+          "arn:aws:secretsmanager",
           local.p0_github_repositories_my_github_org.secrets_region,
-          local.p0_github_repositories_my_github_org.account_id,
+          local.p0_github_repositories_my_github_org.secrets_account_id,
           "secret",
           "${local.p0_github_repositories_my_github_org.private_key_secret_name}-??????",
         ])
@@ -227,6 +252,14 @@ resource "aws_iam_role_policy" "p0_github_repositories_my_github_org_private_key
       }],
     )
   })
+
+  # A secret in another account can't use the default aws/secretsmanager key.
+  lifecycle {
+    precondition {
+      condition     = local.p0_github_repositories_my_github_org.secrets_account_id == local.p0_github_repositories_my_github_org.account_id || local.p0_github_repositories_my_github_org.kms_key_arn != null
+      error_message = "The private key's secret is in another AWS account, so it must be encrypted with a customer-managed KMS key. Set kms_key_arn to that key's ARN, and allow the connector's role in the secret's resource policy and in the key's policy."
+    }
+  }
 }
 
 # No vpc_config: the connector calls api.github.com over the internet.
@@ -276,7 +309,7 @@ resource "p0_github_repositories" "example" {
 
   vault = {
     type           = "aws-sm"
-    account_id     = local.p0_github_repositories_my_github_org.account_id
+    account_id     = local.p0_github_repositories_my_github_org.secrets_account_id
     secrets_region = local.p0_github_repositories_my_github_org.secrets_region
   }
   private_key_secret_name = local.p0_github_repositories_my_github_org.private_key_secret_name

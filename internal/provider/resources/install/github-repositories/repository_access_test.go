@@ -459,12 +459,17 @@ func TestRepositoryAccessValidateConfig(t *testing.T) {
 		{name: "unknown vault", vault: unknownObject, hosting: awsHosting},
 		{name: "unknown hosting", vault: awsVault, hosting: unknownObject},
 		{name: "unknown vault and hosting", vault: unknownObject, hosting: unknownObject},
-		{name: "aws secret arn", vault: awsVault, hosting: awsHosting, overrides: secret(str(arn))},
+		{name: "secret arn", vault: awsVault, hosting: awsHosting, overrides: secret(str(arn)), want: []string{"Invalid private key secret name"}},
 		{name: "pasted key", vault: awsVault, hosting: awsHosting, overrides: secret(str(pem)), want: []string{"Invalid private key secret name"}},
 		{name: "unknown secret name", vault: awsVault, hosting: awsHosting, overrides: secret(unknownString)},
-		{name: "aws secret arn with an unknown vault", vault: unknownObject, hosting: awsHosting, overrides: secret(str(arn))},
+		{name: "secret arn with an unknown vault", vault: unknownObject, hosting: awsHosting, overrides: secret(str(arn)), want: []string{"Invalid private key secret name"}},
 		{name: "pasted key with an unknown vault", vault: unknownObject, hosting: unknownObject, overrides: secret(str(pem)), want: []string{"Invalid private key secret name"}},
+		{name: "secret name ending like a suffix", vault: awsVault, hosting: awsHosting, overrides: secret(str("private-key-AbCdEf")), want: []string{"Private key secret name ends like an ARN suffix"}},
+		// One error for the field, for the first rule the trimmed name breaks.
+		{name: "padded secret name ending like a suffix", vault: awsVault, hosting: awsHosting, overrides: secret(str(" private-key-AbCdEf\n")), want: []string{"Private key secret name ends like an ARN suffix"}},
 		{name: "secret name with a trailing newline", vault: awsVault, hosting: awsHosting, overrides: secret(str("private-key\n")), want: []string{"Whitespace around a value"}},
+		// The connector reads the secret by its name in the vault's account.
+		{name: "secret in another account", vault: with(awsVaultFields, "account_id", str("210987654321")), hosting: awsHosting},
 		{name: "app id with a leading space", vault: awsVault, hosting: awsHosting, overrides: map[string]tftypes.Value{"app_id": str(" 123456")}, want: []string{"Whitespace around a value"}},
 		{name: "app id with a trailing newline", vault: awsVault, hosting: awsHosting, overrides: map[string]tftypes.Value{"app_id": str("123456\n")}, want: []string{"Whitespace around a value"}},
 		{name: "app id that isn't a number", vault: awsVault, hosting: awsHosting, overrides: map[string]tftypes.Value{"app_id": str("my-app")}, want: []string{"Invalid GitHub App ID"}},
@@ -499,23 +504,46 @@ func TestRepositoryAccessValidateConfig(t *testing.T) {
 	}
 }
 
-// A refused secret name gets P0's message, and isn't repeated back: it may be a key.
+// A refused secret name gets P0's message, in P0's order, and isn't repeated back: it
+// may be a key.
 func TestRepositoryAccessValidateConfigSecretNameWording(t *testing.T) {
 	const pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\n-----END RSA PRIVATE KEY-----"
-	diags := validateConfig(t, awsVault, awsHosting, map[string]tftypes.Value{"private_key_secret_name": str(pem)})
-	errs := diags.Errors()
-	if len(errs) != 1 {
-		t.Fatalf("errors = %v; want one", errs)
+	cases := []struct {
+		name    string
+		value   string
+		summary string
+		detail  string
+		// A part of the value that the error mustn't repeat.
+		secret string
+	}{
+		{name: "pasted key", value: pem, summary: "Invalid private key secret name", detail: invalidSecretName, secret: "MIIE"},
+		{
+			name:    "arn",
+			value:   "arn:aws:secretsmanager:us-east-1:123456789012:secret:acme/key-Zx9Qw2",
+			summary: "Invalid private key secret name",
+			detail:  invalidSecretName,
+			secret:  "acme/key",
+		},
+		{name: "name ending like a suffix", value: "acme/key-Zx9Qw2", summary: "Private key secret name ends like an ARN suffix", detail: suffixedSecretName, secret: "acme/key"},
 	}
-	if errs[0].Detail() != InvalidSecretName {
-		t.Errorf("detail = %q; want %q", errs[0].Detail(), InvalidSecretName)
-	}
-	withPath, ok := errs[0].(diag.DiagnosticWithPath)
-	if !ok || !withPath.Path().Equal(path.Root("private_key_secret_name")) {
-		t.Errorf("error %v isn't on private_key_secret_name", errs[0])
-	}
-	if strings.Contains(errs[0].Summary()+errs[0].Detail(), "MIIE") {
-		t.Errorf("error %v repeats the key", errs[0])
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			errs := validateConfig(t, awsVault, awsHosting, map[string]tftypes.Value{"private_key_secret_name": str(c.value)}).Errors()
+			if len(errs) != 1 {
+				t.Fatalf("errors = %v; want one", errs)
+			}
+			if errs[0].Summary() != c.summary || errs[0].Detail() != c.detail {
+				t.Errorf("error = %q: %q; want %q: %q", errs[0].Summary(), errs[0].Detail(), c.summary, c.detail)
+			}
+			withPath, ok := errs[0].(diag.DiagnosticWithPath)
+			if !ok || !withPath.Path().Equal(path.Root("private_key_secret_name")) {
+				t.Errorf("error %v isn't on private_key_secret_name", errs[0])
+			}
+			if strings.Contains(errs[0].Summary()+errs[0].Detail(), c.secret) {
+				t.Errorf("error %v repeats the value", errs[0])
+			}
+		})
 	}
 }
 
