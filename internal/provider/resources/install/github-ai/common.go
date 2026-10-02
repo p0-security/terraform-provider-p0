@@ -1,10 +1,10 @@
-package installgithubapp
+package installgithubai
 
 import (
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
-const GithubAppKey = "github-app"
+const GithubAiKey = "github-ai"
 
 // All installable GitHub App components.
 var Components = []string{installresources.Credential}

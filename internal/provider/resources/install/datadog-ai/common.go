@@ -1,4 +1,4 @@
-package installdatadogapp
+package installdatadogai
 
 import (
 	"regexp"
@@ -13,7 +13,7 @@ import (
 	installvaultedcredential "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/vaulted-credential"
 )
 
-const DatadogAppKey = "datadog-app"
+const DatadogAiKey = "datadog-ai"
 
 // All installable Datadog components.
 var Components = []string{installresources.Credential}

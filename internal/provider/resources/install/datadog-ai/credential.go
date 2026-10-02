@@ -1,4 +1,4 @@
-package installdatadogapp
+package installdatadogai
 
 import (
 	"context"
@@ -14,15 +14,15 @@ import (
 	installvaultedcredential "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/vaulted-credential"
 )
 
-var _ resource.Resource = &DatadogAppCredential{}
-var _ resource.ResourceWithConfigure = &DatadogAppCredential{}
-var _ resource.ResourceWithImportState = &DatadogAppCredential{}
+var _ resource.Resource = &DatadogAiCredential{}
+var _ resource.ResourceWithConfigure = &DatadogAiCredential{}
+var _ resource.ResourceWithImportState = &DatadogAiCredential{}
 
-type DatadogAppCredential struct {
+type DatadogAiCredential struct {
 	installer *common.Install
 }
 
-type datadogAppCredentialModel struct {
+type datadogAiCredentialModel struct {
 	Id               types.String                                 `tfsdk:"id"`
 	Site             types.String                                 `tfsdk:"site"`
 	SecretManager    *installvaultedcredential.SecretManagerModel `tfsdk:"secret_manager"`
@@ -30,41 +30,41 @@ type datadogAppCredentialModel struct {
 	State            types.String                                 `tfsdk:"state"`
 }
 
-type datadogAppCredentialJson struct {
+type datadogAiCredentialJson struct {
 	Site             *siteJson                                   `json:"site,omitempty"`
 	SecretManager    *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
 	ServiceAccountId *string                                     `json:"serviceAccountId,omitempty"`
 	State            *string                                     `json:"state,omitempty"`
 }
 
-type datadogAppCredentialApi struct {
-	Item *datadogAppCredentialJson `json:"item"`
+type datadogAiCredentialApi struct {
+	Item *datadogAiCredentialJson `json:"item"`
 }
 
-func NewDatadogAppCredential() resource.Resource {
-	return &DatadogAppCredential{}
+func NewDatadogAiCredential() resource.Resource {
+	return &DatadogAiCredential{}
 }
 
-func (*DatadogAppCredential) Metadata(_ context.Context, req resource.MetadataRequest, res *resource.MetadataResponse) {
-	res.TypeName = req.ProviderTypeName + "_datadog_app"
+func (*DatadogAiCredential) Metadata(_ context.Context, req resource.MetadataRequest, res *resource.MetadataResponse) {
+	res.TypeName = req.ProviderTypeName + "_datadog_ai"
 }
 
-func (*DatadogAppCredential) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (*DatadogAiCredential) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Datadog installation for agentic access.
 
 Installing it allows P0 to grant machines just-in-time access to a Datadog organization, with a service access token that holds only the requested scopes.
 
-**Important:** Before creating this resource you must stage the installation with ` + "`p0_datadog_app_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the organization's API key and application key as a version of the connector's admin keys secret; the connector cannot create access tokens until that version exists.
+**Important:** Before creating this resource you must stage the installation with ` + "`p0_datadog_ai_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the organization's API key and application key as a version of the connector's admin keys secret; the connector cannot create access tokens until that version exists.
 
 **Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
-			"id":   idAttribute("The `id` of the `p0_datadog_app_staged` resource being finalized"),
-			"site": siteAttribute(" Must match the `p0_datadog_app_staged` resource."),
+			"id":   idAttribute("The `id` of the `p0_datadog_ai_staged` resource being finalized"),
+			"site": siteAttribute(" Must match the `p0_datadog_ai_staged` resource."),
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's Datadog connector runs and stores the Datadog organization's admin keys`,
-				Attributes:          installvaultedcredential.FinalSecretManagerAttributes(secretLabel, " Must match the `p0_datadog_app_staged` resource."),
+				Attributes:          installvaultedcredential.FinalSecretManagerAttributes(secretLabel, " Must match the `p0_datadog_ai_staged` resource."),
 			},
 			"service_account_id": schema.StringAttribute{
 				Required:            true,
@@ -75,10 +75,10 @@ Installing it allows P0 to grant machines just-in-time access to a Datadog organ
 	}
 }
 
-func (r *DatadogAppCredential) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *DatadogAiCredential) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	data := internal.Configure(&req, resp)
 	r.installer = &common.Install{
-		Integration:  DatadogAppKey,
+		Integration:  DatadogAiKey,
 		Component:    installresources.Credential,
 		ProviderData: data,
 		GetId:        r.getId,
@@ -88,8 +88,8 @@ func (r *DatadogAppCredential) Configure(ctx context.Context, req resource.Confi
 	}
 }
 
-func (r *DatadogAppCredential) getId(data any) *string {
-	model, ok := data.(*datadogAppCredentialModel)
+func (r *DatadogAiCredential) getId(data any) *string {
+	model, ok := data.(*datadogAiCredentialModel)
 	if !ok {
 		return nil
 	}
@@ -97,16 +97,16 @@ func (r *DatadogAppCredential) getId(data any) *string {
 	return &str
 }
 
-func (r *DatadogAppCredential) getItemJson(json any) any {
-	inner, ok := json.(*datadogAppCredentialApi)
+func (r *DatadogAiCredential) getItemJson(json any) any {
+	inner, ok := json.(*datadogAiCredentialApi)
 	if !ok {
 		return nil
 	}
 	return inner.Item
 }
 
-func (r *DatadogAppCredential) fromJson(_ context.Context, diags *diag.Diagnostics, id string, json any) any {
-	jsonv, ok := json.(*datadogAppCredentialJson)
+func (r *DatadogAiCredential) fromJson(_ context.Context, diags *diag.Diagnostics, id string, json any) any {
+	jsonv, ok := json.(*datadogAiCredentialJson)
 	if !ok {
 		return nil
 	}
@@ -115,7 +115,7 @@ func (r *DatadogAppCredential) fromJson(_ context.Context, diags *diag.Diagnosti
 	}
 
 	secretManager := installvaultedcredential.SecretManagerFromJson(jsonv.SecretManager)
-	return &datadogAppCredentialModel{
+	return &datadogAiCredentialModel{
 		Id:               types.StringValue(id),
 		Site:             siteFromJson(jsonv.Site),
 		SecretManager:    &secretManager,
@@ -124,13 +124,13 @@ func (r *DatadogAppCredential) fromJson(_ context.Context, diags *diag.Diagnosti
 	}
 }
 
-func (r *DatadogAppCredential) toJson(data any) any {
-	datav, ok := data.(*datadogAppCredentialModel)
+func (r *DatadogAiCredential) toJson(data any) any {
+	datav, ok := data.(*datadogAiCredentialModel)
 	if !ok {
 		return nil
 	}
 
-	json := datadogAppCredentialJson{
+	json := datadogAiCredentialJson{
 		Site:             siteToJson(datav.Site),
 		ServiceAccountId: datav.ServiceAccountId.ValueStringPointer(),
 	}
@@ -140,9 +140,9 @@ func (r *DatadogAppCredential) toJson(data any) any {
 	return &json
 }
 
-func (r *DatadogAppCredential) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var json datadogAppCredentialApi
-	var data datadogAppCredentialModel
+func (r *DatadogAiCredential) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var json datadogAiCredentialApi
+	var data datadogAiCredentialModel
 
 	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
 	if resp.Diagnostics.HasError() {
@@ -158,18 +158,18 @@ func (r *DatadogAppCredential) Create(ctx context.Context, req resource.CreateRe
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
-func (r *DatadogAppCredential) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &datadogAppCredentialApi{}, &datadogAppCredentialModel{})
+func (r *DatadogAiCredential) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &datadogAiCredentialApi{}, &datadogAiCredentialModel{})
 }
 
-func (r *DatadogAppCredential) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &datadogAppCredentialApi{}, &datadogAppCredentialModel{})
+func (r *DatadogAiCredential) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &datadogAiCredentialApi{}, &datadogAiCredentialModel{})
 }
 
-func (r *DatadogAppCredential) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	r.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &datadogAppCredentialModel{})
+func (r *DatadogAiCredential) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	r.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &datadogAiCredentialModel{})
 }
 
-func (r *DatadogAppCredential) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *DatadogAiCredential) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

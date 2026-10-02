@@ -1,4 +1,4 @@
-package installgithubapp
+package installgithubai
 
 import (
 	"context"
@@ -14,54 +14,54 @@ import (
 	installvaultedcredential "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/vaulted-credential"
 )
 
-var _ resource.Resource = &GithubAppCredential{}
-var _ resource.ResourceWithConfigure = &GithubAppCredential{}
-var _ resource.ResourceWithImportState = &GithubAppCredential{}
+var _ resource.Resource = &GithubAiCredential{}
+var _ resource.ResourceWithConfigure = &GithubAiCredential{}
+var _ resource.ResourceWithImportState = &GithubAiCredential{}
 
-type GithubAppCredential struct {
+type GithubAiCredential struct {
 	installer *common.Install
 }
 
-type githubAppCredentialModel struct {
+type githubAiCredentialModel struct {
 	Id            types.String                                 `tfsdk:"id"`
 	SecretManager *installvaultedcredential.SecretManagerModel `tfsdk:"secret_manager"`
 	AppId         types.String                                 `tfsdk:"app_id"`
 	State         types.String                                 `tfsdk:"state"`
 }
 
-type githubAppCredentialJson struct {
+type githubAiCredentialJson struct {
 	SecretManager *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
 	AppId         *string                                     `json:"appId,omitempty"`
 	State         *string                                     `json:"state,omitempty"`
 }
 
-type githubAppCredentialApi struct {
-	Item *githubAppCredentialJson `json:"item"`
+type githubAiCredentialApi struct {
+	Item *githubAiCredentialJson `json:"item"`
 }
 
-func NewGithubAppCredential() resource.Resource {
-	return &GithubAppCredential{}
+func NewGithubAiCredential() resource.Resource {
+	return &GithubAiCredential{}
 }
 
-func (*GithubAppCredential) Metadata(_ context.Context, req resource.MetadataRequest, res *resource.MetadataResponse) {
-	res.TypeName = req.ProviderTypeName + "_github_app"
+func (*GithubAiCredential) Metadata(_ context.Context, req resource.MetadataRequest, res *resource.MetadataResponse) {
+	res.TypeName = req.ProviderTypeName + "_github_ai"
 }
 
-func (*GithubAppCredential) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (*GithubAiCredential) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A GitHub App installation.
 
 Installing the GitHub App allows P0 to grant machines just-in-time, scoped access to your GitHub organization's repositories.
 
-**Important:** Before creating this resource you must stage the installation with ` + "`p0_github_app_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the GitHub App's private key as a version of the connector's private key secret; the connector cannot mint access tokens until that version exists.
+**Important:** Before creating this resource you must stage the installation with ` + "`p0_github_ai_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the GitHub App's private key as a version of the connector's private key secret; the connector cannot mint access tokens until that version exists.
 
 **Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
-			"id": installvaultedcredential.IdAttribute("The `id` of the `p0_github_app_staged` resource being finalized"),
+			"id": installvaultedcredential.IdAttribute("The `id` of the `p0_github_ai_staged` resource being finalized"),
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's GitHub connector runs and stores the GitHub App's private key`,
-				Attributes:          installvaultedcredential.FinalSecretManagerAttributes(secretLabel, " Must match the `p0_github_app_staged` resource."),
+				Attributes:          installvaultedcredential.FinalSecretManagerAttributes(secretLabel, " Must match the `p0_github_ai_staged` resource."),
 			},
 			"app_id": schema.StringAttribute{
 				Required:            true,
@@ -72,10 +72,10 @@ Installing the GitHub App allows P0 to grant machines just-in-time, scoped acces
 	}
 }
 
-func (r *GithubAppCredential) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *GithubAiCredential) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	data := internal.Configure(&req, resp)
 	r.installer = &common.Install{
-		Integration:  GithubAppKey,
+		Integration:  GithubAiKey,
 		Component:    installresources.Credential,
 		ProviderData: data,
 		GetId:        r.getId,
@@ -85,8 +85,8 @@ func (r *GithubAppCredential) Configure(ctx context.Context, req resource.Config
 	}
 }
 
-func (r *GithubAppCredential) getId(data any) *string {
-	model, ok := data.(*githubAppCredentialModel)
+func (r *GithubAiCredential) getId(data any) *string {
+	model, ok := data.(*githubAiCredentialModel)
 	if !ok {
 		return nil
 	}
@@ -94,16 +94,16 @@ func (r *GithubAppCredential) getId(data any) *string {
 	return &str
 }
 
-func (r *GithubAppCredential) getItemJson(json any) any {
-	inner, ok := json.(*githubAppCredentialApi)
+func (r *GithubAiCredential) getItemJson(json any) any {
+	inner, ok := json.(*githubAiCredentialApi)
 	if !ok {
 		return nil
 	}
 	return inner.Item
 }
 
-func (r *GithubAppCredential) fromJson(_ context.Context, diags *diag.Diagnostics, id string, json any) any {
-	jsonv, ok := json.(*githubAppCredentialJson)
+func (r *GithubAiCredential) fromJson(_ context.Context, diags *diag.Diagnostics, id string, json any) any {
+	jsonv, ok := json.(*githubAiCredentialJson)
 	if !ok {
 		return nil
 	}
@@ -112,7 +112,7 @@ func (r *GithubAppCredential) fromJson(_ context.Context, diags *diag.Diagnostic
 	}
 
 	secretManager := installvaultedcredential.SecretManagerFromJson(jsonv.SecretManager)
-	return &githubAppCredentialModel{
+	return &githubAiCredentialModel{
 		Id:            types.StringValue(id),
 		SecretManager: &secretManager,
 		AppId:         types.StringPointerValue(jsonv.AppId),
@@ -120,13 +120,13 @@ func (r *GithubAppCredential) fromJson(_ context.Context, diags *diag.Diagnostic
 	}
 }
 
-func (r *GithubAppCredential) toJson(data any) any {
-	datav, ok := data.(*githubAppCredentialModel)
+func (r *GithubAiCredential) toJson(data any) any {
+	datav, ok := data.(*githubAiCredentialModel)
 	if !ok {
 		return nil
 	}
 
-	json := githubAppCredentialJson{
+	json := githubAiCredentialJson{
 		AppId: datav.AppId.ValueStringPointer(),
 	}
 	if datav.SecretManager != nil {
@@ -135,9 +135,9 @@ func (r *GithubAppCredential) toJson(data any) any {
 	return &json
 }
 
-func (r *GithubAppCredential) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var json githubAppCredentialApi
-	var data githubAppCredentialModel
+func (r *GithubAiCredential) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var json githubAiCredentialApi
+	var data githubAiCredentialModel
 
 	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
 	if resp.Diagnostics.HasError() {
@@ -153,18 +153,18 @@ func (r *GithubAppCredential) Create(ctx context.Context, req resource.CreateReq
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
 }
 
-func (r *GithubAppCredential) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &githubAppCredentialApi{}, &githubAppCredentialModel{})
+func (r *GithubAiCredential) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &githubAiCredentialApi{}, &githubAiCredentialModel{})
 }
 
-func (r *GithubAppCredential) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &githubAppCredentialApi{}, &githubAppCredentialModel{})
+func (r *GithubAiCredential) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &githubAiCredentialApi{}, &githubAiCredentialModel{})
 }
 
-func (r *GithubAppCredential) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	r.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &githubAppCredentialModel{})
+func (r *GithubAiCredential) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	r.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &githubAiCredentialModel{})
 }
 
-func (r *GithubAppCredential) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *GithubAiCredential) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
