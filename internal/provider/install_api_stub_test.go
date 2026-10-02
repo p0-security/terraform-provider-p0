@@ -70,7 +70,7 @@ provider "p0" {
 }
 `, stubOrg, server.URL, stubToken)
 	client := &internal.P0ProviderData{
-		BaseUrl:        fmt.Sprintf("%s/o/%s", server.URL, stubOrg),
+		BaseUrl:        orgUrl(server.URL, stubOrg),
 		Authentication: "Bearer " + stubToken,
 		Client:         server.Client(),
 	}
@@ -82,7 +82,7 @@ func (s *installApiStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeStubError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
-	rest, ok := strings.CutPrefix(r.URL.Path, fmt.Sprintf("/o/%s/integrations/%s/config", stubOrg, s.integration))
+	rest, ok := strings.CutPrefix(r.URL.Path, orgUrl("", stubOrg)+fmt.Sprintf("/integrations/%s/config", s.integration))
 	if !ok {
 		writeStubError(w, http.StatusNotFound, "Not found")
 		return

@@ -43,7 +43,7 @@ func testAccHost() string {
 	if host := os.Getenv(accHostEnv); host != "" {
 		return host
 	}
-	return "https://api.p0.app"
+	return defaultHost
 }
 
 // testAccProviderConfig configures the provider for the acceptance-test
@@ -61,7 +61,7 @@ provider "p0" {
 // checks that Terraform can't make, such as that a destroyed install is gone.
 func testAccClient() *internal.P0ProviderData {
 	return &internal.P0ProviderData{
-		BaseUrl:        fmt.Sprintf("%s/o/%s", testAccHost(), os.Getenv(accOrgEnv)),
+		BaseUrl:        orgUrl(testAccHost(), os.Getenv(accOrgEnv)),
 		Authentication: "Bearer " + os.Getenv(accTokenEnv),
 		Client:         http.DefaultClient,
 	}

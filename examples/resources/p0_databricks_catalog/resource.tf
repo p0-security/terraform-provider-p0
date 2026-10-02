@@ -22,7 +22,8 @@ locals {
   workspace_id          = "1234567890123456"
   # The application_id of the account's p0_databricks_account.
   application_id = "8c5e2e0a-8f0d-4a3e-9d61-3b2f4c7a1e05"
-  catalogs       = ["main", "analytics"]
+  # Catalog names, in lowercase.
+  catalogs = ["main", "analytics"]
 }
 
 # The account-level provider grants through the workspace that provider_config
@@ -46,10 +47,13 @@ resource "databricks_grant" "p0_manage" {
   }
 }
 
+# Each catalog's ID in P0 is "<catalog_name>@<workspace_id>", e.g.
+# "main@1234567890123456", because catalog names are unique only within a
+# metastore.
 resource "p0_databricks_catalog" "example" {
   for_each = toset(local.catalogs)
 
-  id         = each.key
-  workspace  = local.workspace_id
-  depends_on = [databricks_grant.p0_manage]
+  workspace_id = local.workspace_id
+  catalog_name = each.key
+  depends_on   = [databricks_grant.p0_manage]
 }

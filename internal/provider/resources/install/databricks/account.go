@@ -39,7 +39,7 @@ func (*Account) Schema(_ context.Context, _ resource.SchemaRequest, resp *resour
 	// exactly the IDs the connector parses.
 	attributes["application_id"] = schema.StringAttribute{
 		Required:            true,
-		MarkdownDescription: "The application ID of the service principal that the connector exchanges its AWS identity for, e.g. `databricks_service_principal.application_id`",
+		MarkdownDescription: "The application ID of the service principal that the connector signs in to Databricks as, e.g. `databricks_service_principal.application_id`",
 		Validators: []validator.String{
 			stringvalidator.RegexMatches(common.UuidRegex, "Application IDs are UUIDs, e.g. 01234567-89ab-cdef-0123-456789abcdef"),
 		},
@@ -48,7 +48,7 @@ func (*Account) Schema(_ context.Context, _ resource.SchemaRequest, resp *resour
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Databricks account installation.
 
-**Important:** Before creating this resource you must stage the account with ` + "`p0_databricks_account_staged`" + `, and create a service principal in the account with the ` + "`account_admin`" + ` role and a federation policy that trusts the connector. The policy's issuer is the issuer of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is ` + "`databricks`" + `. Creating them takes a Databricks account admin.
+**Important:** Before creating this resource you must stage the account with ` + "`p0_databricks_account_staged`" + `, and create a service principal in the account with the ` + "`account_admin`" + ` role and a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is ` + "`federation_audience`" + ` (` + "`" + FederationAudience + "`" + `). Creating them takes a Databricks account admin.
 
 ` + notePreview,
 		Attributes: attributes,
@@ -60,29 +60,20 @@ func (r *Account) Configure(_ context.Context, req resource.ConfigureRequest, re
 		Integration:  DatabricksKey,
 		Component:    installresources.Account,
 		ProviderData: internal.Configure(&req, resp),
-		GetId:        accountId,
-		GetItemJson:  accountItemJson,
-		FromJson:     accountFromItem,
+		GetId:        itemKey,
+		GetItemJson:  itemJson[accountJson],
+		FromJson:     accountFromJson,
 		ToJson:       accountToJson,
 	}
 }
 
-func accountId(data any) *string {
-	model, ok := data.(*accountModel)
-	if !ok {
-		return nil
-	}
-	id := model.Id.ValueString()
-	return &id
-}
-
-func accountFromItem(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
+func accountFromJson(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
 	item, ok := json.(*accountJson)
 	if !ok {
 		return nil
 	}
 	return &accountModel{
-		accountStagedModel: accountStagedFromJson(id, item),
+		accountStagedModel: newAccountStagedModel(id, item),
 		ApplicationId:      types.StringPointerValue(item.ApplicationId),
 	}
 }
@@ -102,11 +93,13 @@ func (r *Account) Create(ctx context.Context, req resource.CreateRequest, resp *
 }
 
 func (r *Account) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &accountApi{}, &accountModel{})
+	readInstalled(ctx, r.installer, &resp.Diagnostics, &resp.State, &accountApi{}, &accountModel{})
 }
 
 // Only the application ID can change in place: P0 accepts a new one at the
-// verify and configure steps.
+// verify and configure steps. If either step fails, the next Read finds the
+// account no longer installed and drops it, so the next plan installs it
+// again.
 func (r *Account) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &accountApi{}, &accountModel{})
 }

@@ -4,7 +4,7 @@ page_title: "p0_databricks_connector_staged Resource - p0"
 subcategory: ""
 description: |-
   A staged Databricks connector. The connector is the p0-connector-databricks Lambda that P0 invokes to manage Databricks, one per AWS account. It runs outside any VPC and holds no secret: it reaches each Databricks account by exchanging its AWS identity for a Databricks token.
-  Staging records the connector in P0 and checks its domain pattern before you deploy the Lambda with it. Then deploy the Lambda and its role, enable outbound web identity federation for the AWS account, and create a p0_databricks_connector resource with the same id to complete the installation.
+  Staging records the connector in P0 and checks its domain pattern before you deploy the Lambda with it. Then deploy the Lambda and its role, enable outbound identity federation for the AWS account, let P0's AWS integration role invoke the Lambda, and create a p0_databricks_connector resource with the same id to complete the installation.
   Prerequisite: P0's AWS integration must be installed for the connector's AWS account (for example via the p0_aws_iam_write resource). P0 invokes the connector as that installation's role.
   Note: This integration is currently in preview.
 ---
@@ -13,7 +13,7 @@ description: |-
 
 A staged Databricks connector. The connector is the `p0-connector-databricks` Lambda that P0 invokes to manage Databricks, one per AWS account. It runs outside any VPC and holds no secret: it reaches each Databricks account by exchanging its AWS identity for a Databricks token.
 
-Staging records the connector in P0 and checks its domain pattern before you deploy the Lambda with it. Then deploy the Lambda and its role, enable outbound web identity federation for the AWS account, and create a `p0_databricks_connector` resource with the same `id` to complete the installation.
+Staging records the connector in P0 and checks its domain pattern before you deploy the Lambda with it. Then deploy the Lambda and its role, enable outbound identity federation for the AWS account, let P0's AWS integration role invoke the Lambda, and create a `p0_databricks_connector` resource with the same `id` to complete the installation.
 
 **Prerequisite:** P0's AWS integration must be installed for the connector's AWS account (for example via the `p0_aws_iam_write` resource). P0 invokes the connector as that installation's role.
 
@@ -40,12 +40,13 @@ resource "p0_databricks_connector_staged" "example" {
 
 ### Required
 
-- `domain_pattern` (String) A regular expression that the connector matches against the whole email domain of every user it grants to, e.g. `example\.com`. The connector refuses any other user. Set the same value as the Lambda's `DOMAIN_ALLOW_PATTERN` environment variable.
+- `domain_pattern` (String) A regular expression that the connector matches against the whole email domain of every user it grants to, e.g. `example\.com`. The connector refuses any other user. Set the same value as the Lambda's `DOMAIN_PATTERN` environment variable.
 - `id` (String) The ID of the AWS account that the connector's Lambda runs in
-- `region` (String) The AWS region that the connector's Lambda runs in
+- `region` (String) The AWS region that the connector's Lambda runs in. The connector runs only in commercial AWS regions.
 
 ### Read-Only
 
+- `federation_audience` (String) The audience of the AWS identity tokens that the connector exchanges for Databricks tokens. The connector's role may request tokens only for this audience, and the federation policy of each account's service principal must accept it.
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured

@@ -46,28 +46,19 @@ func (r *AccountStaged) Configure(_ context.Context, req resource.ConfigureReque
 		Integration:  DatabricksKey,
 		Component:    installresources.Account,
 		ProviderData: internal.Configure(&req, resp),
-		GetId:        accountStagedId,
-		GetItemJson:  accountItemJson,
-		FromJson:     accountStagedFromItem,
+		GetId:        itemKey,
+		GetItemJson:  itemJson[accountJson],
+		FromJson:     accountStagedFromJson,
 		ToJson:       accountStagedToJson,
 	}
 }
 
-func accountStagedId(data any) *string {
-	model, ok := data.(*accountStagedModel)
-	if !ok {
-		return nil
-	}
-	id := model.Id.ValueString()
-	return &id
-}
-
-func accountStagedFromItem(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
+func accountStagedFromJson(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
 	item, ok := json.(*accountJson)
 	if !ok {
 		return nil
 	}
-	model := accountStagedFromJson(id, item)
+	model := newAccountStagedModel(id, item)
 	return &model
 }
 
@@ -87,8 +78,10 @@ func (r *AccountStaged) Read(ctx context.Context, _ resource.ReadRequest, resp *
 	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &accountApi{}, &accountStagedModel{})
 }
 
-func (r *AccountStaged) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	stage(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &accountApi{}, &accountStagedModel{})
+// Every attribute that can be set requires replacement, so Terraform never
+// updates a staged account in place. Staging it again would also return an
+// installed account to the "stage" state.
+func (r *AccountStaged) Update(context.Context, resource.UpdateRequest, *resource.UpdateResponse) {
 }
 
 func (r *AccountStaged) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

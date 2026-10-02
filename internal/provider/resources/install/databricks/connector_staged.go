@@ -30,7 +30,7 @@ func (*ConnectorStaged) Schema(_ context.Context, _ resource.SchemaRequest, resp
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A staged Databricks connector. The connector is the ` + "`p0-connector-databricks`" + ` Lambda that P0 invokes to manage Databricks, one per AWS account. It runs outside any VPC and holds no secret: it reaches each Databricks account by exchanging its AWS identity for a Databricks token.
 
-Staging records the connector in P0 and checks its domain pattern before you deploy the Lambda with it. Then deploy the Lambda and its role, enable outbound web identity federation for the AWS account, and create a ` + "`p0_databricks_connector`" + ` resource with the same ` + "`id`" + ` to complete the installation.
+Staging records the connector in P0 and checks its domain pattern before you deploy the Lambda with it. Then deploy the Lambda and its role, enable outbound identity federation for the AWS account, let P0's AWS integration role invoke the Lambda, and create a ` + "`p0_databricks_connector`" + ` resource with the same ` + "`id`" + ` to complete the installation.
 
 **Prerequisite:** P0's AWS integration must be installed for the connector's AWS account (for example via the ` + "`p0_aws_iam_write`" + ` resource). P0 invokes the connector as that installation's role.
 
@@ -51,8 +51,10 @@ func (r *ConnectorStaged) Read(ctx context.Context, _ resource.ReadRequest, resp
 	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &connectorApi{}, &connectorModel{})
 }
 
-func (r *ConnectorStaged) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	stage(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &connectorApi{}, &connectorModel{})
+// Every attribute that can be set requires replacement, so Terraform never
+// updates a staged connector in place. Staging it again would also return an
+// installed connector to the "stage" state.
+func (r *ConnectorStaged) Update(context.Context, resource.UpdateRequest, *resource.UpdateResponse) {
 }
 
 func (r *ConnectorStaged) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
