@@ -71,8 +71,9 @@ export P0_HOST=http://localhost:8088
 ```
 
 Use an organization set aside for tests, because the tests create and delete real installs.
-The Databricks tests also read the optional `P0_DATABRICKS_*` variables that
-`internal/provider/databricks_test.go` describes.
+The Databricks acceptance tests also skip unless every `P0_DATABRICKS_*` variable that
+`internal/provider/databricks_test.go` lists is set, because P0 verifies each Databricks
+install against a real connector, account, workspace and catalog.
 
 Tests that run against the in-memory fake of the P0 API need no organization, and run under plain
 `go test ./...` too. They run the Terraform binary at `TF_ACC_TERRAFORM_PATH`, or else the

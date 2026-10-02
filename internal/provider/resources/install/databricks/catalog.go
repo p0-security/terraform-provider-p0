@@ -2,8 +2,8 @@ package installdatabricks
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -23,9 +23,14 @@ type Catalog struct {
 }
 
 type catalogModel struct {
-	Id        types.String `tfsdk:"id"`
-	Workspace types.String `tfsdk:"workspace"`
-	State     types.String `tfsdk:"state"`
+	Id          types.String `tfsdk:"id"`
+	WorkspaceId types.String `tfsdk:"workspace_id"`
+	CatalogName types.String `tfsdk:"catalog_name"`
+	State       types.String `tfsdk:"state"`
+}
+
+func (m catalogModel) key() string {
+	return catalogKey(m.CatalogName.ValueString(), m.WorkspaceId.ValueString())
 }
 
 type catalogJson struct {
@@ -33,9 +38,7 @@ type catalogJson struct {
 	State     *string `json:"state,omitempty"`
 }
 
-type catalogApi struct {
-	Item *catalogJson `json:"item"`
-}
+type catalogApi = itemApi[catalogJson]
 
 func NewCatalog() resource.Resource {
 	return &Catalog{}
@@ -53,13 +56,17 @@ func (*Catalog) Schema(_ context.Context, _ resource.SchemaRequest, resp *resour
 
 ` + notePreview,
 		Attributes: map[string]schema.Attribute{
-			"id": fixedAttribute(
-				`The name of the catalog`,
-				stringvalidator.RegexMatches(CatalogNameRegex, "Catalog names have at most 255 characters, and no periods, spaces, forward slashes or control characters"),
-			),
-			"workspace": fixedAttribute(
-				"The `id` of the `p0_databricks_workspace` that P0 reaches this catalog through",
+			"id": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The catalog's key in P0, `<catalog_name>@<workspace_id>`, which is also its import ID. Catalog names are unique only within a metastore, so the key names the workspace too.",
+			},
+			"workspace_id": fixedAttribute(
+				"The ID of the workspace that P0 reaches this catalog through, which is the `id` of its `p0_databricks_workspace`",
 				workspaceIdValidator(),
+			),
+			"catalog_name": fixedAttribute(
+				`The name of the catalog, in lowercase`,
+				catalogNameValidators()...,
 			),
 			"state": common.StateAttribute,
 		},
@@ -71,39 +78,28 @@ func (r *Catalog) Configure(_ context.Context, req resource.ConfigureRequest, re
 		Integration:  DatabricksKey,
 		Component:    installresources.Catalog,
 		ProviderData: internal.Configure(&req, resp),
-		GetId:        catalogId,
-		GetItemJson:  catalogItemJson,
+		GetId:        itemKey,
+		GetItemJson:  itemJson[catalogJson],
 		FromJson:     catalogFromJson,
 		ToJson:       catalogToJson,
 	}
 }
 
-func catalogId(data any) *string {
-	model, ok := data.(*catalogModel)
-	if !ok {
-		return nil
-	}
-	id := model.Id.ValueString()
-	return &id
-}
-
-func catalogItemJson(json any) any {
-	api, ok := json.(*catalogApi)
-	if !ok || api.Item == nil {
-		return nil
-	}
-	return api.Item
-}
-
-func catalogFromJson(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
+func catalogFromJson(_ context.Context, diags *diag.Diagnostics, id string, json any) any {
 	item, ok := json.(*catalogJson)
 	if !ok {
 		return nil
 	}
+	catalogName, _, ok := parseCatalogKey(id)
+	if !ok {
+		diags.AddError("Bad catalog key", fmt.Sprintf("P0 has a catalog with the key %q, which isn't of the form <catalog name>@<workspace ID>", id))
+		return nil
+	}
 	return &catalogModel{
-		Id:        types.StringValue(id),
-		Workspace: types.StringPointerValue(item.Workspace),
-		State:     types.StringPointerValue(item.State),
+		Id:          types.StringValue(id),
+		WorkspaceId: types.StringPointerValue(item.Workspace),
+		CatalogName: types.StringValue(catalogName),
+		State:       types.StringPointerValue(item.State),
 	}
 }
 
@@ -113,7 +109,7 @@ func catalogToJson(data any) any {
 	if !ok {
 		return nil
 	}
-	return &catalogJson{Workspace: model.Workspace.ValueStringPointer()}
+	return &catalogJson{Workspace: model.WorkspaceId.ValueStringPointer()}
 }
 
 func (r *Catalog) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -121,7 +117,7 @@ func (r *Catalog) Create(ctx context.Context, req resource.CreateRequest, resp *
 }
 
 func (r *Catalog) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &catalogApi{}, &catalogModel{})
+	readInstalled(ctx, r.installer, &resp.Diagnostics, &resp.State, &catalogApi{}, &catalogModel{})
 }
 
 func (r *Catalog) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -132,6 +128,14 @@ func (r *Catalog) Delete(ctx context.Context, req resource.DeleteRequest, resp *
 	r.installer.Delete(ctx, &resp.Diagnostics, &req.State, &catalogModel{})
 }
 
+// Imports a catalog by its key, `<catalog_name>@<workspace_id>`.
 func (r *Catalog) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	catalogName, workspaceId, ok := parseCatalogKey(req.ID)
+	if !ok {
+		resp.Diagnostics.AddError("Bad import ID", fmt.Sprintf("Import a catalog by <catalog name>@<workspace ID>, e.g. main@1234567890123456, not %q", req.ID))
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("catalog_name"), catalogName)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), workspaceId)...)
 }

@@ -32,8 +32,10 @@ type workspaceJson struct {
 	State   *string `json:"state,omitempty"`
 }
 
-type workspaceApi struct {
-	Item *workspaceJson `json:"item"`
+type workspaceApi = itemApi[workspaceJson]
+
+func (m workspaceModel) key() string {
+	return m.Id.ValueString()
 }
 
 func NewWorkspace() resource.Resource {
@@ -67,28 +69,11 @@ func (r *Workspace) Configure(_ context.Context, req resource.ConfigureRequest, 
 		Integration:  DatabricksKey,
 		Component:    installresources.Workspace,
 		ProviderData: internal.Configure(&req, resp),
-		GetId:        workspaceId,
-		GetItemJson:  workspaceItemJson,
+		GetId:        itemKey,
+		GetItemJson:  itemJson[workspaceJson],
 		FromJson:     workspaceFromJson,
 		ToJson:       workspaceToJson,
 	}
-}
-
-func workspaceId(data any) *string {
-	model, ok := data.(*workspaceModel)
-	if !ok {
-		return nil
-	}
-	id := model.Id.ValueString()
-	return &id
-}
-
-func workspaceItemJson(json any) any {
-	api, ok := json.(*workspaceApi)
-	if !ok || api.Item == nil {
-		return nil
-	}
-	return api.Item
 }
 
 func workspaceFromJson(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
@@ -117,7 +102,7 @@ func (r *Workspace) Create(ctx context.Context, req resource.CreateRequest, resp
 }
 
 func (r *Workspace) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &workspaceApi{}, &workspaceModel{})
+	readInstalled(ctx, r.installer, &resp.Diagnostics, &resp.State, &workspaceApi{}, &workspaceModel{})
 }
 
 func (r *Workspace) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {

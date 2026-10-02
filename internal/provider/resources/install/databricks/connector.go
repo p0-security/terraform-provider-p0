@@ -32,7 +32,13 @@ func (*Connector) Schema(_ context.Context, _ resource.SchemaRequest, resp *reso
 
 The connector lets P0 grant Unity Catalog privileges, workspace admin and account admin in your Databricks accounts. After you install it, add each Databricks account with ` + "`p0_databricks_account`" + `, then the account's workspaces with ` + "`p0_databricks_workspace`" + ` and their catalogs with ` + "`p0_databricks_catalog`" + `.
 
-**Important:** Before creating this resource you must stage the connector with ` + "`p0_databricks_connector_staged`" + `, deploy the ` + "`p0-connector-databricks`" + ` Lambda in the staged AWS account and region, enable outbound web identity federation for that account, and allow P0's AWS integration role to invoke the Lambda.
+**Important:** Before creating this resource you must stage the connector with ` + "`p0_databricks_connector_staged`" + `, and set up the following in the staged AWS account and region:
+
+- Outbound identity federation, enabled for the AWS account (` + "`aws_iam_outbound_web_identity_federation`" + `).
+- An IAM role named ` + "`p0-connector-databricks`" + ` that Lambda can assume. Each Databricks account's federation policy trusts this role's ARN.
+- A policy on that role that allows ` + "`sts:GetWebIdentityToken`" + ` only for the audience ` + "`" + FederationAudience + "`" + ` (this resource's ` + "`federation_audience`" + `).
+- The ` + "`p0-connector-databricks`" + ` Lambda, running as that role, with its ` + "`DOMAIN_PATTERN`" + ` environment variable set to ` + "`domain_pattern`" + `.
+- A policy on P0's AWS integration role that allows ` + "`lambda:InvokeFunction`" + ` on the Lambda.
 
 ` + notePreview,
 		Attributes: connectorAttributes(),
@@ -48,7 +54,7 @@ func (r *Connector) Create(ctx context.Context, req resource.CreateRequest, resp
 }
 
 func (r *Connector) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &connectorApi{}, &connectorModel{})
+	readInstalled(ctx, r.installer, &resp.Diagnostics, &resp.State, &connectorApi{}, &connectorModel{})
 }
 
 func (r *Connector) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
