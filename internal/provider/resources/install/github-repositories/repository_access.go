@@ -99,7 +99,7 @@ P0 checks where the connector runs, and the secret's name, when it creates the i
 
 - ` + "`p0_aws_iam_write`" + ` installed for the account the connector runs in. Grant that installation's role ` + "`lambda:InvokeFunction`" + ` on the connector's function.
 
-**Note:** This integration is currently in preview.`,
+**Note:** This integration is in beta.`,
 		Attributes: map[string]schema.Attribute{
 			"org": schema.StringAttribute{
 				Required:            true,

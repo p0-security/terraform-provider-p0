@@ -19,7 +19,7 @@ description: |-
   Grant the connector's execution role read access to the private key secret alone, never through a wildcard that matches other secrets, or at the account level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
   Give the role secretsmanager:GetSecretValue on arn:aws:secretsmanager:<secrets_region>:<account_id>:secret:<name>-??????, with the vault's region and account and the secret's name. Secrets Manager adds a hyphen and six random characters to the name in a secret's ARN, and ?????? matches those, so the grant covers this one secret. If a customer-managed KMS key encrypts the secret, also give the role kms:Decrypt on that key, with the condition that kms:ViaService is secretsmanager.<secrets_region>.amazonaws.com. A secret in an account other than the connector's needs a customer-managed key, because the default aws/secretsmanager key can't be used from another account, and in that account the secret's resource policy and the key's policy must allow the connector's role too. For its logs, give the role logs:CreateLogStream and logs:PutLogEvents on its own log group alone, /aws/lambda/<function name>. The role can't create that log group, so create it before the function first runs.
   p0_aws_iam_write installed for the account the connector runs in. Grant that installation's role lambda:InvokeFunction on the connector's function.
-  Note: This integration is currently in preview.
+  Note: This integration is in beta.
 ---
 
 # p0_github_repositories (Resource)
@@ -54,7 +54,7 @@ P0 checks where the connector runs, and the secret's name, when it creates the i
 
 - `p0_aws_iam_write` installed for the account the connector runs in. Grant that installation's role `lambda:InvokeFunction` on the connector's function.
 
-**Note:** This integration is currently in preview.
+**Note:** This integration is in beta.
 
 ## Example Usage
 
