@@ -15,4 +15,6 @@ const (
 	Server           = "server"
 	Provider         = "provider"
 	RepositoryAccess = "repository-access"
+	Connector        = "connector"
+	SharedDrive      = "shared-drive"
 )

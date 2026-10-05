@@ -33,9 +33,11 @@ import (
 	installfiletransfer "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/file_transfer"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
 	installgcpcloudsql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloudsql"
+	installgcpserviceaccount "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-service-account"
 	installgcpwif "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-wif"
 	installgithubai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-ai"
 	installgithubrepositories "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-repositories"
+	installgoogledriveai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/google-drive-ai"
 	installidentityprovider "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/identity-provider"
 	installintegrationitem "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/integration-item"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
@@ -218,6 +220,11 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installrds.NewRdsIamWrite,
 		installgcpcloudsql.NewGcpCloudSqlIamWriteStaged,
 		installgcpcloudsql.NewGcpCloudSqlIamWrite,
+		installgcpserviceaccount.NewGcpServiceAccountIamWriteStaged,
+		installgcpserviceaccount.NewGcpServiceAccountIamWrite,
+		installgoogledriveai.NewGoogleDriveConnectorStaged,
+		installgoogledriveai.NewGoogleDriveConnector,
+		installgoogledriveai.NewGoogleDriveSharedDrive,
 		installfiletransfer.NewFileTransferIamWrite,
 		installawssm.NewAwsSmVault,
 		installapp.NewAppIamWrite,
