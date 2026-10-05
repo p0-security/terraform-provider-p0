@@ -1,6 +1,7 @@
-# Must pre-exist in the P0 app: the Okta group (via an installed Okta directory
-# listing integration, see p0_okta_directory_listing), the "aws" integration (see
-# p0_aws_iam_write), and the PagerDuty integration (connected in-app, not via Terraform).
+# Certain policy settings require preinstalled integrations in the P0 app. For these examples, the following must be installed in your P0 app prior to running this terraform: 
+# the Okta group (via an installed Okta directory listing integration, see p0_okta_directory_listing)
+# the "aws" integration (see p0_aws_iam_write)
+# and the PagerDuty integration (connected in-app, not via Terraform).
 resource "p0_access_policy" "example" {
   name = "okta-aws-developers-oncall"
   requestor = {
