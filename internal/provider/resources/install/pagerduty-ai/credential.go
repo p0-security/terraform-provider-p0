@@ -25,6 +25,7 @@ type PagerdutyAiCredential struct {
 type pagerdutyAiCredentialModel struct {
 	Id            types.String                                 `tfsdk:"id"`
 	Region        types.String                                 `tfsdk:"region"`
+	Subdomain     types.String                                 `tfsdk:"subdomain"`
 	SecretManager *installvaultedcredential.SecretManagerModel `tfsdk:"secret_manager"`
 	ClientId      types.String                                 `tfsdk:"client_id"`
 	State         types.String                                 `tfsdk:"state"`
@@ -32,6 +33,7 @@ type pagerdutyAiCredentialModel struct {
 
 type pagerdutyAiCredentialJson struct {
 	Region        *regionJson                                 `json:"region,omitempty"`
+	Subdomain     *string                                     `json:"subdomain,omitempty"`
 	SecretManager *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
 	ClientId      *string                                     `json:"clientId,omitempty"`
 	State         *string                                     `json:"state,omitempty"`
@@ -119,6 +121,7 @@ func (r *PagerdutyAiCredential) fromJson(_ context.Context, diags *diag.Diagnost
 	return &pagerdutyAiCredentialModel{
 		Id:            types.StringValue(id),
 		Region:        regionFromJson(jsonv.Region),
+		Subdomain:     types.StringPointerValue(jsonv.Subdomain),
 		SecretManager: &secretManager,
 		ClientId:      types.StringPointerValue(jsonv.ClientId),
 		State:         types.StringPointerValue(jsonv.State),
@@ -132,8 +135,9 @@ func (r *PagerdutyAiCredential) toJson(data any) any {
 	}
 
 	json := pagerdutyAiCredentialJson{
-		Region:   regionToJson(datav.Region),
-		ClientId: datav.ClientId.ValueStringPointer(),
+		Region:    regionToJson(datav.Region),
+		Subdomain: datav.Subdomain.ValueStringPointer(),
+		ClientId:  datav.ClientId.ValueStringPointer(),
 	}
 	if datav.SecretManager != nil {
 		json.SecretManager = datav.SecretManager.ToJson()
