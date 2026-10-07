@@ -748,10 +748,29 @@ func TestDatabricksFailedCreateDestroyedWhenRemoved(t *testing.T) {
 	})
 }
 
-// A catalog imports by its key, and refuses an import ID that isn't one.
+// A catalog imports by its key, and refuses an import ID that isn't one, or
+// whose catalog name or workspace ID the configuration would refuse. The read
+// after an import puts the key in a URL path, where `sales%@7` doesn't parse
+// and `sales#eu@7` reads `sales`.
 func TestDatabricksCatalogImportId(t *testing.T) {
 	f := newDatabricksFake(t)
 	d := databricksTestDefaults
+
+	refused := func(id, message string) resource.TestStep {
+		return resource.TestStep{
+			Config:        providerConfig(f) + d.catalog(),
+			ResourceName:  "p0_databricks_catalog.test",
+			ImportState:   true,
+			ImportStateId: id,
+			// Terraform wraps a long message across lines.
+			ExpectError: regexp.MustCompile(strings.ReplaceAll(regexp.QuoteMeta(message), " ", `\s+`)),
+		}
+	}
+	const (
+		notAKey     = "Import a catalog by <catalog name>@<workspace ID>"
+		forbidden   = "Catalog names can't contain a period, a space, a forward slash or a control character"
+		urlPathOnly = `P0 can't install a catalog whose name contains #, ?, % or \`
+	)
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -765,13 +784,13 @@ func TestDatabricksCatalogImportId(t *testing.T) {
 				ImportStateId:     d.catalogKey(),
 				ImportStateVerify: true,
 			},
-			{
-				Config:        providerConfig(f) + d.catalog(),
-				ResourceName:  "p0_databricks_catalog.test",
-				ImportState:   true,
-				ImportStateId: d.catalogName,
-				ExpectError:   regexp.MustCompile(`Import a catalog by <catalog name>@<workspace ID>`),
-			},
+			refused(d.catalogName, notAKey),
+			refused(d.catalogName+"@dbc-1234abcd-5678", notAKey),
+			refused("sales%@7", urlPathOnly),
+			refused("sales#eu@7", urlPathOnly),
+			refused("main.default@7", forbidden),
+			refused("tab\there@7", forbidden),
+			refused("Sales@7", "Unity Catalog stores catalog names in lowercase, so enter sales"),
 		},
 	})
 }

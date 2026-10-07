@@ -129,11 +129,19 @@ func (r *Catalog) Delete(ctx context.Context, req resource.DeleteRequest, resp *
 	r.installer.Delete(ctx, &resp.Diagnostics, &req.State, &catalogModel{})
 }
 
-// Imports a catalog by its key, `<catalog_name>@<workspace_id>`.
+// Imports a catalog by its key, `<catalog_name>@<workspace_id>`. The key's
+// catalog name and workspace ID get the same checks as the configuration's,
+// because the read that follows the import puts the key in a URL path, where
+// `sales%@7` doesn't parse and `sales#eu@7` reads `sales`.
 func (r *Catalog) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// parseCatalogKey checks the workspace ID as workspaceIdValidator does.
 	catalogName, workspaceId, ok := parseCatalogKey(req.ID)
 	if !ok {
 		resp.Diagnostics.AddError("Bad import ID", fmt.Sprintf("Import a catalog by <catalog name>@<workspace ID>, e.g. main@1234567890123456, not %q", req.ID))
+		return
+	}
+	if message := catalogNameError(catalogName); message != "" {
+		resp.Diagnostics.AddError("Invalid catalog name", message)
 		return
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
