@@ -30,9 +30,6 @@ const DatabricksKey = "databricks"
 // that trusts the connector must accept it.
 const FederationAudience = "databricks"
 
-// The state of an item that P0 has finished installing.
-const installedState = "installed"
-
 // All installable Databricks components. Each one points at the component
 // before it: an account at its connector, a workspace at its account, and a
 // catalog at its workspace.
@@ -353,7 +350,7 @@ func readInstalled(ctx context.Context, installer *common.Install, diags *diag.D
 	}
 	var itemState types.String
 	diags.Append(state.GetAttribute(ctx, path.Root("state"), &itemState)...)
-	if !diags.HasError() && itemState.ValueString() != installedState {
+	if !diags.HasError() && itemState.ValueString() != common.StateInstalled {
 		state.RemoveResource(ctx)
 	}
 }
