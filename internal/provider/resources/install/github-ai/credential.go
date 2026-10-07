@@ -57,7 +57,7 @@ Installing the GitHub App allows P0 to grant machines just-in-time, scoped acces
 
 **Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
-			"id": installvaultedcredential.IdAttribute("The `id` of the `p0_github_ai_staged` resource being finalized"),
+			"id": common.FixedAttribute("The `id` of the `p0_github_ai_staged` resource being finalized"),
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's GitHub connector runs and stores the GitHub App's private key`,

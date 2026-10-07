@@ -78,17 +78,6 @@ func RequireSecretManager(diags *diag.Diagnostics, integration string, id string
 	return true
 }
 
-func IdAttribute(description string, validators ...validator.String) schema.StringAttribute {
-	return schema.StringAttribute{
-		Required:            true,
-		MarkdownDescription: description,
-		Validators:          validators,
-		PlanModifiers: []planmodifier.String{
-			stringplanmodifier.RequiresReplace(),
-		},
-	}
-}
-
 func computedConnectorAttribute(description string) schema.StringAttribute {
 	return schema.StringAttribute{
 		Computed:            true,

@@ -55,7 +55,7 @@ Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the 
 
 **Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
-			"id": installvaultedcredential.IdAttribute(`The login of the GitHub organization that the GitHub App is installed on`),
+			"id": common.FixedAttribute(`The login of the GitHub organization that the GitHub App is installed on`),
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's GitHub connector runs and stores the GitHub App's private key`,

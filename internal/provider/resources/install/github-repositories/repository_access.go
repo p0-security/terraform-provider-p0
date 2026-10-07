@@ -171,9 +171,8 @@ func validateOrgLogin(org types.String, diags *diag.Diagnostics) {
 
 // Rejects value, at attribute, with P0's message for the first of rules that it
 // breaks. Like P0, it checks the value without the whitespace around it. That
-// whitespace is rejected on its own: P0 trims the strings it stores, so the value
-// would read back different from the configuration, which Terraform reports as an
-// inconsistent result after apply. A null value is left to the checks that a field is
+// whitespace is rejected on its own, since P0 trims the strings it stores (see
+// common.RejectWhitespaceAround). A null value is left to the checks that a field is
 // set. The value is never repeated, since a secret's name may be a pasted key.
 func validateField(attribute path.Path, value types.String, rules []rule, diags *diag.Diagnostics) {
 	if !installapp.IsSet(value) {
@@ -186,14 +185,7 @@ func validateField(attribute path.Path, value types.String, rules []rule, diags 
 			return
 		}
 	}
-	if trimmed != value.ValueString() {
-		diags.AddAttributeError(
-			attribute,
-			"Whitespace around a value",
-			fmt.Sprintf("P0 removes the whitespace around '%s', so the value it stores wouldn't match this configuration. "+
-				"Remove the whitespace, for example with trimspace().", attribute),
-		)
-	}
+	common.RejectWhitespaceAround(attribute, value.ValueString(), diags)
 }
 
 func (r *RepositoryAccess) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
