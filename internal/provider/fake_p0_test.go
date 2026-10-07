@@ -23,6 +23,8 @@ type fakeItemKey struct {
 //     advance its state (stage -> configure -> installed)
 //   - every item response carries the component's metadata, when it has any
 //   - unknown items are 404, and DELETE answers 204 with no body
+//   - a step that a test's check or refuse hook rejects answers 422 and saves nothing
+//   - any other request fails the test
 type fakeP0 struct {
 	server *httptest.Server
 
@@ -33,6 +35,14 @@ type fakeP0 struct {
 	normalize func(key fakeItemKey, item map[string]any)
 	// Computes a component's metadata; returning nil omits the key, as P0 does.
 	metadata func(key fakeItemKey, item map[string]any) map[string]any
+	// Called before each write with the stored item (nil when staging creates it) and
+	// the item the write would store. An error rejects the write, as P0 rejects a change
+	// that its install schema doesn't allow, such as one to a `step: "new"` field after
+	// staging.
+	check func(key fakeItemKey, nextState string, previous, updated map[string]any) error
+	// Whether the step that moves the item to nextState fails its install check, as when
+	// a connector can't reach what the item names. P0 then saves nothing.
+	refuse func(key fakeItemKey, nextState string) bool
 }
 
 func newFakeP0(t *testing.T) *fakeP0 {
@@ -41,6 +51,8 @@ func newFakeP0(t *testing.T) *fakeP0 {
 		items:        map[fakeItemKey]map[string]any{},
 		normalize:    func(fakeItemKey, map[string]any) {},
 		metadata:     func(fakeItemKey, map[string]any) map[string]any { return nil },
+		check:        func(fakeItemKey, string, map[string]any, map[string]any) error { return nil },
+		refuse:       func(fakeItemKey, string) bool { return false },
 	}
 
 	mux := http.NewServeMux()
@@ -116,6 +128,15 @@ func (f *fakeP0) step(nextState string, expectedStates []string) http.HandlerFun
 		}
 		updated["state"] = nextState
 		f.normalize(key, updated)
+		// P0 answers both with a StateError, a 422, before it saves the item.
+		if err := f.check(key, nextState, previous, updated); err != nil {
+			unprocessable(w, err.Error())
+			return
+		}
+		if f.refuse(key, nextState) {
+			unprocessable(w, "The install check failed")
+			return
+		}
 
 		f.items[key] = updated
 		f.writeItem(w, key, updated)
@@ -178,6 +199,11 @@ func (f *fakeP0) update(integration, component, id string, change func(item map[
 
 func notFound(w http.ResponseWriter) {
 	http.Error(w, `{"error":"Not found"}`, http.StatusNotFound)
+}
+
+func unprocessable(w http.ResponseWriter, message string) {
+	body, _ := json.Marshal(map[string]string{"error": message})
+	http.Error(w, string(body), http.StatusUnprocessableEntity)
 }
 
 func writeJson(w http.ResponseWriter, value any) {
