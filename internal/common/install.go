@@ -7,8 +7,11 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 )
 
@@ -32,6 +35,29 @@ const (
 var StateAttribute = schema.StringAttribute{
 	Computed:            true,
 	MarkdownDescription: StateMarkdownDescription,
+}
+
+// A ModifyPlan for a resource that installs its item. It plans an update for an item that
+// P0 hasn't installed, even when the configuration hasn't changed, so that the next apply
+// finishes the install: the resource's Update picks up from the step P0 has the item at.
+// That covers an item imported before P0 finished installing it, and one that a failed
+// apply left unfinished. An installed item keeps the framework's plan, which shows no
+// difference while the configuration matches it.
+func PlanFinishingInstall(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Nothing is installed yet on create, and nothing is left to finish on destroy.
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var state types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("state"), &state)...)
+	if resp.Diagnostics.HasError() || state.ValueString() == StateInstalled {
+		return
+	}
+
+	// As in any update the framework plans, the state, which only P0 sets, is unknown
+	// until apply. Update takes it from P0's response, which has the item's new state.
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("state"), types.StringUnknown())...)
 }
 
 // Order matters here; components installed in this order.
