@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   A Databricks account installation.
   Important: Before creating this resource you must stage the account with p0_databricks_account_staged, and create a service principal in the account with the account_admin role and a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is federation_audience (databricks). Creating them takes a Databricks account admin.
+  An account that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
   Note: This integration is currently in preview.
 ---
 
@@ -13,6 +14,8 @@ description: |-
 A Databricks account installation.
 
 **Important:** Before creating this resource you must stage the account with `p0_databricks_account_staged`, and create a service principal in the account with the `account_admin` role and a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is `federation_audience` (`databricks`). Creating them takes a Databricks account admin.
+
+An account that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
 **Note:** This integration is currently in preview.
 
@@ -127,7 +130,7 @@ output "application_id" {
 ### Required
 
 - `accounts_url` (String) The URL of this account's console: `https://accounts.cloud.databricks.com` (AWS), `https://accounts.cloud.databricks.us` (AWS GovCloud), `https://accounts.azuredatabricks.net` (Azure) or `https://accounts.gcp.databricks.com` (Google Cloud)
-- `application_id` (String) The application ID of the service principal that the connector signs in to Databricks as, e.g. `databricks_service_principal.application_id`
+- `application_id` (String) The application ID of the service principal that the connector signs in to Databricks as, e.g. `databricks_service_principal.application_id`. Changing it updates the account in place, and P0 checks the install again. If the check fails, the apply fails, and the account keeps its current application ID.
 - `connector` (String) The `id` of the `p0_databricks_connector` that reaches this account, which is the ID of the AWS account that the connector runs in
 - `id` (String) The Databricks account ID
 

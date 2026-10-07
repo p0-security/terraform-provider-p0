@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   A Databricks workspace installation. P0 manages a workspace through its account's service principal, which must be a workspace admin there.
   Important: Before creating this resource, the workspace's account must be installed (see the p0_databricks_account resource), and its service principal must be assigned to the workspace with the ADMIN permission, for example with databricks_mws_permission_assignment.
+  A workspace that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
   Note: This integration is currently in preview.
 ---
 
@@ -13,6 +14,8 @@ description: |-
 A Databricks workspace installation. P0 manages a workspace through its account's service principal, which must be a workspace admin there.
 
 **Important:** Before creating this resource, the workspace's account must be installed (see the `p0_databricks_account` resource), and its service principal must be assigned to the workspace with the `ADMIN` permission, for example with `databricks_mws_permission_assignment`.
+
+A workspace that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
 **Note:** This integration is currently in preview.
 

@@ -2,19 +2,22 @@
 # VPC, that P0 invokes to manage your Databricks accounts. It holds no secret:
 # it exchanges an AWS identity token for each account's service principal.
 # Apply it as an AWS admin of the connector's account.
-# Full chain: p0_aws_iam_write -> p0_databricks_connector_staged -> outbound
-# identity federation, the connector's role, Lambda and image, and P0's
-# permission to invoke it -> p0_databricks_connector. Then add accounts (see p0_databricks_account).
+#
+# Before you apply this, install P0's AWS IAM management for the connector's
+# AWS account (see p0_aws_iam_write). P0 invokes the connector as that
+# installation's role. Once the connector is installed, add Databricks
+# accounts (see p0_databricks_account).
 
 terraform {
   # 1.4 added terraform_data.
   required_version = ">= 1.4"
 
   required_providers {
-    # 6.26.0 added outbound identity federation.
+    # 6.26.0 added outbound identity federation. This asks for 6.36.0, which
+    # added its data source, to match the p0_databricks_account example.
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 6.26.0"
+      version = ">= 6.36.0"
     }
     p0 = {
       source = "p0-security/p0"
@@ -26,11 +29,20 @@ locals {
   account_id = "123456789012"
   region     = "us-east-1"
 
-  # The connector image's version: the sha- tag that P0 publishes each release
-  # under. Bump it to roll out a new release, which copies the image again and
-  # redeploys the Lambda. A digest pin (tag@sha256:...) follows once the first
-  # image is published, as terraform-aws-p0-connector pins its images, because
-  # a tag can be pushed again.
+  # The connector refuses any user whose whole email domain doesn't match this
+  # regular expression. Changing it later updates only the Lambda: the P0
+  # connector resources below ignore the change, so the connector isn't
+  # replaced, and P0 keeps the pattern the connector was installed with.
+  domain_pattern = "example\\.com"
+
+  # The role that P0's AWS IAM management assumes in this account, which
+  # invokes the connector.
+  p0_role_name = "P0RoleIamManager"
+
+  # The connector image's version: the sha- tag P0 publishes each release
+  # under. To update, use the tag in the latest version of this example in the
+  # Terraform registry. Changing it copies the image again and redeploys the
+  # Lambda.
   connector_image_tag = "sha-b21deb4"
   connector_image     = "p0security/p0-connector-databricks:${local.connector_image_tag}"
 
@@ -45,41 +57,19 @@ provider "aws" {
   allowed_account_ids = [local.account_id]
 }
 
-# P0 invokes the connector as its AWS integration's role, so install that first
-# (mirrors the p0_aws_iam_write example).
-resource "p0_aws_iam_write_staged" "example" {
-  id = local.account_id
-}
-
-resource "aws_iam_role" "p0_iam_manager" {
-  name               = p0_aws_iam_write_staged.example.role.name
-  assume_role_policy = p0_aws_iam_write_staged.example.role.trust_policy
-}
-
-resource "aws_iam_role_policy" "p0_iam_manager" {
-  name   = p0_aws_iam_write_staged.example.role.inline_policy_name
-  role   = aws_iam_role.p0_iam_manager.name
-  policy = p0_aws_iam_write_staged.example.role.inline_policy
-}
-
-resource "p0_aws_iam_write" "example" {
-  id         = p0_aws_iam_write_staged.example.id
-  depends_on = [aws_iam_role_policy.p0_iam_manager]
-
-  login = {
-    type = "iam"
-    identity = {
-      type = "email"
-    }
-  }
-}
-
 # Staging records the connector in P0 and checks its domain pattern before the
 # Lambda is deployed with it.
 resource "p0_databricks_connector_staged" "example" {
-  id             = p0_aws_iam_write.example.id
+  id             = local.account_id
   region         = local.region
-  domain_pattern = "example\\.com"
+  domain_pattern = local.domain_pattern
+
+  # P0 can't change a connector's domain pattern, so a new one would replace
+  # the connector. A later change to local.domain_pattern updates only the
+  # Lambda's DOMAIN_PATTERN.
+  lifecycle {
+    ignore_changes = [domain_pattern]
+  }
 }
 
 # Lets the connector mint AWS identity tokens, which Databricks accepts in place
@@ -157,12 +147,24 @@ resource "terraform_data" "connector_image" {
   triggers_replace = [aws_ecr_repository.connector.repository_url, local.connector_image]
 
   provisioner "local-exec" {
+    # Signs Docker out of ECR at the end, so its login doesn't outlast the copy.
+    # A failed sign-out doesn't fail the copy once the image is pushed.
     command = <<-EOT
-      aws ecr get-login-password --region ${aws_ecr_repository.connector.region} | docker login --username AWS --password-stdin ${split("/", aws_ecr_repository.connector.repository_url)[0]}
-      docker pull --platform linux/amd64 ${local.connector_image}
-      docker tag ${local.connector_image} ${aws_ecr_repository.connector.repository_url}:${local.connector_image_tag}
-      docker push ${aws_ecr_repository.connector.repository_url}:${local.connector_image_tag}
+      set -e
+      trap 'docker logout "$REGISTRY" || true' EXIT
+      aws ecr get-login-password --region "$REGION" |
+        docker login --username AWS --password-stdin "$REGISTRY"
+      docker pull --platform linux/amd64 "$SOURCE"
+      docker tag "$SOURCE" "$TARGET"
+      docker push "$TARGET"
     EOT
+
+    environment = {
+      REGION   = local.region
+      REGISTRY = split("/", aws_ecr_repository.connector.repository_url)[0]
+      SOURCE   = local.connector_image
+      TARGET   = "${aws_ecr_repository.connector.repository_url}:${local.connector_image_tag}"
+    }
   }
 }
 
@@ -180,22 +182,30 @@ resource "aws_lambda_function" "connector" {
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.connector.repository_url}@${data.aws_ecr_image.connector.image_digest}"
   architectures = ["x86_64"]
-  timeout       = 30
-  tags          = local.tags
+  # Lambda's default of 3 seconds is too short for the connector to exchange
+  # its AWS identity token with Databricks and then call Databricks. P0's
+  # installer sets the same timeout.
+  timeout = 30
+  tags    = local.tags
 
   environment {
     variables = {
       # The connector refuses any user whose whole email domain doesn't match.
-      DOMAIN_PATTERN = p0_databricks_connector_staged.example.domain_pattern
+      # Read from the local, not from the staged connector, which keeps the
+      # pattern it was installed with.
+      DOMAIN_PATTERN = local.domain_pattern
     }
   }
+
+  # P0 checks the domain pattern when it stages the connector.
+  depends_on = [p0_databricks_connector_staged.example]
 }
 
-# Lets P0 invoke the connector, through the role P0's AWS integration assumes in
-# this account.
+# Lets P0 invoke the connector, through the role P0's AWS IAM management
+# assumes in this account.
 resource "aws_iam_role_policy" "p0_invoke_connector" {
   name = "p0-connector-databricks-invoke"
-  role = aws_iam_role.p0_iam_manager.name
+  role = local.p0_role_name
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -206,11 +216,16 @@ resource "aws_iam_role_policy" "p0_invoke_connector" {
   })
 }
 
-# Completes the install.
+# Completes the install. Like the staged connector, it ignores later changes to
+# the domain pattern.
 resource "p0_databricks_connector" "example" {
   id             = p0_databricks_connector_staged.example.id
   region         = p0_databricks_connector_staged.example.region
   domain_pattern = p0_databricks_connector_staged.example.domain_pattern
+
+  lifecycle {
+    ignore_changes = [domain_pattern]
+  }
 
   depends_on = [
     aws_iam_outbound_web_identity_federation.this,

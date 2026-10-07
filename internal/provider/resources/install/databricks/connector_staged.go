@@ -34,7 +34,7 @@ Staging records the connector in P0 and checks its domain pattern before you dep
 
 **Prerequisite:** P0's AWS integration must be installed for the connector's AWS account (for example via the ` + "`p0_aws_iam_write`" + ` resource). P0 invokes the connector as that installation's role.
 
-` + notePreview,
+` + common.NotePreview,
 		Attributes: connectorAttributes(),
 	}
 }
@@ -44,7 +44,7 @@ func (r *ConnectorStaged) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 func (r *ConnectorStaged) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	stage(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &connectorApi{}, &connectorModel{})
+	ensureConfigAndStage(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &connectorApi{}, &connectorModel{})
 }
 
 func (r *ConnectorStaged) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {

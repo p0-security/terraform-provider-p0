@@ -17,6 +17,7 @@ import (
 var _ resource.Resource = &Catalog{}
 var _ resource.ResourceWithConfigure = &Catalog{}
 var _ resource.ResourceWithImportState = &Catalog{}
+var _ resource.ResourceWithModifyPlan = &Catalog{}
 
 type Catalog struct {
 	installer *common.Install
@@ -54,19 +55,21 @@ func (*Catalog) Schema(_ context.Context, _ resource.SchemaRequest, resp *resour
 
 **Important:** Before creating this resource, the workspace that P0 reaches the catalog through must be installed (see the ` + "`p0_databricks_workspace`" + ` resource), and the service principal must hold ` + "`MANAGE`" + ` on the catalog. Grant it with ` + "`databricks_grant`" + `, never ` + "`databricks_grants`" + `, which overwrites every other grant on the catalog. Granting ` + "`MANAGE`" + ` takes the catalog's owner, a holder of ` + "`MANAGE`" + ` on it, or a metastore admin.
 
-` + notePreview,
+A catalog that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
+
+` + common.NotePreview,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The catalog's key in P0, `<catalog_name>@<workspace_id>`, which is also its import ID. Catalog names are unique only within a metastore, so the key names the workspace too.",
 			},
-			"workspace_id": fixedAttribute(
+			"workspace_id": common.FixedAttribute(
 				"The ID of the workspace that P0 reaches this catalog through, which is the `id` of its `p0_databricks_workspace`",
 				workspaceIdValidator(),
 			),
-			"catalog_name": fixedAttribute(
+			"catalog_name": common.FixedAttribute(
 				`The name of the catalog, in lowercase`,
-				catalogNameValidators()...,
+				catalogNameValidator{},
 			),
 			"state": common.StateAttribute,
 		},
@@ -74,15 +77,7 @@ func (*Catalog) Schema(_ context.Context, _ resource.SchemaRequest, resp *resour
 }
 
 func (r *Catalog) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	r.installer = &common.Install{
-		Integration:  DatabricksKey,
-		Component:    installresources.Catalog,
-		ProviderData: internal.Configure(&req, resp),
-		GetId:        itemKey,
-		GetItemJson:  itemJson[catalogJson],
-		FromJson:     catalogFromJson,
-		ToJson:       catalogToJson,
-	}
+	r.installer = newInstaller[catalogJson](internal.Configure(&req, resp), installresources.Catalog, catalogFromJson, catalogToJson)
 }
 
 func catalogFromJson(_ context.Context, diags *diag.Diagnostics, id string, json any) any {
@@ -113,15 +108,21 @@ func catalogToJson(data any) any {
 }
 
 func (r *Catalog) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	install(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &catalogApi{}, &catalogModel{})
+	stageAndInstall(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &catalogApi{}, &catalogModel{})
 }
 
 func (r *Catalog) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	readInstalled(ctx, r.installer, &resp.Diagnostics, &resp.State, &catalogApi{}, &catalogModel{})
+	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &catalogApi{}, &catalogModel{})
 }
 
+func (*Catalog) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	common.PlanFinishingInstall(ctx, req, resp)
+}
+
+// Every attribute requires replacement, so an update only finishes an install
+// that P0 hasn't.
 func (r *Catalog) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &catalogApi{}, &catalogModel{})
+	upsertFromState(ctx, r.installer, req, resp, &catalogApi{}, &catalogModel{})
 }
 
 func (r *Catalog) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
