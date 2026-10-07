@@ -138,9 +138,25 @@ resource "aws_iam_role" "connector" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "connector_logs" {
-  role       = aws_iam_role.connector.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+# The log group Lambda writes the connector's logs to.
+resource "aws_cloudwatch_log_group" "connector" {
+  name              = "/aws/lambda/p0-connector-databricks"
+  retention_in_days = 30
+  tags              = local.tags
+}
+
+# The connector writes its own logs, and no others.
+resource "aws_iam_role_policy" "connector_logs" {
+  name = "p0-connector-databricks-logs"
+  role = aws_iam_role.connector.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+      Resource = "${aws_cloudwatch_log_group.connector.arn}:*"
+    }]
+  })
 }
 
 # Only tokens for Databricks. Every Databricks federation policy that trusts
@@ -167,16 +183,22 @@ resource "aws_iam_role_policy" "connector_identity_token" {
 # repository in this account. It needs docker and the AWS CLI, signed in to this
 # account, wherever Terraform runs.
 resource "aws_ecr_repository" "connector" {
-  name         = "p0-connector-databricks"
-  force_delete = true
-  tags         = local.tags
+  name = "p0-connector-databricks"
+  # Tags can't be overwritten, so no one who can push to this repository can
+  # replace the image that signs in to Databricks as P0's service principal.
+  image_tag_mutability = "IMMUTABLE"
+  force_delete         = true
+  tags                 = local.tags
 
   image_scanning_configuration {
     scan_on_push = true
   }
 }
 
-# Copies the image again whenever local.connector_image_tag changes.
+# Copies the image again whenever local.connector_image_tag changes, tagged
+# with that tag and this copy's id. ECR's tags can't be overwritten, so each
+# copy needs a tag of its own: copying the image again, to roll back or after
+# an interrupted apply, pushes a new one.
 resource "terraform_data" "connector_image" {
   triggers_replace = [aws_ecr_repository.connector.repository_url, local.connector_image]
 
@@ -197,20 +219,21 @@ resource "terraform_data" "connector_image" {
       REGION   = local.region
       REGISTRY = split("/", aws_ecr_repository.connector.repository_url)[0]
       SOURCE   = local.connector_image
-      TARGET   = "${aws_ecr_repository.connector.repository_url}:${local.connector_image_tag}"
+      TARGET   = "${aws_ecr_repository.connector.repository_url}:${local.connector_image_tag}-${self.id}"
     }
   }
 }
 
 data "aws_ecr_image" "connector" {
   repository_name = aws_ecr_repository.connector.name
-  image_tag       = local.connector_image_tag
-
-  depends_on = [terraform_data.connector_image]
+  image_tag       = "${local.connector_image_tag}-${terraform_data.connector_image.id}"
 }
 
 resource "aws_lambda_function" "connector" {
-  # P0 invokes the connector by this name.
+  # P0 invokes the connector as the p0-connector-databricks Lambda in this
+  # account and region, so it must be deployed exactly there. If your other AWS
+  # providers have credential settings, such as profile or assume_role, add
+  # them to the provider above.
   function_name = "p0-connector-databricks"
   role          = aws_iam_role.connector.arn
   package_type  = "Image"
@@ -231,8 +254,12 @@ resource "aws_lambda_function" "connector" {
     }
   }
 
-  # P0 checks the domain pattern when it stages the connector.
-  depends_on = [p0_databricks_connector_staged.example]
+  # P0 checks the domain pattern when it stages the connector. The connector's
+  # role can't create a log group, so its own must exist before it runs.
+  depends_on = [
+    p0_databricks_connector_staged.example,
+    aws_cloudwatch_log_group.connector,
+  ]
 }
 
 # Lets P0 invoke the connector, through the role P0's AWS IAM management
