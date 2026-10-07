@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   A Unity Catalog catalog installation. P0 grants privileges in a catalog through its account's service principal, which must hold MANAGE on the catalog.
   Important: Before creating this resource, the workspace that P0 reaches the catalog through must be installed (see the p0_databricks_workspace resource), and the service principal must hold MANAGE on the catalog. Grant it with databricks_grant, never databricks_grants, which overwrites every other grant on the catalog. Granting MANAGE takes the catalog's owner, a holder of MANAGE on it, or a metastore admin.
+  A catalog that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
   Note: This integration is currently in preview.
 ---
 
@@ -13,6 +14,8 @@ description: |-
 A Unity Catalog catalog installation. P0 grants privileges in a catalog through its account's service principal, which must hold `MANAGE` on the catalog.
 
 **Important:** Before creating this resource, the workspace that P0 reaches the catalog through must be installed (see the `p0_databricks_workspace` resource), and the service principal must hold `MANAGE` on the catalog. Grant it with `databricks_grant`, never `databricks_grants`, which overwrites every other grant on the catalog. Granting `MANAGE` takes the catalog's owner, a holder of `MANAGE` on it, or a metastore admin.
+
+A catalog that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
 **Note:** This integration is currently in preview.
 
@@ -95,3 +98,14 @@ resource "p0_databricks_catalog" "example" {
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured
 	- 'installed': The item is fully installed
+
+## Import
+
+Import is supported using the following syntax:
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+# The import ID is <catalog_name>@<workspace_id>.
+terraform import 'p0_databricks_catalog.example["main"]' main@1234567890123456
+```

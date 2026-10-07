@@ -16,6 +16,7 @@ import (
 var _ resource.Resource = &Workspace{}
 var _ resource.ResourceWithConfigure = &Workspace{}
 var _ resource.ResourceWithImportState = &Workspace{}
+var _ resource.ResourceWithModifyPlan = &Workspace{}
 
 type Workspace struct {
 	installer *common.Install
@@ -52,12 +53,14 @@ func (*Workspace) Schema(_ context.Context, _ resource.SchemaRequest, resp *reso
 
 **Important:** Before creating this resource, the workspace's account must be installed (see the ` + "`p0_databricks_account`" + ` resource), and its service principal must be assigned to the workspace with the ` + "`ADMIN`" + ` permission, for example with ` + "`databricks_mws_permission_assignment`" + `.
 
-` + notePreview,
+A workspace that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
+
+` + common.NotePreview,
 		Attributes: map[string]schema.Attribute{
-			"id": fixedAttribute(`The Databricks workspace ID`, workspaceIdValidator()),
-			"account": fixedAttribute(
+			"id": common.FixedAttribute(`The Databricks workspace ID`, workspaceIdValidator()),
+			"account": common.FixedAttribute(
 				"The `id` of the `p0_databricks_account` that this workspace is in",
-				databricksAccountIdValidator(),
+				uuidValidator("Databricks account IDs"),
 			),
 			"state": common.StateAttribute,
 		},
@@ -65,15 +68,7 @@ func (*Workspace) Schema(_ context.Context, _ resource.SchemaRequest, resp *reso
 }
 
 func (r *Workspace) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	r.installer = &common.Install{
-		Integration:  DatabricksKey,
-		Component:    installresources.Workspace,
-		ProviderData: internal.Configure(&req, resp),
-		GetId:        itemKey,
-		GetItemJson:  itemJson[workspaceJson],
-		FromJson:     workspaceFromJson,
-		ToJson:       workspaceToJson,
-	}
+	r.installer = newInstaller[workspaceJson](internal.Configure(&req, resp), installresources.Workspace, workspaceFromJson, workspaceToJson)
 }
 
 func workspaceFromJson(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
@@ -98,15 +93,21 @@ func workspaceToJson(data any) any {
 }
 
 func (r *Workspace) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	install(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &workspaceApi{}, &workspaceModel{})
+	stageAndInstall(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &workspaceApi{}, &workspaceModel{})
 }
 
 func (r *Workspace) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	readInstalled(ctx, r.installer, &resp.Diagnostics, &resp.State, &workspaceApi{}, &workspaceModel{})
+	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &workspaceApi{}, &workspaceModel{})
 }
 
+func (*Workspace) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	common.PlanFinishingInstall(ctx, req, resp)
+}
+
+// Every attribute requires replacement, so an update only finishes an install
+// that P0 hasn't.
 func (r *Workspace) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &workspaceApi{}, &workspaceModel{})
+	upsertFromState(ctx, r.installer, req, resp, &workspaceApi{}, &workspaceModel{})
 }
 
 func (r *Workspace) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

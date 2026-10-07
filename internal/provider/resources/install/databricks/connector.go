@@ -13,6 +13,7 @@ import (
 var _ resource.Resource = &Connector{}
 var _ resource.ResourceWithConfigure = &Connector{}
 var _ resource.ResourceWithImportState = &Connector{}
+var _ resource.ResourceWithModifyPlan = &Connector{}
 
 type Connector struct {
 	installer *common.Install
@@ -40,7 +41,9 @@ The connector lets P0 grant Unity Catalog privileges, workspace admin and accoun
 - The ` + "`p0-connector-databricks`" + ` Lambda, running as that role, with its ` + "`DOMAIN_PATTERN`" + ` environment variable set to ` + "`domain_pattern`" + `.
 - A policy on P0's AWS integration role that allows ` + "`lambda:InvokeFunction`" + ` on the Lambda.
 
-` + notePreview,
+A connector that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
+
+` + common.NotePreview,
 		Attributes: connectorAttributes(),
 	}
 }
@@ -50,15 +53,21 @@ func (r *Connector) Configure(_ context.Context, req resource.ConfigureRequest, 
 }
 
 func (r *Connector) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	install(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &connectorApi{}, &connectorModel{})
+	stageAndInstall(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &connectorApi{}, &connectorModel{})
 }
 
 func (r *Connector) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	readInstalled(ctx, r.installer, &resp.Diagnostics, &resp.State, &connectorApi{}, &connectorModel{})
+	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &connectorApi{}, &connectorModel{})
 }
 
+func (*Connector) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	common.PlanFinishingInstall(ctx, req, resp)
+}
+
+// Every attribute requires replacement, so an update only finishes an install
+// that P0 hasn't.
 func (r *Connector) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &connectorApi{}, &connectorModel{})
+	upsertFromState(ctx, r.installer, req, resp, &connectorApi{}, &connectorModel{})
 }
 
 // Returns the connector to the "stage" state, so that the staged resource

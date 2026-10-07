@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -44,10 +44,10 @@ var Components = []string{
 // connector only accepts these, because it sends its AWS identity token to the
 // console that an account names.
 var accountsConsoles = []struct{ url, cloud string }{
-	{"https://accounts.cloud.databricks.com", "AWS"},
-	{"https://accounts.cloud.databricks.us", "AWS GovCloud"},
-	{"https://accounts.azuredatabricks.net", "Azure"},
-	{"https://accounts.gcp.databricks.com", "Google Cloud"},
+	{url: "https://accounts.cloud.databricks.com", cloud: "AWS"},
+	{url: "https://accounts.cloud.databricks.us", cloud: "AWS GovCloud"},
+	{url: "https://accounts.azuredatabricks.net", cloud: "Azure"},
+	{url: "https://accounts.gcp.databricks.com", cloud: "Google Cloud"},
 }
 
 func accountsUrls() []string {
@@ -58,32 +58,60 @@ func accountsUrls() []string {
 	return urls
 }
 
-// The connector builds its ARNs in the `aws` partition, so it runs only in
-// commercial AWS regions: not GovCloud (`us-gov-*`), China (`cn-*`) or the
-// isolated regions.
-var CommercialRegionRegex = regexp.MustCompile(`^(?:af|ap|ca|eu|il|me|mx|sa|us)-(?:central|east|north|northeast|northwest|south|southeast|southwest|west)-\d+$`)
-
 // The connector refuses a workspace ID that isn't all digits.
 var WorkspaceIdRegex = regexp.MustCompile(`^\d+$`)
 
-// Unity Catalog names exclude periods, spaces, forward slashes and ASCII
-// control characters, and have at most 255 characters.
-var CatalogNameRegex = regexp.MustCompile(`^[^. /\x00-\x1f\x7f]{1,255}$`)
+// The most characters that Unity Catalog allows in a name (`UC_NAME_MAX_LENGTH`
+// in the app).
+const catalogNameMaxLength = 255
 
-// Unity Catalog stores catalog names in lowercase.
-var lowercaseRegex = regexp.MustCompile(`^[^\p{Lu}\p{Lt}]*$`)
+// Why name can't be a catalog's name, or "" if it can. This is the app's
+// `catalogNameError` (packages/integrations/databricks/src/shared/components.ts),
+// with its messages, so that Terraform refuses the names that P0's installer
+// refuses, in the same words. Like the app, it counts a name's length in UTF-16
+// code units, as JavaScript does.
+//
+// The period that Unity Catalog forbids is also what the connector splits
+// securable names on. P0's install API carries item keys in its URL paths
+// unescaped, so a catalog named `sales#eu` would install `sales`.
+func catalogNameError(name string) string {
+	lowercase := strings.ToLower(name)
+	switch {
+	case name == "":
+		return "Enter the catalog's name"
+	case len(utf16.Encode([]rune(name))) > catalogNameMaxLength:
+		return fmt.Sprintf("Catalog names are at most %d characters", catalogNameMaxLength)
+	case strings.ContainsAny(name, ". /") || strings.ContainsFunc(name, isControlCharacter):
+		return "Catalog names can't contain a period, a space, a forward slash or a control character"
+	case name != lowercase:
+		return "Unity Catalog stores catalog names in lowercase, so enter " + lowercase
+	case strings.ContainsAny(name, `#?%\`):
+		return `P0 can't install a catalog whose name contains #, ?, % or \`
+	}
+	return ""
+}
 
-// P0's install API carries item keys in its URL paths unescaped, so a catalog
-// named `sales#eu` would install `sales`.
-var urlPathSafeRegex = regexp.MustCompile(`^[^#?%\\]*$`)
+// An ASCII control character, as the app's catalog name check counts them.
+func isControlCharacter(r rune) bool {
+	return r < 0x20 || r == 0x7f
+}
 
-// The validators and their messages match the app's, which rejects the same
-// catalog names.
-func catalogNameValidators() []validator.String {
-	return []validator.String{
-		stringvalidator.RegexMatches(CatalogNameRegex, "Catalog names have at most 255 characters, and no periods, spaces, forward slashes or control characters"),
-		stringvalidator.RegexMatches(lowercaseRegex, "Unity Catalog stores catalog names in lowercase, so enter the name in lowercase"),
-		stringvalidator.RegexMatches(urlPathSafeRegex, `P0 can't install a catalog whose name contains #, ?, % or \`),
+type catalogNameValidator struct{}
+
+func (catalogNameValidator) Description(context.Context) string {
+	return "value must be a Unity Catalog catalog name, in lowercase"
+}
+
+func (v catalogNameValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (catalogNameValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	if message := catalogNameError(req.ConfigValue.ValueString()); message != "" {
+		resp.Diagnostics.AddAttributeError(req.Path, "Invalid catalog name", message)
 	}
 }
 
@@ -107,34 +135,14 @@ func parseCatalogKey(key string) (catalogName, workspaceId string, ok bool) {
 	return catalogName, workspaceId, true
 }
 
-const notePreview = `**Note:** This integration is currently in preview.`
-
-func awsAccountIdValidator() validator.String {
-	return stringvalidator.RegexMatches(installaws.AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits")
-}
-
-func databricksAccountIdValidator() validator.String {
-	return stringvalidator.RegexMatches(common.UuidRegex, "Databricks account IDs are UUIDs, e.g. 01234567-89ab-cdef-0123-456789abcdef")
+// Rejects a value that isn't a UUID, naming what it is, as the app's
+// `uuidValidator` does.
+func uuidValidator(label string) validator.String {
+	return stringvalidator.RegexMatches(common.UuidRegex, label+" are UUIDs, e.g. 01234567-89ab-cdef-0123-456789abcdef")
 }
 
 func workspaceIdValidator() validator.String {
 	return stringvalidator.RegexMatches(WorkspaceIdRegex, "Databricks workspace IDs are numeric")
-}
-
-// An item's key, and every field marked `step: "new"` in the app's install
-// schema, are fixed once the item exists: a new key names a different item, and
-// P0 rejects a change to a `step: "new"` field at the verify and configure
-// steps. RequiresReplace makes Terraform plan the destroy-and-create that
-// works, instead of an in-place update.
-func fixedAttribute(description string, validators ...validator.String) schema.StringAttribute {
-	return schema.StringAttribute{
-		Required:            true,
-		MarkdownDescription: description,
-		Validators:          validators,
-		PlanModifiers: []planmodifier.String{
-			stringplanmodifier.RequiresReplace(),
-		},
-	}
 }
 
 // P0 never stores the audience: it is the same for every connector.
@@ -150,7 +158,7 @@ type keyed interface {
 }
 
 // GetId for every Databricks model.
-func itemKey(data any) *string {
+func getId(data any) *string {
 	model, ok := data.(keyed)
 	if !ok {
 		return nil
@@ -165,7 +173,7 @@ type itemApi[T any] struct {
 }
 
 // GetItemJson for every Databricks component.
-func itemJson[T any](json any) any {
+func getItemJson[T any](json any) any {
 	api, ok := json.(*itemApi[T])
 	if !ok || api.Item == nil {
 		return nil
@@ -173,19 +181,45 @@ func itemJson[T any](json any) any {
 	return api.Item
 }
 
+// The installer of a Databricks component's resources, whose item's JSON is T.
+func newInstaller[T any](data *internal.P0ProviderData, component string, fromJson func(context.Context, *diag.Diagnostics, string, any) any, toJson func(any) any) *common.Install {
+	return &common.Install{
+		Integration:        DatabricksKey,
+		Component:          component,
+		ProviderData:       data,
+		GetId:              getId,
+		GetItemJson:        getItemJson[T],
+		FromJson:           fromJson,
+		ToJson:             toJson,
+		DescribeCheckError: describeCheckError(component),
+	}
+}
+
+// P0 runs every Databricks install check through the customer's connector, so a
+// failed check usually means a problem in their AWS or Databricks setup, which
+// P0's message describes. The summary doesn't presume where the problem is, and
+// leaves that to P0's message.
+func describeCheckError(component string) func(id string, err error) (string, string) {
+	return func(id string, err error) (string, string) {
+		return "Databricks install check failed",
+			fmt.Sprintf("P0 rejected the install check for the Databricks %s %q:\n\n%s", component, id, err)
+	}
+}
+
 func connectorAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
-		"id": fixedAttribute(
+		"id": common.FixedAttribute(
 			`The ID of the AWS account that the connector's Lambda runs in`,
-			awsAccountIdValidator(),
+			installaws.AwsAccountIdValidator(),
 		),
-		"region": fixedAttribute(
+		"region": common.FixedAttribute(
 			`The AWS region that the connector's Lambda runs in. The connector runs only in commercial AWS regions.`,
-			stringvalidator.RegexMatches(CommercialRegionRegex, "The connector runs only in commercial AWS regions, e.g. us-east-1"),
+			installaws.CommercialRegionValidator("The connector runs only in commercial AWS regions, e.g. us-east-1"),
 		),
-		"domain_pattern": fixedAttribute(
+		"domain_pattern": common.FixedAttribute(
 			`A regular expression that the connector matches against the whole email domain of every user it grants to, e.g. `+"`example\\.com`"+`. The connector refuses any other user. Set the same value as the Lambda's `+"`DOMAIN_PATTERN`"+` environment variable.`,
 			stringvalidator.LengthAtLeast(1),
+			common.NoWhitespaceAround(),
 		),
 		"federation_audience": federationAudienceAttribute,
 		"state":               common.StateAttribute,
@@ -215,15 +249,7 @@ type connectorApi = itemApi[connectorJson]
 // The staged and installed connector resources share one item, and so one
 // model.
 func newConnectorInstaller(data *internal.P0ProviderData) *common.Install {
-	return &common.Install{
-		Integration:  DatabricksKey,
-		Component:    installresources.Connector,
-		ProviderData: data,
-		GetId:        itemKey,
-		GetItemJson:  itemJson[connectorJson],
-		FromJson:     connectorFromJson,
-		ToJson:       connectorToJson,
-	}
+	return newInstaller[connectorJson](data, installresources.Connector, connectorFromJson, connectorToJson)
 }
 
 func connectorFromJson(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
@@ -263,15 +289,15 @@ func accountsUrlDescription() string {
 
 func accountStagedAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
-		"id": fixedAttribute(
+		"id": common.FixedAttribute(
 			`The Databricks account ID`,
-			databricksAccountIdValidator(),
+			uuidValidator("Databricks account IDs"),
 		),
-		"connector": fixedAttribute(
+		"connector": common.FixedAttribute(
 			"The `id` of the `p0_databricks_connector` that reaches this account, which is the ID of the AWS account that the connector runs in",
-			awsAccountIdValidator(),
+			installaws.AwsAccountIdValidator(),
 		),
-		"accounts_url":        fixedAttribute(accountsUrlDescription(), stringvalidator.OneOf(accountsUrls()...)),
+		"accounts_url":        common.FixedAttribute(accountsUrlDescription(), stringvalidator.OneOf(accountsUrls()...)),
 		"federation_audience": federationAudienceAttribute,
 		"state":               common.StateAttribute,
 	}
@@ -322,7 +348,7 @@ func (m *accountStagedModel) toJson() *accountJson {
 }
 
 // Creates the integration in P0 if it doesn't exist yet, then stages the item.
-func stage(ctx context.Context, installer *common.Install, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, api any, model any) {
+func ensureConfigAndStage(ctx context.Context, installer *common.Install, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, api any, model any) {
 	installer.EnsureConfig(ctx, diags, plan, state, model)
 	if diags.HasError() {
 		return
@@ -331,26 +357,37 @@ func stage(ctx context.Context, installer *common.Install, diags *diag.Diagnosti
 }
 
 // Stages the item, then verifies and configures it.
-func install(ctx context.Context, installer *common.Install, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, api any, model any) {
-	stage(ctx, installer, diags, plan, state, api, model)
+func stageAndInstall(ctx context.Context, installer *common.Install, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, api any, model any) {
+	ensureConfigAndStage(ctx, installer, diags, plan, state, api, model)
 	if diags.HasError() {
 		return
 	}
 	installer.UpsertFromStage(ctx, diags, plan, state, api, model)
 }
 
-// Reads an installed resource's item, and drops the resource if P0 no longer
-// has the item installed, so that the next plan installs it again. An update
-// that fails at the configure step leaves the item in "configure" with the new
-// values already saved, so without this the next plan would show no changes.
-func readInstalled(ctx context.Context, installer *common.Install, diags *diag.Diagnostics, state *tfsdk.State, api any, model any) {
-	installer.Read(ctx, diags, state, api, model)
-	if diags.HasError() || state.Raw.IsNull() {
+// Update for every installed resource: it applies the plan from the step that P0
+// has the item at, as RepositoryAccess.Update does. Only an account's
+// application ID changes in place. Every other attribute requires replacement,
+// so an update otherwise finishes an install that P0 hasn't (see
+// common.PlanFinishingInstall).
+//
+// An item that P0 has verified, at configure or installed, gets the configure
+// step alone. The account checks everything there, and P0 saves nothing when a
+// step fails, so a new application ID that fails P0's check leaves the account
+// installed with its current one. The connector, workspace and catalog check
+// on verify, which a verified item passed with the values it still has. Any
+// other item, such as a staged one, is verified first, as Create does.
+func upsertFromState(ctx context.Context, installer *common.Install, req resource.UpdateRequest, resp *resource.UpdateResponse, api any, model any) {
+	var state types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("state"), &state)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
-	var itemState types.String
-	diags.Append(state.GetAttribute(ctx, path.Root("state"), &itemState)...)
-	if !diags.HasError() && itemState.ValueString() != common.StateInstalled {
-		state.RemoveResource(ctx)
+
+	switch state.ValueString() {
+	case common.StateConfigure, common.StateInstalled:
+		installer.UpsertFromConfigure(ctx, &resp.Diagnostics, &req.Plan, &resp.State, api, model)
+	default:
+		installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, api, model)
 	}
 }

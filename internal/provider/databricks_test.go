@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -18,16 +20,55 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal"
 )
 
-// The Databricks install spec, as the app defines it in
-// packages/integrations/databricks/src/shared/components.ts.
-var databricksStubSpec = stubInstallSpec{
-	integration: "databricks",
-	components: map[string]stubComponent{
-		"connector": {fields: []string{"region", "domainPattern"}, stepNew: []string{"region", "domainPattern"}},
-		"account":   {fields: []string{"connector", "accountsUrl", "applicationId"}, stepNew: []string{"connector", "accountsUrl"}},
-		"workspace": {fields: []string{"account"}, stepNew: []string{"account"}},
-		"catalog":   {fields: []string{"workspace"}, stepNew: []string{"workspace"}},
-	},
+// Each Databricks component's install schema, as the app defines it in
+// packages/integrations/databricks/src/shared/components.ts: its fields, and
+// those marked `step: "new"`, which P0 refuses to change after staging.
+var databricksSchema = map[string]struct{ fields, stepNew []string }{
+	"connector": {fields: []string{"region", "domainPattern"}, stepNew: []string{"region", "domainPattern"}},
+	"account":   {fields: []string{"connector", "accountsUrl", "applicationId"}, stepNew: []string{"connector", "accountsUrl"}},
+	"workspace": {fields: []string{"account"}, stepNew: []string{"account"}},
+	"catalog":   {fields: []string{"workspace"}, stepNew: []string{"workspace"}},
+}
+
+// newDatabricksFake fakes P0's install API for Databricks items, which P0 stores
+// and checks as install-api.ts and configure.ts in the app do. It trims each
+// field, drops any field outside the component's schema, so that a field the
+// provider misnames reads back empty, and refuses a change to a `step: "new"`
+// field after staging. It runs no install checks, so it can't tell whether the
+// AWS or Databricks side of an install exists. A test fails a check with the
+// fake's refuse hook.
+func newDatabricksFake(t *testing.T) *fakeP0 {
+	f := newFakeP0(t)
+	f.normalize = func(key fakeItemKey, item map[string]any) {
+		schema, ok := databricksSchema[key.component]
+		if key.integration != "databricks" || !ok {
+			t.Errorf("unexpected item %v in the fake Databricks install", key)
+			return
+		}
+		for field, value := range item {
+			switch {
+			case field == "state" || field == "label":
+			case !slices.Contains(schema.fields, field):
+				delete(item, field)
+			default:
+				if text, ok := value.(string); ok {
+					item[field] = strings.TrimSpace(text)
+				}
+			}
+		}
+	}
+	f.check = func(key fakeItemKey, nextState string, previous, updated map[string]any) error {
+		if nextState == "stage" {
+			return nil
+		}
+		for _, field := range databricksSchema[key.component].stepNew {
+			if !reflect.DeepEqual(updated[field], previous[field]) {
+				return fmt.Errorf("'%s' can only be altered on initial installation. Create a new installation to change this field.", field)
+			}
+		}
+		return nil
+	}
+	return f
 }
 
 // What the Databricks tests install.
@@ -39,10 +80,10 @@ type databricksTestInstall struct {
 	accountsUrl   string
 	applicationId string
 	workspaceId   string
-	catalog       string
+	catalogName   string
 }
 
-// What the tests against the install API stub install. They name nothing real.
+// What the tests against the fake install. They name nothing real.
 var databricksTestDefaults = databricksTestInstall{
 	awsAccountId:  "123456789012",
 	region:        "us-west-2",
@@ -51,7 +92,14 @@ var databricksTestDefaults = databricksTestInstall{
 	accountsUrl:   "https://accounts.cloud.databricks.com",
 	applicationId: "8c5e2e0a-8f0d-4a3e-9d61-3b2f4c7a1e05",
 	workspaceId:   "1234567890123456",
-	catalog:       "p0_acceptance_test",
+	catalogName:   "p0_acceptance_test",
+}
+
+// The application ID of a service principal that replaces the account's.
+const databricksNewApplicationId = "0d26daa6-5e44-4c97-a497-ef015f91254a"
+
+func (d databricksTestInstall) catalogKey() string {
+	return d.catalogName + "@" + d.workspaceId
 }
 
 // The variables that name what TestAccDatabricks installs. P0 verifies every
@@ -67,13 +115,13 @@ func databricksAccEnv(install *databricksTestInstall) map[string]*string {
 		"P0_DATABRICKS_ACCOUNTS_URL":   &install.accountsUrl,
 		"P0_DATABRICKS_APPLICATION_ID": &install.applicationId,
 		"P0_DATABRICKS_WORKSPACE_ID":   &install.workspaceId,
-		"P0_DATABRICKS_CATALOG":        &install.catalog,
+		"P0_DATABRICKS_CATALOG":        &install.catalogName,
 	}
 }
 
 // testAccDatabricksPreCheck skips TestAccDatabricks unless every
 // P0_DATABRICKS_* variable is set, as well as what testAccPreCheck needs. The
-// stub's defaults name nothing real, so they can't install against P0.
+// fake's defaults name nothing real, so they can't install against P0.
 func testAccDatabricksPreCheck(t *testing.T) {
 	testAccPreCheck(t)
 	var missing []string
@@ -151,13 +199,13 @@ resource "p0_databricks_workspace" "test" {
 `, d.workspaceId)
 }
 
-func (d databricksTestInstall) catalogConfig() string {
+func (d databricksTestInstall) catalog() string {
 	return d.workspace() + fmt.Sprintf(`
 resource "p0_databricks_catalog" "test" {
   workspace_id = p0_databricks_workspace.test.id
   catalog_name = %q
 }
-`, d.catalog)
+`, d.catalogName)
 }
 
 // One resource's test: install everything up to it, check its attributes,
@@ -213,9 +261,9 @@ var databricksCases = []databricksCase{
 	{
 		name:     "Catalog",
 		resource: "p0_databricks_catalog.test",
-		config:   databricksTestInstall.catalogConfig,
+		config:   databricksTestInstall.catalog,
 		want: func(d databricksTestInstall) map[string]string {
-			return map[string]string{"id": d.catalog + "@" + d.workspaceId, "workspace_id": d.workspaceId, "catalog_name": d.catalog, "state": "installed"}
+			return map[string]string{"id": d.catalogKey(), "workspace_id": d.workspaceId, "catalog_name": d.catalogName, "state": "installed"}
 		},
 	},
 }
@@ -308,13 +356,13 @@ func TestAccDatabricks(t *testing.T) {
 	}
 }
 
-// TestDatabricks installs each Databricks resource against the install API
-// stub, so it needs neither TF_ACC nor a P0 organization.
+// TestDatabricks installs each Databricks resource against the fake, so it
+// needs neither TF_ACC nor a P0 organization.
 func TestDatabricks(t *testing.T) {
 	for _, c := range databricksCases {
 		t.Run(c.name, func(t *testing.T) {
-			provider, client := newInstallApiStub(t, databricksStubSpec)
-			resource.UnitTest(t, c.testCase(provider, client, databricksTestDefaults, nil))
+			f := newDatabricksFake(t)
+			resource.UnitTest(t, c.testCase(providerConfig(f), f.client(), databricksTestDefaults, nil))
 		})
 	}
 }
@@ -322,17 +370,17 @@ func TestDatabricks(t *testing.T) {
 // P0 refuses to change a connector's domain pattern after staging, so a new
 // pattern must replace the connector rather than update it.
 func TestDatabricksConnectorReplacedOnNewDomainPattern(t *testing.T) {
-	provider, client := newInstallApiStub(t, databricksStubSpec)
+	f := newDatabricksFake(t)
 	changed := databricksTestDefaults
 	changed.domainPattern = `(.+\.)?example\.org`
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             checkDatabricksDestroyed(client),
+		CheckDestroy:             checkDatabricksDestroyed(f.client()),
 		Steps: []resource.TestStep{
-			{Config: provider + databricksTestDefaults.connector()},
+			{Config: providerConfig(f) + databricksTestDefaults.connector()},
 			{
-				Config: provider + changed.connector(),
+				Config: providerConfig(f) + changed.connector(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction("p0_databricks_connector_staged.test", plancheck.ResourceActionReplace),
@@ -348,20 +396,68 @@ func TestDatabricksConnectorReplacedOnNewDomainPattern(t *testing.T) {
 	})
 }
 
-// P0 accepts a new application ID when it verifies and configures an account,
-// so a recreated service principal updates the account in place.
+// P0 accepts a new application ID when it configures an account, so a
+// recreated service principal updates the account in place.
 func TestDatabricksAccountUpdatedOnNewApplicationId(t *testing.T) {
-	provider, client := newInstallApiStub(t, databricksStubSpec)
+	f := newDatabricksFake(t)
 	changed := databricksTestDefaults
-	changed.applicationId = "0d26daa6-5e44-4c97-a497-ef015f91254a"
+	changed.applicationId = databricksNewApplicationId
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             checkDatabricksDestroyed(client),
+		CheckDestroy:             checkDatabricksDestroyed(f.client()),
 		Steps: []resource.TestStep{
-			{Config: provider + databricksTestDefaults.account()},
+			{Config: providerConfig(f) + databricksTestDefaults.account()},
 			{
-				Config: provider + changed.account(),
+				Config: providerConfig(f) + changed.account(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("p0_databricks_account.test", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("p0_databricks_account.test", "application_id", changed.applicationId),
+					resource.TestCheckResourceAttr("p0_databricks_account.test", "state", "installed"),
+				),
+			},
+		},
+	})
+}
+
+// P0 checks a new application ID on the configure step alone, which saves
+// nothing when the check fails. So a failed update leaves the account installed
+// with its current ID, which grants and revokes in it keep using, and the next
+// plan shows the update again.
+func TestDatabricksAccountKeptWhenNewApplicationIdFails(t *testing.T) {
+	f := newDatabricksFake(t)
+	d := databricksTestDefaults
+	changed := d
+	changed.applicationId = databricksNewApplicationId
+	// The new service principal can't sign in yet, for example because its
+	// federation policy isn't applied, so P0's check on the configure step fails.
+	var refuseConfigure atomic.Bool
+	f.refuse = func(key fakeItemKey, nextState string) bool {
+		return refuseConfigure.Load() && key.component == "account" && nextState == "installed"
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkDatabricksDestroyed(f.client()),
+		Steps: []resource.TestStep{
+			{Config: providerConfig(f) + d.account()},
+			{
+				PreConfig:   func() { refuseConfigure.Store(true) },
+				Config:      providerConfig(f) + changed.account(),
+				ExpectError: regexp.MustCompile(`Databricks install check failed`),
+			},
+			{
+				PreConfig: func() {
+					refuseConfigure.Store(false)
+					if item := f.item("databricks", "account", d.accountId); item["state"] != "installed" || item["applicationId"] != d.applicationId {
+						t.Errorf("after the failed update, P0 has the account %v, want it installed with application ID %s", item, d.applicationId)
+					}
+				},
+				Config: providerConfig(f) + changed.account(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction("p0_databricks_account.test", plancheck.ResourceActionUpdate),
@@ -385,19 +481,36 @@ func TestDatabricksDestroyInstalledKeepsStagedItem(t *testing.T) {
 		name, installed, staged, component, id string
 		full, stagedOnly                       func(databricksTestInstall) string
 	}{
-		{"Connector", "p0_databricks_connector.test", "p0_databricks_connector_staged.test", "connector", d.awsAccountId, databricksTestInstall.connector, databricksTestInstall.connectorStaged},
-		{"Account", "p0_databricks_account.test", "p0_databricks_account_staged.test", "account", d.accountId, databricksTestInstall.account, databricksTestInstall.accountStaged},
+		{
+			name:       "Connector",
+			installed:  "p0_databricks_connector.test",
+			staged:     "p0_databricks_connector_staged.test",
+			component:  "connector",
+			id:         d.awsAccountId,
+			full:       databricksTestInstall.connector,
+			stagedOnly: databricksTestInstall.connectorStaged,
+		},
+		{
+			name:       "Account",
+			installed:  "p0_databricks_account.test",
+			staged:     "p0_databricks_account_staged.test",
+			component:  "account",
+			id:         d.accountId,
+			full:       databricksTestInstall.account,
+			stagedOnly: databricksTestInstall.accountStaged,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			provider, client := newInstallApiStub(t, databricksStubSpec)
+			f := newDatabricksFake(t)
+			client := f.client()
 			resource.UnitTest(t, resource.TestCase{
 				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 				CheckDestroy:             checkDatabricksDestroyed(client),
 				Steps: []resource.TestStep{
-					{Config: provider + c.full(d)},
+					{Config: providerConfig(f) + c.full(d)},
 					{
-						Config: provider + c.stagedOnly(d),
+						Config: providerConfig(f) + c.stagedOnly(d),
 						ConfigPlanChecks: resource.ConfigPlanChecks{
 							PreApply: []plancheck.PlanCheck{
 								plancheck.ExpectResourceAction(c.installed, plancheck.ResourceActionDestroy),
@@ -407,7 +520,7 @@ func TestDatabricksDestroyInstalledKeepsStagedItem(t *testing.T) {
 						Check: checkDatabricksItemState(client, c.component, c.id, "stage"),
 					},
 					{
-						Config: provider + c.stagedOnly(d),
+						Config: providerConfig(f) + c.stagedOnly(d),
 						Check:  resource.TestCheckResourceAttr(c.staged, "state", "stage"),
 					},
 				},
@@ -416,37 +529,220 @@ func TestDatabricksDestroyInstalledKeepsStagedItem(t *testing.T) {
 	}
 }
 
-// An update that fails at the configure step leaves P0 with the new values and
-// the item in "configure". The next plan must install the account again rather
-// than show no changes.
+// An account that P0 has at configure plans an update, even though the
+// configuration hasn't changed, and applying it finishes the install.
+// Otherwise the plan would show no changes while P0 refuses every grant and
+// revoke through the account.
 func TestDatabricksAccountReinstalledWhenNotInstalled(t *testing.T) {
-	provider, client := newInstallApiStub(t, databricksStubSpec)
+	f := newDatabricksFake(t)
 	d := databricksTestDefaults
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             checkDatabricksDestroyed(client),
+		CheckDestroy:             checkDatabricksDestroyed(f.client()),
 		Steps: []resource.TestStep{
-			{Config: provider + d.account()},
+			{Config: providerConfig(f) + d.account()},
 			{
-				// What a failed update leaves: verify saved a new application
-				// ID, and configure never ran.
 				PreConfig: func() {
-					body := map[string]any{"applicationId": "0d26daa6-5e44-4c97-a497-ef015f91254a"}
-					if _, err := client.Post(databricksItemPath("account", d.accountId)+"/verify", body, &map[string]any{}); err != nil {
-						t.Fatalf("could not verify the account: %s", err)
-					}
+					f.update("databricks", "account", d.accountId, func(item map[string]any) {
+						item["state"] = "configure"
+					})
 				},
-				Config: provider + d.account(),
+				Config: providerConfig(f) + d.account(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_databricks_account.test", plancheck.ResourceActionCreate),
+						plancheck.ExpectResourceAction("p0_databricks_account.test", plancheck.ResourceActionUpdate),
 					},
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("p0_databricks_account.test", "application_id", d.applicationId),
 					resource.TestCheckResourceAttr("p0_databricks_account.test", "state", "installed"),
+					checkDatabricksItemState(f.client(), "account", d.accountId, "installed"),
 				),
+			},
+		},
+	})
+}
+
+// P0 may have an item that it hasn't finished installing, such as one that
+// someone started in the P0 app. Importing it works, and the next apply
+// finishes the install from the step that P0 has the item at.
+func TestDatabricksImportUnfinished(t *testing.T) {
+	d := databricksTestDefaults
+	cases := []struct {
+		name, resource, component, id string
+		// The item that P0 has, and the state its install reached.
+		item  map[string]any
+		state string
+		// The installed resource alone, as the item's importer would write it.
+		config string
+		// Destroying an installed connector or account returns its item to stage,
+		// for its staged resource to delete.
+		rollsBack bool
+	}{
+		{
+			name:      "ConnectorAtStage",
+			resource:  "p0_databricks_connector.test",
+			component: "connector",
+			id:        d.awsAccountId,
+			item:      map[string]any{"region": d.region, "domainPattern": d.domainPattern},
+			state:     "stage",
+			config: fmt.Sprintf(`
+resource "p0_databricks_connector" "test" {
+  id             = %q
+  region         = %q
+  domain_pattern = %q
+}
+`, d.awsAccountId, d.region, d.domainPattern),
+			rollsBack: true,
+		},
+		{
+			name:      "AccountAtConfigure",
+			resource:  "p0_databricks_account.test",
+			component: "account",
+			id:        d.accountId,
+			item:      map[string]any{"connector": d.awsAccountId, "accountsUrl": d.accountsUrl, "applicationId": d.applicationId},
+			state:     "configure",
+			config: fmt.Sprintf(`
+resource "p0_databricks_account" "test" {
+  id             = %q
+  connector      = %q
+  accounts_url   = %q
+  application_id = %q
+}
+`, d.accountId, d.awsAccountId, d.accountsUrl, d.applicationId),
+			rollsBack: true,
+		},
+		{
+			name:      "WorkspaceAtConfigure",
+			resource:  "p0_databricks_workspace.test",
+			component: "workspace",
+			id:        d.workspaceId,
+			item:      map[string]any{"account": d.accountId},
+			state:     "configure",
+			config: fmt.Sprintf(`
+resource "p0_databricks_workspace" "test" {
+  id      = %q
+  account = %q
+}
+`, d.workspaceId, d.accountId),
+		},
+		{
+			name:      "CatalogAtStage",
+			resource:  "p0_databricks_catalog.test",
+			component: "catalog",
+			id:        d.catalogKey(),
+			item:      map[string]any{"workspace": d.workspaceId},
+			state:     "stage",
+			config: fmt.Sprintf(`
+resource "p0_databricks_catalog" "test" {
+  workspace_id = %q
+  catalog_name = %q
+}
+`, d.workspaceId, d.catalogName),
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newDatabricksFake(t)
+			client := f.client()
+			checkDestroy := checkDatabricksDestroyed(client)
+			if c.rollsBack {
+				checkDestroy = checkDatabricksItemState(client, c.component, c.id, "stage")
+			}
+
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				CheckDestroy:             checkDestroy,
+				Steps: []resource.TestStep{
+					{
+						PreConfig:          func() { startDatabricksInstall(t, client, c.component, c.id, c.item, c.state) },
+						Config:             providerConfig(f) + c.config,
+						ResourceName:       c.resource,
+						ImportState:        true,
+						ImportStateId:      c.id,
+						ImportStatePersist: true,
+						ImportStateCheck: func(states []*terraform.InstanceState) error {
+							if len(states) != 1 || states[0].Attributes["state"] != c.state {
+								return fmt.Errorf("imported %v, want one item at %s", states, c.state)
+							}
+							return nil
+						},
+					},
+					{
+						Config: providerConfig(f) + c.config,
+						ConfigPlanChecks: resource.ConfigPlanChecks{
+							PreApply: []plancheck.PlanCheck{
+								plancheck.ExpectResourceAction(c.resource, plancheck.ResourceActionUpdate),
+							},
+						},
+						Check: resource.ComposeAggregateTestCheckFunc(
+							resource.TestCheckResourceAttr(c.resource, "state", "installed"),
+							checkDatabricksItemState(client, c.component, c.id, "installed"),
+						),
+					},
+				},
+			})
+		})
+	}
+}
+
+// Starts an install the way the P0 app does: stages the item, and verifies it
+// too for an install that reached configure.
+func startDatabricksInstall(t *testing.T, client *internal.P0ProviderData, component, id string, item map[string]any, state string) {
+	t.Helper()
+	if _, err := client.Post("integrations/databricks/config", struct{}{}, &map[string]any{}); err != nil {
+		t.Fatalf("could not create the Databricks integration: %s", err)
+	}
+	path := databricksItemPath(component, id)
+	if _, err := client.Put(path, item, &map[string]any{}); err != nil {
+		t.Fatalf("could not stage the Databricks %s %s: %s", component, id, err)
+	}
+	if state == "configure" {
+		if _, err := client.Post(path+"/verify", item, &map[string]any{}); err != nil {
+			t.Fatalf("could not verify the Databricks %s %s: %s", component, id, err)
+		}
+	}
+}
+
+// A create whose install check fails leaves its item staged in P0, and
+// Terraform keeps the resource, tainted. Removing its block then deletes the
+// item, so a catalog that never installed isn't left in P0. Workspaces and
+// catalogs have no staged resource to delete it later.
+func TestDatabricksFailedCreateDestroyedWhenRemoved(t *testing.T) {
+	f := newDatabricksFake(t)
+	d := databricksTestDefaults
+	// P0's service principal can't read the catalog, so its verify step fails.
+	f.refuse = func(key fakeItemKey, nextState string) bool {
+		return key.component == "catalog" && nextState == "configure"
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkDatabricksDestroyed(f.client()),
+		Steps: []resource.TestStep{
+			{
+				Config:      providerConfig(f) + d.catalog(),
+				ExpectError: regexp.MustCompile(`Databricks install check failed`),
+			},
+			{
+				PreConfig: func() {
+					if item := f.item("databricks", "catalog", d.catalogKey()); item["state"] != "stage" {
+						t.Errorf("after the failed create, P0 has the catalog %v, want it staged", item)
+					}
+				},
+				Config: providerConfig(f) + d.workspace(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("p0_databricks_catalog.test", plancheck.ResourceActionDestroy),
+					},
+				},
+				Check: func(*terraform.State) error {
+					if item := f.item("databricks", "catalog", d.catalogKey()); item != nil {
+						return fmt.Errorf("P0 still has the catalog that never installed: %v", item)
+					}
+					return nil
+				},
 			},
 		},
 	})
@@ -454,26 +750,26 @@ func TestDatabricksAccountReinstalledWhenNotInstalled(t *testing.T) {
 
 // A catalog imports by its key, and refuses an import ID that isn't one.
 func TestDatabricksCatalogImportId(t *testing.T) {
-	provider, client := newInstallApiStub(t, databricksStubSpec)
+	f := newDatabricksFake(t)
 	d := databricksTestDefaults
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             checkDatabricksDestroyed(client),
+		CheckDestroy:             checkDatabricksDestroyed(f.client()),
 		Steps: []resource.TestStep{
-			{Config: provider + d.catalogConfig()},
+			{Config: providerConfig(f) + d.catalog()},
 			{
-				Config:            provider + d.catalogConfig(),
+				Config:            providerConfig(f) + d.catalog(),
 				ResourceName:      "p0_databricks_catalog.test",
 				ImportState:       true,
-				ImportStateId:     d.catalog + "@" + d.workspaceId,
+				ImportStateId:     d.catalogKey(),
 				ImportStateVerify: true,
 			},
 			{
-				Config:        provider + d.catalogConfig(),
+				Config:        providerConfig(f) + d.catalog(),
 				ResourceName:  "p0_databricks_catalog.test",
 				ImportState:   true,
-				ImportStateId: d.catalog,
+				ImportStateId: d.catalogName,
 				ExpectError:   regexp.MustCompile(`Import a catalog by <catalog name>@<workspace ID>`),
 			},
 		},
@@ -484,15 +780,16 @@ func TestDatabricksCatalogImportId(t *testing.T) {
 // provider calls P0. Each message is one that only the validator produces, so
 // a case fails if its validator is deleted.
 func TestDatabricksValidators(t *testing.T) {
-	provider, _ := newInstallApiStub(t, databricksStubSpec)
+	f := newDatabricksFake(t)
 
 	invalid := func(change func(*databricksTestInstall), config func(databricksTestInstall) string, message string) resource.TestStep {
 		install := databricksTestDefaults
 		change(&install)
 		return resource.TestStep{
-			Config:      provider + config(install),
-			PlanOnly:    true,
-			ExpectError: regexp.MustCompile(message),
+			Config:   providerConfig(f) + config(install),
+			PlanOnly: true,
+			// Terraform wraps a long message across lines.
+			ExpectError: regexp.MustCompile(strings.ReplaceAll(regexp.QuoteMeta(message), " ", `\s+`)),
 		}
 	}
 
@@ -503,6 +800,10 @@ func TestDatabricksValidators(t *testing.T) {
 			invalid(func(d *databricksTestInstall) { d.region = "us-west" }, databricksTestInstall.connectorStaged, "The connector runs only in commercial AWS regions"),
 			invalid(func(d *databricksTestInstall) { d.region = "us-gov-west-1" }, databricksTestInstall.connectorStaged, "The connector runs only in commercial AWS regions"),
 			invalid(func(d *databricksTestInstall) { d.domainPattern = "" }, databricksTestInstall.connectorStaged, "string length must be at least 1"),
+			// P0 trims the pattern, which would then read back different from the
+			// configuration.
+			invalid(func(d *databricksTestInstall) { d.domainPattern = ` example\.com` }, databricksTestInstall.connectorStaged, "Whitespace around a value"),
+			invalid(func(d *databricksTestInstall) { d.domainPattern = "example\\.com\n" }, databricksTestInstall.connectorStaged, "Whitespace around a value"),
 			invalid(func(d *databricksTestInstall) { d.accountId = "my-account" }, databricksTestInstall.accountStaged, "Databricks account IDs are UUIDs"),
 			invalid(func(d *databricksTestInstall) { d.accountsUrl = "https://dbc-1234abcd-5678.cloud.databricks.com" }, databricksTestInstall.accountStaged, "value must be one of"),
 			// The application IDs that the app's validator rejects.
@@ -510,12 +811,14 @@ func TestDatabricksValidators(t *testing.T) {
 			invalid(func(d *databricksTestInstall) { d.applicationId = "p0-connector" }, databricksTestInstall.account, "Application IDs are UUIDs"),
 			invalid(func(d *databricksTestInstall) { d.applicationId = "8c5e2e0a8f0d4a3e9d613b2f4c7a1e05" }, databricksTestInstall.account, "Application IDs are UUIDs"),
 			invalid(func(d *databricksTestInstall) { d.workspaceId = "dbc-1234abcd-5678" }, databricksTestInstall.workspace, "Databricks workspace IDs are numeric"),
-			// The catalog names that the app's validator rejects.
-			invalid(func(d *databricksTestInstall) { d.catalog = "main.default" }, databricksTestInstall.catalogConfig, "Catalog names have at most 255 characters"),
-			invalid(func(d *databricksTestInstall) { d.catalog = "Sales" }, databricksTestInstall.catalogConfig, "Unity Catalog stores catalog names in lowercase"),
-			invalid(func(d *databricksTestInstall) { d.catalog = "sales#eu" }, databricksTestInstall.catalogConfig, "P0 can't install a catalog whose name contains"),
-			invalid(func(d *databricksTestInstall) { d.catalog = "sales?eu" }, databricksTestInstall.catalogConfig, "P0 can't install a catalog whose name contains"),
-			invalid(func(d *databricksTestInstall) { d.catalog = "a%62c" }, databricksTestInstall.catalogConfig, "P0 can't install a catalog whose name contains"),
+			// The catalog names that the app's catalogNameError rejects, in its words.
+			invalid(func(d *databricksTestInstall) { d.catalogName = "" }, databricksTestInstall.catalog, "Enter the catalog's name"),
+			invalid(func(d *databricksTestInstall) { d.catalogName = strings.Repeat("a", 256) }, databricksTestInstall.catalog, "Catalog names are at most 255 characters"),
+			invalid(func(d *databricksTestInstall) { d.catalogName = "main.default" }, databricksTestInstall.catalog, "Catalog names can't contain a period, a space, a forward slash or a control character"),
+			invalid(func(d *databricksTestInstall) { d.catalogName = "Sales" }, databricksTestInstall.catalog, "Unity Catalog stores catalog names in lowercase, so enter sales"),
+			invalid(func(d *databricksTestInstall) { d.catalogName = "sales#eu" }, databricksTestInstall.catalog, `P0 can't install a catalog whose name contains #, ?, % or \`),
+			invalid(func(d *databricksTestInstall) { d.catalogName = "sales?eu" }, databricksTestInstall.catalog, `P0 can't install a catalog whose name contains #, ?, % or \`),
+			invalid(func(d *databricksTestInstall) { d.catalogName = "a%62c" }, databricksTestInstall.catalog, `P0 can't install a catalog whose name contains #, ?, % or \`),
 		},
 	})
 }

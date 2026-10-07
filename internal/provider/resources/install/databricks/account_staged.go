@@ -36,21 +36,13 @@ Staging records the account in P0 and checks its ID and accounts URL before you 
 
 **Prerequisite:** The connector that reaches the account must be installed (see the ` + "`p0_databricks_connector`" + ` resource).
 
-` + notePreview,
+` + common.NotePreview,
 		Attributes: accountStagedAttributes(),
 	}
 }
 
 func (r *AccountStaged) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	r.installer = &common.Install{
-		Integration:  DatabricksKey,
-		Component:    installresources.Account,
-		ProviderData: internal.Configure(&req, resp),
-		GetId:        itemKey,
-		GetItemJson:  itemJson[accountJson],
-		FromJson:     accountStagedFromJson,
-		ToJson:       accountStagedToJson,
-	}
+	r.installer = newInstaller[accountJson](internal.Configure(&req, resp), installresources.Account, accountStagedFromJson, accountStagedToJson)
 }
 
 func accountStagedFromJson(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
@@ -71,7 +63,7 @@ func accountStagedToJson(data any) any {
 }
 
 func (r *AccountStaged) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	stage(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &accountApi{}, &accountStagedModel{})
+	ensureConfigAndStage(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &accountApi{}, &accountStagedModel{})
 }
 
 func (r *AccountStaged) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
