@@ -8,6 +8,8 @@ import (
 	"slices"
 	"sync"
 	"testing"
+
+	"github.com/p0-security/terraform-provider-p0/internal"
 )
 
 const fakeOrg = "test-org"
@@ -175,6 +177,12 @@ func (f *fakeP0) writeItem(w http.ResponseWriter, key fakeItemKey, item map[stri
 		response["metadata"] = metadata
 	}
 	writeJson(w, response)
+}
+
+// A client of the fake's API, for checks that read P0's items directly, as tests against
+// a real organization read them.
+func (f *fakeP0) client() *internal.P0ProviderData {
+	return &internal.P0ProviderData{BaseUrl: orgUrl(f.server.URL, fakeOrg), Client: f.server.Client()}
 }
 
 // Returns a copy of the stored item, or nil if it does not exist.
