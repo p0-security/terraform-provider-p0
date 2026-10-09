@@ -39,10 +39,10 @@ var StateAttribute = schema.StringAttribute{
 
 // A ModifyPlan for a resource that installs its item. It plans an update for an item that
 // P0 hasn't installed, even when the configuration hasn't changed, so that the next apply
-// finishes the install: the resource's Update picks up from the step P0 has the item at.
-// That covers an item imported before P0 finished installing it, and one that a failed
-// apply left unfinished. An installed item keeps the framework's plan, which shows no
-// difference while the configuration matches it.
+// finishes the install: the resource's Update, Install.UpdateFromInstallState, picks up
+// from the step P0 has the item at. That covers an item imported before P0 finished
+// installing it, and one that a failed apply left unfinished. An installed item keeps the
+// framework's plan, which shows no difference while the configuration matches it.
 func PlanFinishingInstall(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// Nothing is installed yet on create, and nothing is left to finish on destroy.
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
@@ -178,6 +178,31 @@ func (i *Install) UpsertFromStage(ctx context.Context, diags *diag.Diagnostics, 
 // it checks on verify can use this in Update to make the update all-or-nothing.
 func (i *Install) UpsertFromConfigure(ctx context.Context, diags *diag.Diagnostics, plan *tfsdk.Plan, state *tfsdk.State, json any, model any) {
 	i.upsert(ctx, diags, plan, state, json, model, []string{Config})
+}
+
+// Update for a resource that installs its item. It applies the plan from the step that
+// P0 has the item at, so it also finishes an install that PlanFinishingInstall plans an
+// update for.
+//
+// An item that P0 has verified, at configure or installed, gets the configure step alone
+// (see UpsertFromConfigure). P0 saves nothing when the step fails, so a failed update
+// leaves the item, and the resource's state, as they were. That suits a resource whose
+// configure step checks every attribute that changes in place: any other attribute
+// requires replacement, so a verified item passed verify with the values it still has.
+// Any other item, such as a staged one, is verified first, as Create does.
+func (i *Install) UpdateFromInstallState(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse, json any, model any) {
+	var state types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("state"), &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	switch state.ValueString() {
+	case StateConfigure, StateInstalled:
+		i.UpsertFromConfigure(ctx, &resp.Diagnostics, &req.Plan, &resp.State, json, model)
+	default:
+		i.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, json, model)
+	}
 }
 
 // Posts the planned item to each of steps in turn, and sets state to the item that the
