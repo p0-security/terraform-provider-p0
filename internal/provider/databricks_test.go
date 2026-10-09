@@ -21,7 +21,7 @@ import (
 )
 
 // Each Databricks component's install schema, as the app defines it in
-// packages/integrations/databricks/src/shared/components.ts: its fields, and
+// packages/integrations/databricks/shared/src/components.ts: its fields, and
 // those marked `step: "new"`, which P0 refuses to change after staging.
 var databricksSchema = map[string]struct{ fields, stepNew []string }{
 	"connector": {fields: []string{"region", "domainPattern"}, stepNew: []string{"region", "domainPattern"}},
@@ -769,7 +769,7 @@ func TestDatabricksCatalogImportId(t *testing.T) {
 	const (
 		notAKey     = "Import a catalog by <catalog name>@<workspace ID>"
 		forbidden   = "Catalog names can't contain a period, a space, a forward slash or a control character"
-		urlPathOnly = `P0 can't install a catalog whose name contains #, ?, % or \`
+		urlPathOnly = `P0 can't install a catalog whose name contains #, ?, % or \. Contact support@p0.dev if you need P0 to manage it.`
 	)
 
 	resource.UnitTest(t, resource.TestCase{
