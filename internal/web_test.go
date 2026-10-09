@@ -63,6 +63,27 @@ func TestDoBodyTypedNilRequestSendsNoBody(t *testing.T) {
 	}
 }
 
+// TestGetMalformedPathReturnsError guards against Get using the request before
+// it checks the error from creating it. A path that doesn't parse as a URL,
+// such as one ending in the catalog import ID `sales%@7`, panicked.
+func TestGetMalformedPathReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected request: %s %s", r.Method, r.URL)
+	}))
+	defer server.Close()
+
+	data := P0ProviderData{BaseUrl: server.URL, Authentication: "Bearer x", Client: server.Client()}
+	for _, path := range []string{"some/path%@7", "some/path\x7f"} {
+		resp, err := data.Get(path, nil)
+		if err == nil {
+			t.Errorf("Get(%q) returned no error", path)
+		}
+		if resp != nil {
+			t.Errorf("Get(%q) returned a response: %v", path, resp)
+		}
+	}
+}
+
 // TestDeleteSurfacesBackendErrorMessage guards against swallowing the P0
 // backend's actual error message (e.g. "Cannot remove the last owner", sent as
 // {"error": "..."} with a 422) behind a generic "unexpected return code"

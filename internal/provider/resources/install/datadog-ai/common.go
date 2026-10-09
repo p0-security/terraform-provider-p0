@@ -9,8 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
-	installvaultedcredential "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/vaulted-credential"
 )
 
 const DatadogAiKey = "datadog-ai"
@@ -48,7 +48,7 @@ func siteFromJson(json *siteJson) types.String {
 }
 
 func idAttribute(description string) schema.StringAttribute {
-	return installvaultedcredential.IdAttribute(
+	return common.FixedAttribute(
 		description,
 		stringvalidator.RegexMatches(itemIdRegex, "Use only letters, digits and hyphens"),
 	)

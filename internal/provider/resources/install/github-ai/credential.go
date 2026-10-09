@@ -55,9 +55,9 @@ Installing the GitHub App allows P0 to grant machines just-in-time, scoped acces
 
 **Important:** Before creating this resource you must stage the installation with ` + "`p0_github_ai_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the GitHub App's private key as a version of the connector's private key secret; the connector cannot mint access tokens until that version exists.
 
-**Note:** This integration is currently in preview.`,
+` + common.NotePreview,
 		Attributes: map[string]schema.Attribute{
-			"id": installvaultedcredential.IdAttribute("The `id` of the `p0_github_ai_staged` resource being finalized"),
+			"id": common.FixedAttribute("The `id` of the `p0_github_ai_staged` resource being finalized"),
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's GitHub connector runs and stores the GitHub App's private key`,

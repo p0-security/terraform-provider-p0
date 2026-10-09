@@ -67,7 +67,7 @@ Installing GCP CloudSQL allows P0 to manage just-in-time access to your CloudSQL
 
 **Important:** Before creating this resource you must stage the installation with ` + "`p0_gcp_cloudsql_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is reachable.
 
-**Note:** This integration is currently in preview.`,
+` + common.NotePreview,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

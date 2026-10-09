@@ -63,7 +63,7 @@ func (*GcpCloudSqlIamWriteStaged) Schema(_ context.Context, _ resource.SchemaReq
 
 Use the read-only ` + "`connector_service_name`" + ` and ` + "`connector_service_account`" + ` attributes to deploy the connector's Cloud Run service (for example via the ` + "`p0-security/p0-connector/google`" + ` Terraform Registry module, version 0.0.3). Once the connector is deployed, create a ` + "`p0_gcp_cloudsql`" + ` resource with the same ` + "`id`" + ` to complete the installation.
 
-**Note:** This integration is currently in preview.`,
+` + common.NotePreview,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

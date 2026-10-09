@@ -171,9 +171,8 @@ func validateOrgLogin(org types.String, diags *diag.Diagnostics) {
 
 // Rejects value, at attribute, with P0's message for the first of rules that it
 // breaks. Like P0, it checks the value without the whitespace around it. That
-// whitespace is rejected on its own: P0 trims the strings it stores, so the value
-// would read back different from the configuration, which Terraform reports as an
-// inconsistent result after apply. A null value is left to the checks that a field is
+// whitespace is rejected on its own, since P0 trims the strings it stores (see
+// common.RejectWhitespaceAround). A null value is left to the checks that a field is
 // set. The value is never repeated, since a secret's name may be a pasted key.
 func validateField(attribute path.Path, value types.String, rules []rule, diags *diag.Diagnostics) {
 	if !installapp.IsSet(value) {
@@ -186,14 +185,7 @@ func validateField(attribute path.Path, value types.String, rules []rule, diags 
 			return
 		}
 	}
-	if trimmed != value.ValueString() {
-		diags.AddAttributeError(
-			attribute,
-			"Whitespace around a value",
-			fmt.Sprintf("P0 removes the whitespace around '%s', so the value it stores wouldn't match this configuration. "+
-				"Remove the whitespace, for example with trimspace().", attribute),
-		)
-	}
+	common.RejectWhitespaceAround(attribute, value.ValueString(), diags)
 }
 
 func (r *RepositoryAccess) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -327,46 +319,17 @@ func (r *RepositoryAccess) Read(ctx context.Context, req resource.ReadRequest, r
 	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &repositoryAccessApi{}, &repositoryAccessModel{})
 }
 
-// Plans an update for an item that P0 hasn't installed, even when the configuration
-// hasn't changed, so that the next apply finishes the install: P0 lists an
-// organization's repositories only once its item is installed. That covers an item
-// imported before its checks passed, and one that a failed apply left at configure.
-// An installed item keeps the framework's plan, which shows no difference while the
-// configuration matches it.
+// Plans an update for an item that P0 hasn't installed, so that the next apply finishes
+// the install: P0 lists an organization's repositories only once its item is installed.
 func (*RepositoryAccess) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	// Nothing is installed yet on create, and nothing is left to finish on destroy.
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-		return
-	}
-
-	var state types.String
-	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("state"), &state)...)
-	if resp.Diagnostics.HasError() || state.ValueString() == common.StateInstalled {
-		return
-	}
-
-	// As in any update the framework plans, the state, which only P0 sets, is unknown
-	// until apply. Update takes it from P0's response, which has the item's new state.
-	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("state"), types.StringUnknown())...)
+	common.PlanFinishingInstall(ctx, req, resp)
 }
 
-// Only app_id updates in place, and P0 checks the install with it. An item that P0 has
-// verified, at configure or installed, gets the configure step alone: P0 checks the
-// new App and saves nothing if the check fails, so a failed update keeps the current
-// App. Any other item, such as a staged one, is verified first, as Create does.
+// Only app_id updates in place. P0 checks the new App on the configure step, which is
+// all an item that P0 has verified gets, and saves nothing if the check fails, so a
+// failed update keeps the current App.
 func (r *RepositoryAccess) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var state types.String
-	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("state"), &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	switch state.ValueString() {
-	case common.StateConfigure, common.StateInstalled:
-		r.installer.UpsertFromConfigure(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &repositoryAccessApi{}, &repositoryAccessModel{})
-	default:
-		r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &repositoryAccessApi{}, &repositoryAccessModel{})
-	}
+	r.installer.UpdateFromInstallState(ctx, req, resp, &repositoryAccessApi{}, &repositoryAccessModel{})
 }
 
 func (r *RepositoryAccess) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

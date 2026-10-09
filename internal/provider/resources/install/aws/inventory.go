@@ -69,7 +69,7 @@ Create the AWS role using the attributes from p0_aws_inventory_staged, then crea
 				Required:            true,
 				MarkdownDescription: `The AWS account ID`,
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
+					AwsAccountIdValidator(),
 				},
 			},
 			"partition": schema.StringAttribute{

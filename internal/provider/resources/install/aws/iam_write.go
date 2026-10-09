@@ -122,7 +122,7 @@ resource "p0_aws_iam_write" "installed_account" {
 				Required:            true,
 				MarkdownDescription: `The AWS account ID`,
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
+					AwsAccountIdValidator(),
 				},
 			},
 			"partition": schema.StringAttribute{
@@ -232,7 +232,7 @@ resource "p0_aws_iam_write" "installed_account" {
 						MarkdownDescription: `The ID of the AWS account that contains the Identity Center instance (used by the 'idc' and 'merged-idc' login types)`,
 						Validators: []validator.String{
 							stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("provider")),
-							stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
+							AwsAccountIdValidator(),
 						},
 					},
 					"provider": schema.SingleNestedAttribute{
@@ -294,7 +294,7 @@ defined on the ["Identity providers" tab](https://console.aws.amazon.com/iam/hom
 												Optional:            true,
 												MarkdownDescription: `The account ID of the federation app's parent AWS account`,
 												Validators: []validator.String{
-													stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
+													AwsAccountIdValidator(),
 												},
 											},
 										},
