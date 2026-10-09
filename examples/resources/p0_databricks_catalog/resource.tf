@@ -1,7 +1,7 @@
 # Adds Unity Catalog catalogs in an installed workspace, by granting the
-# account's service principal MANAGE on each one. Apply it as each catalog's
-# owner, a user with MANAGE on it, or a metastore admin. To add a catalog later,
-# add it to the list and apply again.
+# account's service principal MANAGE on each one. Apply it as a Databricks
+# account admin who is also the catalog's owner, holds MANAGE on it, or is a
+# metastore admin. To add a catalog later, add it to the list and apply again.
 
 terraform {
   required_providers {
@@ -27,7 +27,8 @@ locals {
 }
 
 # The account-level provider grants through the workspace that provider_config
-# names.
+# names. It looks the workspace up through the account API, which only account
+# admins can call.
 provider "databricks" {
   host       = "https://accounts.cloud.databricks.com"
   account_id = local.databricks_account_id
