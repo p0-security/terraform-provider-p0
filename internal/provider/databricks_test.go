@@ -33,10 +33,11 @@ var databricksSchema = map[string]struct{ fields, stepNew []string }{
 // newDatabricksFake fakes P0's install API for Databricks items, which P0 stores
 // and checks as install-api.ts and configure.ts in the app do. It trims each
 // field, drops any field outside the component's schema, so that a field the
-// provider misnames reads back empty, and refuses a change to a `step: "new"`
-// field after staging. It runs no install checks, so it can't tell whether the
-// AWS or Databricks side of an install exists. A test fails a check with the
-// fake's refuse hook.
+// provider misnames reads back empty, sets a catalog's workspace from its key
+// when it stages the catalog, as the app's assembler does, and refuses a change
+// to a `step: "new"` field after staging. It runs no install checks, so it can't
+// tell whether the AWS or Databricks side of an install exists. A test fails a
+// check with the fake's refuse hook.
 func newDatabricksFake(t *testing.T) *fakeP0 {
 	f := newFakeP0(t)
 	f.normalize = func(key fakeItemKey, item map[string]any) {
@@ -54,6 +55,12 @@ func newDatabricksFake(t *testing.T) *fakeP0 {
 				if text, ok := value.(string); ok {
 					item[field] = strings.TrimSpace(text)
 				}
+			}
+		}
+		// Whatever workspace staging sends, P0 saves the one that the key names.
+		if key.component == "catalog" && item["state"] == "stage" {
+			if at := strings.LastIndex(key.id, "@"); at >= 0 {
+				item["workspace"] = key.id[at+1:]
 			}
 		}
 	}

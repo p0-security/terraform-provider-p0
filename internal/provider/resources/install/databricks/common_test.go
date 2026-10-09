@@ -1,8 +1,11 @@
 package installdatabricks
 
 import (
+	"context"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
 func TestWorkspaceIdRegex(t *testing.T) {
@@ -91,5 +94,18 @@ func TestParseCatalogKey(t *testing.T) {
 		if ok && catalogKey(catalogName, workspaceId) != c.key {
 			t.Errorf("catalogKey(%q, %q) = %q, want %q", catalogName, workspaceId, catalogKey(catalogName, workspaceId), c.key)
 		}
+	}
+}
+
+// A catalog's workspace_id comes from its key, which P0 sets the item's workspace
+// from, so an item without a workspace reads the same.
+func TestCatalogFromJsonTakesWorkspaceFromKey(t *testing.T) {
+	var diags diag.Diagnostics
+	got, ok := catalogFromJson(context.Background(), &diags, "main@1234567890123456", &catalogJson{}).(*catalogModel)
+	if !ok || diags.HasError() {
+		t.Fatalf("catalogFromJson returned %v, with %v", got, diags)
+	}
+	if got.WorkspaceId.ValueString() != "1234567890123456" || got.CatalogName.ValueString() != "main" {
+		t.Errorf("catalogFromJson read workspace_id %s and catalog_name %s, want 1234567890123456 and main", got.WorkspaceId, got.CatalogName)
 	}
 }
