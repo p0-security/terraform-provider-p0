@@ -758,7 +758,8 @@ func TestDatabricksFailedCreateDestroyedWhenRemoved(t *testing.T) {
 // A catalog imports by its key, and refuses an import ID that isn't one, or
 // whose catalog name or workspace ID the configuration would refuse. The read
 // after an import puts the key in a URL path, where `sales%@7` doesn't parse
-// and `sales#eu@7` reads `sales`.
+// and `sales#eu@7` reads `sales`. One refused name shows that the import runs
+// catalogNameError, whose cases TestCatalogNameError covers.
 func TestDatabricksCatalogImportId(t *testing.T) {
 	f := newDatabricksFake(t)
 	d := databricksTestDefaults
@@ -775,7 +776,6 @@ func TestDatabricksCatalogImportId(t *testing.T) {
 	}
 	const (
 		notAKey     = "Import a catalog by <catalog name>@<workspace ID>"
-		forbidden   = "Catalog names can't contain a period, a space, a forward slash or a control character"
 		urlPathOnly = `P0 can't install a catalog whose name contains #, ?, % or \. Contact support@p0.dev if you need P0 to manage it.`
 	)
 
@@ -794,17 +794,15 @@ func TestDatabricksCatalogImportId(t *testing.T) {
 			refused(d.catalogName, notAKey),
 			refused(d.catalogName+"@dbc-1234abcd-5678", notAKey),
 			refused("sales%@7", urlPathOnly),
-			refused("sales#eu@7", urlPathOnly),
-			refused("main.default@7", forbidden),
-			refused("tab\there@7", forbidden),
-			refused("Sales@7", "Unity Catalog stores catalog names in lowercase, so enter sales"),
 		},
 	})
 }
 
 // The schema validators reject malformed values at plan time, before the
 // provider calls P0. Each message is one that only the validator produces, so
-// a case fails if its validator is deleted.
+// a case fails if its validator is deleted. One case per validator shows that
+// it checks its attribute: the validators' own tests cover the values they
+// refuse.
 func TestDatabricksValidators(t *testing.T) {
 	f := newDatabricksFake(t)
 
@@ -823,28 +821,16 @@ func TestDatabricksValidators(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			invalid(func(d *databricksTestInstall) { d.awsAccountId = "12345" }, databricksTestInstall.connectorStaged, "AWS account IDs should consist of 12 numeric digits"),
-			invalid(func(d *databricksTestInstall) { d.region = "us-west" }, databricksTestInstall.connectorStaged, "The connector runs only in commercial AWS regions"),
 			invalid(func(d *databricksTestInstall) { d.region = "us-gov-west-1" }, databricksTestInstall.connectorStaged, "The connector runs only in commercial AWS regions"),
 			invalid(func(d *databricksTestInstall) { d.domainPattern = "" }, databricksTestInstall.connectorStaged, "string length must be at least 1"),
 			// P0 trims the pattern, which would then read back different from the
 			// configuration.
 			invalid(func(d *databricksTestInstall) { d.domainPattern = ` example\.com` }, databricksTestInstall.connectorStaged, "Whitespace around a value"),
-			invalid(func(d *databricksTestInstall) { d.domainPattern = "example\\.com\n" }, databricksTestInstall.connectorStaged, "Whitespace around a value"),
 			invalid(func(d *databricksTestInstall) { d.accountId = "my-account" }, databricksTestInstall.accountStaged, "Databricks account IDs are UUIDs"),
 			invalid(func(d *databricksTestInstall) { d.accountsUrl = "https://dbc-1234abcd-5678.cloud.databricks.com" }, databricksTestInstall.accountStaged, "value must be one of"),
-			// The application IDs that the app's validator rejects.
-			invalid(func(d *databricksTestInstall) { d.applicationId = "" }, databricksTestInstall.account, "Application IDs are UUIDs"),
 			invalid(func(d *databricksTestInstall) { d.applicationId = "p0-connector" }, databricksTestInstall.account, "Application IDs are UUIDs"),
-			invalid(func(d *databricksTestInstall) { d.applicationId = "8c5e2e0a8f0d4a3e9d613b2f4c7a1e05" }, databricksTestInstall.account, "Application IDs are UUIDs"),
 			invalid(func(d *databricksTestInstall) { d.workspaceId = "dbc-1234abcd-5678" }, databricksTestInstall.workspace, "Databricks workspace IDs are numeric"),
-			// The catalog names that the app's catalogNameError rejects, in its words.
-			invalid(func(d *databricksTestInstall) { d.catalogName = "" }, databricksTestInstall.catalog, "Enter the catalog's name"),
-			invalid(func(d *databricksTestInstall) { d.catalogName = strings.Repeat("a", 256) }, databricksTestInstall.catalog, "Catalog names are at most 255 characters"),
-			invalid(func(d *databricksTestInstall) { d.catalogName = "main.default" }, databricksTestInstall.catalog, "Catalog names can't contain a period, a space, a forward slash or a control character"),
-			invalid(func(d *databricksTestInstall) { d.catalogName = "Sales" }, databricksTestInstall.catalog, "Unity Catalog stores catalog names in lowercase, so enter sales"),
-			invalid(func(d *databricksTestInstall) { d.catalogName = "sales#eu" }, databricksTestInstall.catalog, `P0 can't install a catalog whose name contains #, ?, % or \`),
-			invalid(func(d *databricksTestInstall) { d.catalogName = "sales?eu" }, databricksTestInstall.catalog, `P0 can't install a catalog whose name contains #, ?, % or \`),
-			invalid(func(d *databricksTestInstall) { d.catalogName = "a%62c" }, databricksTestInstall.catalog, `P0 can't install a catalog whose name contains #, ?, % or \`),
+			invalid(func(d *databricksTestInstall) { d.catalogName = "sales#eu" }, databricksTestInstall.catalog, `P0 can't install a catalog whose name contains #, ?, % or \. Contact support@p0.dev if you need P0 to manage it.`),
 		},
 	})
 }
