@@ -67,7 +67,7 @@ func (*Connector) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest
 // Every attribute requires replacement, so an update only finishes an install
 // that P0 hasn't.
 func (r *Connector) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	upsertFromState(ctx, r.installer, req, resp, &connectorApi{}, &connectorModel{})
+	r.installer.UpdateFromInstallState(ctx, req, resp, &connectorApi{}, &connectorModel{})
 }
 
 // Returns the connector to the "stage" state, so that the staged resource

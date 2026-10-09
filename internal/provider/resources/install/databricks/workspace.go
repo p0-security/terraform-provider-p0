@@ -107,7 +107,7 @@ func (*Workspace) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest
 // Every attribute requires replacement, so an update only finishes an install
 // that P0 hasn't.
 func (r *Workspace) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	upsertFromState(ctx, r.installer, req, resp, &workspaceApi{}, &workspaceModel{})
+	r.installer.UpdateFromInstallState(ctx, req, resp, &workspaceApi{}, &workspaceModel{})
 }
 
 func (r *Workspace) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

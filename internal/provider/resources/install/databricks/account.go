@@ -98,7 +98,7 @@ func (*Account) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, 
 // update again. A staged account is verified first, and a failed verify saves
 // nothing either.
 func (r *Account) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	upsertFromState(ctx, r.installer, req, resp, &accountApi{}, &accountModel{})
+	r.installer.UpdateFromInstallState(ctx, req, resp, &accountApi{}, &accountModel{})
 }
 
 // Returns the account to the "stage" state, so that the staged resource
