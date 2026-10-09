@@ -35,6 +35,14 @@ locals {
   # replaced, and P0 keeps the pattern the connector was installed with.
   domain_pattern = "example\\.com"
 
+  # The connector's name. P0 invokes it by this name, in the account and region
+  # above, so keep it as it is. The connector's Lambda function, role, log group
+  # and ECR repository all take it.
+  connector_name = "p0-connector-databricks"
+
+  # How many days CloudWatch keeps the connector's logs.
+  log_retention_days = 30
+
   # The role that P0's AWS IAM management assumes in this account, which
   # invokes the connector.
   p0_role_name = "P0RoleIamManager"
@@ -89,10 +97,10 @@ resource "p0_databricks_connector_staged" "example" {
 #   }
 resource "aws_iam_outbound_web_identity_federation" "this" {}
 
-# Each Databricks account's federation policy trusts this role by its ARN, so
-# it must have this name.
+# Each Databricks account's federation policy trusts this role by its ARN. The
+# p0_databricks_account example finds the role by the connector's name.
 resource "aws_iam_role" "connector" {
-  name = "p0-connector-databricks"
+  name = local.connector_name
   tags = local.tags
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -106,14 +114,14 @@ resource "aws_iam_role" "connector" {
 
 # The log group Lambda writes the connector's logs to.
 resource "aws_cloudwatch_log_group" "connector" {
-  name              = "/aws/lambda/p0-connector-databricks"
-  retention_in_days = 30
+  name              = "/aws/lambda/${local.connector_name}"
+  retention_in_days = local.log_retention_days
   tags              = local.tags
 }
 
 # The connector writes its own logs, and no others.
 resource "aws_iam_role_policy" "connector_logs" {
-  name = "p0-connector-databricks-logs"
+  name = "${local.connector_name}-logs"
   role = aws_iam_role.connector.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -128,7 +136,7 @@ resource "aws_iam_role_policy" "connector_logs" {
 # Only tokens for Databricks. Every Databricks federation policy that trusts
 # this role expects this audience, "databricks".
 resource "aws_iam_role_policy" "connector_identity_token" {
-  name = "p0-connector-databricks-identity-token"
+  name = "${local.connector_name}-identity-token"
   role = aws_iam_role.connector.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -149,7 +157,7 @@ resource "aws_iam_role_policy" "connector_identity_token" {
 # repository in this account. It needs docker and the AWS CLI, signed in to this
 # account, wherever Terraform runs.
 resource "aws_ecr_repository" "connector" {
-  name = "p0-connector-databricks"
+  name = local.connector_name
   # Tags can't be overwritten, so no one who can push to this repository can
   # replace the image that signs in to Databricks as P0's service principal.
   image_tag_mutability = "IMMUTABLE"
@@ -196,11 +204,10 @@ data "aws_ecr_image" "connector" {
 }
 
 resource "aws_lambda_function" "connector" {
-  # P0 invokes the connector as the p0-connector-databricks Lambda in this
-  # account and region, so it must be deployed exactly there. If your other AWS
-  # providers have credential settings, such as profile or assume_role, add
-  # them to the provider above.
-  function_name = "p0-connector-databricks"
+  # P0 invokes the connector by its name in this account and region, so it must
+  # be deployed exactly there. If your other AWS providers have credential
+  # settings, such as profile or assume_role, add them to the provider above.
+  function_name = local.connector_name
   role          = aws_iam_role.connector.arn
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.connector.repository_url}@${data.aws_ecr_image.connector.image_digest}"
@@ -231,7 +238,7 @@ resource "aws_lambda_function" "connector" {
 # Lets P0 invoke the connector, through the role P0's AWS IAM management
 # assumes in this account.
 resource "aws_iam_role_policy" "p0_invoke_connector" {
-  name = "p0-connector-databricks-invoke"
+  name = "${local.connector_name}-invoke"
   role = local.p0_role_name
   policy = jsonencode({
     Version = "2012-10-17"
