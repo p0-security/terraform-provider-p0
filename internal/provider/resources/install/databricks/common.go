@@ -10,8 +10,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -370,31 +368,4 @@ func stageAndInstall(ctx context.Context, installer *common.Install, diags *diag
 		return
 	}
 	installer.UpsertFromStage(ctx, diags, plan, state, api, model)
-}
-
-// Update for every installed resource: it applies the plan from the step that P0
-// has the item at, as RepositoryAccess.Update does. Only an account's
-// application ID changes in place. Every other attribute requires replacement,
-// so an update otherwise finishes an install that P0 hasn't (see
-// common.PlanFinishingInstall).
-//
-// An item that P0 has verified, at configure or installed, gets the configure
-// step alone. The account checks everything there, and P0 saves nothing when a
-// step fails, so a new application ID that fails P0's check leaves the account
-// installed with its current one. The connector, workspace and catalog check
-// on verify, which a verified item passed with the values it still has. Any
-// other item, such as a staged one, is verified first, as Create does.
-func upsertFromState(ctx context.Context, installer *common.Install, req resource.UpdateRequest, resp *resource.UpdateResponse, api any, model any) {
-	var state types.String
-	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("state"), &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	switch state.ValueString() {
-	case common.StateConfigure, common.StateInstalled:
-		installer.UpsertFromConfigure(ctx, &resp.Diagnostics, &req.Plan, &resp.State, api, model)
-	default:
-		installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, api, model)
-	}
 }
