@@ -80,25 +80,29 @@ func (r *Catalog) Configure(_ context.Context, req resource.ConfigureRequest, re
 	r.installer = newInstaller[catalogJson](internal.Configure(&req, resp), installresources.Catalog, catalogFromJson, catalogToJson)
 }
 
+// The key names the catalog's workspace, and P0 sets the item's workspace from it, so
+// workspace_id is read from the key too.
 func catalogFromJson(_ context.Context, diags *diag.Diagnostics, id string, json any) any {
 	item, ok := json.(*catalogJson)
 	if !ok {
 		return nil
 	}
-	catalogName, _, ok := parseCatalogKey(id)
+	catalogName, workspaceId, ok := parseCatalogKey(id)
 	if !ok {
 		diags.AddError("Bad catalog key", fmt.Sprintf("P0 has a catalog with the key %q, which isn't of the form <catalog name>@<workspace ID>", id))
 		return nil
 	}
 	return &catalogModel{
 		Id:          types.StringValue(id),
-		WorkspaceId: types.StringPointerValue(item.Workspace),
+		WorkspaceId: types.StringValue(workspaceId),
 		CatalogName: types.StringValue(catalogName),
 		State:       types.StringPointerValue(item.State),
 	}
 }
 
-// P0 sets the state, so it is never sent.
+// P0 sets the state, so it is never sent. The workspace is sent with every step:
+// staging ignores it and takes the key's, but verify and configure refuse a workspace
+// that differs from the one P0 saved.
 func catalogToJson(data any) any {
 	model, ok := data.(*catalogModel)
 	if !ok {
