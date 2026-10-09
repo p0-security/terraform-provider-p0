@@ -2,6 +2,7 @@ package installaws
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -9,33 +10,48 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+// A commercial region passes. A value that isn't a region is told so, and only a region
+// in another partition gets the caller's message.
 func TestCommercialRegionValidator(t *testing.T) {
-	cases := map[string]bool{
-		"us-east-1":      true,
-		"us-west-2":      true,
-		"eu-central-2":   true,
-		"ap-southeast-7": true,
-		"ca-west-1":      true,
-		"mx-central-1":   true,
-		"il-central-1":   true,
-		"us-gov-west-1":  false,
-		"us-gov-east-1":  false,
-		"cn-north-1":     false,
-		"us-isob-east-1": false,
-		"eusc-de-east-1": false,
-		"us-west":        false,
-		" us-east-1":     false,
-		"":               false,
+	const (
+		message     = "commercial regions only"
+		invalid     = "Invalid AWS region: Enter an AWS region, such as us-west-2"
+		unsupported = "Unsupported AWS region: " + message
+	)
+	cases := map[string]string{
+		"us-east-1":      "",
+		"us-west-2":      "",
+		"eu-central-2":   "",
+		"ap-southeast-7": "",
+		"ca-west-1":      "",
+		"mx-central-1":   "",
+		"il-central-1":   "",
+		"us-gov-west-1":  unsupported,
+		"us-gov-east-1":  unsupported,
+		"cn-north-1":     unsupported,
+		"us-isob-east-1": unsupported,
+		"eusc-de-east-1": unsupported,
+		"us-west":        invalid,
+		" us-east-1":     invalid,
+		"":               invalid,
 	}
 
 	for region, want := range cases {
 		resp := &validator.StringResponse{}
-		CommercialRegionValidator("commercial regions only").ValidateString(context.Background(), validator.StringRequest{
+		CommercialRegionValidator(message).ValidateString(context.Background(), validator.StringRequest{
 			Path:        path.Root("region"),
 			ConfigValue: types.StringValue(region),
 		}, resp)
-		if got := !resp.Diagnostics.HasError(); got != want {
-			t.Errorf("CommercialRegionValidator accepts %q = %v, want %v", region, got, want)
+
+		var got []string
+		for _, err := range resp.Diagnostics.Errors() {
+			got = append(got, err.Summary()+": "+err.Detail())
+		}
+		switch {
+		case want == "" && len(got) > 0:
+			t.Errorf("CommercialRegionValidator rejects %q: %v", region, got)
+		case want != "" && (len(got) != 1 || !strings.HasPrefix(got[0], want)):
+			t.Errorf("CommercialRegionValidator(%q) = %v, want one error starting %q", region, got, want)
 		}
 	}
 }

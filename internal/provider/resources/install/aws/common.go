@@ -34,8 +34,9 @@ func AwsAccountIdValidator() validator.String {
 	return stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits")
 }
 
-// Rejects a value that isn't an AWS region in the commercial partition, with message. A
-// connector that P0 invokes by an `arn:aws:` ARN can't run anywhere else.
+// Rejects a value that isn't an AWS region, and, with message, a region outside AWS's
+// commercial partition, as p0_github_repositories' region rules do. A connector that P0
+// invokes by an `arn:aws:` ARN can't run anywhere else.
 func CommercialRegionValidator(message string) validator.String {
 	return commercialRegionValidator{message: message}
 }
@@ -57,7 +58,11 @@ func (v commercialRegionValidator) ValidateString(_ context.Context, req validat
 		return
 	}
 	region := req.ConfigValue.ValueString()
-	if !AwsRegionRegex.MatchString(region) || AwsOtherPartitionRegionRegex.MatchString(region) {
-		resp.Diagnostics.AddAttributeError(req.Path, "Unsupported AWS region", fmt.Sprintf("%s, got: %s", v.message, region))
+	// Each message quotes the value, so that whitespace around it shows.
+	switch {
+	case !AwsRegionRegex.MatchString(region):
+		resp.Diagnostics.AddAttributeError(req.Path, "Invalid AWS region", fmt.Sprintf("Enter an AWS region, such as us-west-2, got: %q", region))
+	case AwsOtherPartitionRegionRegex.MatchString(region):
+		resp.Diagnostics.AddAttributeError(req.Path, "Unsupported AWS region", fmt.Sprintf("%s, got: %q", v.message, region))
 	}
 }
