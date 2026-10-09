@@ -109,14 +109,14 @@ func hostingFromConfig(ctx context.Context, config tfsdk.Config, diags *diag.Dia
 // connector's Terraform can't be deployed with a value that breaks one. The patterns
 // and the messages are P0's.
 
-// The regions come from installaws: P0 invokes the connector by an `arn:aws:` ARN, so
-// neither the connector nor its secret can be outside AWS's commercial partition.
+// The account ID and region patterns come from installaws. P0 invokes the connector by
+// an `arn:aws:` ARN, so neither the connector nor its secret can be outside AWS's
+// commercial partition.
 var (
 	// A connector name that works for everything the connector's Terraform names after
 	// it: a Lambda function with its ECR repository and IAM role. ECR is why a name has
 	// at least two characters and no two hyphens in a row.
 	connectorNamePattern = regexp.MustCompile(`^[a-z](?:-?[a-z0-9])+$`)
-	awsAccountPattern    = regexp.MustCompile(`^\d{12}$`)
 )
 
 // The longest connector name for each hosting: Lambda and IAM cap a function or role
@@ -165,7 +165,7 @@ func awsAccountRules(p place) []rule {
 	return []rule{{
 		summary: "Invalid AWS account ID for " + p.what,
 		message: fmt.Sprintf("Enter the 12-digit ID of the AWS account %s.", p.where),
-		test:    awsAccountPattern.MatchString,
+		test:    installaws.AwsAccountIdRegex.MatchString,
 	}}
 }
 

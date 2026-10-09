@@ -72,7 +72,7 @@ func (r *AwsInventoryStaged) Schema(ctx context.Context, req resource.SchemaRequ
 				Required:            true,
 				MarkdownDescription: `The AWS account ID`,
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
+					AwsAccountIdValidator(),
 				},
 			},
 			"partition": schema.StringAttribute{
