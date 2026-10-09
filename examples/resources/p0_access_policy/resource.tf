@@ -33,6 +33,28 @@ resource "p0_access_policy" "example" {
   }]
 }
 
+# Example to demonstrate request policy routing based on the requested access duration. If a smaller requested duration is requested the request is automatically approved, if larger the request needs manual approval. 
+resource "p0_access_policy" "policy_max_duration" {
+  name = "demonstrate-max-duration"
+  requestor = {
+    type   = "any"
+  }
+  resource = {
+    type    = "any"
+  }
+  approval = [{
+     // automatically approved if requested access duration is <= 1 hour
+    type        = "persistent"
+    max_duration = {
+      time: 1
+      unit: "h"
+    }
+  },{
+    // request needs manual approval if requested time does not match the persistent maxDuration listed above
+    type        = "p0"
+  }]
+}
+
 # Agentic requestor: matches agent sessions rather than a human directly.
 # This example matches only the "my-agent-client" gateway client agent, as long as
 # no human user is present (a headless agent session), and denies access.
