@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func TestWorkspaceIdRegex(t *testing.T) {
@@ -68,6 +71,31 @@ func TestCatalogNameError(t *testing.T) {
 	for name, want := range cases {
 		if got := catalogNameError(name); got != want {
 			t.Errorf("catalogNameError(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+// The application IDs that the app's applicationId validator tests, with its message.
+func TestApplicationIdValidator(t *testing.T) {
+	cases := map[string]bool{
+		"8c5e2e0a-8f0d-4a3e-9d61-3b2f4c7a1e05": true,
+		"":                                     false,
+		"p0-connector":                         false,
+		"8c5e2e0a8f0d4a3e9d613b2f4c7a1e05":     false,
+	}
+
+	for id, valid := range cases {
+		resp := &validator.StringResponse{}
+		uuidValidator("Application IDs").ValidateString(context.Background(), validator.StringRequest{
+			Path:        path.Root("application_id"),
+			ConfigValue: types.StringValue(id),
+		}, resp)
+		errs := resp.Diagnostics.Errors()
+		switch {
+		case valid && len(errs) > 0:
+			t.Errorf("uuidValidator rejects %q: %v", id, errs)
+		case !valid && (len(errs) != 1 || !strings.Contains(errs[0].Detail(), "Application IDs are UUIDs")):
+			t.Errorf("uuidValidator(%q) = %v, want one error saying Application IDs are UUIDs", id, errs)
 		}
 	}
 }
