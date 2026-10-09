@@ -57,7 +57,7 @@ Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the 
 
 **Prerequisite:** P0 must be installed on the Google Cloud organization (for example via the ` + "`p0_gcp`" + ` resource).
 
-**Note:** This integration is currently in preview.`,
+` + common.NotePreview,
 		Attributes: map[string]schema.Attribute{
 			"id":        idAttribute(`An identifier for the PagerDuty account, made of letters, digits and hyphens. P0 puts it in the name of every secret that it makes.`),
 			"region":    regionAttribute(""),

@@ -57,7 +57,7 @@ Installing it allows P0 to grant machines just-in-time access to a Datadog organ
 
 **Important:** Before creating this resource you must stage the installation with ` + "`p0_datadog_ai_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the organization's API key and application key as a version of the connector's admin keys secret; the connector cannot create access tokens until that version exists.
 
-**Note:** This integration is currently in preview.`,
+` + common.NotePreview,
 		Attributes: map[string]schema.Attribute{
 			"id":   idAttribute("The `id` of the `p0_datadog_ai_staged` resource being finalized"),
 			"site": siteAttribute(" Must match the `p0_datadog_ai_staged` resource."),

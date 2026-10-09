@@ -59,7 +59,7 @@ Installing it allows P0 to grant machines just-in-time access to a PagerDuty acc
 
 **Important:** Before creating this resource you must stage the installation with ` + "`p0_pagerduty_ai_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the PagerDuty app's client secret as a version of the connector's client secret secret; the connector cannot request tokens until that version exists.
 
-**Note:** This integration is currently in preview.`,
+` + common.NotePreview,
 		Attributes: map[string]schema.Attribute{
 			"id":        idAttribute("The `id` of the `p0_pagerduty_ai_staged` resource being finalized"),
 			"region":    regionAttribute(" Must match the `p0_pagerduty_ai_staged` resource."),
