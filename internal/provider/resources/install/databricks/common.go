@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf16"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -66,10 +67,10 @@ var WorkspaceIdRegex = regexp.MustCompile(`^\d+$`)
 const catalogNameMaxLength = 255
 
 // Why name can't be a catalog's name, or "" if it can. This is the app's
-// `catalogNameError` (packages/integrations/databricks/src/shared/components.ts),
+// `catalogNameError` (packages/integrations/databricks/shared/src/components.ts),
 // with its messages, so that Terraform refuses the names that P0's installer
 // refuses, in the same words. Like the app, it counts a name's length in UTF-16
-// code units, as JavaScript does.
+// code units, and finds whitespace, as JavaScript does.
 //
 // The period that Unity Catalog forbids is also what the connector splits
 // securable names on. P0's install API carries item keys in its URL paths
@@ -81,14 +82,20 @@ func catalogNameError(name string) string {
 		return "Enter the catalog's name"
 	case len(utf16.Encode([]rune(name))) > catalogNameMaxLength:
 		return fmt.Sprintf("Catalog names are at most %d characters", catalogNameMaxLength)
-	case strings.ContainsAny(name, ". /") || strings.ContainsFunc(name, isControlCharacter):
+	case strings.ContainsAny(name, "./") || strings.ContainsFunc(name, isJavaScriptSpace) || strings.ContainsFunc(name, isControlCharacter):
 		return "Catalog names can't contain a period, a space, a forward slash or a control character"
 	case name != lowercase:
 		return "Unity Catalog stores catalog names in lowercase, so enter " + lowercase
 	case strings.ContainsAny(name, `#?%\`):
-		return `P0 can't install a catalog whose name contains #, ?, % or \`
+		return `P0 can't install a catalog whose name contains #, ?, % or \. Contact support@p0.dev if you need P0 to manage it.`
 	}
 	return ""
+}
+
+// Whitespace as JavaScript's \s finds it, which the app's catalog name check
+// refuses: Unicode's White_Space without U+0085, plus U+FEFF.
+func isJavaScriptSpace(r rune) bool {
+	return r == '\uFEFF' || (r != '\u0085' && unicode.IsSpace(r))
 }
 
 // An ASCII control character, as the app's catalog name check counts them.

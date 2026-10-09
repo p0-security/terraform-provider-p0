@@ -28,7 +28,7 @@ func TestCatalogNameError(t *testing.T) {
 	const (
 		tooLong     = "Catalog names are at most 255 characters"
 		forbidden   = "Catalog names can't contain a period, a space, a forward slash or a control character"
-		urlPathOnly = `P0 can't install a catalog whose name contains #, ?, % or \`
+		urlPathOnly = `P0 can't install a catalog whose name contains #, ?, % or \. Contact support@p0.dev if you need P0 to manage it.`
 	)
 	cases := map[string]string{
 		"main":                   "",
@@ -47,6 +47,11 @@ func TestCatalogNameError(t *testing.T) {
 		"a/b":          forbidden,
 		"tab\there":    forbidden,
 		"del\x7f":      forbidden,
+		// Any whitespace that JavaScript's \s finds, as the app's check does.
+		"sales\u00a0eu": forbidden,
+		"sales\ufeffeu": forbidden,
+		// \s doesn't find U+0085, and the app counts only ASCII control characters.
+		"sales\u0085eu": "",
 		// Unity Catalog stores names in lowercase.
 		"Sales":   "Unity Catalog stores catalog names in lowercase, so enter sales",
 		"DONNÉES": "Unity Catalog stores catalog names in lowercase, so enter données",
