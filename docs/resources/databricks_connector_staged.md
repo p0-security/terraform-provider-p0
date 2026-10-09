@@ -40,7 +40,7 @@ resource "p0_databricks_connector_staged" "example" {
 
 ### Required
 
-- `domain_pattern` (String) A regular expression that the connector matches against the whole email domain of every user it grants to, e.g. `example\.com`. The connector refuses any other user. Set the same value as the Lambda's `DOMAIN_PATTERN` environment variable.
+- `domain_pattern` (String) A regular expression that the connector matches against the whole email domain of every user it grants to, e.g. `example\.com`. The connector refuses any other user. This is the pattern the connector is added with, and the Lambda is first deployed with the same value in its `DOMAIN_PATTERN` environment variable. P0 can't change a connector's pattern, so a new value here replaces the connector. To change the pattern later, change it only on the Lambda, and have Terraform ignore it here with `lifecycle { ignore_changes = [domain_pattern] }`, as the `p0_databricks_connector` example does.
 - `id` (String) The ID of the AWS account that the connector's Lambda runs in
 - `region` (String) The AWS region that the connector's Lambda runs in. The connector runs only in commercial AWS regions.
 
