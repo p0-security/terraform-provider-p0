@@ -100,6 +100,14 @@ func awsRegionRules(p place) []rule {
 	}
 }
 
+func gcpRegionRules(p place) []rule {
+	return []rule{{
+		summary: "Invalid Google Cloud region for " + p.what,
+		message: fmt.Sprintf("Enter the Google Cloud region %s, such as us-central1.", p.where),
+		test:    gcpRegionPattern.MatchString,
+	}}
+}
+
 func gcpProjectRules(p place) []rule {
 	return []rule{{
 		summary: "Invalid Google Cloud project ID for " + p.what,
@@ -117,11 +125,7 @@ var hostingRules = map[string][]fieldRules{
 	},
 	installapp.GcpHosting: {
 		{name: "connector_name", rules: connectorNameRules(installapp.GcpHosting)},
-		{name: "connector_region", rules: []rule{{
-			summary: "Invalid Google Cloud region for the connector",
-			message: "Enter the Google Cloud region the connector runs in, such as us-central1.",
-			test:    gcpRegionPattern.MatchString,
-		}}},
+		{name: "connector_region", rules: gcpRegionRules(connectorPlace)},
 		{name: "project_id", rules: gcpProjectRules(connectorPlace)},
 	},
 }

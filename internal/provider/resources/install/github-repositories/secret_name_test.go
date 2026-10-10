@@ -100,7 +100,8 @@ func TestGcpSecretNameRules(t *testing.T) {
 	}
 }
 
-// Before the vault's type is known, a name either vault takes passes.
+// Before the vault's type is known, a name either vault takes passes, and one that
+// neither takes gets the first AWS rule it breaks.
 func TestSecretNameRulesForAnUnknownVault(t *testing.T) {
 	unknown := &vaultModel{Type: types.StringUnknown()}
 
@@ -114,6 +115,7 @@ func TestSecretNameRulesForAnUnknownVault(t *testing.T) {
 		{name: "a Google name that ends like an AWS suffix", vault: unknown, value: "github-key-AbCdEf"},
 		{name: "a name no vault takes", vault: unknown, value: "github key", want: invalidSecretName},
 		{name: "no vault at all", vault: nil, value: "github key", want: invalidSecretName},
+		{name: "a name no vault takes that ends like an AWS suffix", vault: unknown, value: "a/b-AbCdEf", want: suffixedSecretName},
 		{name: "a known Google vault", vault: &vaultModel{Type: types.StringValue(GcpSecretManager)}, value: "github/acme/private-key", want: invalidGcpSecretName},
 		{name: "a known AWS vault", vault: &vaultModel{Type: types.StringValue(AwsSecretsManager)}, value: "github-key-AbCdEf", want: suffixedSecretName},
 	}

@@ -70,18 +70,23 @@ func passes(name string, rules []rule) bool {
 
 // P0's rules for the private key's secret name in vault. While the vault's type isn't
 // known, as when it's interpolated, a name that either vault takes passes, as on P0's
-// form, and P0 checks it against the vault when it creates the installation.
+// form, and P0 checks it against the vault when it creates the installation. A name
+// that neither takes breaks AWS's rules, the vault's default, and gets the message of
+// the first AWS rule it breaks.
 func secretNameRulesFor(vault *vaultModel) []rule {
 	if vault != nil && installapp.IsSet(vault.Type) {
 		if rules, ok := secretNameRules[vault.Type.ValueString()]; ok {
 			return rules
 		}
 	}
-	return []rule{{
-		summary: "Invalid private key secret name",
-		message: InvalidSecretName,
-		test: func(name string) bool {
-			return passes(name, secretNameRules[AwsSecretsManager]) || passes(name, secretNameRules[GcpSecretManager])
-		},
-	}}
+	awsRules := secretNameRules[AwsSecretsManager]
+	rules := make([]rule, len(awsRules))
+	for i, r := range awsRules {
+		rules[i] = rule{
+			summary: r.summary,
+			message: r.message,
+			test:    func(name string) bool { return r.test(name) || passes(name, secretNameRules[GcpSecretManager]) },
+		}
+	}
+	return rules
 }

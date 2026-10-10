@@ -2,6 +2,9 @@
 # directory, for another organization, my-other-github-org: P0's GitHub
 # Repositories connector on Cloud Run, and the GitHub App's private key in Google
 # Secret Manager. resource.tf's terraform block lists the providers both use.
+# Applying this directory applies resource.tf's AWS example too. To use this
+# example on its own, copy it with resource.tf's terraform block into a separate
+# configuration.
 #
 # Before you apply this, create the organization's GitHub App, store its private
 # key in Secret Manager as github-my-other-github-org-private-key, and install

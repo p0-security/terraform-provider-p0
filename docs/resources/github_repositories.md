@@ -61,7 +61,9 @@ P0 checks where the connector runs, and the secret's name, when it creates the i
 ```terraform
 # Installs GitHub Repositories for the GitHub organization my-github-org, with
 # P0's GitHub Repositories connector on AWS Lambda and the GitHub App's private
-# key in AWS Secrets Manager. For Google Cloud, see gcp.tf in this directory.
+# key in AWS Secrets Manager. For Google Cloud, see
+# examples/resources/p0_github_repositories/gcp.tf in this provider's repository:
+# https://github.com/p0-security/terraform-provider-p0/blob/main/examples/resources/p0_github_repositories/gcp.tf
 #
 # Before you apply this, create the organization's GitHub App, store its private
 # key in Secrets Manager as github/my-github-org/private-key, and install
@@ -107,8 +109,9 @@ terraform {
       source  = "kreuzwerker/docker"
       version = "~> 3.0"
     }
-    # For gcp.tf, the Google Cloud variant in this directory: its Cloud Run
-    # service's deletion_protection needs the google provider 6.0 or later.
+    # For the Google Cloud variant,
+    # examples/resources/p0_github_repositories/gcp.tf: its Cloud Run service's
+    # deletion_protection needs the google provider 6.0 or later.
     google = {
       source  = "hashicorp/google"
       version = ">= 6.0"

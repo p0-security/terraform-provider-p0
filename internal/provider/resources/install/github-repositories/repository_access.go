@@ -340,11 +340,17 @@ func (*RepositoryAccess) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 
 	// As in any update the framework plans, the attributes that only P0 sets are
 	// unknown until apply. Update takes both from P0's response, which has the item's
-	// new state and, on Cloud Run, the URL that P0 looked the connector up at.
+	// new state and, on Cloud Run, the URL that P0 looked the connector up at. P0 sets
+	// no URL for any other hosting, so the plan keeps it null there.
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("state"), types.StringUnknown())...)
 	var hosting types.Object
 	resp.Diagnostics.Append(resp.Plan.GetAttribute(ctx, path.Root("hosting"), &hosting)...)
 	if resp.Diagnostics.HasError() || hosting.IsNull() || hosting.IsUnknown() {
+		return
+	}
+	var hostingType types.String
+	resp.Diagnostics.Append(resp.Plan.GetAttribute(ctx, path.Root("hosting").AtName("type"), &hostingType)...)
+	if resp.Diagnostics.HasError() || (!hostingType.IsUnknown() && hostingType.ValueString() != installapp.GcpHosting) {
 		return
 	}
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("hosting").AtName("connector_service_uri"), types.StringUnknown())...)

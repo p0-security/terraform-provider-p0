@@ -16,6 +16,7 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installaigateway "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ai_gateway"
 	installapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/app"
+	installawssm "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-sm"
 	installvaultedcredential "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/vaulted-credential"
 )
 
@@ -25,9 +26,13 @@ import (
 // block, it names no connector, because the `hosting` block places the connector.
 
 const (
-	AwsSecretsManager = "aws-sm"
+	AwsSecretsManager = installawssm.AwsSmKey
 	GcpSecretManager  = installvaultedcredential.GcpSecretManager
 )
+
+// P0's message for a vault and a connector in different clouds.
+const CloudMismatch = "The secret manager provider and the connector hosting need to be in the same cloud. " +
+	"Pick AWS Secrets Manager with AWS Lambda, or Google Secret Manager with Google Cloud Run."
 
 // The hosting type that each vault type goes with. P0 rejects a vault and a connector
 // in different clouds.
@@ -55,15 +60,17 @@ type vaultModel struct {
 }
 
 func (m *vaultModel) toJson() *vaultJson {
-	install := m.ProjectId
-	if m.Type.ValueString() == AwsSecretsManager {
-		install = m.AccountId
-	}
-	return &vaultJson{
+	vault := &vaultJson{
 		Type:          m.Type.ValueString(),
-		Install:       install.ValueString(),
 		SecretsRegion: m.SecretsRegion.ValueStringPointer(),
 	}
+	switch vault.Type {
+	case AwsSecretsManager:
+		vault.Install = m.AccountId.ValueString()
+	case GcpSecretManager:
+		vault.Install = m.ProjectId.ValueString()
+	}
+	return vault
 }
 
 // The vault's fields, by attribute name.
@@ -153,8 +160,8 @@ func vaultFromConfig(ctx context.Context, config tfsdk.Config, diags *diag.Diagn
 	return &vault
 }
 
-// Rejects a vault and a connector in different clouds, which P0 rejects too, in the
-// words of its own form. This names the attributes to change instead.
+// Rejects a vault and a connector in different clouds, which P0 rejects too, with P0's
+// message. That names the fields of P0's form, so this adds the attributes to change.
 func validateSameCloud(vault *vaultModel, hosting *installapp.ConnectorHostingModel, diags *diag.Diagnostics) {
 	if vault == nil || hosting == nil || !installapp.IsSet(vault.Type) || !installapp.IsSet(hosting.Type) {
 		return
@@ -167,7 +174,6 @@ func validateSameCloud(vault *vaultModel, hosting *installapp.ConnectorHostingMo
 	diags.AddAttributeError(
 		path.Root("hosting").AtName("type"),
 		"Vault and connector in different clouds",
-		fmt.Sprintf("The vault and the connector need to be in the same cloud. Pick AWS for both or GCP for both. "+
-			"'vault.type' %q needs 'hosting.type' %q.", vault.Type.ValueString(), want),
+		fmt.Sprintf("%s 'vault.type' %q needs 'hosting.type' %q.", CloudMismatch, vault.Type.ValueString(), want),
 	)
 }

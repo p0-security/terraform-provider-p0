@@ -549,16 +549,18 @@ func TestRepositoryAccessValidateConfig(t *testing.T) {
 	}
 }
 
-// A vault and a connector in different clouds are rejected, naming the hosting type
-// the vault needs.
+// A vault and a connector in different clouds are rejected with P0's message, then the
+// hosting type the vault needs.
 func TestRepositoryAccessValidateConfigMixedCloudsWording(t *testing.T) {
 	errs := validateConfig(t, awsVault, gcpHosting, nil).Errors()
 	if len(errs) != 1 {
 		t.Fatalf("errors = %v; want one", errs)
 	}
-	const want = "The vault and the connector need to be in the same cloud. Pick AWS for both or GCP for both."
-	if !strings.Contains(errs[0].Detail(), want) {
-		t.Errorf("detail = %q; want it to contain %q", errs[0].Detail(), want)
+	const want = "The secret manager provider and the connector hosting need to be in the same cloud. " +
+		"Pick AWS Secrets Manager with AWS Lambda, or Google Secret Manager with Google Cloud Run. " +
+		`'vault.type' "aws-sm" needs 'hosting.type' "aws".`
+	if errs[0].Detail() != want {
+		t.Errorf("detail = %q; want %q", errs[0].Detail(), want)
 	}
 }
 
@@ -871,7 +873,9 @@ func TestRepositoryAccessModifyPlan(t *testing.T) {
 		// P0 drops the connector's URL when it stages an item, and looks it up again
 		// when it verifies it.
 		{name: "stage", prior: gcpAt(staged, none), plan: gcpAt(staged, none), want: gcpAt(unknown, unknown)},
-		{name: "stage aws", prior: awsAt(staged, none), plan: awsAt(staged, none), want: awsAt(unknown, unknown)},
+		// P0 sets the connector's URL only on Cloud Run, so on AWS it stays null.
+		{name: "stage aws", prior: awsAt(staged, none), plan: awsAt(staged, none), want: awsAt(unknown, none)},
+		{name: "configure aws", prior: awsAt(configured, none), plan: awsAt(configured, none), want: awsAt(unknown, none)},
 		{name: "no state", prior: gcpAt(none, uri), plan: gcpAt(none, uri), want: gcpAt(unknown, unknown)},
 		{name: "create", prior: rawOf(t, nil), plan: gcpAt(unknown, unknown), want: gcpAt(unknown, unknown)},
 		{name: "destroy", prior: gcpAt(staged, none), plan: rawOf(t, nil), want: rawOf(t, nil)},
