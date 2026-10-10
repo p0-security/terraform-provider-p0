@@ -6,10 +6,10 @@
 # example on its own, copy it with resource.tf's terraform block into a separate
 # configuration.
 #
-# Before you apply this, create the organization's GitHub App, store its private
-# key in Secret Manager as github-my-other-github-org-private-key, and install
-# p0_gcp. This resource's page lists what the App needs. The example doesn't
-# create the key's secret, which keeps the key out of Terraform's state.
+# Before you apply this, create the organization's GitHub App, and store its
+# private key in Secret Manager as github-my-other-github-org-private-key. This
+# resource's page lists what the App needs. The example doesn't create the key's
+# secret, which keeps the key out of Terraform's state.
 #
 # The connector's Terraform is what P0's GitHub Repositories installer generates
 # for the organization, with p0_github_repositories in place of its output. Copy
@@ -27,6 +27,12 @@
 # needs its own connector name: the connector's service and service account are
 # named after it, and these names are unique in a Google Cloud project.
 
+# P0's Google Cloud integration. If you install it elsewhere, use that
+# resource's service_account_email below.
+resource "p0_gcp" "example" {
+  organization_id = "123456789012"
+}
+
 locals {
   p0_github_repositories_my_other_github_org = {
     # Where P0 invokes the connector. P0's installer has the same values.
@@ -41,8 +47,9 @@ locals {
     secrets_project_id    = "my-project-id"
     # The connector's own service account, named after the connector.
     service_account_id = "p0-github-my-other-gi-e11606a2"
-    # P0's service account, which invokes the connector.
-    p0_service_account_email = "p0-example@p0-prod.iam.gserviceaccount.com"
+    # P0's service account, which invokes the connector: its Google Cloud
+    # integration's.
+    p0_service_account_email = p0_gcp.example.service_account_email
     # P0's connector image (sha-1234567), pinned by its digest. This is a
     # placeholder, for an image that doesn't exist. Use the pinned image in the
     # Terraform that P0's installer shows, or the image's published digest.
