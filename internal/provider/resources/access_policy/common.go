@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/duration"
 )
 
 type GroupModelV1 struct {
@@ -122,6 +123,7 @@ type ApprovalModelV2 struct {
 	Services        *[]string             `json:"services" tfsdk:"services"`
 	Type            string                `json:"type" tfsdk:"type"`
 	Effect          *string               `json:"effect" tfsdk:"effect"`
+	MaxDuration     *duration.Option      `json:"maxDuration" tfsdk:"max_duration"`
 }
 
 type AccessPolicyModelV0 struct {
@@ -412,6 +414,7 @@ func approvalAttribute(version int64) schema.ListNestedAttribute {
     - 'p0': Access may be granted by any user with the P0 "security reviewer" role (defined in the P0 app)`,
 				Required: true,
 			},
+			"max_duration": duration.OptionalAttribute("Allows policy routing based on how long of a duration was requested as part of an access request. max_duration is the maximum request duration that will match this particular policy approval. When not set, requested duration will not affect policy routing and will follow default behavior."),
 		})),
 	}
 	// `groups` and `effect` only exist from schema version 2 onward, so only the
