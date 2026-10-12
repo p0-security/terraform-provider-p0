@@ -87,7 +87,7 @@ All API requests made by this provider include a ` + "`User-Agent`" + ` header o
 identified in P0 API logs.`,
 		Attributes: map[string]schema.Attribute{
 			"host": schema.StringAttribute{
-				MarkdownDescription: "Your P0 application API host (defaults to `" + defaultHost + "`)",
+				MarkdownDescription: "Your P0 application API host (defaults to `https://api.p0.app`)",
 				Optional:            true,
 			},
 			"org": schema.StringAttribute{
@@ -150,7 +150,7 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 
 	p0_host := model.Host.ValueString()
 	if p0_host == "" {
-		p0_host = defaultHost
+		p0_host = "https://api.p0.app"
 	}
 
 	if resp.Diagnostics.HasError() {
@@ -161,18 +161,10 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		Authentication: fmt.Sprintf("Bearer %s", api_token),
 		UserAgent:      fmt.Sprintf("terraform-provider-p0/%s Terraform/%s", p.version, req.TerraformVersion),
 		Client:         http.DefaultClient,
-		BaseUrl:        orgUrl(p0_host, model.Org.ValueString()),
+		BaseUrl:        fmt.Sprintf("%s/o/%s", p0_host, model.Org.ValueString()),
 	}
 	resp.DataSourceData = data
 	resp.ResourceData = data
-}
-
-// The P0 API host that the provider calls unless its `host` says otherwise.
-const defaultHost = "https://api.p0.app"
-
-// The base URL of an organization's API.
-func orgUrl(host string, org string) string {
-	return fmt.Sprintf("%s/o/%s", host, org)
 }
 
 func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {

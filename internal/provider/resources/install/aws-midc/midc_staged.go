@@ -76,7 +76,7 @@ func (r *AwsMidcStaged) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Required:            true,
 				MarkdownDescription: `The AWS account ID of the account that contains the Identity Center instance`,
 				Validators: []validator.String{
-					installaws.AwsAccountIdValidator(),
+					stringvalidator.RegexMatches(installaws.AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
 				},
 			},
 			"partition": schema.StringAttribute{

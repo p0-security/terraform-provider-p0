@@ -16,7 +16,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/app"
-	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 )
 
 // The `hosting` attribute is the app's `ConnectorHosting` install element
@@ -109,14 +108,18 @@ func hostingFromConfig(ctx context.Context, config tfsdk.Config, diags *diag.Dia
 // connector's Terraform can't be deployed with a value that breaks one. The patterns
 // and the messages are P0's.
 
-// The account ID and region patterns come from installaws. P0 invokes the connector by
-// an `arn:aws:` ARN, so neither the connector nor its secret can be outside AWS's
-// commercial partition.
 var (
 	// A connector name that works for everything the connector's Terraform names after
 	// it: a Lambda function with its ECR repository and IAM role. ECR is why a name has
 	// at least two characters and no two hyphens in a row.
 	connectorNamePattern = regexp.MustCompile(`^[a-z](?:-?[a-z0-9])+$`)
+	awsAccountPattern    = regexp.MustCompile(`^\d{12}$`)
+	// An AWS region, such as us-west-2.
+	awsRegionPattern = regexp.MustCompile(`^[a-z]+(?:-[a-z]+)+-\d+$`)
+	// A region outside AWS's commercial partition: GovCloud, China, the ISO regions or
+	// the European Sovereign Cloud. P0 invokes the connector by an `arn:aws:` ARN, so
+	// neither the connector nor its secret can be in one.
+	awsOtherPartitionRegionPattern = regexp.MustCompile(`^(?:us-gov-|cn-|[a-z]+-iso[a-z]*-|eusc-)`)
 )
 
 // The longest connector name for each hosting: Lambda and IAM cap a function or role
@@ -165,7 +168,7 @@ func awsAccountRules(p place) []rule {
 	return []rule{{
 		summary: "Invalid AWS account ID for " + p.what,
 		message: fmt.Sprintf("Enter the 12-digit ID of the AWS account %s.", p.where),
-		test:    installaws.AwsAccountIdRegex.MatchString,
+		test:    awsAccountPattern.MatchString,
 	}}
 }
 
@@ -174,12 +177,12 @@ func awsRegionRules(p place) []rule {
 		{
 			summary: "Invalid AWS region for " + p.what,
 			message: fmt.Sprintf("Enter the AWS region %s, such as us-west-2.", p.where),
-			test:    installaws.AwsRegionRegex.MatchString,
+			test:    awsRegionPattern.MatchString,
 		},
 		{
 			summary: "Unsupported AWS region for " + p.what,
 			message: UnsupportedAwsPartition,
-			test:    func(region string) bool { return !installaws.AwsOtherPartitionRegionRegex.MatchString(region) },
+			test:    func(region string) bool { return !awsOtherPartitionRegionPattern.MatchString(region) },
 		},
 	}
 }

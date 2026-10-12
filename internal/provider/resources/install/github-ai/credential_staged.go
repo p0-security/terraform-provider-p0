@@ -53,9 +53,9 @@ Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the 
 
 **Prerequisite:** P0 must be installed on the Google Cloud organization (for example via the ` + "`p0_gcp`" + ` resource).
 
-` + common.NotePreview,
+**Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
-			"id": common.FixedAttribute(`The login of the GitHub organization that the GitHub App is installed on`),
+			"id": installvaultedcredential.IdAttribute(`The login of the GitHub organization that the GitHub App is installed on`),
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's GitHub connector runs and stores the GitHub App's private key`,

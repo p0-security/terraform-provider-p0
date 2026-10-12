@@ -65,7 +65,7 @@ func TestDoBodyTypedNilRequestSendsNoBody(t *testing.T) {
 
 // TestGetMalformedPathReturnsError guards against Get using the request before
 // it checks the error from creating it. A path that doesn't parse as a URL,
-// such as one ending in the catalog import ID `sales%@7`, panicked.
+// such as one ending in an import ID like `sales%@7`, panicked.
 func TestGetMalformedPathReturnsError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("unexpected request: %s %s", r.Method, r.URL)
