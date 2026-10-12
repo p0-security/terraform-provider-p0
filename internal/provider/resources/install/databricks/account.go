@@ -49,7 +49,7 @@ func (*Account) Schema(_ context.Context, _ resource.SchemaRequest, resp *resour
 
 An account that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
-` + notePreview,
+` + betaNote,
 		Attributes: attributes,
 	}
 }

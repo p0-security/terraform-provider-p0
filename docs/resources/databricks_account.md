@@ -6,7 +6,7 @@ description: |-
   A Databricks account installation.
   Important: Before creating this resource you must stage the account with p0_databricks_account_staged, and create a service principal in the account with the account_admin role and a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is federation_audience (databricks). Creating them takes a Databricks account admin.
   An account that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
-  Note: This integration is currently in preview.
+  Note: This integration is currently in beta.
 ---
 
 # p0_databricks_account (Resource)
@@ -17,7 +17,7 @@ A Databricks account installation.
 
 An account that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
-**Note:** This integration is currently in preview.
+**Note:** This integration is currently in beta.
 
 ## Example Usage
 

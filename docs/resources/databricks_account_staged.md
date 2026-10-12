@@ -6,7 +6,7 @@ description: |-
   A staged Databricks account. P0 manages a Databricks account through a service principal there that holds account admin, and that the connector exchanges its AWS identity for.
   Staging records the account in P0 and checks its ID and accounts URL before you create the service principal. Then create the service principal, its federation policy and its account admin role, and create a p0_databricks_account resource with the same id to complete the installation.
   Prerequisite: The connector that reaches the account must be installed (see the p0_databricks_connector resource).
-  Note: This integration is currently in preview.
+  Note: This integration is currently in beta.
 ---
 
 # p0_databricks_account_staged (Resource)
@@ -17,7 +17,7 @@ Staging records the account in P0 and checks its ID and accounts URL before you 
 
 **Prerequisite:** The connector that reaches the account must be installed (see the `p0_databricks_connector` resource).
 
-**Note:** This integration is currently in preview.
+**Note:** This integration is currently in beta.
 
 ## Example Usage
 

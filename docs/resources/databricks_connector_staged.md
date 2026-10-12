@@ -6,7 +6,7 @@ description: |-
   A staged Databricks connector. The connector is the p0-connector-databricks Lambda that P0 invokes to manage Databricks, one per AWS account. It runs outside any VPC and holds no secret: it reaches each Databricks account by exchanging its AWS identity for a Databricks token.
   Staging records the connector in P0 and checks its domain pattern before you deploy the Lambda with it. Then deploy the Lambda and its role, enable outbound identity federation for the AWS account, let P0's AWS integration role invoke the Lambda, and create a p0_databricks_connector resource with the same id to complete the installation.
   Prerequisite: P0's AWS integration must be installed for the connector's AWS account (for example via the p0_aws_iam_write resource). P0 invokes the connector as that installation's role.
-  Note: This integration is currently in preview.
+  Note: This integration is currently in beta.
 ---
 
 # p0_databricks_connector_staged (Resource)
@@ -17,7 +17,7 @@ Staging records the connector in P0 and checks its domain pattern before you dep
 
 **Prerequisite:** P0's AWS integration must be installed for the connector's AWS account (for example via the `p0_aws_iam_write` resource). P0 invokes the connector as that installation's role.
 
-**Note:** This integration is currently in preview.
+**Note:** This integration is currently in beta.
 
 ## Example Usage
 

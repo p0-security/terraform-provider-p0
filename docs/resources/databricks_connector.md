@@ -8,7 +8,7 @@ description: |-
   Important: Before creating this resource you must stage the connector with p0_databricks_connector_staged, and set up the following in the staged AWS account and region:
   Outbound identity federation, enabled for the AWS account (aws_iam_outbound_web_identity_federation).An IAM role named p0-connector-databricks that Lambda can assume. Each Databricks account's federation policy trusts this role's ARN.A policy on that role that allows sts:GetWebIdentityToken only for the audience databricks (this resource's federation_audience).The p0-connector-databricks Lambda, running as that role, with its DOMAIN_PATTERN environment variable set to domain_pattern.A policy on P0's AWS integration role that allows lambda:InvokeFunction on the Lambda.
   A connector that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
-  Note: This integration is currently in preview.
+  Note: This integration is currently in beta.
 ---
 
 # p0_databricks_connector (Resource)
@@ -27,7 +27,7 @@ The connector lets P0 grant Unity Catalog privileges, workspace admin and accoun
 
 A connector that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
-**Note:** This integration is currently in preview.
+**Note:** This integration is currently in beta.
 
 ## Example Usage
 

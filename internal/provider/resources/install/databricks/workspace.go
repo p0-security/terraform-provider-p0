@@ -54,7 +54,7 @@ func (*Workspace) Schema(_ context.Context, _ resource.SchemaRequest, resp *reso
 
 A workspace that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
-` + notePreview,
+` + betaNote,
 		Attributes: map[string]schema.Attribute{
 			"id": fixedAttribute(`The Databricks workspace ID`, workspaceIdValidator()),
 			"account": fixedAttribute(

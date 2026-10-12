@@ -27,8 +27,9 @@ const DatabricksKey = "databricks"
 // that trusts the connector must accept it.
 const FederationAudience = "databricks"
 
-// Ends the description of each Databricks resource.
-const notePreview = `**Note:** This integration is currently in preview.`
+// Ends the description of each Databricks resource, in the words of the
+// provider's other beta integrations.
+const betaNote = `**Note:** This integration is currently in beta.`
 
 // The Databricks components' keys in P0's install API.
 const (

@@ -43,7 +43,7 @@ The connector lets P0 grant Unity Catalog privileges, workspace admin and accoun
 
 A connector that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
-` + notePreview,
+` + betaNote,
 		Attributes: connectorAttributes(),
 	}
 }
