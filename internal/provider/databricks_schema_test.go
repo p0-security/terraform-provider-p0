@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -174,17 +175,81 @@ func TestDatabricksDomainPattern(t *testing.T) {
 	})
 }
 
+// Imports id into a null state, as the framework does, and returns the state
+// and what the import reports.
+func importDatabricks(t *testing.T, newResource func() fwresource.Resource, id string) (tfsdk.State, diag.Diagnostics) {
+	t.Helper()
+	ctx := context.Background()
+	importer, ok := newResource().(fwresource.ResourceWithImportState)
+	if !ok {
+		t.Fatal("the resource doesn't import")
+	}
+	var schemaResp fwresource.SchemaResponse
+	importer.Schema(ctx, fwresource.SchemaRequest{}, &schemaResp)
+
+	resp := fwresource.ImportStateResponse{State: tfsdk.State{
+		Schema: schemaResp.Schema,
+		Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil),
+	}}
+	importer.ImportState(ctx, fwresource.ImportStateRequest{ID: id}, &resp)
+	return resp.State, resp.Diagnostics
+}
+
+// The imported state's string attribute.
+func importedDatabricksAttribute(t *testing.T, state tfsdk.State, attribute string) string {
+	t.Helper()
+	var value types.String
+	if diags := state.GetAttribute(context.Background(), path.Root(attribute), &value); diags.HasError() {
+		t.Fatalf("could not read the imported %s: %v", attribute, diags)
+	}
+	return value.ValueString()
+}
+
+// A connector, an account and a workspace import by their item's key, which is
+// their id, and refuse a key that their id would refuse. The read after an
+// import puts the key in a URL path, where `%zz` doesn't parse and `#` ends the
+// path.
+func TestDatabricksImportId(t *testing.T) {
+	const (
+		awsAccountId = "AWS account IDs should consist of 12 numeric digits"
+		accountId    = "Databricks account IDs are UUIDs"
+		workspaceId  = "Databricks workspace IDs are numeric"
+	)
+	cases := []struct {
+		name        string
+		newResource func() fwresource.Resource
+		id, refusal string
+	}{
+		{"ConnectorStaged", installdatabricks.NewConnectorStaged, "123456789012", awsAccountId},
+		{"Connector", installdatabricks.NewConnector, "123456789012", awsAccountId},
+		{"AccountStaged", installdatabricks.NewAccountStaged, "01234567-89ab-cdef-0123-456789abcdef", accountId},
+		{"Account", installdatabricks.NewAccount, "01234567-89ab-cdef-0123-456789abcdef", accountId},
+		{"Workspace", installdatabricks.NewWorkspace, "1234567890123456", workspaceId},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			state, diags := importDatabricks(t, c.newResource, c.id)
+			if diags.HasError() {
+				t.Fatalf("importing %q fails: %v", c.id, diags)
+			}
+			if got := importedDatabricksAttribute(t, state, "id"); got != c.id {
+				t.Errorf("importing %q sets id %q", c.id, got)
+			}
+
+			for _, id := range []string{"12%zz", c.id + "#x", c.id + "?x", c.id + "/verify", ""} {
+				_, diags := importDatabricks(t, c.newResource, id)
+				if errs := diags.Errors(); len(errs) != 1 || !strings.Contains(errs[0].Detail(), c.refusal) {
+					t.Errorf("importing %q gives %v, want one error saying %q", id, errs, c.refusal)
+				}
+			}
+		})
+	}
+}
+
 // A catalog imports by its key, <catalog name>@<workspace ID>, which sets its
 // catalog_name and workspace_id, and refuses an ID that isn't such a key.
 func TestDatabricksCatalogImportKey(t *testing.T) {
-	ctx := context.Background()
-	catalog, ok := installdatabricks.NewCatalog().(fwresource.ResourceWithImportState)
-	if !ok {
-		t.Fatal("p0_databricks_catalog doesn't import")
-	}
-	var schemaResp fwresource.SchemaResponse
-	catalog.Schema(ctx, fwresource.SchemaRequest{}, &schemaResp)
-
 	cases := []struct {
 		key, catalogName, workspaceId string
 		ok                            bool
@@ -199,29 +264,23 @@ func TestDatabricksCatalogImportKey(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		// The framework imports into a null state.
-		resp := fwresource.ImportStateResponse{State: tfsdk.State{
-			Schema: schemaResp.Schema,
-			Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil),
-		}}
-		catalog.ImportState(ctx, fwresource.ImportStateRequest{ID: c.key}, &resp)
+		state, diags := importDatabricks(t, installdatabricks.NewCatalog, c.key)
 		if !c.ok {
-			if errs := resp.Diagnostics.Errors(); len(errs) != 1 || errs[0].Summary() != "Bad import ID" {
+			if errs := diags.Errors(); len(errs) != 1 || errs[0].Summary() != "Bad import ID" {
 				t.Errorf("importing %q gives %v, want one Bad import ID error", c.key, errs)
 			}
 			continue
 		}
-
-		var id, catalogName, workspaceId types.String
-		resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("id"), &id)...)
-		resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("catalog_name"), &catalogName)...)
-		resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("workspace_id"), &workspaceId)...)
-		if resp.Diagnostics.HasError() {
-			t.Errorf("importing %q fails: %v", c.key, resp.Diagnostics)
+		if diags.HasError() {
+			t.Errorf("importing %q fails: %v", c.key, diags)
 			continue
 		}
-		if id.ValueString() != c.key || catalogName.ValueString() != c.catalogName || workspaceId.ValueString() != c.workspaceId {
-			t.Errorf("importing %q sets id %s, catalog_name %s and workspace_id %s, want %q, %q and %q", c.key, id, catalogName, workspaceId, c.key, c.catalogName, c.workspaceId)
+
+		id := importedDatabricksAttribute(t, state, "id")
+		catalogName := importedDatabricksAttribute(t, state, "catalog_name")
+		workspaceId := importedDatabricksAttribute(t, state, "workspace_id")
+		if id != c.key || catalogName != c.catalogName || workspaceId != c.workspaceId {
+			t.Errorf("importing %q sets id %q, catalog_name %q and workspace_id %q, want %q, %q and %q", c.key, id, catalogName, workspaceId, c.key, c.catalogName, c.workspaceId)
 		}
 	}
 }

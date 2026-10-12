@@ -3,7 +3,6 @@ package installdatabricks
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -77,5 +76,5 @@ func (r *Connector) Delete(ctx context.Context, req resource.DeleteRequest, resp
 }
 
 func (r *Connector) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	importById(ctx, req, resp, awsAccountIdValidator())
 }

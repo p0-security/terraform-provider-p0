@@ -810,6 +810,29 @@ func TestDatabricksCatalogImportId(t *testing.T) {
 	})
 }
 
+// An import whose ID the resource's id would refuse fails with the id's message,
+// before the provider reads the item. The read puts the ID in a URL path, and
+// the provider's client crashes on one that doesn't parse, such as `12%zz`.
+func TestDatabricksImportRefusesMalformedId(t *testing.T) {
+	f := newDatabricksFake(t)
+	d := databricksTestDefaults
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkDatabricksDestroyed(f.client()),
+		Steps: []resource.TestStep{
+			{Config: f.providerConfig() + d.workspace()},
+			{
+				Config:        f.providerConfig() + d.workspace(),
+				ResourceName:  "p0_databricks_workspace.test",
+				ImportState:   true,
+				ImportStateId: "12%zz",
+				ExpectError:   regexp.MustCompile(`Databricks\s+workspace\s+IDs\s+are\s+numeric`),
+			},
+		},
+	})
+}
+
 // The schema validators reject malformed values at plan time, before the
 // provider calls P0. Each message is one that only the validator produces, so
 // a case fails if its validator is deleted. One case per validator shows that

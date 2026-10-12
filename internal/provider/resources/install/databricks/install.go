@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 )
@@ -59,4 +60,23 @@ func updateFromInstallState(ctx context.Context, installer *common.Install, req 
 	default:
 		installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, api, model)
 	}
+}
+
+// Imports an item by its key, once the key passes the checks that the
+// configuration's id gets. The read that follows an import puts the key in a URL
+// path, where `12#34` reads the item `12`, and the provider's client crashes on
+// a path that doesn't parse, such as one with `12%zz`.
+func importById(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, validators ...validator.String) {
+	for _, v := range validators {
+		checked := &validator.StringResponse{}
+		v.ValidateString(ctx, validator.StringRequest{
+			Path:        path.Root("id"),
+			ConfigValue: types.StringValue(req.ID),
+		}, checked)
+		resp.Diagnostics.Append(checked.Diagnostics...)
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
