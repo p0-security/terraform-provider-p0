@@ -321,7 +321,7 @@ func TestUpgradeV1Approval(t *testing.T) {
 	priorType := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
 	raw := tftypes.NewValue(priorType, map[string]tftypes.Value{
 		"name":      tftypes.NewValue(tftypes.String, "example"),
-		"requestor": tftypes.NewValue(priorType.AttributeTypes["requestor"], nil),
+		"requestor": objectWithType(priorType.AttributeTypes["requestor"].(tftypes.Object), "any"),
 		"resource":  tftypes.NewValue(priorType.AttributeTypes["resource"], nil),
 		"approval":  oneApproval(priorType.AttributeTypes["approval"]),
 	})
@@ -342,7 +342,8 @@ func TestUpgradeV2Approval(t *testing.T) {
 	priorType := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
 	raw := tftypes.NewValue(priorType, map[string]tftypes.Value{
 		"name":      tftypes.NewValue(tftypes.String, "example"),
-		"requestor": tftypes.NewValue(priorType.AttributeTypes["requestor"], nil),
+		"disabled":  tftypes.NewValue(tftypes.Bool, nil),
+		"requestor": objectWithType(priorType.AttributeTypes["requestor"].(tftypes.Object), "any"),
 		"resource":  tftypes.NewValue(priorType.AttributeTypes["resource"], nil),
 		"approval":  oneApproval(priorType.AttributeTypes["approval"]),
 	})
