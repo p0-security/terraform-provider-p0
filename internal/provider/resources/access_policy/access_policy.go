@@ -35,7 +35,7 @@ type AccessPolicyJson struct {
 	Disabled  *bool             `json:"disabled,omitempty" tfsdk:"disabled"`
 	Requestor RequestorJson     `json:"requestor" tfsdk:"requestor"`
 	Resource  ResourceModel     `json:"resource" tfsdk:"resource"`
-	Approval  []ApprovalModelV2 `json:"approval" tfsdk:"approval"`
+	Approval  []ApprovalModelV3 `json:"approval" tfsdk:"approval"`
 }
 
 // IdpGroupsJson mirrors the P0 app's `IdpGroups` wire shape: a `groups`+
@@ -203,7 +203,7 @@ func getPath(name string) string {
 	return fmt.Sprintf("policy/name/%s", encodedName)
 }
 
-func toJson(model AccessPolicyModelV3) AccessPolicyJson {
+func toJson(model AccessPolicyModelV4) AccessPolicyJson {
 	return AccessPolicyJson{
 		Name:      model.Name,
 		Disabled:  model.Disabled,
@@ -212,8 +212,8 @@ func toJson(model AccessPolicyModelV3) AccessPolicyJson {
 		Approval:  model.Approval}
 }
 
-func toModel(json AccessPolicyJson) AccessPolicyModelV3 {
-	return AccessPolicyModelV3{
+func toModel(json AccessPolicyJson) AccessPolicyModelV4 {
+	return AccessPolicyModelV4{
 		Name:      json.Name,
 		Disabled:  json.Disabled,
 		Requestor: requestorFromJson(json.Requestor),
@@ -273,7 +273,7 @@ func (policy *AccessPolicy) Create(ctx context.Context, req resource.CreateReque
 	var diag = &resp.Diagnostics
 
 	// Load the plan into the model
-	var model AccessPolicyModelV3
+	var model AccessPolicyModelV4
 	diag.Append(req.Plan.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -304,7 +304,7 @@ func (policy *AccessPolicy) Read(ctx context.Context, req resource.ReadRequest, 
 	var diag = &resp.Diagnostics
 
 	// Load the state into the model
-	var model AccessPolicyModelV3
+	var model AccessPolicyModelV4
 	diag.Append(req.State.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -339,7 +339,7 @@ func (policy *AccessPolicy) Update(ctx context.Context, req resource.UpdateReque
 	var diag = &resp.Diagnostics
 
 	// Load the plan into the model
-	var model AccessPolicyModelV3
+	var model AccessPolicyModelV4
 	diag.Append(req.Plan.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -348,7 +348,7 @@ func (policy *AccessPolicy) Update(ctx context.Context, req resource.UpdateReque
 	tflog.Debug(ctx, fmt.Sprintf("Access policy to update: %+v", model))
 
 	// Read the current access policy from the Terraform state
-	var currentModel AccessPolicyModelV3
+	var currentModel AccessPolicyModelV4
 	diag.Append(req.State.Get(ctx, &currentModel)...)
 	if diag.HasError() {
 		return
@@ -379,7 +379,7 @@ func (policy *AccessPolicy) Delete(ctx context.Context, req resource.DeleteReque
 	var diag = &resp.Diagnostics
 
 	// Load the state into the model
-	var model AccessPolicyModelV3
+	var model AccessPolicyModelV4
 	diag.Append(req.State.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
