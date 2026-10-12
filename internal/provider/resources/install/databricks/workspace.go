@@ -69,7 +69,7 @@ A workspace that P0 hasn't finished installing, such as one imported before its 
 				accountIdValidator(),
 			),
 			"workspace_url": fixedAttribute(
-				"The workspace's URL, e.g. `https://dbc-1234abcd-5678.cloud.databricks.com`: `https://` and a host on the workspace domain of the account's cloud, with no path or trailing slash. "+
+				"The workspace's URL, e.g. `https://dbc-1234abcd-5678.cloud.databricks.com`: `https://` and a lowercase host on the workspace domain of the account's cloud, with no port, path or trailing slash. "+
 					"P0 calls the workspace there, and checks that it belongs to this workspace ID. P0 can't change a workspace's URL, so a new value replaces the workspace. "+
 					"A configuration that holds the workspace's `databricks_mws_workspaces` can pass its `workspace_url` here.",
 				workspaceUrlValidator(),
@@ -85,7 +85,7 @@ A workspace that P0 hasn't finished installing, such as one imported before its 
 			// P0 checks the assignment on the configure step, as it checks
 			// workspace_name.
 			"is_workspace_admin_enabled": adminSwitchAttribute(
-				"Whether users can request workspace admin on this workspace. Defaults to `false`. The service principal needs an `ADMIN` assignment, in place of `USER`, only when this is `true`, and P0 then checks that it is a workspace admin. Changing it updates the workspace in place. If P0's check fails, the apply fails, and the workspace stays as it was.",
+				"Whether users can request workspace admin on this workspace. Defaults to `false`. The service principal needs an `ADMIN` assignment, in place of `USER`, only when this is `true`, and P0 then checks that it is a workspace admin. Changing it updates the workspace in place. If P0's check fails, the apply fails, and the workspace stays as it was. Turning it off also stops P0 from revoking workspace admin that it granted on this workspace, so let open workspace-admin requests on it end first.",
 			),
 			"state": common.StateAttribute,
 		},
