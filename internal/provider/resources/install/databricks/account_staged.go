@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
-	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
 var _ resource.Resource = &AccountStaged{}
@@ -36,13 +35,13 @@ Staging records the account in P0 and checks its ID and accounts URL before you 
 
 **Prerequisite:** The connector that reaches the account must be installed (see the ` + "`p0_databricks_connector`" + ` resource).
 
-` + common.NotePreview,
+` + notePreview,
 		Attributes: accountStagedAttributes(),
 	}
 }
 
 func (r *AccountStaged) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	r.installer = newInstaller[accountJson](internal.Configure(&req, resp), installresources.Account, accountStagedFromJson, accountStagedToJson)
+	r.installer = newInstaller[accountJson](internal.Configure(&req, resp), accountComponent, accountStagedFromJson, accountStagedToJson)
 }
 
 func accountStagedFromJson(_ context.Context, _ *diag.Diagnostics, id string, json any) any {

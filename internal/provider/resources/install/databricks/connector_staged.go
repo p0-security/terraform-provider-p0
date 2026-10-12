@@ -34,7 +34,7 @@ Staging records the connector in P0 and checks its domain pattern before you dep
 
 **Prerequisite:** P0's AWS integration must be installed for the connector's AWS account (for example via the ` + "`p0_aws_iam_write`" + ` resource). P0 invokes the connector as that installation's role.
 
-` + common.NotePreview,
+` + notePreview,
 		Attributes: connectorAttributes(),
 	}
 }

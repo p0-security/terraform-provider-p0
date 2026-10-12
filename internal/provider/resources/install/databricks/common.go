@@ -17,8 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
-	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
-	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 )
 
 const DatabricksKey = "databricks"
@@ -29,14 +27,25 @@ const DatabricksKey = "databricks"
 // that trusts the connector must accept it.
 const FederationAudience = "databricks"
 
+// Ends the description of each Databricks resource.
+const notePreview = `**Note:** This integration is currently in preview.`
+
+// The Databricks components' keys in P0's install API.
+const (
+	connectorComponent = "connector"
+	accountComponent   = "account"
+	workspaceComponent = "workspace"
+	catalogComponent   = "catalog"
+)
+
 // All installable Databricks components. Each one points at the component
 // before it: an account at its connector, a workspace at its account, and a
 // catalog at its workspace.
 var Components = []string{
-	installresources.Connector,
-	installresources.Account,
-	installresources.Workspace,
-	installresources.Catalog,
+	connectorComponent,
+	accountComponent,
+	workspaceComponent,
+	catalogComponent,
 }
 
 // The Databricks account consoles, one per cloud that Databricks runs on. The
@@ -213,21 +222,21 @@ func describeCheckError(component string) func(id string, err error) (string, st
 
 func connectorAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
-		"id": common.FixedAttribute(
+		"id": fixedAttribute(
 			`The ID of the AWS account that the connector's Lambda runs in`,
-			installaws.AwsAccountIdValidator(),
+			awsAccountIdValidator(),
 		),
-		"region": common.FixedAttribute(
+		"region": fixedAttribute(
 			`The AWS region that the connector's Lambda runs in. The connector runs only in commercial AWS regions.`,
-			installaws.CommercialRegionValidator("The connector runs only in commercial AWS regions, e.g. us-east-1"),
+			commercialRegionValidator("The connector runs only in commercial AWS regions, e.g. us-east-1"),
 		),
-		"domain_pattern": common.FixedAttribute(
+		"domain_pattern": fixedAttribute(
 			`A regular expression that the connector matches against the whole email domain of every user it grants to, e.g. `+"`example\\.com`"+`. The connector refuses any other user. `+
 				`This is the pattern the connector is added with, and the Lambda is first deployed with the same value in its `+"`DOMAIN_PATTERN`"+` environment variable. `+
 				`P0 can't change a connector's pattern, so a new value here replaces the connector. `+
 				`To change the pattern later, change it only on the Lambda, and have Terraform ignore it here with `+"`lifecycle { ignore_changes = [domain_pattern] }`"+`, as the `+"`p0_databricks_connector`"+` example does.`,
 			stringvalidator.LengthAtLeast(1),
-			common.NoWhitespaceAround(),
+			noWhitespaceAround(),
 		),
 		"federation_audience": federationAudienceAttribute,
 		"state":               common.StateAttribute,
@@ -257,7 +266,7 @@ type connectorApi = itemApi[connectorJson]
 // The staged and installed connector resources share one item, and so one
 // model.
 func newConnectorInstaller(data *internal.P0ProviderData) *common.Install {
-	return newInstaller[connectorJson](data, installresources.Connector, connectorFromJson, connectorToJson)
+	return newInstaller[connectorJson](data, connectorComponent, connectorFromJson, connectorToJson)
 }
 
 func connectorFromJson(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
@@ -297,15 +306,15 @@ func accountsUrlDescription() string {
 
 func accountStagedAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
-		"id": common.FixedAttribute(
+		"id": fixedAttribute(
 			`The Databricks account ID`,
 			uuidValidator("Databricks account IDs"),
 		),
-		"connector": common.FixedAttribute(
+		"connector": fixedAttribute(
 			"The `id` of the `p0_databricks_connector` that reaches this account, which is the ID of the AWS account that the connector runs in",
-			installaws.AwsAccountIdValidator(),
+			awsAccountIdValidator(),
 		),
-		"accounts_url":        common.FixedAttribute(accountsUrlDescription(), stringvalidator.OneOf(accountsUrls()...)),
+		"accounts_url":        fixedAttribute(accountsUrlDescription(), stringvalidator.OneOf(accountsUrls()...)),
 		"federation_audience": federationAudienceAttribute,
 		"state":               common.StateAttribute,
 	}

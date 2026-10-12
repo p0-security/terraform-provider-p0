@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
-	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
 var _ resource.Resource = &Workspace{}
@@ -55,10 +54,10 @@ func (*Workspace) Schema(_ context.Context, _ resource.SchemaRequest, resp *reso
 
 A workspace that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
-` + common.NotePreview,
+` + notePreview,
 		Attributes: map[string]schema.Attribute{
-			"id": common.FixedAttribute(`The Databricks workspace ID`, workspaceIdValidator()),
-			"account": common.FixedAttribute(
+			"id": fixedAttribute(`The Databricks workspace ID`, workspaceIdValidator()),
+			"account": fixedAttribute(
 				"The `id` of the `p0_databricks_account` that this workspace is in",
 				uuidValidator("Databricks account IDs"),
 			),
@@ -68,7 +67,7 @@ A workspace that P0 hasn't finished installing, such as one imported before its 
 }
 
 func (r *Workspace) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	r.installer = newInstaller[workspaceJson](internal.Configure(&req, resp), installresources.Workspace, workspaceFromJson, workspaceToJson)
+	r.installer = newInstaller[workspaceJson](internal.Configure(&req, resp), workspaceComponent, workspaceFromJson, workspaceToJson)
 }
 
 func workspaceFromJson(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
@@ -101,13 +100,13 @@ func (r *Workspace) Read(ctx context.Context, _ resource.ReadRequest, resp *reso
 }
 
 func (*Workspace) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	common.PlanFinishingInstall(ctx, req, resp)
+	planFinishingInstall(ctx, req, resp)
 }
 
 // Every attribute requires replacement, so an update only finishes an install
 // that P0 hasn't.
 func (r *Workspace) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.UpdateFromInstallState(ctx, req, resp, &workspaceApi{}, &workspaceModel{})
+	updateFromInstallState(ctx, r.installer, req, resp, &workspaceApi{}, &workspaceModel{})
 }
 
 func (r *Workspace) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

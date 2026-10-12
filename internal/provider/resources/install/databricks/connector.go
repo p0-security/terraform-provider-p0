@@ -43,7 +43,7 @@ The connector lets P0 grant Unity Catalog privileges, workspace admin and accoun
 
 A connector that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
-` + common.NotePreview,
+` + notePreview,
 		Attributes: connectorAttributes(),
 	}
 }
@@ -61,13 +61,13 @@ func (r *Connector) Read(ctx context.Context, _ resource.ReadRequest, resp *reso
 }
 
 func (*Connector) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	common.PlanFinishingInstall(ctx, req, resp)
+	planFinishingInstall(ctx, req, resp)
 }
 
 // Every attribute requires replacement, so an update only finishes an install
 // that P0 hasn't.
 func (r *Connector) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.UpdateFromInstallState(ctx, req, resp, &connectorApi{}, &connectorModel{})
+	updateFromInstallState(ctx, r.installer, req, resp, &connectorApi{}, &connectorModel{})
 }
 
 // Returns the connector to the "stage" state, so that the staged resource

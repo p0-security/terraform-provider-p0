@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
-	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
 var _ resource.Resource = &Account{}
@@ -50,13 +49,13 @@ func (*Account) Schema(_ context.Context, _ resource.SchemaRequest, resp *resour
 
 An account that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
-` + common.NotePreview,
+` + notePreview,
 		Attributes: attributes,
 	}
 }
 
 func (r *Account) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	r.installer = newInstaller[accountJson](internal.Configure(&req, resp), installresources.Account, accountFromJson, accountToJson)
+	r.installer = newInstaller[accountJson](internal.Configure(&req, resp), accountComponent, accountFromJson, accountToJson)
 }
 
 func accountFromJson(_ context.Context, _ *diag.Diagnostics, id string, json any) any {
@@ -89,7 +88,7 @@ func (r *Account) Read(ctx context.Context, _ resource.ReadRequest, resp *resour
 }
 
 func (*Account) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	common.PlanFinishingInstall(ctx, req, resp)
+	planFinishingInstall(ctx, req, resp)
 }
 
 // Only the application ID changes in place. P0 checks it on the configure step,
@@ -98,7 +97,7 @@ func (*Account) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, 
 // update again. A staged account is verified first, and a failed verify saves
 // nothing either.
 func (r *Account) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.UpdateFromInstallState(ctx, req, resp, &accountApi{}, &accountModel{})
+	updateFromInstallState(ctx, r.installer, req, resp, &accountApi{}, &accountModel{})
 }
 
 // Returns the account to the "stage" state, so that the staged resource
