@@ -58,6 +58,15 @@ provider "p0" {
 }
 ```
 
+## Running the Databricks Acceptance Tests
+
+`TestAccDatabricks` installs the Databricks resources into a real P0 organization. It skips unless
+`TF_ACC`, `P0_ORG`, `P0_API_TOKEN` and every `P0_DATABRICKS_*` variable that
+`internal/provider/databricks_test.go` lists are set, because P0 verifies each install against a
+real connector, account, workspace and catalog. `P0_HOST` is optional, and defaults to
+`https://api.p0.app`. Use an organization set aside for tests, because the test creates and deletes
+real installs.
+
 ## Debugging the P0 Terraform Provider with VS Code
 
 Create a file `.env` in the home directory and add your api token and any other environment variables terraform should consume. Environment variables from the shell where `terraform plan/apply` is run will not be used when the debugger is in use.
