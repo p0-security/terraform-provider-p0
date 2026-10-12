@@ -78,3 +78,13 @@ func RequiredAttribute(markdownDescription string) schema.SingleNestedAttribute 
 		Attributes:          Attributes(),
 	}
 }
+
+// OptionalAttribute is a single required duration object (e.g. the approvable
+// duration).
+func OptionalAttribute(markdownDescription string) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		MarkdownDescription: markdownDescription,
+		Optional:            true,
+		Attributes:          Attributes(),
+	}
+}
