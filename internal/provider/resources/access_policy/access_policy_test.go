@@ -4,8 +4,13 @@
 package accesspolicy
 
 import (
+	"context"
 	"reflect"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
 // TestAgentToJsonOwnerGroup verifies the "owner-group" variant's flat
@@ -244,4 +249,125 @@ func TestNonAgenticRequestorHasNoActor(t *testing.T) {
 	if len(got.Groups) != 1 {
 		t.Fatalf("Groups has %d entries; want 1", len(got.Groups))
 	}
+}
+
+// objectWithType builds a non-null object of the given type with every
+// attribute null except `type` (a non-pointer string field that can't be null),
+// set to typeVal. Lets us populate the agentic agent/user sub-objects without
+// hand-writing every field.
+func objectWithType(objType tftypes.Object, typeVal string) tftypes.Value {
+	attrs := map[string]tftypes.Value{}
+	for name, attrType := range objType.AttributeTypes {
+		if name == "type" {
+			attrs[name] = tftypes.NewValue(attrType, typeVal)
+			continue
+		}
+		attrs[name] = tftypes.NewValue(attrType, nil)
+	}
+	return tftypes.NewValue(objType, attrs)
+}
+
+// agenticRequestor builds a non-null `agentic` requestor with non-null
+// agent/user sub-objects, forcing the upgrader's decode to descend into the
+// requestor and match schema v3's requestor attributes against RequestorModelV3.
+func agenticRequestor(requestorType tftypes.Type) tftypes.Value {
+	objType := requestorType.(tftypes.Object)
+	attrs := map[string]tftypes.Value{}
+	for name, attrType := range objType.AttributeTypes {
+		switch name {
+		case "type":
+			attrs[name] = tftypes.NewValue(attrType, "agentic")
+		case "agent", "user":
+			attrs[name] = objectWithType(attrType.(tftypes.Object), "any")
+		default:
+			attrs[name] = tftypes.NewValue(attrType, nil)
+		}
+	}
+	return tftypes.NewValue(objType, attrs)
+}
+
+// TestUpgradeV3ToV4Approvals exercises the V3->V4 upgrader end to end. It
+// deliberately uses a NON-NULL agentic requestor (agent + user populated),
+// because that is the only thing that forces the upgrader's decode to descend
+// into the requestor object.
+func TestUpgradeV3ToV4Approvals(t *testing.T) {
+	ctx := context.Background()
+	upgrader := (&AccessPolicy{}).UpgradeState(ctx)[3]
+
+	priorType := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	raw := tftypes.NewValue(priorType, map[string]tftypes.Value{
+		"name":      tftypes.NewValue(tftypes.String, "example"),
+		"disabled":  tftypes.NewValue(tftypes.Bool, nil),
+		"requestor": agenticRequestor(priorType.AttributeTypes["requestor"]),
+		"resource":  tftypes.NewValue(priorType.AttributeTypes["resource"], nil),
+		"approval":  oneApproval(priorType.AttributeTypes["approval"]),
+	})
+
+	req := resource.UpgradeStateRequest{State: &tfsdk.State{Schema: *upgrader.PriorSchema, Raw: raw}}
+	resp := &resource.UpgradeStateResponse{State: tfsdk.State{Schema: newAccessPolicySchema(currentSchemaVersion)}}
+	upgrader.StateUpgrader(ctx, req, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("V3->current upgrade failed: %v", resp.Diagnostics.Errors())
+	}
+}
+
+// TestUpgradeV1ToV2 exercises the registered V1->V2 state upgrader end to
+// end: build to ensure v1 successfully updates the v2 with the addition of the optional max_duration attribute in v2 after v2 was already created.
+func TestUpgradeV1Approval(t *testing.T) {
+	ctx := context.Background()
+	upgrader := (&AccessPolicy{}).UpgradeState(ctx)[1]
+
+	priorType := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	raw := tftypes.NewValue(priorType, map[string]tftypes.Value{
+		"name":      tftypes.NewValue(tftypes.String, "example"),
+		"requestor": tftypes.NewValue(priorType.AttributeTypes["requestor"], nil),
+		"resource":  tftypes.NewValue(priorType.AttributeTypes["resource"], nil),
+		"approval":  oneApproval(priorType.AttributeTypes["approval"]),
+	})
+
+	req := resource.UpgradeStateRequest{State: &tfsdk.State{Schema: *upgrader.PriorSchema, Raw: raw}}
+	resp := &resource.UpgradeStateResponse{State: tfsdk.State{Schema: newAccessPolicySchema(currentSchemaVersion)}}
+	upgrader.StateUpgrader(ctx, req, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("V1 -> current upgrade failed: %v", resp.Diagnostics.Errors())
+	}
+}
+
+func TestUpgradeV2Approval(t *testing.T) {
+	ctx := context.Background()
+	upgrader := (&AccessPolicy{}).UpgradeState(ctx)[2]
+
+	priorType := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	raw := tftypes.NewValue(priorType, map[string]tftypes.Value{
+		"name":      tftypes.NewValue(tftypes.String, "example"),
+		"requestor": tftypes.NewValue(priorType.AttributeTypes["requestor"], nil),
+		"resource":  tftypes.NewValue(priorType.AttributeTypes["resource"], nil),
+		"approval":  oneApproval(priorType.AttributeTypes["approval"]),
+	})
+
+	req := resource.UpgradeStateRequest{State: &tfsdk.State{Schema: *upgrader.PriorSchema, Raw: raw}}
+	resp := &resource.UpgradeStateResponse{State: tfsdk.State{Schema: newAccessPolicySchema(currentSchemaVersion)}}
+	upgrader.StateUpgrader(ctx, req, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("V2 -> current upgrade failed: %v", resp.Diagnostics.Errors())
+	}
+}
+
+// builds one non-null approval object of the full element type (every attribute present, values null except the non-pointer type), so the upgrader must decode the nested object and bind each declared attribute to an ApprovalModelV1 field, and ensures they are tested.
+func oneApproval(approvalList tftypes.Type) tftypes.Value {
+	elemType := approvalList.(tftypes.List).ElementType.(tftypes.Object)
+	attrs := map[string]tftypes.Value{}
+	for name, attrType := range elemType.AttributeTypes {
+		// `type` maps to a non-pointer string field, so it cannot be null.
+		if name == "type" {
+			attrs[name] = tftypes.NewValue(attrType, "p0")
+			continue
+		}
+		attrs[name] = tftypes.NewValue(attrType, nil)
+	}
+	elem := tftypes.NewValue(elemType, attrs)
+	return tftypes.NewValue(approvalList, []tftypes.Value{elem})
 }

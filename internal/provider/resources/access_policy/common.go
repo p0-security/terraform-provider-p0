@@ -123,6 +123,17 @@ type ApprovalModelV2 struct {
 	Services        *[]string             `json:"services" tfsdk:"services"`
 	Type            string                `json:"type" tfsdk:"type"`
 	Effect          *string               `json:"effect" tfsdk:"effect"`
+}
+
+type ApprovalModelV3 struct {
+	Directory       *string               `json:"directory" tfsdk:"directory"`
+	Integration     *string               `json:"integration" tfsdk:"integration"`
+	Groups          []GroupModelV1        `json:"groups" tfsdk:"groups"`
+	ProfileProperty *string               `json:"profileProperty" tfsdk:"profile_property"`
+	Options         *ApprovalOptionsModel `json:"options" tfsdk:"options"`
+	Services        *[]string             `json:"services" tfsdk:"services"`
+	Type            string                `json:"type" tfsdk:"type"`
+	Effect          *string               `json:"effect" tfsdk:"effect"`
 	MaxDuration     *duration.Option      `json:"maxDuration" tfsdk:"max_duration"`
 }
 
@@ -156,7 +167,15 @@ type AccessPolicyModelV3 struct {
 	Approval  []ApprovalModelV2 `json:"approval" tfsdk:"approval"`
 }
 
-const currentSchemaVersion int64 = 3
+type AccessPolicyModelV4 struct {
+	Name      *string           `json:"name" tfsdk:"name"`
+	Disabled  *bool             `json:"disabled,omitempty" tfsdk:"disabled"`
+	Requestor *RequestorModelV3 `json:"requestor" tfsdk:"requestor"`
+	Resource  *ResourceModel    `json:"resource" tfsdk:"resource"`
+	Approval  []ApprovalModelV3 `json:"approval" tfsdk:"approval"`
+}
+
+const currentSchemaVersion int64 = 4
 
 // requestorUnionAttributes builds the `type`/`uid`/`groups`/`effect`
 // attributes shared by the top-level `requestor` object and the `agentic`
@@ -183,7 +202,8 @@ func requestorAttribute(version int64) schema.SingleNestedAttribute {
 		"user":  {"uid"},
 		"group": {"groups", "effect"},
 	}
-	if version >= currentSchemaVersion {
+	// Frozen at >= 3 (agent/user shipped in v3)
+	if version >= 3 {
 		attributes["agent"] = agentAttribute(version)
 		attributes["user"] = agenticUserAttribute(version)
 		requirements["agentic"] = []string{"agent", "user"}
@@ -193,10 +213,10 @@ func requestorAttribute(version int64) schema.SingleNestedAttribute {
 		MarkdownDescription: `Controls who has access. See [the Requestor docs](https://docs.p0.dev/just-in-time-access/request-routing#requestor).`,
 		Attributes:          attributes,
 	}
-	// Only the current schema validates configuration; earlier versions exist
+	// Only version 3 and onward validate configuration; earlier versions exist
 	// solely to decode prior state. The `agentic` requirement also references
-	// `agent`/`user`, which only exist at the current version.
-	if version >= currentSchemaVersion {
+	// `agent`/`user`, which only exist >= 3.
+	if version >= 3 {
 		attribute.Validators = []validator.Object{
 			RequiredWhenType(requirements),
 		}
@@ -414,9 +434,12 @@ func approvalAttribute(version int64) schema.ListNestedAttribute {
     - 'p0': Access may be granted by any user with the P0 "security reviewer" role (defined in the P0 app)`,
 				Required: true,
 			},
-			"max_duration": duration.OptionalAttribute("Allows policy routing based on how long of a duration was requested as part of an access request. max_duration is the maximum request duration that will match this particular policy approval. When not set, requested duration will not affect policy routing and will follow default behavior."),
 		})),
 	}
+	if version >= 4 {
+		nestedObject.Attributes["max_duration"] = duration.OptionalAttribute("Allows policy routing based on how long of a duration was requested as part of an access request. max_duration is the maximum request duration that will match this particular policy approval. When not set, requested duration will not affect policy routing and will follow default behavior.")
+	}
+
 	// `groups` and `effect` only exist from schema version 2 onward, so only the
 	// current schema can enforce their type-conditional requiredness.
 	if version >= currentSchemaVersion {
@@ -429,6 +452,7 @@ func approvalAttribute(version int64) schema.ListNestedAttribute {
 			}),
 		}
 	}
+
 	return schema.ListNestedAttribute{
 		MarkdownDescription: `Determines access requirements. See [the Approval docs](https://docs.p0.dev/just-in-time-access/request-routing#approval).`,
 		Required:            true,
