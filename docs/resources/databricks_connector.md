@@ -85,7 +85,7 @@ locals {
   # under. To update, use the tag in the latest version of this example in the
   # Terraform registry. Changing it copies the image again and redeploys the
   # Lambda.
-  connector_image_tag = "sha-b21deb4"
+  connector_image_tag = "sha-e7a7816"
   connector_image     = "p0security/p0-connector-databricks:${local.connector_image_tag}"
 
   tags = {
