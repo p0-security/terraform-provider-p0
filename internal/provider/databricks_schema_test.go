@@ -68,9 +68,10 @@ func checkDatabricksAttribute(t *testing.T, newResource func() fwresource.Resour
 	}
 }
 
-// The connector refuses a workspace ID that isn't all digits.
+// The connector refuses a workspace ID that isn't all digits. The message is the
+// app's workspace key validator's.
 func TestDatabricksWorkspaceId(t *testing.T) {
-	const numeric = "Databricks workspace IDs are numeric"
+	const numeric = "Databricks workspace IDs are numbers, e.g. 1234567890123456"
 	checkDatabricksAttribute(t, installdatabricks.NewWorkspace, "id", map[string]string{
 		"1234567890123456":  "",
 		"7":                 "",
@@ -78,6 +79,36 @@ func TestDatabricksWorkspaceId(t *testing.T) {
 		"dbc-1234abcd-5678": numeric,
 		"123 456":           numeric,
 		"-1":                numeric,
+	})
+}
+
+// The workspace URLs that P0 saves and reads back unchanged: a bare https://
+// origin on a workspace domain, as the connector's `workspaceUrl` parser and the
+// app's validator require, in the form that P0 stores it. Any other gets the
+// app's message, which names the workspace domains.
+func TestDatabricksWorkspaceUrl(t *testing.T) {
+	const refused = "The workspace URL must be https://<host> on a Databricks workspace domain: cloud.databricks.com, cloud.databricks.us, azuredatabricks.net or gcp.databricks.com"
+	checkDatabricksAttribute(t, installdatabricks.NewWorkspace, "workspace_url", map[string]string{
+		"https://dbc-1234abcd-5678.cloud.databricks.com":     "",
+		"https://dbc-1234abcd-5678.cloud.databricks.us":      "",
+		"https://adb-1234567890123456.7.azuredatabricks.net": "",
+		"https://1234567890123456.7.gcp.databricks.com":      "",
+		"":                                       refused,
+		"dbc-1234abcd-5678.cloud.databricks.com": refused,
+		"http://dbc-1234abcd-5678.cloud.databricks.com":      refused,
+		"https://dbc-1234abcd-5678.cloud.databricks.com/":    refused,
+		"https://dbc-1234abcd-5678.cloud.databricks.com/x":   refused,
+		"https://dbc-1234abcd-5678.cloud.databricks.com:443": refused,
+		"https://dbc-1234abcd-5678.cloud.databricks.com?o=1": refused,
+		"https://p0@dbc-1234abcd-5678.cloud.databricks.com":  refused,
+		"https://DBC-1234abcd-5678.cloud.databricks.com":     refused,
+		" https://dbc-1234abcd-5678.cloud.databricks.com":    refused,
+		// The host must be a subdomain of a workspace domain.
+		"https://cloud.databricks.com":                               refused,
+		"https://dbc-1234abcd-5678.databricks.com":                   refused,
+		"https://dbc-1234abcd-5678.cloud.databricks.com.example.com": refused,
+		"https://example.com/.cloud.databricks.com":                  refused,
+		"https://dbc-1234abcd-5678.cloud-databricks.com":             refused,
 	})
 }
 
@@ -184,7 +215,7 @@ func TestDatabricksReferences(t *testing.T) {
 	})
 	checkDatabricksAttribute(t, installdatabricks.NewCatalog, "workspace_id", map[string]string{
 		"1234567890123456":  "",
-		"dbc-1234abcd-5678": "Databricks workspace IDs are numeric",
+		"dbc-1234abcd-5678": "Databricks workspace IDs are numbers",
 	})
 }
 
@@ -242,7 +273,7 @@ func TestDatabricksImportId(t *testing.T) {
 	const (
 		awsAccountId = "AWS account IDs should consist of 12 numeric digits"
 		accountId    = "Databricks account IDs are UUIDs"
-		workspaceId  = "Databricks workspace IDs are numeric"
+		workspaceId  = "Databricks workspace IDs are numbers"
 	)
 	cases := []struct {
 		name        string

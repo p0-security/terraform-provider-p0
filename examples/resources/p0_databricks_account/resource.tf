@@ -1,8 +1,9 @@
-# Adds a Databricks account: a service principal there that holds account
-# admin, and that the connector exchanges its AWS identity for. Apply it as a
-# Databricks account admin, signed in to the connector's AWS account.
+# Adds a Databricks account: a service principal there that the connector
+# exchanges its AWS identity for. The principal holds account admin only if
+# local.enable_account_admin is true. Apply it as a Databricks account admin,
+# signed in to the connector's AWS account.
 # Full chain: p0_databricks_connector -> p0_databricks_account_staged ->
-# service principal, federation policy and account admin role ->
+# service principal, federation policy and, if enabled, account admin role ->
 # p0_databricks_account. Then add workspaces (see p0_databricks_workspace).
 
 terraform {
@@ -29,6 +30,10 @@ locals {
   aws_region            = "us-east-1"
   databricks_account_id = "01234567-89ab-cdef-0123-456789abcdef"
   accounts_url          = "https://accounts.cloud.databricks.com"
+
+  # Whether users can request account admin in this account. P0's service
+  # principal holds account admin only while this is true.
+  enable_account_admin = false
 }
 
 # Reads the connector's role and issuer, so it must be signed in to the
@@ -75,17 +80,22 @@ resource "databricks_service_principal_federation_policy" "p0" {
   }
 }
 
+# Only account-admin requests need it. P0 checks the role when
+# is_account_admin_enabled turns on.
 resource "databricks_service_principal_role" "p0_account_admin" {
+  count = local.enable_account_admin ? 1 : 0
+
   service_principal_id = databricks_service_principal.p0.id
   role                 = "account_admin"
 }
 
 # Completes the install.
 resource "p0_databricks_account" "example" {
-  id             = p0_databricks_account_staged.example.id
-  connector      = p0_databricks_account_staged.example.connector
-  accounts_url   = p0_databricks_account_staged.example.accounts_url
-  application_id = databricks_service_principal.p0.application_id
+  id                       = p0_databricks_account_staged.example.id
+  connector                = p0_databricks_account_staged.example.connector
+  accounts_url             = p0_databricks_account_staged.example.accounts_url
+  application_id           = databricks_service_principal.p0.application_id
+  is_account_admin_enabled = local.enable_account_admin
 
   depends_on = [
     databricks_service_principal_federation_policy.p0,

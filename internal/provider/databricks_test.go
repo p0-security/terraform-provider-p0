@@ -28,7 +28,14 @@ type databricksTestInstall struct {
 	accountsUrl   string
 	applicationId string
 	workspaceId   string
+	workspaceUrl  string
+	workspaceName string
 	catalogName   string
+	// The configured is_account_admin_enabled and is_workspace_admin_enabled,
+	// "true" or "false". An empty value leaves the switch out of the
+	// configuration.
+	accountAdminEnabled   string
+	workspaceAdminEnabled string
 }
 
 // What the tests against the fake install. They name nothing real.
@@ -40,6 +47,8 @@ var databricksTestDefaults = databricksTestInstall{
 	accountsUrl:   "https://accounts.cloud.databricks.com",
 	applicationId: "8c5e2e0a-8f0d-4a3e-9d61-3b2f4c7a1e05",
 	workspaceId:   "1234567890123456",
+	workspaceUrl:  "https://dbc-1234abcd-5678.cloud.databricks.com",
+	workspaceName: "p0-acceptance-test",
 	catalogName:   "p0_acceptance_test",
 }
 
@@ -52,8 +61,10 @@ func (d databricksTestInstall) catalogKey() string {
 
 // The variables that name what TestAccDatabricks installs. P0 verifies every
 // Databricks component, so they must name a deployed connector, an account
-// whose service principal it federates into, and a workspace and catalog that
-// the principal administers.
+// whose service principal it federates into, a workspace, at its URL, that the
+// principal is assigned to, and a catalog that the principal holds MANAGE on.
+// The tests leave both admin switches off, so the principal needs neither admin
+// role.
 func databricksAccEnv(install *databricksTestInstall) map[string]*string {
 	return map[string]*string{
 		"P0_DATABRICKS_AWS_ACCOUNT_ID": &install.awsAccountId,
@@ -63,6 +74,7 @@ func databricksAccEnv(install *databricksTestInstall) map[string]*string {
 		"P0_DATABRICKS_ACCOUNTS_URL":   &install.accountsUrl,
 		"P0_DATABRICKS_APPLICATION_ID": &install.applicationId,
 		"P0_DATABRICKS_WORKSPACE_ID":   &install.workspaceId,
+		"P0_DATABRICKS_WORKSPACE_URL":  &install.workspaceUrl,
 		"P0_DATABRICKS_CATALOG":        &install.catalogName,
 	}
 }
@@ -128,9 +140,9 @@ func databricksAccClient() *internal.P0ProviderData {
 }
 
 // databricksAccInstall reads what TestAccDatabricks installs from the
-// P0_DATABRICKS_* variables.
+// P0_DATABRICKS_* variables. The workspace's name in P0 can be any name.
 func databricksAccInstall() databricksTestInstall {
-	var install databricksTestInstall
+	install := databricksTestInstall{workspaceName: databricksTestDefaults.workspaceName}
 	for name, value := range databricksAccEnv(&install) {
 		*value = os.Getenv(name)
 	}
@@ -177,17 +189,27 @@ resource "p0_databricks_account" "test" {
   connector      = p0_databricks_account_staged.test.connector
   accounts_url   = p0_databricks_account_staged.test.accounts_url
   application_id = %q
-}
-`, d.applicationId)
+%s}
+`, d.applicationId, switchLine("is_account_admin_enabled", d.accountAdminEnabled))
 }
 
 func (d databricksTestInstall) workspace() string {
 	return d.account() + fmt.Sprintf(`
 resource "p0_databricks_workspace" "test" {
-  id      = %q
-  account = p0_databricks_account.test.id
+  id             = %q
+  account        = p0_databricks_account.test.id
+  workspace_url  = %q
+  workspace_name = %q
+%s}
+`, d.workspaceId, d.workspaceUrl, d.workspaceName, switchLine("is_workspace_admin_enabled", d.workspaceAdminEnabled))
 }
-`, d.workspaceId)
+
+// A switch's line in a resource block, or none if value is empty.
+func switchLine(attribute, value string) string {
+	if value == "" {
+		return ""
+	}
+	return fmt.Sprintf("  %s = %s\n", attribute, value)
 }
 
 func (d databricksTestInstall) catalog() string {
@@ -238,7 +260,7 @@ var databricksCases = []databricksCase{
 		resource: "p0_databricks_account.test",
 		config:   databricksTestInstall.account,
 		want: func(d databricksTestInstall) map[string]string {
-			return map[string]string{"id": d.accountId, "connector": d.awsAccountId, "accounts_url": d.accountsUrl, "application_id": d.applicationId, "federation_audience": "databricks", "state": "installed"}
+			return map[string]string{"id": d.accountId, "connector": d.awsAccountId, "accounts_url": d.accountsUrl, "application_id": d.applicationId, "is_account_admin_enabled": "false", "federation_audience": "databricks", "state": "installed"}
 		},
 	},
 	{
@@ -246,7 +268,7 @@ var databricksCases = []databricksCase{
 		resource: "p0_databricks_workspace.test",
 		config:   databricksTestInstall.workspace,
 		want: func(d databricksTestInstall) map[string]string {
-			return map[string]string{"id": d.workspaceId, "account": d.accountId, "state": "installed"}
+			return map[string]string{"id": d.workspaceId, "account": d.accountId, "workspace_url": d.workspaceUrl, "workspace_name": d.workspaceName, "is_workspace_admin_enabled": "false", "state": "installed"}
 		},
 	},
 	{
@@ -300,6 +322,12 @@ func databricksItemPath(component, id string) string {
 
 // checkDatabricksItemState checks that P0 has the item in the given state.
 func checkDatabricksItemState(client *internal.P0ProviderData, component, id, want string) resource.TestCheckFunc {
+	return checkDatabricksItemField(client, component, id, "state", want)
+}
+
+// checkDatabricksItemField checks that P0 has the item with the given value in
+// field.
+func checkDatabricksItemField(client *internal.P0ProviderData, component, id, field string, want any) resource.TestCheckFunc {
 	return func(*terraform.State) error {
 		var api struct {
 			Item map[string]any `json:"item"`
@@ -307,8 +335,8 @@ func checkDatabricksItemState(client *internal.P0ProviderData, component, id, wa
 		if _, err := client.Get(databricksItemPath(component, id), &api); err != nil {
 			return fmt.Errorf("could not read the Databricks %s %s: %w", component, id, err)
 		}
-		if got := api.Item["state"]; got != want {
-			return fmt.Errorf("the Databricks %s %s is in state %v, want %s", component, id, got, want)
+		if got := api.Item[field]; got != want {
+			return fmt.Errorf("the Databricks %s %s has %s %v, want %v", component, id, field, got, want)
 		}
 		return nil
 	}
@@ -463,6 +491,201 @@ func TestDatabricksAccountKeptWhenNewApplicationIdFails(t *testing.T) {
 	})
 }
 
+// A setting's value as Terraform's state holds it, and as P0 saves it.
+type databricksValue struct {
+	inState string
+	inP0    any
+}
+
+// P0 accepts a change to a `step: "configure"` field of an installed item, so
+// each of these updates its resource in place. Going back to the first
+// configuration, which leaves a switch unset, turns the switch off: the
+// provider sends false, which P0 saves over the true it had.
+func TestDatabricksUpdatedInPlace(t *testing.T) {
+	d := databricksTestDefaults
+	off, on := databricksValue{"false", false}, databricksValue{"true", true}
+	cases := []struct {
+		name, resource, attribute, component, id, field string
+		config                                          func(databricksTestInstall) string
+		change                                          func(*databricksTestInstall)
+		before, after                                   databricksValue
+	}{
+		{
+			name:      "AccountAdmin",
+			resource:  "p0_databricks_account.test",
+			attribute: "is_account_admin_enabled",
+			component: "account",
+			id:        d.accountId,
+			field:     "isAccountAdminEnabled",
+			config:    databricksTestInstall.account,
+			change:    func(d *databricksTestInstall) { d.accountAdminEnabled = "true" },
+			before:    off,
+			after:     on,
+		},
+		{
+			name:      "WorkspaceName",
+			resource:  "p0_databricks_workspace.test",
+			attribute: "workspace_name",
+			component: "workspace",
+			id:        d.workspaceId,
+			field:     "workspaceName",
+			config:    databricksTestInstall.workspace,
+			change:    func(d *databricksTestInstall) { d.workspaceName = "analytics-prod" },
+			before:    databricksValue{d.workspaceName, d.workspaceName},
+			after:     databricksValue{"analytics-prod", "analytics-prod"},
+		},
+		{
+			name:      "WorkspaceAdmin",
+			resource:  "p0_databricks_workspace.test",
+			attribute: "is_workspace_admin_enabled",
+			component: "workspace",
+			id:        d.workspaceId,
+			field:     "isWorkspaceAdminEnabled",
+			config:    databricksTestInstall.workspace,
+			change:    func(d *databricksTestInstall) { d.workspaceAdminEnabled = "true" },
+			before:    off,
+			after:     on,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newDatabricksFake(t)
+			client := f.client()
+			changed := d
+			c.change(&changed)
+			step := func(install databricksTestInstall, action plancheck.ResourceActionType, want databricksValue) resource.TestStep {
+				return resource.TestStep{
+					Config: f.providerConfig() + c.config(install),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(c.resource, action)},
+					},
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr(c.resource, c.attribute, want.inState),
+						resource.TestCheckResourceAttr(c.resource, "state", "installed"),
+						checkDatabricksItemField(client, c.component, c.id, c.field, want.inP0),
+					),
+				}
+			}
+
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				CheckDestroy:             checkDatabricksDestroyed(client),
+				Steps: []resource.TestStep{
+					step(d, plancheck.ResourceActionCreate, c.before),
+					step(changed, plancheck.ResourceActionUpdate, c.after),
+					step(d, plancheck.ResourceActionUpdate, c.before),
+				},
+			})
+		})
+	}
+}
+
+// P0 refuses to change a workspace's URL after staging, so a new URL must
+// replace the workspace rather than update it.
+func TestDatabricksWorkspaceReplacedOnNewWorkspaceUrl(t *testing.T) {
+	f := newDatabricksFake(t)
+	changed := databricksTestDefaults
+	changed.workspaceUrl = "https://dbc-8765dcba-4321.cloud.databricks.com"
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkDatabricksDestroyed(f.client()),
+		Steps: []resource.TestStep{
+			{Config: f.providerConfig() + databricksTestDefaults.workspace()},
+			{
+				Config: f.providerConfig() + changed.workspace(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("p0_databricks_workspace.test", plancheck.ResourceActionReplace),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("p0_databricks_workspace.test", "workspace_url", changed.workspaceUrl),
+					resource.TestCheckResourceAttr("p0_databricks_workspace.test", "state", "installed"),
+					checkDatabricksItemField(f.client(), "workspace", changed.workspaceId, "workspaceUrl", changed.workspaceUrl),
+				),
+			},
+		},
+	})
+}
+
+// P0 checks that the service principal holds the role that a switch needs on
+// the configure step alone, which saves nothing when the check fails. So turning
+// a switch on before the Terraform that gives the principal its role is applied
+// fails, leaves the item installed with the switch off, and the next plan shows
+// the update again.
+func TestDatabricksSwitchKeptWhenCheckFails(t *testing.T) {
+	d := databricksTestDefaults
+	cases := []struct {
+		name, resource, attribute, component, id, field string
+		config                                          func(databricksTestInstall) string
+		turnOn                                          func(*databricksTestInstall)
+	}{
+		{
+			name:      "AccountAdmin",
+			resource:  "p0_databricks_account.test",
+			attribute: "is_account_admin_enabled",
+			component: "account",
+			id:        d.accountId,
+			field:     "isAccountAdminEnabled",
+			config:    databricksTestInstall.account,
+			turnOn:    func(d *databricksTestInstall) { d.accountAdminEnabled = "true" },
+		},
+		{
+			name:      "WorkspaceAdmin",
+			resource:  "p0_databricks_workspace.test",
+			attribute: "is_workspace_admin_enabled",
+			component: "workspace",
+			id:        d.workspaceId,
+			field:     "isWorkspaceAdminEnabled",
+			config:    databricksTestInstall.workspace,
+			turnOn:    func(d *databricksTestInstall) { d.workspaceAdminEnabled = "true" },
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newDatabricksFake(t)
+			on := d
+			c.turnOn(&on)
+			var refuseConfigure atomic.Bool
+			f.refuse = func(key fakeItemKey, nextState string) bool {
+				return refuseConfigure.Load() && key.component == c.component && nextState == "installed"
+			}
+
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				CheckDestroy:             checkDatabricksDestroyed(f.client()),
+				Steps: []resource.TestStep{
+					{Config: f.providerConfig() + c.config(d)},
+					{
+						PreConfig:   func() { refuseConfigure.Store(true) },
+						Config:      f.providerConfig() + c.config(on),
+						ExpectError: regexp.MustCompile(`Databricks install check failed`),
+					},
+					{
+						PreConfig: func() {
+							refuseConfigure.Store(false)
+							if item := f.item("databricks", c.component, c.id); item["state"] != "installed" || item[c.field] != false {
+								t.Errorf("after the failed update, P0 has the %s %v, want it installed with %s false", c.component, item, c.field)
+							}
+						},
+						Config: f.providerConfig() + c.config(on),
+						ConfigPlanChecks: resource.ConfigPlanChecks{
+							PreApply: []plancheck.PlanCheck{
+								plancheck.ExpectResourceAction(c.resource, plancheck.ResourceActionUpdate),
+							},
+						},
+						Check: resource.ComposeAggregateTestCheckFunc(
+							resource.TestCheckResourceAttr(c.resource, c.attribute, "true"),
+							resource.TestCheckResourceAttr(c.resource, "state", "installed"),
+						),
+					},
+				},
+			})
+		})
+	}
+}
+
 // Destroying an installed resource returns its item to the "stage" state
 // instead of deleting it, so that its staged resource still has an item to read
 // and delete.
@@ -609,14 +832,16 @@ resource "p0_databricks_account" "test" {
 			resource:  "p0_databricks_workspace.test",
 			component: "workspace",
 			id:        d.workspaceId,
-			item:      map[string]any{"account": d.accountId},
+			item:      map[string]any{"account": d.accountId, "workspaceUrl": d.workspaceUrl},
 			state:     "configure",
 			config: fmt.Sprintf(`
 resource "p0_databricks_workspace" "test" {
-  id      = %q
-  account = %q
+  id             = %q
+  account        = %q
+  workspace_url  = %q
+  workspace_name = %q
 }
-`, d.workspaceId, d.accountId),
+`, d.workspaceId, d.accountId, d.workspaceUrl, d.workspaceName),
 		},
 		{
 			name:      "CatalogAtStage",
@@ -861,7 +1086,7 @@ func TestDatabricksImportRefusesMalformedId(t *testing.T) {
 				ResourceName:  "p0_databricks_workspace.test",
 				ImportState:   true,
 				ImportStateId: "12%zz",
-				ExpectError:   databricksMessage("Databricks workspace IDs are numeric"),
+				ExpectError:   databricksMessage("Databricks workspace IDs are numbers"),
 			},
 		},
 	})
@@ -897,7 +1122,12 @@ func TestDatabricksValidators(t *testing.T) {
 			invalid(func(d *databricksTestInstall) { d.accountId = "my-account" }, databricksTestInstall.accountStaged, "Databricks account IDs are UUIDs"),
 			invalid(func(d *databricksTestInstall) { d.accountsUrl = "https://dbc-1234abcd-5678.cloud.databricks.com" }, databricksTestInstall.accountStaged, "value must be one of"),
 			invalid(func(d *databricksTestInstall) { d.applicationId = "p0-connector" }, databricksTestInstall.account, "Application IDs are UUIDs"),
-			invalid(func(d *databricksTestInstall) { d.workspaceId = "dbc-1234abcd-5678" }, databricksTestInstall.workspace, "Databricks workspace IDs are numeric"),
+			invalid(func(d *databricksTestInstall) { d.workspaceId = "dbc-1234abcd-5678" }, databricksTestInstall.workspace, "Databricks workspace IDs are numbers, e.g. 1234567890123456"),
+			invalid(func(d *databricksTestInstall) { d.workspaceUrl = "https://dbc-1234abcd-5678.example.com" }, databricksTestInstall.workspace, "The workspace URL must be https://<host> on a Databricks workspace domain"),
+			invalid(func(d *databricksTestInstall) { d.workspaceName = "" }, databricksTestInstall.workspace, "string length must be at least 1"),
+			// P0 trims the name, which would then read back different from the
+			// configuration.
+			invalid(func(d *databricksTestInstall) { d.workspaceName = "analytics-prod " }, databricksTestInstall.workspace, "Whitespace around a value"),
 			invalid(func(d *databricksTestInstall) { d.catalogName = "sales#eu" }, databricksTestInstall.catalog, `P0 can't install a catalog whose name contains #, ?, % or \. Contact support@p0.dev if you need P0 to manage it.`),
 		},
 	})

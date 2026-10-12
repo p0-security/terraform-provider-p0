@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -49,14 +50,15 @@ var Components = []string{
 	catalogComponent,
 }
 
-// The Databricks account consoles, one per cloud that Databricks runs on. The
-// connector only accepts these, because it sends its AWS identity token to the
-// console that an account names.
-var accountsConsoles = []struct{ url, cloud string }{
-	{url: "https://accounts.cloud.databricks.com", cloud: "AWS"},
-	{url: "https://accounts.cloud.databricks.us", cloud: "AWS GovCloud"},
-	{url: "https://accounts.azuredatabricks.net", cloud: "Azure"},
-	{url: "https://accounts.gcp.databricks.com", cloud: "Google Cloud"},
+// The Databricks account consoles, one per cloud that Databricks runs on, and
+// the domain that each cloud serves its workspaces from. The connector only
+// accepts these, because it sends its AWS identity token to the console that an
+// account names, and its Databricks token to the workspace URL that P0 saves.
+var accountsConsoles = []struct{ url, cloud, workspaceDomain string }{
+	{url: "https://accounts.cloud.databricks.com", cloud: "AWS", workspaceDomain: "cloud.databricks.com"},
+	{url: "https://accounts.cloud.databricks.us", cloud: "AWS GovCloud", workspaceDomain: "cloud.databricks.us"},
+	{url: "https://accounts.azuredatabricks.net", cloud: "Azure", workspaceDomain: "azuredatabricks.net"},
+	{url: "https://accounts.gcp.databricks.com", cloud: "Google Cloud", workspaceDomain: "gcp.databricks.com"},
 }
 
 func accountsUrls() []string {
@@ -65,6 +67,37 @@ func accountsUrls() []string {
 		urls[i] = console.url
 	}
 	return urls
+}
+
+func workspaceDomains() []string {
+	domains := make([]string, len(accountsConsoles))
+	for i, console := range accountsConsoles {
+		domains[i] = console.workspaceDomain
+	}
+	return domains
+}
+
+// Joins two or more items as a sentence lists them: "a, b or c".
+func joinOr(items []string) string {
+	last := len(items) - 1
+	return strings.Join(items[:last], ", ") + " or " + items[last]
+}
+
+// A workspace URL in the form P0 saves and reads back: https://, then a host
+// on one of the workspace domains, in lowercase, and nothing after it. The
+// app's `workspaceUrl` validator accepts every URL that this matches.
+var workspaceUrlRegex = func() *regexp.Regexp {
+	domains := workspaceDomains()
+	for i, domain := range domains {
+		domains[i] = regexp.QuoteMeta(domain)
+	}
+	return regexp.MustCompile(`^https://([a-z0-9-]+\.)+(` + strings.Join(domains, "|") + `)$`)
+}()
+
+// Rejects a workspace URL that isn't in the form P0 reads back unchanged, with
+// the message of the app's `workspaceUrl` validator.
+func workspaceUrlValidator() validator.String {
+	return stringvalidator.RegexMatches(workspaceUrlRegex, "The workspace URL must be https://<host> on a Databricks workspace domain: "+joinOr(workspaceDomains()))
 }
 
 // The connector refuses a workspace ID that isn't all digits.
@@ -160,8 +193,22 @@ func accountIdValidator() validator.String {
 	return uuidValidator("Databricks account IDs")
 }
 
+// Rejects a workspace ID that isn't all digits, with the message of the app's
+// workspace key validator.
 func workspaceIdValidator() validator.String {
-	return stringvalidator.RegexMatches(WorkspaceIdRegex, "Databricks workspace IDs are numeric")
+	return stringvalidator.RegexMatches(WorkspaceIdRegex, "Databricks workspace IDs are numbers, e.g. 1234567890123456")
+}
+
+// A configure-step switch, as ssh's is_sudo_enabled is: off unless the
+// configuration turns it on, and changed in place. The provider always sends
+// it, so removing it from a configuration turns it off in P0.
+func adminSwitchAttribute(description string) schema.BoolAttribute {
+	return schema.BoolAttribute{
+		Optional:            true,
+		Computed:            true,
+		Default:             booldefault.StaticBool(false),
+		MarkdownDescription: description,
+	}
 }
 
 // P0 never stores the audience: it is the same for every connector.
@@ -305,8 +352,7 @@ func accountsUrlDescription() string {
 	for i, console := range accountsConsoles {
 		options[i] = fmt.Sprintf("`%s` (%s)", console.url, console.cloud)
 	}
-	last := len(options) - 1
-	return "The URL of this account's console: " + strings.Join(options[:last], ", ") + " or " + options[last]
+	return "The URL of this account's console: " + joinOr(options)
 }
 
 func accountStagedAttributes() map[string]schema.Attribute {
@@ -339,14 +385,18 @@ func (m accountStagedModel) key() string {
 
 type accountModel struct {
 	accountStagedModel
-	ApplicationId types.String `tfsdk:"application_id"`
+	ApplicationId         types.String `tfsdk:"application_id"`
+	IsAccountAdminEnabled types.Bool   `tfsdk:"is_account_admin_enabled"`
 }
 
 type accountJson struct {
 	Connector     *string `json:"connector,omitempty"`
 	AccountsUrl   *string `json:"accountsUrl,omitempty"`
 	ApplicationId *string `json:"applicationId,omitempty"`
-	State         *string `json:"state,omitempty"`
+	// Only p0_databricks_account sends it. P0 saves false when staging leaves it
+	// unset.
+	IsAccountAdminEnabled *bool   `json:"isAccountAdminEnabled,omitempty"`
+	State                 *string `json:"state,omitempty"`
 }
 
 type accountApi = itemApi[accountJson]

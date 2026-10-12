@@ -40,11 +40,15 @@ func (*Account) Schema(_ context.Context, _ resource.SchemaRequest, resp *resour
 		MarkdownDescription: "The application ID of the service principal that the connector signs in to Databricks as, e.g. `databricks_service_principal.application_id`. Changing it updates the account in place, and P0 checks the install again. If the check fails, the apply fails, and the account keeps its current application ID.",
 		Validators:          []validator.String{uuidValidator("Application IDs")},
 	}
+	// P0 checks the role on the configure step, as it checks application_id.
+	attributes["is_account_admin_enabled"] = adminSwitchAttribute(
+		"Whether users can request account admin in this account. Defaults to `false`. The service principal needs the `account_admin` role only when this is `true`, and P0 then checks that it holds the role. Changing it updates the account in place. If P0's check fails, the apply fails, and the account stays as it was. Turning it off also stops P0 from revoking account admin that it granted, so let open account-admin requests end first.",
+	)
 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Databricks account installation.
 
-**Important:** Before creating this resource you must stage the account with ` + "`p0_databricks_account_staged`" + `, and create a service principal in the account with the ` + "`account_admin`" + ` role and a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is ` + "`federation_audience`" + ` (` + "`" + FederationAudience + "`" + `). Creating them takes a Databricks account admin.
+**Important:** Before creating this resource you must stage the account with ` + "`p0_databricks_account_staged`" + `, and create a service principal in the account with a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is ` + "`federation_audience`" + ` (` + "`" + FederationAudience + "`" + `). Creating them takes a Databricks account admin. The service principal needs the ` + "`account_admin`" + ` role only when ` + "`is_account_admin_enabled`" + ` is ` + "`true`" + `.
 
 An account that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
@@ -63,8 +67,9 @@ func accountFromJson(_ context.Context, _ *diag.Diagnostics, id string, json any
 		return nil
 	}
 	return &accountModel{
-		accountStagedModel: newAccountStagedModel(id, item),
-		ApplicationId:      types.StringPointerValue(item.ApplicationId),
+		accountStagedModel:    newAccountStagedModel(id, item),
+		ApplicationId:         types.StringPointerValue(item.ApplicationId),
+		IsAccountAdminEnabled: types.BoolPointerValue(item.IsAccountAdminEnabled),
 	}
 }
 
@@ -75,6 +80,7 @@ func accountToJson(data any) any {
 	}
 	json := model.toJson()
 	json.ApplicationId = model.ApplicationId.ValueStringPointer()
+	json.IsAccountAdminEnabled = model.IsAccountAdminEnabled.ValueBoolPointer()
 	return json
 }
 
@@ -90,11 +96,11 @@ func (*Account) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, 
 	planFinishingInstall(ctx, req, resp)
 }
 
-// Only the application ID changes in place. P0 checks it on the configure step,
-// which is all an installed account gets, and saves nothing if the check fails:
-// the account stays installed with its current ID, and the next plan shows the
-// update again. A staged account is verified first, and a failed verify saves
-// nothing either.
+// Only the application ID and is_account_admin_enabled change in place. P0
+// checks them on the configure step, which is all an installed account gets,
+// and saves nothing if the check fails: the account stays installed with its
+// current values, and the next plan shows the update again. A staged account is
+// verified first, and a failed verify saves nothing either.
 func (r *Account) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	updateFromInstallState(ctx, r.installer, req, resp, &accountApi{}, &accountModel{})
 }

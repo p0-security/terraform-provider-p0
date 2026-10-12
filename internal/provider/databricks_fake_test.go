@@ -19,13 +19,23 @@ import (
 )
 
 // Each Databricks component's install schema, as the app defines it in
-// packages/integrations/databricks/shared/src/components.ts: its fields, and
-// those marked `step: "new"`, which P0 refuses to change after staging.
-var databricksSchema = map[string]struct{ fields, stepNew []string }{
+// packages/integrations/databricks/shared/src/components.ts: its fields, those
+// marked `step: "new"`, which P0 refuses to change after staging, and its
+// switches, which the app's assemblers save as false when staging leaves them
+// unset.
+var databricksSchema = map[string]struct{ fields, stepNew, switches []string }{
 	"connector": {fields: []string{"region", "domainPattern"}, stepNew: []string{"region", "domainPattern"}},
-	"account":   {fields: []string{"connector", "accountsUrl", "applicationId"}, stepNew: []string{"connector", "accountsUrl"}},
-	"workspace": {fields: []string{"account"}, stepNew: []string{"account"}},
-	"catalog":   {fields: []string{"workspace"}, stepNew: []string{"workspace"}},
+	"account": {
+		fields:   []string{"connector", "accountsUrl", "applicationId", "isAccountAdminEnabled"},
+		stepNew:  []string{"connector", "accountsUrl"},
+		switches: []string{"isAccountAdminEnabled"},
+	},
+	"workspace": {
+		fields:   []string{"account", "workspaceUrl", "workspaceName", "isWorkspaceAdminEnabled"},
+		stepNew:  []string{"account", "workspaceUrl"},
+		switches: []string{"isWorkspaceAdminEnabled"},
+	},
+	"catalog": {fields: []string{"workspace"}, stepNew: []string{"workspace"}},
 }
 
 // databricksFake fakes P0's install API for Databricks items, which P0 stores
@@ -43,10 +53,11 @@ type databricksFake struct {
 // newDatabricksFake returns a fake that trims each field, drops any field
 // outside the component's schema, so that a field the provider misnames reads
 // back empty, sets a catalog's workspace from its key when it stages the
-// catalog, as the app's assembler does, and refuses a change to a `step: "new"`
-// field after staging. It runs no install checks, so it can't tell whether the
-// AWS or Databricks side of an install exists. A test fails a check with the
-// fake's refuse hook.
+// catalog, and an unset switch to false when it stages an account or workspace,
+// as the app's assemblers do, and refuses a change to a `step: "new"` field
+// after staging. It runs no install checks, so it can't tell whether the AWS or
+// Databricks side of an install exists. A test fails a check with the fake's
+// refuse hook.
 func newDatabricksFake(t *testing.T) *databricksFake {
 	f := &databricksFake{
 		fakeP0: newFakeP0(t),
@@ -66,6 +77,13 @@ func newDatabricksFake(t *testing.T) *databricksFake {
 			default:
 				if text, ok := value.(string); ok {
 					item[field] = strings.TrimSpace(text)
+				}
+			}
+		}
+		if item["state"] == "stage" {
+			for _, field := range schema.switches {
+				if _, ok := item[field]; !ok {
+					item[field] = false
 				}
 			}
 		}
