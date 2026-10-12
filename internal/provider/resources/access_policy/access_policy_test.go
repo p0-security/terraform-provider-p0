@@ -270,15 +270,23 @@ func objectWithType(objType tftypes.Object, typeVal string) tftypes.Value {
 // agenticRequestor builds a non-null `agentic` requestor with non-null
 // agent/user sub-objects, forcing the upgrader's decode to descend into the
 // requestor and match schema v3's requestor attributes against RequestorModelV3.
-func agenticRequestor(requestorType tftypes.Type) tftypes.Value {
-	objType := requestorType.(tftypes.Object)
+func agenticRequestor(t *testing.T, requestorType tftypes.Type) tftypes.Value {
+	t.Helper()
+	objType, ok := requestorType.(tftypes.Object)
+	if !ok {
+		t.Fatalf("requestor type is not an object")
+	}
 	attrs := map[string]tftypes.Value{}
 	for name, attrType := range objType.AttributeTypes {
 		switch name {
 		case "type":
 			attrs[name] = tftypes.NewValue(attrType, "agentic")
 		case "agent", "user":
-			attrs[name] = objectWithType(attrType.(tftypes.Object), "any")
+			subType, ok := attrType.(tftypes.Object)
+			if !ok {
+				t.Fatalf("%s type is not an object", name)
+			}
+			attrs[name] = objectWithType(subType, "any")
 		default:
 			attrs[name] = tftypes.NewValue(attrType, nil)
 		}
@@ -294,13 +302,16 @@ func TestUpgradeV3ToV4Approvals(t *testing.T) {
 	ctx := context.Background()
 	upgrader := (&AccessPolicy{}).UpgradeState(ctx)[3]
 
-	priorType := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	priorType, ok := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	if !ok {
+		t.Fatalf("prior schema type is not an object")
+	}
 	raw := tftypes.NewValue(priorType, map[string]tftypes.Value{
 		"name":      tftypes.NewValue(tftypes.String, "example"),
 		"disabled":  tftypes.NewValue(tftypes.Bool, nil),
-		"requestor": agenticRequestor(priorType.AttributeTypes["requestor"]),
+		"requestor": agenticRequestor(t, priorType.AttributeTypes["requestor"]),
 		"resource":  tftypes.NewValue(priorType.AttributeTypes["resource"], nil),
-		"approval":  oneApproval(priorType.AttributeTypes["approval"]),
+		"approval":  oneApproval(t, priorType.AttributeTypes["approval"]),
 	})
 
 	req := resource.UpgradeStateRequest{State: &tfsdk.State{Schema: *upgrader.PriorSchema, Raw: raw}}
@@ -318,12 +329,19 @@ func TestUpgradeV1Approval(t *testing.T) {
 	ctx := context.Background()
 	upgrader := (&AccessPolicy{}).UpgradeState(ctx)[1]
 
-	priorType := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	priorType, ok := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	if !ok {
+		t.Fatalf("prior schema type is not an object")
+	}
+	requestorType, ok := priorType.AttributeTypes["requestor"].(tftypes.Object)
+	if !ok {
+		t.Fatalf("requestor type is not an object")
+	}
 	raw := tftypes.NewValue(priorType, map[string]tftypes.Value{
 		"name":      tftypes.NewValue(tftypes.String, "example"),
-		"requestor": objectWithType(priorType.AttributeTypes["requestor"].(tftypes.Object), "any"),
+		"requestor": objectWithType(requestorType, "any"),
 		"resource":  tftypes.NewValue(priorType.AttributeTypes["resource"], nil),
-		"approval":  oneApproval(priorType.AttributeTypes["approval"]),
+		"approval":  oneApproval(t, priorType.AttributeTypes["approval"]),
 	})
 
 	req := resource.UpgradeStateRequest{State: &tfsdk.State{Schema: *upgrader.PriorSchema, Raw: raw}}
@@ -339,13 +357,20 @@ func TestUpgradeV2Approval(t *testing.T) {
 	ctx := context.Background()
 	upgrader := (&AccessPolicy{}).UpgradeState(ctx)[2]
 
-	priorType := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	priorType, ok := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	if !ok {
+		t.Fatalf("prior schema type is not an object")
+	}
+	requestorType, ok := priorType.AttributeTypes["requestor"].(tftypes.Object)
+	if !ok {
+		t.Fatalf("requestor type is not an object")
+	}
 	raw := tftypes.NewValue(priorType, map[string]tftypes.Value{
 		"name":      tftypes.NewValue(tftypes.String, "example"),
 		"disabled":  tftypes.NewValue(tftypes.Bool, nil),
-		"requestor": objectWithType(priorType.AttributeTypes["requestor"].(tftypes.Object), "any"),
+		"requestor": objectWithType(requestorType, "any"),
 		"resource":  tftypes.NewValue(priorType.AttributeTypes["resource"], nil),
-		"approval":  oneApproval(priorType.AttributeTypes["approval"]),
+		"approval":  oneApproval(t, priorType.AttributeTypes["approval"]),
 	})
 
 	req := resource.UpgradeStateRequest{State: &tfsdk.State{Schema: *upgrader.PriorSchema, Raw: raw}}
@@ -358,8 +383,16 @@ func TestUpgradeV2Approval(t *testing.T) {
 }
 
 // builds one non-null approval object of the full element type (every attribute present, values null except the non-pointer type), so the upgrader must decode the nested object and bind each declared attribute to an ApprovalModelV1 field, and ensures they are tested.
-func oneApproval(approvalList tftypes.Type) tftypes.Value {
-	elemType := approvalList.(tftypes.List).ElementType.(tftypes.Object)
+func oneApproval(t *testing.T, approvalList tftypes.Type) tftypes.Value {
+	t.Helper()
+	listType, ok := approvalList.(tftypes.List)
+	if !ok {
+		t.Fatalf("approval type is not a list")
+	}
+	elemType, ok := listType.ElementType.(tftypes.Object)
+	if !ok {
+		t.Fatalf("approval element type is not an object")
+	}
 	attrs := map[string]tftypes.Value{}
 	for name, attrType := range elemType.AttributeTypes {
 		// `type` maps to a non-pointer string field, so it cannot be null.
