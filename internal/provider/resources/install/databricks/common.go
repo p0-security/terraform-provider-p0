@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -76,18 +77,15 @@ func workspaceDomains() []string {
 	return domains
 }
 
-// Joins items as a sentence lists them: "a, b or c".
+// Joins two or more items as a sentence lists them: "a, b or c".
 func joinOr(items []string) string {
 	last := len(items) - 1
-	if last < 1 {
-		return strings.Join(items, "")
-	}
 	return strings.Join(items[:last], ", ") + " or " + items[last]
 }
 
 // A workspace URL in the form P0 saves and reads back: https://, then a host
 // on one of the workspace domains, in lowercase, and nothing after it. The
-// app's workspaceUrl validator accepts every URL that this matches.
+// app's `workspaceUrl` validator accepts every URL that this matches.
 var workspaceUrlRegex = func() *regexp.Regexp {
 	domains := workspaceDomains()
 	for i, domain := range domains {
@@ -96,7 +94,8 @@ var workspaceUrlRegex = func() *regexp.Regexp {
 	return regexp.MustCompile(`^https://([a-z0-9-]+\.)+(` + strings.Join(domains, "|") + `)$`)
 }()
 
-// The app's workspaceUrl validator message.
+// Rejects a workspace URL that isn't in the form P0 reads back unchanged, with
+// the message of the app's `workspaceUrl` validator.
 func workspaceUrlValidator() validator.String {
 	return stringvalidator.RegexMatches(workspaceUrlRegex, "The workspace URL must be https://<host> on a Databricks workspace domain: "+joinOr(workspaceDomains()))
 }
@@ -194,9 +193,22 @@ func accountIdValidator() validator.String {
 	return uuidValidator("Databricks account IDs")
 }
 
-// The app's workspace key validator message.
+// Rejects a workspace ID that isn't all digits, with the message of the app's
+// workspace key validator.
 func workspaceIdValidator() validator.String {
 	return stringvalidator.RegexMatches(WorkspaceIdRegex, "Databricks workspace IDs are numbers, e.g. 1234567890123456")
+}
+
+// A configure-step switch, as ssh's is_sudo_enabled is: off unless the
+// configuration turns it on, and changed in place. The provider always sends
+// it, so removing it from a configuration turns it off in P0.
+func adminSwitchAttribute(description string) schema.BoolAttribute {
+	return schema.BoolAttribute{
+		Optional:            true,
+		Computed:            true,
+		Default:             booldefault.StaticBool(false),
+		MarkdownDescription: description,
+	}
 }
 
 // P0 never stores the audience: it is the same for every connector.

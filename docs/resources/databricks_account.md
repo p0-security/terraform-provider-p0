@@ -146,7 +146,7 @@ output "application_id" {
 
 ### Optional
 
-- `is_account_admin_enabled` (Boolean) Whether users can request account admin in this account. Defaults to `false`. The service principal needs the `account_admin` role only when this is `true`, and P0 then checks that it holds the role. Changing it updates the account in place. If P0's check fails, the apply fails, and the account stays as it was.
+- `is_account_admin_enabled` (Boolean) Whether users can request account admin in this account. Defaults to `false`. The service principal needs the `account_admin` role only when this is `true`, and P0 then checks that it holds the role. Changing it updates the account in place. If P0's check fails, the apply fails, and the account stays as it was. Turning it off also stops P0 from revoking account admin that it granted, so let open account-admin requests end first.
 
 ### Read-Only
 

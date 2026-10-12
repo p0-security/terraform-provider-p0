@@ -491,10 +491,10 @@ func TestDatabricksAccountKeptWhenNewApplicationIdFails(t *testing.T) {
 	})
 }
 
-// A value as Terraform's state holds it, and as P0 saves it.
+// A setting's value as Terraform's state holds it, and as P0 saves it.
 type databricksValue struct {
-	attribute string
-	saved     any
+	inState string
+	inP0    any
 }
 
 // P0 accepts a change to a `step: "configure"` field of an installed item, so
@@ -560,9 +560,9 @@ func TestDatabricksUpdatedInPlace(t *testing.T) {
 						PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(c.resource, action)},
 					},
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr(c.resource, c.attribute, want.attribute),
+						resource.TestCheckResourceAttr(c.resource, c.attribute, want.inState),
 						resource.TestCheckResourceAttr(c.resource, "state", "installed"),
-						checkDatabricksItemField(client, c.component, c.id, c.field, want.saved),
+						checkDatabricksItemField(client, c.component, c.id, c.field, want.inP0),
 					),
 				}
 			}
@@ -609,51 +609,81 @@ func TestDatabricksWorkspaceReplacedOnNewWorkspaceUrl(t *testing.T) {
 	})
 }
 
-// P0 checks that the service principal is a workspace admin on the configure
-// step alone, which saves nothing when the check fails. So turning on
-// workspace-admin requests before the principal's ADMIN assignment is applied
-// fails, leaves the workspace installed with them off, and the next plan shows
+// P0 checks that the service principal holds the role that a switch needs on
+// the configure step alone, which saves nothing when the check fails. So turning
+// a switch on before the Terraform that gives the principal its role is applied
+// fails, leaves the item installed with the switch off, and the next plan shows
 // the update again.
-func TestDatabricksWorkspaceKeptWhenAdminCheckFails(t *testing.T) {
-	f := newDatabricksFake(t)
+func TestDatabricksSwitchKeptWhenCheckFails(t *testing.T) {
 	d := databricksTestDefaults
-	changed := d
-	changed.workspaceAdminEnabled = "true"
-	var refuseConfigure atomic.Bool
-	f.refuse = func(key fakeItemKey, nextState string) bool {
-		return refuseConfigure.Load() && key.component == "workspace" && nextState == "installed"
+	cases := []struct {
+		name, resource, attribute, component, id, field string
+		config                                          func(databricksTestInstall) string
+		turnOn                                          func(*databricksTestInstall)
+	}{
+		{
+			name:      "AccountAdmin",
+			resource:  "p0_databricks_account.test",
+			attribute: "is_account_admin_enabled",
+			component: "account",
+			id:        d.accountId,
+			field:     "isAccountAdminEnabled",
+			config:    databricksTestInstall.account,
+			turnOn:    func(d *databricksTestInstall) { d.accountAdminEnabled = "true" },
+		},
+		{
+			name:      "WorkspaceAdmin",
+			resource:  "p0_databricks_workspace.test",
+			attribute: "is_workspace_admin_enabled",
+			component: "workspace",
+			id:        d.workspaceId,
+			field:     "isWorkspaceAdminEnabled",
+			config:    databricksTestInstall.workspace,
+			turnOn:    func(d *databricksTestInstall) { d.workspaceAdminEnabled = "true" },
+		},
 	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newDatabricksFake(t)
+			on := d
+			c.turnOn(&on)
+			var refuseConfigure atomic.Bool
+			f.refuse = func(key fakeItemKey, nextState string) bool {
+				return refuseConfigure.Load() && key.component == c.component && nextState == "installed"
+			}
 
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             checkDatabricksDestroyed(f.client()),
-		Steps: []resource.TestStep{
-			{Config: f.providerConfig() + d.workspace()},
-			{
-				PreConfig:   func() { refuseConfigure.Store(true) },
-				Config:      f.providerConfig() + changed.workspace(),
-				ExpectError: regexp.MustCompile(`Databricks install check failed`),
-			},
-			{
-				PreConfig: func() {
-					refuseConfigure.Store(false)
-					if item := f.item("databricks", "workspace", d.workspaceId); item["state"] != "installed" || item["isWorkspaceAdminEnabled"] != false {
-						t.Errorf("after the failed update, P0 has the workspace %v, want it installed with isWorkspaceAdminEnabled false", item)
-					}
-				},
-				Config: f.providerConfig() + changed.workspace(),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_databricks_workspace.test", plancheck.ResourceActionUpdate),
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				CheckDestroy:             checkDatabricksDestroyed(f.client()),
+				Steps: []resource.TestStep{
+					{Config: f.providerConfig() + c.config(d)},
+					{
+						PreConfig:   func() { refuseConfigure.Store(true) },
+						Config:      f.providerConfig() + c.config(on),
+						ExpectError: regexp.MustCompile(`Databricks install check failed`),
+					},
+					{
+						PreConfig: func() {
+							refuseConfigure.Store(false)
+							if item := f.item("databricks", c.component, c.id); item["state"] != "installed" || item[c.field] != false {
+								t.Errorf("after the failed update, P0 has the %s %v, want it installed with %s false", c.component, item, c.field)
+							}
+						},
+						Config: f.providerConfig() + c.config(on),
+						ConfigPlanChecks: resource.ConfigPlanChecks{
+							PreApply: []plancheck.PlanCheck{
+								plancheck.ExpectResourceAction(c.resource, plancheck.ResourceActionUpdate),
+							},
+						},
+						Check: resource.ComposeAggregateTestCheckFunc(
+							resource.TestCheckResourceAttr(c.resource, c.attribute, "true"),
+							resource.TestCheckResourceAttr(c.resource, "state", "installed"),
+						),
 					},
 				},
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("p0_databricks_workspace.test", "is_workspace_admin_enabled", "true"),
-					resource.TestCheckResourceAttr("p0_databricks_workspace.test", "state", "installed"),
-				),
-			},
-		},
-	})
+			})
+		})
+	}
 }
 
 // Destroying an installed resource returns its item to the "stage" state

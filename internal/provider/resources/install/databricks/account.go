@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -41,14 +40,10 @@ func (*Account) Schema(_ context.Context, _ resource.SchemaRequest, resp *resour
 		MarkdownDescription: "The application ID of the service principal that the connector signs in to Databricks as, e.g. `databricks_service_principal.application_id`. Changing it updates the account in place, and P0 checks the install again. If the check fails, the apply fails, and the account keeps its current application ID.",
 		Validators:          []validator.String{uuidValidator("Application IDs")},
 	}
-	// A configure-step switch, as ssh's is_sudo_enabled is. P0 checks the role
-	// on the configure step, as it checks application_id.
-	attributes["is_account_admin_enabled"] = schema.BoolAttribute{
-		Optional:            true,
-		Computed:            true,
-		Default:             booldefault.StaticBool(false),
-		MarkdownDescription: "Whether users can request account admin in this account. Defaults to `false`. The service principal needs the `account_admin` role only when this is `true`, and P0 then checks that it holds the role. Changing it updates the account in place. If P0's check fails, the apply fails, and the account stays as it was.",
-	}
+	// P0 checks the role on the configure step, as it checks application_id.
+	attributes["is_account_admin_enabled"] = adminSwitchAttribute(
+		"Whether users can request account admin in this account. Defaults to `false`. The service principal needs the `account_admin` role only when this is `true`, and P0 then checks that it holds the role. Changing it updates the account in place. If P0's check fails, the apply fails, and the account stays as it was. Turning it off also stops P0 from revoking account admin that it granted, so let open account-admin requests end first.",
+	)
 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Databricks account installation.

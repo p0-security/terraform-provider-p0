@@ -7,7 +7,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -83,12 +82,11 @@ A workspace that P0 hasn't finished installing, such as one imported before its 
 					noWhitespaceAround(),
 				},
 			},
-			"is_workspace_admin_enabled": schema.BoolAttribute{
-				Optional:            true,
-				Computed:            true,
-				Default:             booldefault.StaticBool(false),
-				MarkdownDescription: "Whether users can request workspace admin on this workspace. Defaults to `false`. The service principal needs an `ADMIN` assignment, in place of `USER`, only when this is `true`, and P0 then checks that it is a workspace admin. Changing it updates the workspace in place. If P0's check fails, the apply fails, and the workspace stays as it was.",
-			},
+			// P0 checks the assignment on the configure step, as it checks
+			// workspace_name.
+			"is_workspace_admin_enabled": adminSwitchAttribute(
+				"Whether users can request workspace admin on this workspace. Defaults to `false`. The service principal needs an `ADMIN` assignment, in place of `USER`, only when this is `true`, and P0 then checks that it is a workspace admin. Changing it updates the workspace in place. If P0's check fails, the apply fails, and the workspace stays as it was.",
+			),
 			"state": common.StateAttribute,
 		},
 	}
