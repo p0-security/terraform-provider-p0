@@ -37,21 +37,21 @@ resource "p0_access_policy" "example" {
 resource "p0_access_policy" "policy_max_duration" {
   name = "demonstrate-max-duration"
   requestor = {
-    type   = "any"
+    type = "any"
   }
   resource = {
-    type    = "any"
+    type = "any"
   }
   approval = [{
-     // automatically approved if requested access duration is <= 1 hour
-    type        = "persistent"
+    // automatically approved if requested access duration is <= 1 hour
+    type = "persistent"
     max_duration = {
-      time: 1
-      unit: "h"
+      time : 1
+      unit : "h"
     }
-  },{
+    }, {
     // request needs manual approval if requested time does not match the persistent maxDuration listed above
-    type        = "p0"
+    type = "p0"
   }]
 }
 
