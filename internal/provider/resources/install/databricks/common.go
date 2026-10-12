@@ -156,6 +156,10 @@ func uuidValidator(label string) validator.String {
 	return stringvalidator.RegexMatches(common.UuidRegex, label+" are UUIDs, e.g. 01234567-89ab-cdef-0123-456789abcdef")
 }
 
+func accountIdValidator() validator.String {
+	return uuidValidator("Databricks account IDs")
+}
+
 func workspaceIdValidator() validator.String {
 	return stringvalidator.RegexMatches(WorkspaceIdRegex, "Databricks workspace IDs are numeric")
 }
@@ -309,7 +313,7 @@ func accountStagedAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"id": fixedAttribute(
 			`The Databricks account ID`,
-			uuidValidator("Databricks account IDs"),
+			accountIdValidator(),
 		),
 		"connector": fixedAttribute(
 			"The `id` of the `p0_databricks_connector` that reaches this account, which is the ID of the AWS account that the connector runs in",

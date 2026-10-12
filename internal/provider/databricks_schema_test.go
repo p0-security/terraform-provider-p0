@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -80,7 +81,8 @@ func TestDatabricksWorkspaceId(t *testing.T) {
 	})
 }
 
-// The catalog names that the app's catalogNameError refuses, with its messages.
+// The catalog names that the app's catalogNameError refuses, each with exactly
+// its message.
 func TestDatabricksCatalogName(t *testing.T) {
 	const (
 		summary     = "Invalid catalog name: "
@@ -88,7 +90,7 @@ func TestDatabricksCatalogName(t *testing.T) {
 		forbidden   = summary + "Catalog names can't contain a period, a space, a forward slash or a control character"
 		urlPathOnly = summary + `P0 can't install a catalog whose name contains #, ?, % or \. Contact support@p0.dev if you need P0 to manage it.`
 	)
-	checkDatabricksAttribute(t, installdatabricks.NewCatalog, "catalog_name", map[string]string{
+	cases := map[string]string{
 		"main":                   "",
 		"sales_prod":             "",
 		"sales-prod":             "",
@@ -118,7 +120,17 @@ func TestDatabricksCatalogName(t *testing.T) {
 		"sales?eu": urlPathOnly,
 		"a%62c":    urlPathOnly,
 		`a\b`:      urlPathOnly,
-	})
+	}
+
+	for name, want := range cases {
+		var wantErrs []string
+		if want != "" {
+			wantErrs = []string{want}
+		}
+		if got := databricksAttributeErrors(t, installdatabricks.NewCatalog, "catalog_name", name); !slices.Equal(got, wantErrs) {
+			t.Errorf("catalog_name = %q gives %q, want %q", name, got, wantErrs)
+		}
+	}
 }
 
 // The application IDs that the app's applicationId validator tests, with its
@@ -156,6 +168,23 @@ func TestDatabricksConnectorRegion(t *testing.T) {
 		"us-west":        invalid,
 		" us-east-1":     invalid,
 		"":               invalid,
+	})
+}
+
+// An attribute that names another item gets the check that the item's own id
+// gets: an account's connector, a workspace's account and a catalog's workspace.
+func TestDatabricksReferences(t *testing.T) {
+	checkDatabricksAttribute(t, installdatabricks.NewAccountStaged, "connector", map[string]string{
+		"123456789012": "",
+		"12345":        "AWS account IDs should consist of 12 numeric digits",
+	})
+	checkDatabricksAttribute(t, installdatabricks.NewWorkspace, "account", map[string]string{
+		"01234567-89ab-cdef-0123-456789abcdef": "",
+		"my-account":                           "Databricks account IDs are UUIDs",
+	})
+	checkDatabricksAttribute(t, installdatabricks.NewCatalog, "workspace_id", map[string]string{
+		"1234567890123456":  "",
+		"dbc-1234abcd-5678": "Databricks workspace IDs are numeric",
 	})
 }
 

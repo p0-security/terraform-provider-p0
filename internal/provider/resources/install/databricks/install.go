@@ -62,19 +62,17 @@ func updateFromInstallState(ctx context.Context, installer *common.Install, req 
 	}
 }
 
-// Imports an item by its key, once the key passes the checks that the
+// Imports an item by its key, once the key passes the check that the
 // configuration's id gets. The read that follows an import puts the key in a URL
 // path, where `12#34` reads the item `12`, and the provider's client crashes on
 // a path that doesn't parse, such as one with `12%zz`.
-func importById(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, validators ...validator.String) {
-	for _, v := range validators {
-		checked := &validator.StringResponse{}
-		v.ValidateString(ctx, validator.StringRequest{
-			Path:        path.Root("id"),
-			ConfigValue: types.StringValue(req.ID),
-		}, checked)
-		resp.Diagnostics.Append(checked.Diagnostics...)
-	}
+func importById(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, id validator.String) {
+	result := &validator.StringResponse{}
+	id.ValidateString(ctx, validator.StringRequest{
+		Path:        path.Root("id"),
+		ConfigValue: types.StringValue(req.ID),
+	}, result)
+	resp.Diagnostics.Append(result.Diagnostics...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

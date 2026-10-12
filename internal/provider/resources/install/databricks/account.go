@@ -106,5 +106,5 @@ func (r *Account) Delete(ctx context.Context, req resource.DeleteRequest, resp *
 }
 
 func (r *Account) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	importById(ctx, req, resp, uuidValidator("Databricks account IDs"))
+	importById(ctx, req, resp, accountIdValidator())
 }

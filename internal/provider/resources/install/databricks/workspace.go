@@ -58,7 +58,7 @@ A workspace that P0 hasn't finished installing, such as one imported before its 
 			"id": fixedAttribute(`The Databricks workspace ID`, workspaceIdValidator()),
 			"account": fixedAttribute(
 				"The `id` of the `p0_databricks_account` that this workspace is in",
-				uuidValidator("Databricks account IDs"),
+				accountIdValidator(),
 			),
 			"state": common.StateAttribute,
 		},

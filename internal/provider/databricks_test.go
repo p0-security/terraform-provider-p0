@@ -767,6 +767,41 @@ func TestDatabricksCatalogReadsWorkspaceFromKey(t *testing.T) {
 	})
 }
 
+// A message as Terraform prints it in a diagnostic, wrapped across lines.
+func databricksMessage(message string) *regexp.Regexp {
+	return regexp.MustCompile(strings.ReplaceAll(regexp.QuoteMeta(message), " ", `\s+`))
+}
+
+// Unity Catalog allows "@" in a catalog's name, and the workspace ID never has
+// one. So the key of such a catalog still names it, and imports it.
+func TestDatabricksCatalogNameWithAt(t *testing.T) {
+	f := newDatabricksFake(t)
+	d := databricksTestDefaults
+	d.catalogName = "a@b"
+	d.workspaceId = "7"
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkDatabricksDestroyed(f.client()),
+		Steps: []resource.TestStep{
+			{
+				Config: f.providerConfig() + d.catalog(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("p0_databricks_catalog.test", "id", "a@b@7"),
+					checkDatabricksItemState(f.client(), "catalog", "a@b@7", "installed"),
+				),
+			},
+			{
+				Config:            f.providerConfig() + d.catalog(),
+				ResourceName:      "p0_databricks_catalog.test",
+				ImportState:       true,
+				ImportStateId:     "a@b@7",
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
 // A catalog imports by its key, and refuses an import ID that isn't one, or
 // whose catalog name or workspace ID the configuration would refuse. The read
 // after an import puts the key in a URL path, where `sales%@7` doesn't parse
@@ -782,8 +817,7 @@ func TestDatabricksCatalogImportId(t *testing.T) {
 			ResourceName:  "p0_databricks_catalog.test",
 			ImportState:   true,
 			ImportStateId: id,
-			// Terraform wraps a long message across lines.
-			ExpectError: regexp.MustCompile(strings.ReplaceAll(regexp.QuoteMeta(message), " ", `\s+`)),
+			ExpectError:   databricksMessage(message),
 		}
 	}
 	const (
@@ -827,7 +861,7 @@ func TestDatabricksImportRefusesMalformedId(t *testing.T) {
 				ResourceName:  "p0_databricks_workspace.test",
 				ImportState:   true,
 				ImportStateId: "12%zz",
-				ExpectError:   regexp.MustCompile(`Databricks\s+workspace\s+IDs\s+are\s+numeric`),
+				ExpectError:   databricksMessage("Databricks workspace IDs are numeric"),
 			},
 		},
 	})
@@ -845,10 +879,9 @@ func TestDatabricksValidators(t *testing.T) {
 		install := databricksTestDefaults
 		change(&install)
 		return resource.TestStep{
-			Config:   f.providerConfig() + config(install),
-			PlanOnly: true,
-			// Terraform wraps a long message across lines.
-			ExpectError: regexp.MustCompile(strings.ReplaceAll(regexp.QuoteMeta(message), " ", `\s+`)),
+			Config:      f.providerConfig() + config(install),
+			PlanOnly:    true,
+			ExpectError: databricksMessage(message),
 		}
 	}
 

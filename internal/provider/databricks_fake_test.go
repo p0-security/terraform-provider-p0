@@ -30,25 +30,23 @@ var databricksSchema = map[string]struct{ fields, stepNew []string }{
 
 // databricksFake fakes P0's install API for Databricks items, which P0 stores
 // and checks as install-api.ts and configure.ts in the app do. The shared fake
-// stores the items. It has no hook that can refuse a step, so the provider and
-// the tests call a server in front of it, which answers a refused verify or
-// configure step itself and passes every other request on.
+// stores the items. It has no hook that can refuse a step, so a server in front
+// of it answers a refused verify or configure step itself, and passes every
+// other request on.
 type databricksFake struct {
 	*fakeP0
-	// The server in front of the shared fake's.
-	front *httptest.Server
 	// Whether the step that moves the item to nextState fails its install check,
 	// as when a connector can't reach what the item names. P0 then saves nothing.
 	refuse func(key fakeItemKey, nextState string) bool
 }
 
-// newDatabricksFake's fake trims each field, drops any field outside the
-// component's schema, so that a field the provider misnames reads back empty,
-// sets a catalog's workspace from its key when it stages the catalog, as the
-// app's assembler does, and refuses a change to a `step: "new"` field after
-// staging. It runs no install checks, so it can't tell whether the AWS or
-// Databricks side of an install exists. A test fails a check with the fake's
-// refuse hook.
+// newDatabricksFake returns a fake that trims each field, drops any field
+// outside the component's schema, so that a field the provider misnames reads
+// back empty, sets a catalog's workspace from its key when it stages the
+// catalog, as the app's assembler does, and refuses a change to a `step: "new"`
+// field after staging. It runs no install checks, so it can't tell whether the
+// AWS or Databricks side of an install exists. A test fails a check with the
+// fake's refuse hook.
 func newDatabricksFake(t *testing.T) *databricksFake {
 	f := &databricksFake{
 		fakeP0: newFakeP0(t),
@@ -82,18 +80,24 @@ func newDatabricksFake(t *testing.T) *databricksFake {
 	api := f.server.Config.Handler
 	item := "/o/" + fakeOrg + "/integrations/{integration}/config/{component}/{id}"
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST "+item+"/verify", f.checked("configure", api))
-	mux.HandleFunc("POST "+item+"/configure", f.checked("installed", api))
+	mux.HandleFunc("POST "+item+"/verify", f.refusing("configure", api))
+	mux.HandleFunc("POST "+item+"/configure", f.refusing("installed", api))
 	mux.Handle("/", api)
-	f.front = httptest.NewServer(mux)
-	t.Cleanup(f.front.Close)
+	front := httptest.NewServer(mux)
+	t.Cleanup(front.Close)
+	// The provider and the tests find the fake by its server, so the server in
+	// front takes its place. The shared fake's own server stays up behind it, and
+	// closes with the test.
+	f.server = front
 	return f
 }
 
 // Answers the step that moves an item to nextState with a 422, P0's StateError,
 // if P0 would refuse it, and otherwise passes the request on to api, the shared
 // fake. P0 refuses before it saves the item, so a refused step changes nothing.
-func (f *databricksFake) checked(nextState string, api http.Handler) http.HandlerFunc {
+// A step that the shared fake would itself refuse, for an item in the wrong
+// state, gets the 422 first.
+func (f *databricksFake) refusing(nextState string, api http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -112,7 +116,7 @@ func (f *databricksFake) checked(nextState string, api http.Handler) http.Handle
 			return
 		}
 
-		// The item as the shared fake would save it.
+		// The item's fields as the shared fake would save them.
 		updated := deepMerge(previous, sent)
 		updated["state"] = nextState
 		f.normalize(key, updated)
@@ -137,19 +141,13 @@ func databricksUnprocessable(w http.ResponseWriter, message string) {
 
 // Configures the provider to call the fake.
 func (f *databricksFake) providerConfig() string {
-	return fmt.Sprintf(`
-provider "p0" {
-  org       = %q
-  host      = %q
-  api_token = "test-token"
-}
-`, fakeOrg, f.front.URL)
+	return providerConfig(f.fakeP0)
 }
 
 // A client of the fake's API, for checks that read P0's items directly, as tests
 // against a real organization read them.
 func (f *databricksFake) client() *internal.P0ProviderData {
-	return &internal.P0ProviderData{BaseUrl: databricksOrgUrl(f.front.URL, fakeOrg), Client: f.front.Client()}
+	return &internal.P0ProviderData{BaseUrl: databricksOrgUrl(f.server.URL, fakeOrg), Client: f.server.Client()}
 }
 
 // The base URL of an organization's API, as the provider builds it.

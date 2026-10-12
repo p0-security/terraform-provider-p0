@@ -10,8 +10,8 @@ import (
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 )
 
-// The checks on where the connector's Lambda runs. The region patterns and their
-// messages are the ones p0_github_repositories checks its connector's region with.
+// The checks on where the connector's Lambda runs. The region patterns are the
+// ones p0_github_repositories checks its connector's region with.
 
 // An AWS region, such as us-west-2.
 var awsRegionRegex = regexp.MustCompile(`^[a-z]+(?:-[a-z]+)+-\d+$`)
