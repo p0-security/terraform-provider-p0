@@ -633,6 +633,7 @@ func (policy *AccessPolicy) MoveState(ctx context.Context) []resource.StateMover
 	var schemaV1 = newAccessPolicySchema(1)
 	var schemaV2 = newAccessPolicySchema(2)
 	var schemaV3 = newAccessPolicySchema(3)
+	var schemaV4 = newAccessPolicySchema(4)
 	return []resource.StateMover{
 		{
 			SourceSchema: &schemaV0,
@@ -645,7 +646,7 @@ func (policy *AccessPolicy) MoveState(ctx context.Context) []resource.StateMover
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV2(upgradeModelV1(upgradeModelV0(prior))))...)
+				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV3(upgradeModelV2(upgradeModelV1(upgradeModelV0(prior)))))...)
 			},
 		},
 		{
@@ -659,7 +660,7 @@ func (policy *AccessPolicy) MoveState(ctx context.Context) []resource.StateMover
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV2(upgradeModelV1(prior)))...)
+				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV3(upgradeModelV2(upgradeModelV1(prior))))...)
 			},
 		},
 		{
@@ -673,7 +674,7 @@ func (policy *AccessPolicy) MoveState(ctx context.Context) []resource.StateMover
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV2(prior))...)
+				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV3(upgradeModelV2(prior)))...)
 			},
 		},
 		{
@@ -683,6 +684,20 @@ func (policy *AccessPolicy) MoveState(ctx context.Context) []resource.StateMover
 					return
 				}
 				var prior AccessPolicyModelV3
+				resp.Diagnostics.Append(req.SourceState.Get(ctx, &prior)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV3(prior))...)
+			},
+		},
+		{
+			SourceSchema: &schemaV4,
+			StateMover: func(ctx context.Context, req resource.MoveStateRequest, resp *resource.MoveStateResponse) {
+				if !isRoutingRuleMoveRequest(req, 4) || req.SourceState == nil {
+					return
+				}
+				var prior AccessPolicyModelV4
 				resp.Diagnostics.Append(req.SourceState.Get(ctx, &prior)...)
 				if resp.Diagnostics.HasError() {
 					return
