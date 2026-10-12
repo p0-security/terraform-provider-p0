@@ -739,11 +739,39 @@ func TestDatabricksFailedCreateDestroyedWhenRemoved(t *testing.T) {
 	})
 }
 
+// A catalog's workspace_id comes from its key, which P0 sets the item's
+// workspace from. So an item that P0 has without a workspace reads the same,
+// and plans no change.
+func TestDatabricksCatalogReadsWorkspaceFromKey(t *testing.T) {
+	f := newDatabricksFake(t)
+	d := databricksTestDefaults
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkDatabricksDestroyed(f.client()),
+		Steps: []resource.TestStep{
+			{Config: f.providerConfig() + d.catalog()},
+			{
+				PreConfig: func() {
+					f.update("databricks", "catalog", d.catalogKey(), func(item map[string]any) {
+						delete(item, "workspace")
+					})
+				},
+				Config: f.providerConfig() + d.catalog(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+				Check: resource.TestCheckResourceAttr("p0_databricks_catalog.test", "workspace_id", d.workspaceId),
+			},
+		},
+	})
+}
+
 // A catalog imports by its key, and refuses an import ID that isn't one, or
 // whose catalog name or workspace ID the configuration would refuse. The read
 // after an import puts the key in a URL path, where `sales%@7` doesn't parse
 // and `sales#eu@7` reads `sales`. One refused name shows that the import runs
-// catalogNameError, whose cases TestCatalogNameError covers.
+// catalogNameError, whose cases TestDatabricksCatalogName covers.
 func TestDatabricksCatalogImportId(t *testing.T) {
 	f := newDatabricksFake(t)
 	d := databricksTestDefaults
