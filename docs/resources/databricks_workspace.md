@@ -3,17 +3,17 @@
 page_title: "p0_databricks_workspace Resource - p0"
 subcategory: ""
 description: |-
-  A Databricks workspace installation. P0 manages a workspace through its account's service principal, which must be a workspace admin there.
-  Important: Before creating this resource, the workspace's account must be installed (see the p0_databricks_account resource), and its service principal must be assigned to the workspace with the ADMIN permission, for example with databricks_mws_permission_assignment.
+  A Databricks workspace installation. P0 calls the workspace at workspace_url as its account's service principal.
+  Important: Before creating this resource, the workspace's account must be installed (see the p0_databricks_account resource), and its service principal must be assigned to the workspace as USER, or as ADMIN when is_workspace_admin_enabled is true. Assign it with databricks_mws_permission_assignment or databricks_permission_assignment.
   A workspace that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
   Note: This integration is currently in beta.
 ---
 
 # p0_databricks_workspace (Resource)
 
-A Databricks workspace installation. P0 manages a workspace through its account's service principal, which must be a workspace admin there.
+A Databricks workspace installation. P0 calls the workspace at `workspace_url` as its account's service principal.
 
-**Important:** Before creating this resource, the workspace's account must be installed (see the `p0_databricks_account` resource), and its service principal must be assigned to the workspace with the `ADMIN` permission, for example with `databricks_mws_permission_assignment`.
+**Important:** Before creating this resource, the workspace's account must be installed (see the `p0_databricks_account` resource), and its service principal must be assigned to the workspace as `USER`, or as `ADMIN` when `is_workspace_admin_enabled` is `true`. Assign it with `databricks_mws_permission_assignment` or `databricks_permission_assignment`.
 
 A workspace that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
@@ -22,9 +22,10 @@ A workspace that P0 hasn't finished installing, such as one imported before its 
 ## Example Usage
 
 ```terraform
-# Adds a workspace in an installed Databricks account, by making the account's
-# service principal a workspace admin there. Apply it as a Databricks account
-# admin, once per workspace. Then add the workspace's catalogs (see
+# Adds a workspace in an installed Databricks account, by assigning the
+# account's service principal to it: as a workspace user, or as a workspace
+# admin if local.enable_workspace_admin is true. Apply it as a Databricks
+# account admin, once per workspace. Then add the workspace's catalogs (see
 # p0_databricks_catalog).
 
 terraform {
@@ -42,6 +43,16 @@ terraform {
 locals {
   databricks_account_id = "01234567-89ab-cdef-0123-456789abcdef"
   workspace_id          = "1234567890123456"
+  # If this configuration also holds the workspace's databricks_mws_workspaces,
+  # pass its workspace_id, workspace_url and workspace_name straight through.
+  workspace_url = "https://dbc-1234abcd-5678.cloud.databricks.com"
+  # The workspace's name in P0. Requests show it, and approval rules can match
+  # it.
+  workspace_name = "analytics-prod"
+
+  # Whether users can request workspace admin on this workspace. P0's service
+  # principal is a workspace admin only while this is true.
+  enable_workspace_admin = false
 }
 
 # Workspace assignments are made at the account level.
@@ -57,16 +68,21 @@ data "databricks_service_principal" "p0" {
   application_id = "8c5e2e0a-8f0d-4a3e-9d61-3b2f4c7a1e05"
 }
 
+# USER is enough for Unity Catalog grants. Only workspace-admin requests need
+# ADMIN, which P0 checks when is_workspace_admin_enabled turns on.
 resource "databricks_mws_permission_assignment" "p0" {
   workspace_id = local.workspace_id
   principal_id = data.databricks_service_principal.p0.id
-  permissions  = ["ADMIN"]
+  permissions  = [local.enable_workspace_admin ? "ADMIN" : "USER"]
 }
 
 resource "p0_databricks_workspace" "example" {
-  id         = local.workspace_id
-  account    = local.databricks_account_id
-  depends_on = [databricks_mws_permission_assignment.p0]
+  id                         = local.workspace_id
+  account                    = local.databricks_account_id
+  workspace_url              = local.workspace_url
+  workspace_name             = local.workspace_name
+  is_workspace_admin_enabled = local.enable_workspace_admin
+  depends_on                 = [databricks_mws_permission_assignment.p0]
 }
 ```
 
@@ -77,6 +93,12 @@ resource "p0_databricks_workspace" "example" {
 
 - `account` (String) The `id` of the `p0_databricks_account` that this workspace is in
 - `id` (String) The Databricks workspace ID
+- `workspace_name` (String) A name for the workspace in P0, e.g. `analytics-prod`. Requests show it, and approval rules can match it with the workspace filter's name key. Changing it updates the workspace in place. A configuration that holds the workspace's `databricks_mws_workspaces` can pass its `workspace_name` here.
+- `workspace_url` (String) The workspace's URL, e.g. `https://dbc-1234abcd-5678.cloud.databricks.com`: `https://` and a host on the workspace domain of the account's cloud, with no path or trailing slash. P0 calls the workspace there, and checks that it belongs to this workspace ID. P0 can't change a workspace's URL, so a new value replaces the workspace. A configuration that holds the workspace's `databricks_mws_workspaces` can pass its `workspace_url` here.
+
+### Optional
+
+- `is_workspace_admin_enabled` (Boolean) Whether users can request workspace admin on this workspace. Defaults to `false`. The service principal needs an `ADMIN` assignment, in place of `USER`, only when this is `true`, and P0 then checks that it is a workspace admin. Changing it updates the workspace in place. If P0's check fails, the apply fails, and the workspace stays as it was.
 
 ### Read-Only
 

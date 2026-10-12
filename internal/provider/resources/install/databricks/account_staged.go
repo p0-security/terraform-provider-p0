@@ -28,9 +28,9 @@ func (*AccountStaged) Metadata(_ context.Context, req resource.MetadataRequest, 
 
 func (*AccountStaged) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A staged Databricks account. P0 manages a Databricks account through a service principal there that holds account admin, and that the connector exchanges its AWS identity for.
+		MarkdownDescription: `A staged Databricks account. P0 manages a Databricks account through a service principal there that the connector exchanges its AWS identity for.
 
-Staging records the account in P0 and checks its ID and accounts URL before you create the service principal. Then create the service principal, its federation policy and its account admin role, and create a ` + "`p0_databricks_account`" + ` resource with the same ` + "`id`" + ` to complete the installation.
+Staging records the account in P0 and checks its ID and accounts URL before you create the service principal. Then create the service principal and its federation policy, and create a ` + "`p0_databricks_account`" + ` resource with the same ` + "`id`" + ` to complete the installation. The service principal needs the ` + "`account_admin`" + ` role only if that resource's ` + "`is_account_admin_enabled`" + ` is ` + "`true`" + `.
 
 **Prerequisite:** The connector that reaches the account must be installed (see the ` + "`p0_databricks_connector`" + ` resource).
 

@@ -4,7 +4,7 @@ page_title: "p0_databricks_account Resource - p0"
 subcategory: ""
 description: |-
   A Databricks account installation.
-  Important: Before creating this resource you must stage the account with p0_databricks_account_staged, and create a service principal in the account with the account_admin role and a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is federation_audience (databricks). Creating them takes a Databricks account admin.
+  Important: Before creating this resource you must stage the account with p0_databricks_account_staged, and create a service principal in the account with a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is federation_audience (databricks). Creating them takes a Databricks account admin. The service principal needs the account_admin role only when is_account_admin_enabled is true.
   An account that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
   Note: This integration is currently in beta.
 ---
@@ -13,7 +13,7 @@ description: |-
 
 A Databricks account installation.
 
-**Important:** Before creating this resource you must stage the account with `p0_databricks_account_staged`, and create a service principal in the account with the `account_admin` role and a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is `federation_audience` (`databricks`). Creating them takes a Databricks account admin.
+**Important:** Before creating this resource you must stage the account with `p0_databricks_account_staged`, and create a service principal in the account with a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is `federation_audience` (`databricks`). Creating them takes a Databricks account admin. The service principal needs the `account_admin` role only when `is_account_admin_enabled` is `true`.
 
 An account that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
@@ -22,11 +22,12 @@ An account that P0 hasn't finished installing, such as one imported before its i
 ## Example Usage
 
 ```terraform
-# Adds a Databricks account: a service principal there that holds account
-# admin, and that the connector exchanges its AWS identity for. Apply it as a
-# Databricks account admin, signed in to the connector's AWS account.
+# Adds a Databricks account: a service principal there that the connector
+# exchanges its AWS identity for. The principal holds account admin only if
+# local.enable_account_admin is true. Apply it as a Databricks account admin,
+# signed in to the connector's AWS account.
 # Full chain: p0_databricks_connector -> p0_databricks_account_staged ->
-# service principal, federation policy and account admin role ->
+# service principal, federation policy and, if enabled, account admin role ->
 # p0_databricks_account. Then add workspaces (see p0_databricks_workspace).
 
 terraform {
@@ -53,6 +54,10 @@ locals {
   aws_region            = "us-east-1"
   databricks_account_id = "01234567-89ab-cdef-0123-456789abcdef"
   accounts_url          = "https://accounts.cloud.databricks.com"
+
+  # Whether users can request account admin in this account. P0's service
+  # principal holds account admin only while this is true.
+  enable_account_admin = false
 }
 
 # Reads the connector's role and issuer, so it must be signed in to the
@@ -99,17 +104,22 @@ resource "databricks_service_principal_federation_policy" "p0" {
   }
 }
 
+# Only account-admin requests need it. P0 checks the role when
+# is_account_admin_enabled turns on.
 resource "databricks_service_principal_role" "p0_account_admin" {
+  count = local.enable_account_admin ? 1 : 0
+
   service_principal_id = databricks_service_principal.p0.id
   role                 = "account_admin"
 }
 
 # Completes the install.
 resource "p0_databricks_account" "example" {
-  id             = p0_databricks_account_staged.example.id
-  connector      = p0_databricks_account_staged.example.connector
-  accounts_url   = p0_databricks_account_staged.example.accounts_url
-  application_id = databricks_service_principal.p0.application_id
+  id                       = p0_databricks_account_staged.example.id
+  connector                = p0_databricks_account_staged.example.connector
+  accounts_url             = p0_databricks_account_staged.example.accounts_url
+  application_id           = databricks_service_principal.p0.application_id
+  is_account_admin_enabled = local.enable_account_admin
 
   depends_on = [
     databricks_service_principal_federation_policy.p0,
@@ -133,6 +143,10 @@ output "application_id" {
 - `application_id` (String) The application ID of the service principal that the connector signs in to Databricks as, e.g. `databricks_service_principal.application_id`. Changing it updates the account in place, and P0 checks the install again. If the check fails, the apply fails, and the account keeps its current application ID.
 - `connector` (String) The `id` of the `p0_databricks_connector` that reaches this account, which is the ID of the AWS account that the connector runs in
 - `id` (String) The Databricks account ID
+
+### Optional
+
+- `is_account_admin_enabled` (Boolean) Whether users can request account admin in this account. Defaults to `false`. The service principal needs the `account_admin` role only when this is `true`, and P0 then checks that it holds the role. Changing it updates the account in place. If P0's check fails, the apply fails, and the account stays as it was.
 
 ### Read-Only
 
