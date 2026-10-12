@@ -492,6 +492,24 @@ func upgradeApprovalV1(prior []ApprovalModelV1) []ApprovalModelV2 {
 	return upgraded
 }
 
+func upgradeApprovalV2(prior []ApprovalModelV2) []ApprovalModelV3 {
+	upgraded := make([]ApprovalModelV3, len(prior))
+	for i, approval := range prior {
+		upgraded[i] = ApprovalModelV3{
+			Directory:       approval.Directory,
+			Integration:     approval.Integration,
+			Groups:          approval.Groups,
+			ProfileProperty: approval.ProfileProperty,
+			Options:         approval.Options,
+			Services:        approval.Services,
+			Type:            approval.Type,
+			Effect:          approval.Effect,
+			MaxDuration:     nil,
+		}
+	}
+	return upgraded
+}
+
 func upgradeModelV0(prior AccessPolicyModelV0) AccessPolicyModelV1 {
 	requestor := upgradeRequestorV0(prior.Requestor)
 	return AccessPolicyModelV1{
@@ -535,10 +553,21 @@ func upgradeModelV2(prior AccessPolicyModelV2) AccessPolicyModelV3 {
 	}
 }
 
+func upgradeModelV3(prior AccessPolicyModelV3) AccessPolicyModelV4 {
+	return AccessPolicyModelV4{
+		Name:      prior.Name,
+		Disabled:  prior.Disabled,
+		Requestor: prior.Requestor,
+		Resource:  prior.Resource,
+		Approval:  upgradeApprovalV2(prior.Approval),
+	}
+}
+
 func (policy *AccessPolicy) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
 	var schemaV0 = newAccessPolicySchema(0)
 	var schemaV1 = newAccessPolicySchema(1)
 	var schemaV2 = newAccessPolicySchema(2)
+	var schemaV3 = newAccessPolicySchema(3)
 	return map[int64]resource.StateUpgrader{
 		0: {
 			PriorSchema: &schemaV0,
@@ -548,7 +577,7 @@ func (policy *AccessPolicy) UpgradeState(ctx context.Context) map[int64]resource
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV0(prior))...)
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV3(upgradeModelV2(upgradeModelV1(upgradeModelV0(prior)))))...)
 			},
 		},
 		1: {
@@ -559,7 +588,7 @@ func (policy *AccessPolicy) UpgradeState(ctx context.Context) map[int64]resource
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV1(prior))...)
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV3(upgradeModelV2(upgradeModelV1(prior))))...)
 			},
 		},
 		2: {
@@ -570,7 +599,18 @@ func (policy *AccessPolicy) UpgradeState(ctx context.Context) map[int64]resource
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV2(prior))...)
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV3(upgradeModelV2(prior)))...)
+			},
+		},
+		3: {
+			PriorSchema: &schemaV3,
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				var prior AccessPolicyModelV3
+				resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV3(prior))...)
 			},
 		},
 	}
