@@ -5,12 +5,16 @@ package accesspolicy
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/duration"
 )
 
 // TestAgentToJsonOwnerGroup verifies the "owner-group" variant's flat
@@ -404,4 +408,61 @@ func oneApproval(t *testing.T, approvalList tftypes.Type) tftypes.Value {
 	}
 	elem := tftypes.NewValue(elemType, attrs)
 	return tftypes.NewValue(approvalList, []tftypes.Value{elem})
+}
+
+// TestApprovalMaxDurationRoundTrip verifies a non-null max_duration on an
+// approval is persisted under the "maxDuration" JSON key and survives the
+// toJson -> toModel conversion.
+func TestApprovalMaxDurationRoundTrip(t *testing.T) {
+	name := "example"
+	maxDuration := duration.Option{Time: 1, Unit: "h"}
+	model := AccessPolicyModelV4{
+		Name:      &name,
+		Requestor: &RequestorModelV3{Type: "any"},
+		Resource:  &ResourceModel{Type: "any"},
+		Approval:  []ApprovalModelV3{{Type: "p0", MaxDuration: &maxDuration}},
+	}
+
+	wire := toJson(model)
+
+	encoded, err := json.Marshal(wire.Approval[0])
+	if err != nil {
+		t.Fatalf("marshaling approval failed: %v", err)
+	}
+	if want := `"maxDuration":{"time":1,"unit":"h"}`; !strings.Contains(string(encoded), want) {
+		t.Errorf("approval JSON = %s; want it to contain %s", encoded, want)
+	}
+
+	got := toModel(wire)
+
+	if len(got.Approval) != 1 {
+		t.Fatalf("Approval has %d entries; want 1", len(got.Approval))
+	}
+	if got.Approval[0].MaxDuration == nil {
+		t.Fatalf("MaxDuration is nil; want %+v", maxDuration)
+	}
+	if *got.Approval[0].MaxDuration != maxDuration {
+		t.Errorf("MaxDuration = %+v; want %+v", *got.Approval[0].MaxDuration, maxDuration)
+	}
+}
+
+// TestSchemaV4ExposesMaxDuration verifies the current schema surfaces the
+// approval max_duration attribute (and that it stays gated to version >= 4), so
+// the tfsdk-tagged field can actually be read from and written to state.
+func TestSchemaV4ExposesMaxDuration(t *testing.T) {
+	v4, ok := newAccessPolicySchema(4).Attributes["approval"].(schema.ListNestedAttribute)
+	if !ok {
+		t.Fatalf("v4 approval attribute is not a ListNestedAttribute")
+	}
+	if _, ok := v4.NestedObject.Attributes["max_duration"]; !ok {
+		t.Errorf("schema v4 approval is missing the max_duration attribute")
+	}
+
+	v3, ok := newAccessPolicySchema(3).Attributes["approval"].(schema.ListNestedAttribute)
+	if !ok {
+		t.Fatalf("v3 approval attribute is not a ListNestedAttribute")
+	}
+	if _, ok := v3.NestedObject.Attributes["max_duration"]; ok {
+		t.Errorf("schema v3 approval unexpectedly exposes max_duration")
+	}
 }
