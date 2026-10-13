@@ -23,6 +23,7 @@ type fakeItemKey struct {
 //     advance its state (stage -> configure -> installed)
 //   - every item response carries the component's metadata, when it has any
 //   - unknown items are 404, and DELETE answers 204 with no body
+//   - an installer can refuse a step, as P0's do for a request they can't accept
 type fakeP0 struct {
 	server *httptest.Server
 
@@ -33,6 +34,19 @@ type fakeP0 struct {
 	normalize func(key fakeItemKey, item map[string]any)
 	// Computes a component's metadata; returning nil omits the key, as P0 does.
 	metadata func(key fakeItemKey, item map[string]any) map[string]any
+	// Called before each write, so a test can refuse the step the way P0's installers
+	// do: with an HTTP status and an error message, or 0 to accept it. items is
+	// everything P0 stores.
+	refuse func(step fakeStep, items map[fakeItemKey]map[string]any) (int, string)
+}
+
+// One write to an item: the state it moves the item to, the stored item, which is nil
+// when there is none, and the request's body.
+type fakeStep struct {
+	key       fakeItemKey
+	nextState string
+	previous  map[string]any
+	body      map[string]any
 }
 
 func newFakeP0(t *testing.T) *fakeP0 {
@@ -41,6 +55,7 @@ func newFakeP0(t *testing.T) *fakeP0 {
 		items:        map[fakeItemKey]map[string]any{},
 		normalize:    func(fakeItemKey, map[string]any) {},
 		metadata:     func(fakeItemKey, map[string]any) map[string]any { return nil },
+		refuse:       func(fakeStep, map[fakeItemKey]map[string]any) (int, string) { return 0, "" },
 	}
 
 	mux := http.NewServeMux()
@@ -104,6 +119,12 @@ func (f *fakeP0) step(nextState string, expectedStates []string) http.HandlerFun
 		state, _ := previous["state"].(string)
 		if expectedStates != nil && !slices.Contains(expectedStates, state) {
 			http.Error(w, `{"error":"Invalid integration state"}`, http.StatusBadRequest)
+			return
+		}
+		if status, message := f.refuse(fakeStep{key, nextState, previous, body}, f.items); status != 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": message})
 			return
 		}
 
