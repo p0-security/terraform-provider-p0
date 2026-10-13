@@ -64,6 +64,40 @@ func TestStepError(t *testing.T) {
 	}
 }
 
+// Staging an item that P0 doesn't offer the organization goes to DescribeStageNotFound.
+// Every other failure keeps the generic diagnostic, which carries P0's message.
+func TestStageError(t *testing.T) {
+	const generic = "Could not stage component component"
+	const described = "described"
+	describe := func(id string, err error) (string, string) { return described, id + ": " + err.Error() }
+	status := func(code int) *http.Response { return &http.Response{StatusCode: code} }
+
+	cases := []struct {
+		name        string
+		describe    func(string, error) (string, string)
+		resp        *http.Response
+		wantSummary string
+		wantDetail  string
+	}{
+		{name: "not offered", describe: describe, resp: status(http.StatusNotFound), wantSummary: described, wantDetail: "item: boom"},
+		{name: "not offered without a describer", resp: status(http.StatusNotFound), wantSummary: generic, wantDetail: "Error: boom"},
+		{name: "refused value", describe: describe, resp: status(http.StatusBadRequest), wantSummary: generic, wantDetail: "Error: boom"},
+		{name: "conflict", describe: describe, resp: status(http.StatusConflict), wantSummary: generic, wantDetail: "Error: boom"},
+		{name: "unauthorized", describe: describe, resp: status(http.StatusForbidden), wantSummary: generic, wantDetail: "Error: boom"},
+		{name: "never reached P0", describe: describe, resp: nil, wantSummary: generic, wantDetail: "Error: boom"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			install := &Install{Component: "component", DescribeStageNotFound: c.describe}
+			summary, detail := install.stageError("item", c.resp, errors.New("boom"))
+			if summary != c.wantSummary || detail != c.wantDetail {
+				t.Errorf("stageError() = %q, %q; want %q, %q", summary, detail, c.wantSummary, c.wantDetail)
+			}
+		})
+	}
+}
+
 type testItemModel struct {
 	Id    types.String `tfsdk:"id"`
 	State types.String `tfsdk:"state"`
@@ -250,4 +284,42 @@ func TestUpsertFromConfigureKeepsStateOnFailure(t *testing.T) {
 	if !installed.Raw.Equal(testItemValue(t, StateInstalled)) {
 		t.Errorf("state = %v; want the installed state kept", installed.Raw)
 	}
+}
+
+// A read that finds no item removes the resource from state, so that the next apply
+// creates it again. With DescribeReadNotFound set, it fails instead, and keeps the
+// resource.
+func TestReadNotFound(t *testing.T) {
+	server := newRecordingServer(t, func(*http.Request) (int, string) {
+		return http.StatusNotFound, `{"error":"Not found"}`
+	})
+
+	t.Run("without a describer", func(t *testing.T) {
+		state := tfsdk.State{Schema: testItemSchema, Raw: testItemValue(t, StateInstalled)}
+		var diags diag.Diagnostics
+		newTestInstall(server.URL, server.Client()).Read(context.Background(), &diags, &state, &testItemApi{}, &testItemModel{})
+
+		if diags.HasError() {
+			t.Fatalf("diagnostics = %v", diags)
+		}
+		if !state.Raw.IsNull() {
+			t.Errorf("state = %v; want the resource removed", state.Raw)
+		}
+	})
+
+	t.Run("with a describer", func(t *testing.T) {
+		state := tfsdk.State{Schema: testItemSchema, Raw: testItemValue(t, StateInstalled)}
+		install := newTestInstall(server.URL, server.Client())
+		install.DescribeReadNotFound = func(id string, err error) (string, string) { return "described", id + ": " + err.Error() }
+		var diags diag.Diagnostics
+		install.Read(context.Background(), &diags, &state, &testItemApi{}, &testItemModel{})
+
+		errs := diags.Errors()
+		if len(errs) != 1 || errs[0].Summary() != "described" || errs[0].Detail() != "item: 404 Not Found: Not found" {
+			t.Fatalf("diagnostics = %v; want the described error", diags)
+		}
+		if !state.Raw.Equal(testItemValue(t, StateInstalled)) {
+			t.Errorf("state = %v; want the resource kept", state.Raw)
+		}
+	})
 }

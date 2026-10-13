@@ -63,6 +63,17 @@ type Install struct {
 	// usually points at the customer's own setup, which P0's message, carried in err,
 	// describes.
 	DescribeCheckError func(id string, err error) (summary string, detail string)
+	// Optional. Describes a 404 from the request that stages an item, in place of the
+	// generic "Could not stage" diagnostic. P0 answers that request with a 404 when it
+	// doesn't offer the component to the organization, as when the component is behind
+	// a feature flag that is off. P0's message, carried in err, is only "Not found".
+	DescribeStageNotFound func(id string, err error) (summary string, detail string)
+	// Optional. When set, a 404 from Read fails with this diagnostic and keeps the
+	// resource in state, in place of removing it. Set it for a component that P0 can
+	// stop offering, as with a feature flag, while its items still exist: dropping the
+	// resource would have the next apply create it again, which stages the item again
+	// and so undoes its install.
+	DescribeReadNotFound func(id string, err error) (summary string, detail string)
 }
 
 func (i *Install) itemPath(id string) string {
@@ -108,9 +119,9 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 		return
 	}
 
-	_, err := i.ProviderData.Put(i.itemPath(*id), inputJson, json)
+	resp, err := i.ProviderData.Put(i.itemPath(*id), inputJson, json)
 	if err != nil {
-		diags.AddError(fmt.Sprintf("Could not stage %s component", i.Component), fmt.Sprintf("Error: %s", err))
+		diags.AddError(i.stageError(*id, resp, err))
 		return
 	}
 
@@ -130,6 +141,18 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 	}
 
 	diags.Append(state.Set(ctx, created)...)
+}
+
+// The diagnostic for an item that couldn't be staged.
+//
+// A 404 goes to DescribeStageNotFound, if set. Anything else keeps the generic
+// diagnostic, which carries P0's message: P0 refuses a value it can't stage in its own
+// words.
+func (i *Install) stageError(id string, resp *http.Response, err error) (string, string) {
+	if i.DescribeStageNotFound != nil && resp != nil && resp.StatusCode == http.StatusNotFound {
+		return i.DescribeStageNotFound(id, err)
+	}
+	return fmt.Sprintf("Could not stage %s component", i.Component), fmt.Sprintf("Error: %s", err)
 }
 
 // Advances the item to "installed" state.
@@ -252,6 +275,10 @@ func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsd
 
 	resp, httpErr := i.ProviderData.Get(i.itemPath(*id), json)
 	if resp != nil && resp.StatusCode == 404 {
+		if i.DescribeReadNotFound != nil {
+			diags.AddError(i.DescribeReadNotFound(*id, httpErr))
+			return
+		}
 		state.RemoveResource(ctx)
 		return
 	}
