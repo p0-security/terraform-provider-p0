@@ -100,6 +100,8 @@ type harborFake struct {
 	failedCheck string
 	// P0's message for a connector it refuses to stage.
 	stageRefusal string
+	// How many writes to Harbor items P0 got, refused or not.
+	writes int
 }
 
 // The fields of a connector's hosting that P0 fixes when it creates the item.
@@ -115,6 +117,7 @@ func newHarborFake(t *testing.T) *harborFake {
 		if step.key.integration != "harbor" {
 			return 0, ""
 		}
+		f.writes++
 		if f.disabled {
 			return http.StatusNotFound, "Not found"
 		}
@@ -123,6 +126,14 @@ func newHarborFake(t *testing.T) *harborFake {
 		if step.nextState == "stage" {
 			if f.stageRefusal != "" {
 				return http.StatusBadRequest, f.stageRefusal
+			}
+			// P0 takes a PUT over a connector it holds only when the hosting matches.
+			if stored, ok := step.previous["hosting"].(map[string]any); ok {
+				for _, field := range harborAddressFields {
+					if hosting[field] != stored[field] {
+						return http.StatusConflict, "This Harbor connector already exists with another hosting."
+					}
+				}
 			}
 			return 0, ""
 		}
@@ -483,13 +494,27 @@ func TestHarborConnectorMissingServiceAccount(t *testing.T) {
 		"no account":    none,
 		"blank account": func(map[string]any) any { return "" },
 	} {
+		// The connector P0 staged isn't left behind, so once P0 returns the account the
+		// next apply stages it.
 		t.Run(name+" when staged on Google Cloud", func(t *testing.T) {
 			f := newHarborFake(t)
+			working := f.serviceAccount
 			f.serviceAccount = account
 			resource.UnitTest(t, resource.TestCase{
 				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				CheckDestroy:             checkHarborDestroyed(f),
 				Steps: []resource.TestStep{
 					{Config: harborStagedConfig(f, harborGcp), ExpectError: missing},
+					{
+						PreConfig: func() {
+							if item := f.connector(); item != nil {
+								t.Errorf("P0 item after the failed staging = %v; want none", item)
+							}
+							f.serviceAccount = working
+						},
+						Config: harborStagedConfig(f, harborGcp),
+						Check:  resource.TestCheckResourceAttr("p0_harbor_connector_staged.example", "hosting.connector_service_account", harborServiceAccount),
+					},
 				},
 			})
 		})
@@ -550,6 +575,45 @@ func TestHarborConnectorMissingServiceAccount(t *testing.T) {
 			},
 		})
 	})
+}
+
+// A connector that P0 already holds, such as one added in the P0 app, isn't staged
+// again: P0 would accept the PUT, which returns an installed connector to "stage" and
+// stops every instance behind it. The apply fails, writes nothing, and says to import
+// the connector. So does one whose read fails for another reason.
+func TestHarborConnectorStagedOverExisting(t *testing.T) {
+	key := fakeItemKey{"harbor", "connector", harborConnector}
+	for _, state := range []string{"stage", "installed"} {
+		t.Run(state, func(t *testing.T) {
+			f := newHarborFake(t)
+			f.integrations["harbor"] = true
+			f.items[key] = map[string]any{
+				"hosting": map[string]any{
+					"type": "gcp", "projectId": harborProject, "connectorName": harborConnectorName, "connectorRegion": "us-west1",
+					"connectorServiceAccount": harborServiceAccount,
+				},
+				"label": harborConnector, "state": state,
+			}
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					{
+						Config: harborStagedConfig(f, harborGcp),
+						ExpectError: harborError(
+							"Harbor connector already exists in P0", `P0 already has a Harbor connector "prod"`,
+							"terraform import <address> prod",
+						),
+					},
+				},
+			})
+			if f.writes != 0 {
+				t.Errorf("P0 got %d writes; want none", f.writes)
+			}
+			if item := f.connector(); item["state"] != state {
+				t.Errorf("P0 item = %v; want it still at %s", item, state)
+			}
+		})
+	}
 }
 
 // With Harbor's feature flag off, P0 answers the request that stages a connector with

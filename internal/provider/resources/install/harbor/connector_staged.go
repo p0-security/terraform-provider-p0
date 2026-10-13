@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
+	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
 var _ resource.Resource = &HarborConnectorStaged{}
@@ -34,6 +35,8 @@ func (*HarborConnectorStaged) Schema(_ context.Context, _ resource.SchemaRequest
 Use ` + "`hosting`" + ` to deploy P0's Harbor connector: a Lambda function on AWS, or a Cloud Run service that runs as ` + "`hosting.connector_service_account`" + ` on Google Cloud. Once the connector is deployed, create a ` + "`p0_harbor_connector`" + ` resource with the same ` + "`id`" + ` and ` + "`hosting`" + ` to complete the installation.
 
 Where a connector runs can't change once it is staged, so changing ` + "`id`" + ` or ` + "`hosting`" + ` replaces the connector.
+
+A connector that already exists in P0, such as one added in the P0 app, isn't staged again: the apply fails, and says to import it with ` + "`terraform import`" + `. Staging it again would return an installed connector to its staged state.
 
 ` + connectorRulesNote + `
 
@@ -68,7 +71,25 @@ func (r *HarborConnectorStaged) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
+	// Staging a connector that P0 holds would return an installed one to "stage", and
+	// every Harbor instance behind it would stop working until it is verified again.
+	// So this never stages over one, such as a connector installed in the P0 app. The
+	// rollback of p0_harbor_connector is another path: it stages a connector that this
+	// resource created.
+	id := data.Id.ValueString()
+	refuseExistingItem(r.installer.ProviderData, installresources.Connector, "connector", id, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, connectorToJson(&data))
+	if resp.Diagnostics.HasError() {
+		// A connector that P0 staged but returned in a shape this can't use, as without
+		// its service account, is in P0 and not in state. It is removed, so that the
+		// next apply finds nothing in its way and stages it again. A failure to remove
+		// it changes nothing in the diagnostics: the next apply says to import it.
+		_, _ = r.installer.ProviderData.Delete(itemPath(installresources.Connector, id))
+	}
 }
 
 func (r *HarborConnectorStaged) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {

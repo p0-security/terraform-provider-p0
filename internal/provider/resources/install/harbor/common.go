@@ -3,12 +3,15 @@ package installharbor
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/p0-security/terraform-provider-p0/internal"
 	installvaultedcredential "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/vaulted-credential"
 )
 
@@ -50,6 +53,31 @@ func importById(ctx context.Context, req resource.ImportStateRequest, resp *reso
 		return
 	}
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func itemPath(component string, id string) string {
+	return fmt.Sprintf("integrations/%s/config/%s/%s", HarborKey, component, id)
+}
+
+// Refuses to create a Harbor item that P0 already holds, such as one added in the P0
+// app. kind names the item, as in "the Harbor connector". P0 accepts a PUT that
+// changes nothing over an item it holds, and the PUT returns an installed item to
+// "stage", where it does no work until it is verified again. P0 answers 404 for an
+// item it doesn't have, and also while Harbor's flag is off, which the PUT that
+// follows reports.
+func refuseExistingItem(data *internal.P0ProviderData, component string, kind string, id string, diags *diag.Diagnostics) {
+	resp, err := data.Get(itemPath(component, id), &struct{}{})
+	switch {
+	case resp != nil && resp.StatusCode == http.StatusNotFound:
+	case err != nil:
+		diags.AddError("Error communicating with P0", fmt.Sprintf("Could not check whether the Harbor %s %q exists, got error:\n%s", kind, id, err))
+	default:
+		diags.AddError(
+			fmt.Sprintf("Harbor %s already exists in P0", kind),
+			fmt.Sprintf("P0 already has a Harbor %s %q, so Terraform won't create it. "+
+				"To manage it here, import it with `terraform import <address> %s`. Otherwise give this resource another `id`.", kind, id, id),
+		)
+	}
 }
 
 // Harbor is behind a feature flag in P0, which each of its components names. While
