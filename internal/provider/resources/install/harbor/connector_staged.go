@@ -39,6 +39,8 @@ Where a connector runs can't change once it is staged, so changing ` + "`id`" + 
 
 **Prerequisite:** P0 invokes the connector as its own identity in your cloud. For AWS Lambda, ` + "`p0_aws_iam_write`" + ` must be installed for the account the connector runs in. For Google Cloud Run, ` + "`p0_gcp`" + ` must be installed.
 
+` + notFoundRecoveryNote + `
+
 ` + previewNote,
 		Attributes: connectorAttributes(
 			`A name you choose for the connector, such as `+"`prod`"+`: `+itemIdRule,

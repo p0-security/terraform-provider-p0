@@ -566,7 +566,7 @@ func TestHarborConnectorUnavailable(t *testing.T) {
 				Config: harborStagedConfig(f, harborGcp),
 				ExpectError: harborError(
 					"Harbor isn't enabled for this P0 organization",
-					`P0 couldn't stage the Harbor connector "prod"`,
+					`P0 couldn't stage or install the Harbor connector "prod"`,
 					"contact support@p0.dev to have it enabled",
 					"P0's response: 404 Not Found: Not found",
 				),
@@ -599,7 +599,7 @@ func TestHarborConnectorNotFoundOnRead(t *testing.T) {
 	// Each resource fails on its own: Terraform shows the resource after the summary.
 	notFound := func(address string) string {
 		return `Harbor connector not found in P0\s+with ` + regexp.QuoteMeta(address) + `,` +
-			`.*P0 has no Harbor connector "prod".*terraform state rm.*404 Not Found`
+			`.*P0 has no Harbor connector "prod".*-refresh=false.*terraform\s+state\s+rm\s+<address>.*404 Not Found`
 	}
 	staged, final := notFound("p0_harbor_connector_staged.example"), notFound("p0_harbor_connector.example")
 	notFoundForBoth := regexp.MustCompile(`(?s)(` + staged + `.*` + final + `|` + final + `.*` + staged + `)`)
@@ -668,6 +668,35 @@ resource "p0_google_drive_connector_staged" "example" {
 						plancheck.ExpectResourceAction("p0_google_drive_connector_staged.example", plancheck.ResourceActionCreate),
 					},
 				},
+			},
+		},
+	})
+}
+
+// The flag can go off between staging and installing. The verify step gets the same
+// bare 404, and fails with the same diagnostic.
+func TestHarborConnectorUnavailableOnVerify(t *testing.T) {
+	f := newHarborFake(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkHarborDestroyed(f),
+		Steps: []resource.TestStep{
+			{Config: harborStagedConfig(f, harborGcp)},
+			{
+				PreConfig: func() { f.disabled = true },
+				Config:    harborConnectorConfig(f, harborGcp),
+				ExpectError: harborError(
+					"Harbor isn't enabled for this P0 organization",
+					`P0 couldn't stage or install the Harbor connector "prod"`,
+					"P0's response: 404 Not Found: Not found",
+				),
+			},
+			// With the flag back on, the next apply installs it.
+			{
+				PreConfig: func() { f.disabled = false },
+				Config:    harborConnectorConfig(f, harborGcp),
+				Check:     resource.TestCheckResourceAttr("p0_harbor_connector.example", "state", "installed"),
 			},
 		},
 	})
