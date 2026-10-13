@@ -142,11 +142,11 @@ func (data *P0ProviderData) Do(req *http.Request, responseJson any) (*http.Respo
 
 func (data *P0ProviderData) Get(path string, responseJson any) (*http.Response, error) {
 	req, errNew := http.NewRequest("GET", fmt.Sprintf("%s/%s", data.BaseUrl, path), nil)
-	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Authorization", data.Authentication)
 	if errNew != nil {
 		return nil, errNew
 	}
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("Authorization", data.Authentication)
 	return data.Do(req, responseJson)
 }
 
