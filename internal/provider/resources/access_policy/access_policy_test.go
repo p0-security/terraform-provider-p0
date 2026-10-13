@@ -323,8 +323,8 @@ func TestUpgradeV3ToV4Approvals(t *testing.T) {
 	}
 }
 
-// TestUpgradeV1ToV2 exercises the registered V1->V2 state upgrader end to
-// end: build to ensure v1 successfully updates the v2 with the addition of the optional max_duration attribute in v2 after v2 was already created.
+// TestUpgradeV1ToV2 exercises the registered V1->current state upgrader end to
+// end: build to ensure v1 successfully updates the later with the addition of the optional max_duration attribute
 func TestUpgradeV1Approval(t *testing.T) {
 	ctx := context.Background()
 	upgrader := (&AccessPolicy{}).UpgradeState(ctx)[1]
