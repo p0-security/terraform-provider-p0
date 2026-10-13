@@ -382,7 +382,7 @@ func TestUpgradeV2Approval(t *testing.T) {
 	}
 }
 
-// builds one non-null approval object of the full element type (every attribute present, values null except the non-pointer type), so the upgrader must decode the nested object and bind each declared attribute to an ApprovalModelV1 field, and ensures they are tested.
+// builds one non-null approval object of the full element type (every attribute present, values null except the non-pointer type), so the upgrader must decode the nested object and bind each declared attribute to an ApprovalModel field, and ensures they are tested.
 func oneApproval(t *testing.T, approvalList tftypes.Type) tftypes.Value {
 	t.Helper()
 	listType, ok := approvalList.(tftypes.List)
