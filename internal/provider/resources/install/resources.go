@@ -17,4 +17,5 @@ const (
 	RepositoryAccess = "repository-access"
 	Connector        = "connector"
 	SharedDrive      = "shared-drive"
+	Organization     = "organization"
 )
