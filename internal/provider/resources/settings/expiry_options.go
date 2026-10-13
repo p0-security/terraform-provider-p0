@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/duration"
 )
 
 var _ resource.Resource = &ExpiryOptions{}
@@ -21,7 +22,7 @@ var _ resource.ResourceWithConfigure = &ExpiryOptions{}
 // ExpiryOptions manages the selectable request-duration presets ("expiry
 // options") an organization offers. It is a singleton: declare it at most once.
 //
-// P0 identifies each option by a derived label (see computeValue) and de-dupes
+// P0 identifies each option by a derived label (see duration.ComputeValue) and de-dupes
 // options by (time, unit). The API has no read endpoint, so Read is a
 // passthrough of prior state.
 type ExpiryOptions struct {
@@ -33,7 +34,7 @@ func NewExpiryOptions() resource.Resource {
 }
 
 type expiryOptionsModel struct {
-	Options []durationOption `tfsdk:"options"`
+	Options []duration.Option `tfsdk:"options"`
 }
 
 func (r *ExpiryOptions) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -50,7 +51,7 @@ Options are de-duplicated by their ` + "`time`" + ` and ` + "`unit`" + `. The P0
 				MarkdownDescription: "The list of selectable request durations.",
 				Required:            true,
 				NestedObject: schema.NestedAttributeObject{
-					Attributes: durationAttributes(),
+					Attributes: duration.Attributes(),
 				},
 			},
 		},
@@ -66,11 +67,11 @@ func (r *ExpiryOptions) Configure(ctx context.Context, req resource.ConfigureReq
 
 // optionKey uniquely identifies an option by its (time, unit), matching P0's
 // de-duplication.
-func optionKey(o durationOption) string {
+func optionKey(o duration.Option) string {
 	return fmt.Sprintf("%d/%s", o.Time, o.Unit)
 }
 
-func (r *ExpiryOptions) add(ctx context.Context, diags *diag.Diagnostics, o durationOption) {
+func (r *ExpiryOptions) add(ctx context.Context, diags *diag.Diagnostics, o duration.Option) {
 	var response map[string]any
 	_, err := r.data.Post("settings/expiry-options", &o, &response)
 	if err != nil {
@@ -80,8 +81,8 @@ func (r *ExpiryOptions) add(ctx context.Context, diags *diag.Diagnostics, o dura
 	tflog.Debug(ctx, fmt.Sprintf("Added expiry option %+v", o))
 }
 
-func (r *ExpiryOptions) remove(ctx context.Context, diags *diag.Diagnostics, o durationOption) {
-	key := url.PathEscape(computeValue(o.Time, o.Unit))
+func (r *ExpiryOptions) remove(ctx context.Context, diags *diag.Diagnostics, o duration.Option) {
+	key := url.PathEscape(duration.ComputeValue(o.Time, o.Unit))
 	_, err := r.data.Delete("settings/expiry-options/" + key)
 	if err != nil {
 		diags.AddError("Error communicating with P0", fmt.Sprintf("Unable to remove expiry option %+v:\n%s", o, err))

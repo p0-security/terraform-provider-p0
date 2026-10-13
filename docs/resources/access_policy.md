@@ -15,9 +15,10 @@ See [the P0 access-policy docs](https://docs.p0.dev/just-in-time-access/request-
 ## Example Usage
 
 ```terraform
-# Must pre-exist in the P0 app: the Okta group (via an installed Okta directory
-# listing integration, see p0_okta_directory_listing), the "aws" integration (see
-# p0_aws_iam_write), and the PagerDuty integration (connected in-app, not via Terraform).
+# Certain policy settings require preinstalled integrations in the P0 app. For these examples, the following must be installed in your P0 app prior to running this terraform: 
+# the Okta group (via an installed Okta directory listing integration, see p0_okta_directory_listing)
+# the "aws" integration (see p0_aws_iam_write)
+# and the PagerDuty integration (connected in-app, not via Terraform).
 resource "p0_access_policy" "example" {
   name = "okta-aws-developers-oncall"
   requestor = {
@@ -46,6 +47,28 @@ resource "p0_access_policy" "example" {
     options = {
       require_reason = true
     }
+  }]
+}
+
+# Example to demonstrate request policy routing based on the requested access duration. If a smaller requested duration is requested the request is automatically approved, if larger the request needs manual approval. 
+resource "p0_access_policy" "policy_max_duration" {
+  name = "demonstrate-max-duration"
+  requestor = {
+    type = "any"
+  }
+  resource = {
+    type = "any"
+  }
+  approval = [{
+    // automatically approved if requested access duration is <= 1 hour
+    type = "persistent"
+    max_duration = {
+      time : 1
+      unit : "h"
+    }
+    }, {
+    // request needs manual approval if requested time does not match the persistent maxDuration listed above
+    type = "p0"
   }]
 }
 
@@ -153,6 +176,7 @@ Optional:
 - `integration` (String) Required, and may only be used, if 'type' is 'auto' or 'escalation'. Possible values:
 - 'pagerduty': Access is granted if the requestor is on-call in PagerDuty.
 - 'incidentio': Access is granted if the requestor is on-call in incident.io.
+- `max_duration` (Attributes) Allows policy routing based on how long of a duration was requested as part of an access request. max_duration is the maximum request duration that will match this particular policy approval. When not set, requested duration will not affect policy routing and will follow default behavior. (see [below for nested schema](#nestedatt--approval--max_duration))
 - `options` (Attributes) If present, determines additional trust requirements. (see [below for nested schema](#nestedatt--approval--options))
 - `profile_property` (String) May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.
 - `services` (List of String) Required, and may only be used, if 'type' is 'escalation'. Defines which services to page on escalation.
@@ -165,6 +189,15 @@ Required:
 - `directory` (String) One of "azure-ad", "entra-id", "okta", or "workspace".
 - `id` (String) This is the directory's internal group identifier.
 - `label` (String) This is any human-readable name for the directory group specified in the 'id' attribute.
+
+
+<a id="nestedatt--approval--max_duration"></a>
+### Nested Schema for `approval.max_duration`
+
+Required:
+
+- `time` (Number) The number of `unit`s in this duration. Must be a positive integer.
+- `unit` (String) The duration unit. One of `s` (seconds), `m` (minutes), `h` (hours), `d` (days), or `w` (weeks).
 
 
 <a id="nestedatt--approval--options"></a>

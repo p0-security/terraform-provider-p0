@@ -4,8 +4,17 @@
 package accesspolicy
 
 import (
+	"context"
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/duration"
 )
 
 // TestAgentToJsonOwnerGroup verifies the "owner-group" variant's flat
@@ -243,5 +252,217 @@ func TestNonAgenticRequestorHasNoActor(t *testing.T) {
 	}
 	if len(got.Groups) != 1 {
 		t.Fatalf("Groups has %d entries; want 1", len(got.Groups))
+	}
+}
+
+// objectWithType builds a non-null object of the given type with every
+// attribute null except `type` (a non-pointer string field that can't be null),
+// set to typeVal. Lets us populate the agentic agent/user sub-objects without
+// hand-writing every field.
+func objectWithType(objType tftypes.Object, typeVal string) tftypes.Value {
+	attrs := map[string]tftypes.Value{}
+	for name, attrType := range objType.AttributeTypes {
+		if name == "type" {
+			attrs[name] = tftypes.NewValue(attrType, typeVal)
+			continue
+		}
+		attrs[name] = tftypes.NewValue(attrType, nil)
+	}
+	return tftypes.NewValue(objType, attrs)
+}
+
+// agenticRequestor builds a non-null `agentic` requestor with non-null
+// agent/user sub-objects, forcing the upgrader's decode to descend into the
+// requestor and match schema v3's requestor attributes against RequestorModelV3.
+func agenticRequestor(t *testing.T, requestorType tftypes.Type) tftypes.Value {
+	t.Helper()
+	objType, ok := requestorType.(tftypes.Object)
+	if !ok {
+		t.Fatalf("requestor type is not an object")
+	}
+	attrs := map[string]tftypes.Value{}
+	for name, attrType := range objType.AttributeTypes {
+		switch name {
+		case "type":
+			attrs[name] = tftypes.NewValue(attrType, "agentic")
+		case "agent", "user":
+			subType, ok := attrType.(tftypes.Object)
+			if !ok {
+				t.Fatalf("%s type is not an object", name)
+			}
+			attrs[name] = objectWithType(subType, "any")
+		default:
+			attrs[name] = tftypes.NewValue(attrType, nil)
+		}
+	}
+	return tftypes.NewValue(objType, attrs)
+}
+
+// TestUpgradeV3ToV4Approvals exercises the V3->V4 upgrader end to end. It
+// deliberately uses a NON-NULL agentic requestor (agent + user populated),
+// because that is the only thing that forces the upgrader's decode to descend
+// into the requestor object.
+func TestUpgradeV3ToV4Approvals(t *testing.T) {
+	ctx := context.Background()
+	upgrader := (&AccessPolicy{}).UpgradeState(ctx)[3]
+
+	priorType, ok := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	if !ok {
+		t.Fatalf("prior schema type is not an object")
+	}
+	raw := tftypes.NewValue(priorType, map[string]tftypes.Value{
+		"name":      tftypes.NewValue(tftypes.String, "example"),
+		"disabled":  tftypes.NewValue(tftypes.Bool, nil),
+		"requestor": agenticRequestor(t, priorType.AttributeTypes["requestor"]),
+		"resource":  tftypes.NewValue(priorType.AttributeTypes["resource"], nil),
+		"approval":  oneApproval(t, priorType.AttributeTypes["approval"]),
+	})
+
+	req := resource.UpgradeStateRequest{State: &tfsdk.State{Schema: *upgrader.PriorSchema, Raw: raw}}
+	resp := &resource.UpgradeStateResponse{State: tfsdk.State{Schema: newAccessPolicySchema(currentSchemaVersion)}}
+	upgrader.StateUpgrader(ctx, req, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("V3->current upgrade failed: %v", resp.Diagnostics.Errors())
+	}
+}
+
+// TestUpgradeV1ToV2 exercises the registered V1->current state upgrader end to
+// end: build to ensure v1 successfully updates the later with the addition of the optional max_duration attribute
+func TestUpgradeV1Approval(t *testing.T) {
+	ctx := context.Background()
+	upgrader := (&AccessPolicy{}).UpgradeState(ctx)[1]
+
+	priorType, ok := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	if !ok {
+		t.Fatalf("prior schema type is not an object")
+	}
+	requestorType, ok := priorType.AttributeTypes["requestor"].(tftypes.Object)
+	if !ok {
+		t.Fatalf("requestor type is not an object")
+	}
+	raw := tftypes.NewValue(priorType, map[string]tftypes.Value{
+		"name":      tftypes.NewValue(tftypes.String, "example"),
+		"requestor": objectWithType(requestorType, "any"),
+		"resource":  tftypes.NewValue(priorType.AttributeTypes["resource"], nil),
+		"approval":  oneApproval(t, priorType.AttributeTypes["approval"]),
+	})
+
+	req := resource.UpgradeStateRequest{State: &tfsdk.State{Schema: *upgrader.PriorSchema, Raw: raw}}
+	resp := &resource.UpgradeStateResponse{State: tfsdk.State{Schema: newAccessPolicySchema(currentSchemaVersion)}}
+	upgrader.StateUpgrader(ctx, req, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("V1 -> current upgrade failed: %v", resp.Diagnostics.Errors())
+	}
+}
+
+func TestUpgradeV2Approval(t *testing.T) {
+	ctx := context.Background()
+	upgrader := (&AccessPolicy{}).UpgradeState(ctx)[2]
+
+	priorType, ok := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	if !ok {
+		t.Fatalf("prior schema type is not an object")
+	}
+	requestorType, ok := priorType.AttributeTypes["requestor"].(tftypes.Object)
+	if !ok {
+		t.Fatalf("requestor type is not an object")
+	}
+	raw := tftypes.NewValue(priorType, map[string]tftypes.Value{
+		"name":      tftypes.NewValue(tftypes.String, "example"),
+		"disabled":  tftypes.NewValue(tftypes.Bool, nil),
+		"requestor": objectWithType(requestorType, "any"),
+		"resource":  tftypes.NewValue(priorType.AttributeTypes["resource"], nil),
+		"approval":  oneApproval(t, priorType.AttributeTypes["approval"]),
+	})
+
+	req := resource.UpgradeStateRequest{State: &tfsdk.State{Schema: *upgrader.PriorSchema, Raw: raw}}
+	resp := &resource.UpgradeStateResponse{State: tfsdk.State{Schema: newAccessPolicySchema(currentSchemaVersion)}}
+	upgrader.StateUpgrader(ctx, req, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("V2 -> current upgrade failed: %v", resp.Diagnostics.Errors())
+	}
+}
+
+// builds one non-null approval object of the full element type (every attribute present, values null except the non-pointer type), so the upgrader must decode the nested object and bind each declared attribute to an ApprovalModel field, and ensures they are tested.
+func oneApproval(t *testing.T, approvalList tftypes.Type) tftypes.Value {
+	t.Helper()
+	listType, ok := approvalList.(tftypes.List)
+	if !ok {
+		t.Fatalf("approval type is not a list")
+	}
+	elemType, ok := listType.ElementType.(tftypes.Object)
+	if !ok {
+		t.Fatalf("approval element type is not an object")
+	}
+	attrs := map[string]tftypes.Value{}
+	for name, attrType := range elemType.AttributeTypes {
+		// `type` maps to a non-pointer string field, so it cannot be null.
+		if name == "type" {
+			attrs[name] = tftypes.NewValue(attrType, "p0")
+			continue
+		}
+		attrs[name] = tftypes.NewValue(attrType, nil)
+	}
+	elem := tftypes.NewValue(elemType, attrs)
+	return tftypes.NewValue(approvalList, []tftypes.Value{elem})
+}
+
+// TestApprovalMaxDurationRoundTrip verifies a non-null max_duration on an
+// approval is persisted under the "maxDuration" JSON key and survives the
+// toJson -> toModel conversion.
+func TestApprovalMaxDurationRoundTrip(t *testing.T) {
+	name := "example"
+	maxDuration := duration.Option{Time: 1, Unit: "h"}
+	model := AccessPolicyModelV4{
+		Name:      &name,
+		Requestor: &RequestorModelV3{Type: "any"},
+		Resource:  &ResourceModel{Type: "any"},
+		Approval:  []ApprovalModelV3{{Type: "p0", MaxDuration: &maxDuration}},
+	}
+
+	wire := toJson(model)
+
+	encoded, err := json.Marshal(wire.Approval[0])
+	if err != nil {
+		t.Fatalf("marshaling approval failed: %v", err)
+	}
+	if want := `"maxDuration":{"time":1,"unit":"h"}`; !strings.Contains(string(encoded), want) {
+		t.Errorf("approval JSON = %s; want it to contain %s", encoded, want)
+	}
+
+	got := toModel(wire)
+
+	if len(got.Approval) != 1 {
+		t.Fatalf("Approval has %d entries; want 1", len(got.Approval))
+	}
+	if got.Approval[0].MaxDuration == nil {
+		t.Fatalf("MaxDuration is nil; want %+v", maxDuration)
+	}
+	if *got.Approval[0].MaxDuration != maxDuration {
+		t.Errorf("MaxDuration = %+v; want %+v", *got.Approval[0].MaxDuration, maxDuration)
+	}
+}
+
+// TestSchemaV4ExposesMaxDuration verifies the current schema surfaces the
+// approval max_duration attribute (and that it stays gated to version >= 4), so
+// the tfsdk-tagged field can actually be read from and written to state.
+func TestSchemaV4ExposesMaxDuration(t *testing.T) {
+	v4, ok := newAccessPolicySchema(4).Attributes["approval"].(schema.ListNestedAttribute)
+	if !ok {
+		t.Fatalf("v4 approval attribute is not a ListNestedAttribute")
+	}
+	if _, ok := v4.NestedObject.Attributes["max_duration"]; !ok {
+		t.Errorf("schema v4 approval is missing the max_duration attribute")
+	}
+
+	v3, ok := newAccessPolicySchema(3).Attributes["approval"].(schema.ListNestedAttribute)
+	if !ok {
+		t.Fatalf("v3 approval attribute is not a ListNestedAttribute")
+	}
+	if _, ok := v3.NestedObject.Attributes["max_duration"]; ok {
+		t.Errorf("schema v3 approval unexpectedly exposes max_duration")
 	}
 }

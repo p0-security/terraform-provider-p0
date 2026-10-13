@@ -119,6 +119,7 @@ Optional:
 - `integration` (String) Required, and may only be used, if 'type' is 'auto' or 'escalation'. Possible values:
 - 'pagerduty': Access is granted if the requestor is on-call in PagerDuty.
 - 'incidentio': Access is granted if the requestor is on-call in incident.io.
+- `max_duration` (Attributes) Allows policy routing based on how long of a duration was requested as part of an access request. max_duration is the maximum request duration that will match this particular policy approval. When not set, requested duration will not affect policy routing and will follow default behavior. (see [below for nested schema](#nestedatt--approval--max_duration))
 - `options` (Attributes) If present, determines additional trust requirements. (see [below for nested schema](#nestedatt--approval--options))
 - `profile_property` (String) May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.
 - `services` (List of String) Required, and may only be used, if 'type' is 'escalation'. Defines which services to page on escalation.
@@ -131,6 +132,15 @@ Required:
 - `directory` (String) One of "azure-ad", "entra-id", "okta", or "workspace".
 - `id` (String) This is the directory's internal group identifier.
 - `label` (String) This is any human-readable name for the directory group specified in the 'id' attribute.
+
+
+<a id="nestedatt--approval--max_duration"></a>
+### Nested Schema for `approval.max_duration`
+
+Required:
+
+- `time` (Number) The number of `unit`s in this duration. Must be a positive integer.
+- `unit` (String) The duration unit. One of `s` (seconds), `m` (minutes), `h` (hours), `d` (days), or `w` (weeks).
 
 
 <a id="nestedatt--approval--options"></a>

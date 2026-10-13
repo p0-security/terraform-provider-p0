@@ -1,7 +1,7 @@
 // Copyright (c) 2025 P0 Security, Inc
 // SPDX-License-Identifier: MPL-2.0
 
-package settings
+package duration
 
 import "testing"
 
@@ -25,9 +25,9 @@ func TestComputeValue(t *testing.T) {
 		{2, "w", "2 weeks"},
 	}
 	for _, c := range cases {
-		got := computeValue(c.time, c.unit)
+		got := ComputeValue(c.time, c.unit)
 		if got != c.want {
-			t.Errorf("computeValue(%d, %q) = %q; want %q", c.time, c.unit, got, c.want)
+			t.Errorf("ComputeValue(%d, %q) = %q; want %q", c.time, c.unit, got, c.want)
 		}
 	}
 }

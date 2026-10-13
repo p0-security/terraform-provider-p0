@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/p0-security/terraform-provider-p0/internal"
+	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/duration"
 )
 
 var _ resource.Resource = &AccessDurations{}
@@ -33,19 +34,19 @@ func NewAccessDurations() resource.Resource {
 }
 
 type accessDurationsModel struct {
-	Approvable     *durationOption `tfsdk:"approvable"`
-	MaxAccess      *durationOption `tfsdk:"max_access"`
-	StandingAccess *durationOption `tfsdk:"standing_access"`
+	Approvable     *duration.Option `tfsdk:"approvable"`
+	MaxAccess      *duration.Option `tfsdk:"max_access"`
+	StandingAccess *duration.Option `tfsdk:"standing_access"`
 }
 
 // durationEndpoints maps each model duration to its settings API endpoint.
 func (m *accessDurationsModel) durationEndpoints() []struct {
 	endpoint string
-	option   *durationOption
+	option   *duration.Option
 } {
 	return []struct {
 		endpoint string
-		option   *durationOption
+		option   *duration.Option
 	}{
 		{"settings/approvable-duration", m.Approvable},
 		{"settings/max-access-duration", m.MaxAccess},
@@ -63,9 +64,9 @@ func (r *AccessDurations) Schema(ctx context.Context, req resource.SchemaRequest
 
 The P0 API does not expose a read endpoint for these settings, so Terraform cannot detect changes made outside of Terraform (drift), and ` + "`terraform destroy`" + ` leaves the last-applied values in place.`,
 		Attributes: map[string]schema.Attribute{
-			"approvable":      durationAttribute("The maximum amount of time between when a request is made and when it can be approved."),
-			"max_access":      durationAttribute("The maximum duration for which access may be granted."),
-			"standing_access": durationAttribute("The maximum duration of standing (persistent) access before it must be re-approved."),
+			"approvable":      duration.RequiredAttribute("The maximum amount of time between when a request is made and when it can be approved."),
+			"max_access":      duration.RequiredAttribute("The maximum duration for which access may be granted."),
+			"standing_access": duration.RequiredAttribute("The maximum duration of standing (persistent) access before it must be re-approved."),
 		},
 	}
 }
