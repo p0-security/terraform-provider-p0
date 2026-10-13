@@ -60,9 +60,8 @@ resource "google_cloud_run_v2_service" "harbor" {
     service_account = google_service_account.harbor.email
 
     containers {
-      # P0's connector image, pinned by its tag and digest. These are
-      # placeholders, for an image that doesn't exist. Use the image's
-      # published tag and digest.
+      # P0's connector image, pinned by its tag and digest. Use the tag and
+      # digest of the release you want to run.
       image = "docker.io/p0security/p0-connector-harbor-gcloud:sha-1234567@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
       # The connector accepts calls from this identity alone, and refuses every
@@ -74,10 +73,10 @@ resource "google_cloud_run_v2_service" "harbor" {
 
       # A regular expression for the email domains that may receive access
       # through this connector. It is set here alone, and isn't an attribute of
-      # p0_harbor_connector: P0 never stores or sends it.
+      # p0_harbor_connector: P0 doesn't set it.
       env {
         name  = "ALLOWED_EMAIL_DOMAIN_PATTERN"
-        value = "example\\.com"
+        value = "^example\\.com$"
       }
     }
   }

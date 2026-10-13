@@ -35,8 +35,7 @@ locals {
     # How many days CloudWatch keeps the connector's logs.
     log_retention_days = 30
     # P0's connector image: its tag on Docker Hub, and the digest that tag must
-    # resolve to. These are placeholders, for an image that doesn't exist. Use
-    # the image's published tag and digest.
+    # resolve to. Use the tag and digest of the release you want to run.
     image_tag    = "sha-1234567"
     image_digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   }
@@ -53,6 +52,12 @@ resource "p0_harbor_connector_staged" "aws_example" {
   }
 
   depends_on = [p0_aws_iam_write.example]
+}
+
+# The connector's name as P0 staged it. The resources below take it from here, so
+# none is created until staging succeeds.
+locals {
+  harbor_aws_staged = p0_harbor_connector_staged.aws_example.hosting
 }
 
 # P0 derives the connector's ARN from the account, region and name above, so the
@@ -78,7 +83,7 @@ data "docker_registry_image" "harbor" {
 resource "aws_ecr_repository" "harbor" {
   provider = aws.harbor
 
-  name = local.harbor_aws.connector_name
+  name = local.harbor_aws_staged.connector_name
   # Tags can't be overwritten, so no one who can push to this repository can
   # replace the image that runs as the connector.
   image_tag_mutability = "IMMUTABLE"
@@ -136,7 +141,7 @@ data "aws_ecr_image" "harbor" {
 resource "aws_iam_role" "harbor" {
   provider = aws.harbor
 
-  name = local.harbor_aws.connector_name
+  name = local.harbor_aws_staged.connector_name
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -151,7 +156,7 @@ resource "aws_iam_role" "harbor" {
 resource "aws_cloudwatch_log_group" "harbor" {
   provider = aws.harbor
 
-  name              = "/aws/lambda/${local.harbor_aws.connector_name}"
+  name              = "/aws/lambda/${local.harbor_aws_staged.connector_name}"
   retention_in_days = local.harbor_aws.log_retention_days
 }
 
@@ -175,7 +180,7 @@ resource "aws_iam_role_policy" "harbor_logs" {
 resource "aws_lambda_function" "harbor" {
   provider = aws.harbor
 
-  function_name = local.harbor_aws.connector_name
+  function_name = local.harbor_aws_staged.connector_name
   description   = "P0 Harbor connector"
   role          = aws_iam_role.harbor.arn
   package_type  = "Image"
@@ -188,8 +193,8 @@ resource "aws_lambda_function" "harbor" {
     variables = {
       # A regular expression for the email domains that may receive access
       # through this connector. It is set here alone, and isn't an attribute
-      # of p0_harbor_connector: P0 never stores or sends it.
-      ALLOWED_EMAIL_DOMAIN_PATTERN = "example\\.com"
+      # of p0_harbor_connector: P0 doesn't set it.
+      ALLOWED_EMAIL_DOMAIN_PATTERN = "^example\\.com$"
     }
   }
 
@@ -203,7 +208,7 @@ resource "aws_lambda_function" "harbor" {
 resource "aws_iam_role_policy" "harbor_invoke" {
   provider = aws.harbor
 
-  name = "${local.harbor_aws.connector_name}-invoke"
+  name = "${local.harbor_aws_staged.connector_name}-invoke"
   role = aws_iam_role.p0_iam_manager.name
   policy = jsonencode({
     Version = "2012-10-17"
@@ -221,11 +226,14 @@ resource "aws_iam_role_policy" "harbor_invoke" {
 resource "p0_harbor_connector" "aws_example" {
   id = p0_harbor_connector_staged.aws_example.id
 
+  # The same hosting as the staged resource, field by field. The staged
+  # resource's hosting can't be assigned whole, because it also holds the
+  # attributes that P0 sets.
   hosting = {
-    type             = "aws"
-    account_id       = local.harbor_aws.account_id
+    type             = local.harbor_aws_staged.type
+    account_id       = local.harbor_aws_staged.account_id
     connector_name   = aws_lambda_function.harbor.function_name
-    connector_region = local.harbor_aws.connector_region
+    connector_region = local.harbor_aws_staged.connector_region
   }
 
   depends_on = [aws_iam_role_policy.harbor_invoke]

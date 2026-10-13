@@ -1,15 +1,18 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
 	"testing"
 
+	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	installharbor "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/harbor"
 )
 
 const (
@@ -83,7 +86,6 @@ func harborConnectorConfig(f *harborFake, hosting string) string {
 // Behaves as P0's Harbor installers do for a connector:
 //   - staging one on Google Cloud generates the service account it must run as
 //   - verifying one on Google Cloud resolves its Cloud Run URL
-//   - a project ID that isn't one is refused when the connector is staged
 //   - a verify or configure that would move a connector from where it was staged is
 //     refused
 //
@@ -96,6 +98,8 @@ type harborFake struct {
 	serviceAccount func(hosting map[string]any) any
 	// P0's message for a connector that fails its install check, on verify.
 	failedCheck string
+	// P0's message for a connector it refuses to stage.
+	stageRefusal string
 }
 
 // The fields of a connector's hosting that P0 fixes when it creates the item.
@@ -117,8 +121,8 @@ func newHarborFake(t *testing.T) *harborFake {
 
 		hosting, _ := step.body["hosting"].(map[string]any)
 		if step.nextState == "stage" {
-			if project, _ := hosting["projectId"].(string); strings.Contains(project, "_") {
-				return http.StatusBadRequest, "Google Cloud project identifiers must consist of alphanumeric characters and hyphens only"
+			if f.stageRefusal != "" {
+				return http.StatusBadRequest, f.stageRefusal
 			}
 			return 0, ""
 		}
@@ -515,10 +519,13 @@ func TestHarborConnectorMissingServiceAccount(t *testing.T) {
 			Steps: []resource.TestStep{
 				{Config: harborConnectorConfig(f, harborGcp)},
 				{
-					PreConfig:   func() { setAccount(nil) },
-					Config:      harborConnectorConfig(f, harborGcp),
-					PlanOnly:    true,
-					ExpectError: missing,
+					PreConfig: func() { setAccount(nil) },
+					Config:    harborConnectorConfig(f, harborGcp),
+					PlanOnly:  true,
+					ExpectError: harborError(
+						"Bad API response", "Harbor connector prod is hosted on Google Cloud, but P0 returned no service account for it",
+						"plan and apply other changes with `-refresh=false`", "terraform state rm",
+					),
 				},
 				// With the account back, the resources read again, and can be destroyed.
 				{
@@ -558,10 +565,109 @@ func TestHarborConnectorUnavailable(t *testing.T) {
 			{
 				Config: harborStagedConfig(f, harborGcp),
 				ExpectError: harborError(
-					"Harbor is not available in this P0 organization",
+					"Harbor isn't enabled for this P0 organization",
+					`P0 couldn't stage the Harbor connector "prod"`,
 					"contact support@p0.dev to have it enabled",
-					"404 Not Found: Not found",
+					"P0's response: 404 Not Found: Not found",
 				),
+			},
+		},
+	})
+}
+
+// While Harbor's feature flag is off, P0 answers a read with a bare 404 too. The
+// refresh fails and keeps both resources, rather than drop them and have the next
+// apply stage the installed connector again. Once the flag is back on, nothing has
+// changed.
+func TestHarborConnectorNotFoundOnRead(t *testing.T) {
+	f := newHarborFake(t)
+	key := fakeItemKey{"harbor", "connector", harborConnector}
+	// The fake has no flag, so the item is taken out while the flag is "off", and put
+	// back as it was: P0 keeps an item while it hides it.
+	var hidden map[string]any
+	hide := func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		hidden = f.items[key]
+		delete(f.items, key)
+	}
+	unhide := func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.items[key] = hidden
+	}
+	// Each resource fails on its own: Terraform shows the resource after the summary.
+	notFound := func(address string) string {
+		return `Harbor connector not found in P0\s+with ` + regexp.QuoteMeta(address) + `,` +
+			`.*P0 has no Harbor connector "prod".*terraform state rm.*404 Not Found`
+	}
+	staged, final := notFound("p0_harbor_connector_staged.example"), notFound("p0_harbor_connector.example")
+	notFoundForBoth := regexp.MustCompile(`(?s)(` + staged + `.*` + final + `|` + final + `.*` + staged + `)`)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkHarborDestroyed(f),
+		Steps: []resource.TestStep{
+			{Config: harborConnectorConfig(f, harborGcp)},
+			{
+				PreConfig: hide,
+				// The final resource names the connector itself, so that Terraform refreshes
+				// it whether or not the staged resource fails.
+				Config: harborStagedConfig(f, harborGcp) + fmt.Sprintf(`
+resource "p0_harbor_connector" "example" {
+  id      = %q
+  hosting = %s
+}
+`, harborConnector, harborGcp),
+				PlanOnly:    true,
+				ExpectError: notFoundForBoth,
+			},
+			{
+				PreConfig: unhide,
+				Config:    harborConnectorConfig(f, harborGcp),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("p0_harbor_connector_staged.example", plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction("p0_harbor_connector.example", plancheck.ResourceActionNoop),
+					},
+				},
+				Check: func(*terraform.State) error {
+					if item := f.connector(); item["state"] != "installed" {
+						return fmt.Errorf("P0 item = %v; want it still installed", item)
+					}
+					return nil
+				},
+			},
+		},
+	})
+}
+
+// Other resources keep the framework's usual behaviour: an item that P0 no longer has
+// is dropped from state, and the next apply creates it again.
+func TestNonHarborResourceDroppedOnNotFound(t *testing.T) {
+	f := newGoogleDriveFake(t)
+	config := providerConfig(f) + fmt.Sprintf(`
+resource "p0_google_drive_connector_staged" "example" {
+  project_id = %q
+}
+`, driveProject)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: config},
+			{
+				PreConfig: func() {
+					f.mu.Lock()
+					delete(f.items, fakeItemKey{"google-drive-ai", "connector", driveProject})
+					f.mu.Unlock()
+				},
+				Config: config,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("p0_google_drive_connector_staged.example", plancheck.ResourceActionCreate),
+					},
+				},
 			},
 		},
 	})
@@ -571,17 +677,15 @@ func TestHarborConnectorUnavailable(t *testing.T) {
 // apply in its own words, and stages nothing.
 func TestHarborConnectorRefusedByP0(t *testing.T) {
 	f := newHarborFake(t)
+	f.stageRefusal = "P0 couldn't use this connector name."
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             checkHarborDestroyed(f),
 		Steps: []resource.TestStep{
 			{
-				Config: harborStagedConfig(f, harborGcpHosting("project_id", "acme_prod")),
-				ExpectError: harborError(
-					"Could not stage connector component",
-					"Google Cloud project identifiers must consist of alphanumeric characters and hyphens only",
-				),
+				Config:      harborStagedConfig(f, harborGcp),
+				ExpectError: harborError("Could not stage connector component", "400 Bad Request: P0 couldn't use this connector name."),
 			},
 		},
 	})
@@ -596,7 +700,7 @@ resource "p0_harbor_connector" "example" {
 }
 `, id, hosting)
 	}
-	const invalidId = "Invalid Harbor connector ID"
+	const invalidId = "Use lowercase letters, digits and hyphens, starting and ending with a letter or digit, up to 63 characters"
 	const awsName = "Use 2 to 64 characters for the connector name"
 	const gcpName = "Use 6 to 30 characters for the connector name"
 
@@ -604,10 +708,10 @@ resource "p0_harbor_connector" "example" {
 		name, config string
 		errors       []string
 	}{
-		{"id with capitals", harborStaged("Prod", harborGcp), []string{invalidId, "Use lowercase letters, digits and hyphens", `Got: "Prod"`}},
+		{"id with capitals", harborStaged("Prod", harborGcp), []string{invalidId, "got: Prod"}},
 		{"id ending with a hyphen", harborStaged("prod-", harborGcp), []string{invalidId}},
 		{"id with a path", harborStaged("prod/other", harborGcp), []string{invalidId}},
-		{"id over 63 characters", harborStaged(strings.Repeat("a", 64), harborGcp), []string{invalidId}},
+		{"id over 63 characters", harborStaged(strings.Repeat("a", 64), harborGcp), []string{"string length must be at most 63"}},
 		{"final id with capitals", final("Prod", harborGcp), []string{invalidId}},
 		{"AWS name ECR wouldn't take", harborStaged("prod", harborAwsHosting("connector_name", "p0--harbor")), []string{"Invalid Harbor connector name", awsName, `Got: "p0--harbor"`}},
 		{"AWS name over 64 characters", harborStaged("prod", harborAwsHosting("connector_name", "p"+strings.Repeat("0", 64))), []string{awsName}},
@@ -639,6 +743,7 @@ resource "p0_harbor_connector" "example" {
   }`),
 			[]string{"Unexpected AWS account ID"},
 		},
+		{"project with an underscore", harborStaged("prod", harborGcpHosting("project_id", "acme_prod")), []string{"Google Cloud project identifiers must consist of alphanumeric characters and hyphens only"}},
 		{"account that isn't one", harborStaged("prod", harborAwsHosting("account_id", "1234")), []string{"12 numeric digits"}},
 		{"region with whitespace around it", harborStaged("prod", harborAwsHosting("connector_region", " us-west-2")), []string{"valid AWS or Google Cloud region"}},
 		{
@@ -664,5 +769,18 @@ resource "p0_harbor_connector" "example" {
 				},
 			})
 		})
+	}
+}
+
+// Terraform never plans an update of the staged resource, since each attribute that
+// can be set requires replacement. One that reaches the provider anyway fails, rather
+// than report a change it didn't make, or stage the connector again.
+func TestHarborConnectorStagedUpdateFails(t *testing.T) {
+	var resp fwresource.UpdateResponse
+	installharbor.NewHarborConnectorStaged().Update(context.Background(), fwresource.UpdateRequest{}, &resp)
+
+	errs := resp.Diagnostics.Errors()
+	if len(errs) != 1 || !strings.Contains(errs[0].Detail(), "Please report this as a provider bug") {
+		t.Errorf("diagnostics = %v; want one error asking for a bug report", resp.Diagnostics)
 	}
 }

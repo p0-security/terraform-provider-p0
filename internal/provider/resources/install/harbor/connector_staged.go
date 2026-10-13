@@ -16,6 +16,7 @@ var _ resource.ResourceWithValidateConfig = &HarborConnectorStaged{}
 
 type HarborConnectorStaged struct {
 	installer *common.Install
+	reader    *common.Install
 }
 
 func NewHarborConnectorStaged() resource.Resource {
@@ -40,7 +41,7 @@ Where a connector runs can't change once it is staged, so changing ` + "`id`" + 
 
 ` + previewNote,
 		Attributes: connectorAttributes(
-			`A name you choose for the connector, such as `+"`prod`"+`: lowercase letters, digits and hyphens, starting and ending with a letter or digit, up to 63 characters`,
+			`A name you choose for the connector, such as `+"`prod`"+`: `+itemIdRule,
 			`Where the connector runs. The connector's Terraform deploys it there, and P0 invokes it there.`,
 		),
 	}
@@ -51,7 +52,9 @@ func (*HarborConnectorStaged) ValidateConfig(ctx context.Context, req resource.V
 }
 
 func (r *HarborConnectorStaged) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	r.installer = newConnectorInstaller(internal.Configure(&req, resp))
+	data := internal.Configure(&req, resp)
+	r.installer = newConnectorInstaller(data)
+	r.reader = newConnectorReader(data)
 }
 
 func (r *HarborConnectorStaged) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -67,13 +70,18 @@ func (r *HarborConnectorStaged) Create(ctx context.Context, req resource.CreateR
 }
 
 func (r *HarborConnectorStaged) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &connectorApi{}, &connectorModel{})
+	r.reader.Read(ctx, &resp.Diagnostics, &resp.State, &connectorApi{}, &connectorModel{})
 }
 
 // Every attribute that can be set requires replacement, so Terraform never updates a
 // staged connector in place. Staging it again, as other staged resources' updates do,
-// would also return an installed connector to the "stage" state.
-func (r *HarborConnectorStaged) Update(context.Context, resource.UpdateRequest, *resource.UpdateResponse) {
+// would return an installed connector to the "stage" state, so an update that reaches
+// here fails rather than report a change it didn't make.
+func (r *HarborConnectorStaged) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
+	resp.Diagnostics.AddError(
+		"Harbor connectors can't be updated in place",
+		"Every p0_harbor_connector_staged attribute requires replacement, so Terraform should never update one in place. Please report this as a provider bug.",
+	)
 }
 
 func (r *HarborConnectorStaged) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

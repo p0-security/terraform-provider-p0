@@ -6,7 +6,7 @@ description: |-
   A staged Harbor connector installation. Staging tells P0 where the connector will run. For Google Cloud, P0 answers with the service account the connector must run as.
   Use hosting to deploy P0's Harbor connector: a Lambda function on AWS, or a Cloud Run service that runs as hosting.connector_service_account on Google Cloud. Once the connector is deployed, create a p0_harbor_connector resource with the same id and hosting to complete the installation.
   Where a connector runs can't change once it is staged, so changing id or hosting replaces the connector.
-  P0 checks hosting.connector_name when it stages the connector, and so does a plan. For AWS Lambda, use 2 to 64 characters: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. For Google Cloud Run, use 6 to 30 characters: lowercase letters, digits and hyphens, starting with a letter and ending with a letter or digit.
+  P0 checks hosting.connector_name when it stages the connector, and so does a plan. For AWS Lambda: Use 2 to 64 characters for the connector name: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. For Google Cloud Run: Use 6 to 30 characters for the connector name: lowercase letters, digits and hyphens, starting with a letter and ending with a letter or digit.
   Prerequisite: P0 invokes the connector as its own identity in your cloud. For AWS Lambda, p0_aws_iam_write must be installed for the account the connector runs in. For Google Cloud Run, p0_gcp must be installed.
   Note: This integration is currently in preview.
 ---
@@ -19,7 +19,7 @@ Use `hosting` to deploy P0's Harbor connector: a Lambda function on AWS, or a Cl
 
 Where a connector runs can't change once it is staged, so changing `id` or `hosting` replaces the connector.
 
-P0 checks `hosting.connector_name` when it stages the connector, and so does a plan. For AWS Lambda, use 2 to 64 characters: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. For Google Cloud Run, use 6 to 30 characters: lowercase letters, digits and hyphens, starting with a letter and ending with a letter or digit.
+P0 checks `hosting.connector_name` when it stages the connector, and so does a plan. For AWS Lambda: Use 2 to 64 characters for the connector name: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. For Google Cloud Run: Use 6 to 30 characters for the connector name: lowercase letters, digits and hyphens, starting with a letter and ending with a letter or digit.
 
 **Prerequisite:** P0 invokes the connector as its own identity in your cloud. For AWS Lambda, `p0_aws_iam_write` must be installed for the account the connector runs in. For Google Cloud Run, `p0_gcp` must be installed.
 

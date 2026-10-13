@@ -16,6 +16,7 @@ var _ resource.ResourceWithValidateConfig = &HarborConnector{}
 
 type HarborConnector struct {
 	installer *common.Install
+	reader    *common.Install
 }
 
 func NewHarborConnector() resource.Resource {
@@ -40,7 +41,7 @@ Destroying this resource returns the connector to its staged state, which ` + "`
 
 **Prerequisites:**
 
-- P0's Harbor connector, deployed where ` + "`hosting`" + ` says. Set its ` + "`ALLOWED_EMAIL_DOMAIN_PATTERN`" + ` environment variable to a regular expression for the email domains that may receive access. The pattern is set on the connector alone, and isn't an attribute of this resource: P0 never stores or sends it.
+- P0's Harbor connector, deployed where ` + "`hosting`" + ` says. Set its ` + "`ALLOWED_EMAIL_DOMAIN_PATTERN`" + ` environment variable to a regular expression for the email domains that may receive access, such as ` + "`^example\\.com$`" + `. The pattern is set on the connector alone, and isn't an attribute of this resource: P0 doesn't set it.
 
 - For AWS Lambda, the image ` + "`p0security/p0-connector-harbor`" + `. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. ` + "`p0_aws_iam_write`" + ` must be installed for the account the connector runs in. Grant that installation's role ` + "`lambda:InvokeFunction`" + ` on the connector's function.
 
@@ -59,7 +60,9 @@ func (*HarborConnector) ValidateConfig(ctx context.Context, req resource.Validat
 }
 
 func (r *HarborConnector) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	r.installer = newConnectorInstaller(internal.Configure(&req, resp))
+	data := internal.Configure(&req, resp)
+	r.installer = newConnectorInstaller(data)
+	r.reader = newConnectorReader(data)
 }
 
 // The staged resource created the item, so this only verifies and configures it. It
@@ -71,7 +74,7 @@ func (r *HarborConnector) Create(ctx context.Context, req resource.CreateRequest
 }
 
 func (r *HarborConnector) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &connectorApi{}, &connectorModel{})
+	r.reader.Read(ctx, &resp.Diagnostics, &resp.State, &connectorApi{}, &connectorModel{})
 }
 
 // Every attribute that can be set requires replacement, so Terraform never plans an
