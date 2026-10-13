@@ -41,6 +41,10 @@ type AwsPartition struct {
 	Type *string `json:"type"`
 }
 
+// DescribeError describes a failure that P0 reported for the item id, as a diagnostic's
+// summary and detail. err carries P0's message.
+type DescribeError func(id string, err error) (summary string, detail string)
+
 type Install struct {
 	// This Integration's key
 	Integration string
@@ -62,18 +66,24 @@ type Install struct {
 	// integrations' checks through a connector the customer deploys, so a failure
 	// usually points at the customer's own setup, which P0's message, carried in err,
 	// describes.
-	DescribeCheckError func(id string, err error) (summary string, detail string)
-	// Optional. Describes a 404 from the request that stages an item, in place of the
-	// generic "Could not stage" diagnostic. P0 answers that request with a 404 when it
-	// doesn't offer the component to the organization, as when the component is behind
-	// a feature flag that is off. P0's message, carried in err, is only "Not found".
-	DescribeStageNotFound func(id string, err error) (summary string, detail string)
+	DescribeCheckError DescribeError
+	// Optional. Describes a 404 from a write: the PUT that stages an item, and the
+	// verify and configure steps. It replaces the generic diagnostics, which say the
+	// component couldn't be staged, or that the item was removed while Terraform was
+	// applying. P0 also answers a write with a 404 when it doesn't offer the component
+	// to the organization, as when the component is behind a feature flag that is off.
+	// P0's message, carried in err, is only "Not found" either way.
+	DescribeWriteNotFound DescribeError
 	// Optional. When set, a 404 from Read fails with this diagnostic and keeps the
 	// resource in state, in place of removing it. Set it for a component that P0 can
 	// stop offering, as with a feature flag, while its items still exist: dropping the
 	// resource would have the next apply create it again, which stages the item again
 	// and so undoes its install.
-	DescribeReadNotFound func(id string, err error) (summary string, detail string)
+	//
+	// Every refresh of the resource then fails, and so do plan, destroy and import,
+	// until P0 offers the component again or the resource is removed from state. So the
+	// detail must say how to go on: `terraform state rm <address>`, or `-refresh=false`.
+	FailReadOnNotFound DescribeError
 }
 
 func (i *Install) itemPath(id string) string {
@@ -145,12 +155,12 @@ func (i *Install) Stage(ctx context.Context, diags *diag.Diagnostics, plan *tfsd
 
 // The diagnostic for an item that couldn't be staged.
 //
-// A 404 goes to DescribeStageNotFound, if set. Anything else keeps the generic
+// A 404 goes to DescribeWriteNotFound, if set. Anything else keeps the generic
 // diagnostic, which carries P0's message: P0 refuses a value it can't stage in its own
 // words.
 func (i *Install) stageError(id string, resp *http.Response, err error) (string, string) {
-	if i.DescribeStageNotFound != nil && resp != nil && resp.StatusCode == http.StatusNotFound {
-		return i.DescribeStageNotFound(id, err)
+	if i.DescribeWriteNotFound != nil && resp != nil && resp.StatusCode == http.StatusNotFound {
+		return i.DescribeWriteNotFound(id, err)
 	}
 	return fmt.Sprintf("Could not stage %s component", i.Component), fmt.Sprintf("Error: %s", err)
 }
@@ -231,8 +241,10 @@ func (i *Install) upsert(ctx context.Context, diags *diag.Diagnostics, plan *tfs
 
 // The diagnostic for an install step that failed.
 //
-// P0 answers a step with a 404 only when the item doesn't exist, so it was removed
-// while this apply ran. A failed install check, on either step, is a 400 or a 422, or
+// P0 answers a step with a 404 when the item doesn't exist, so it was removed while
+// this apply ran, or when it doesn't offer the component to the organization. That
+// goes to DescribeWriteNotFound, if set, since only the component knows which is
+// likely. A failed install check, on either step, is a 400 or a 422, or
 // a 502 when something the check calls, such as a connector, couldn't be reached.
 // Those go to DescribeCheckError, if set. Anything else, such as an authorization
 // error, a P0 server error or a request that never reached P0, gets the generic
@@ -244,6 +256,8 @@ func (i *Install) stepError(id string, step string, resp *http.Response, err err
 	}
 
 	switch {
+	case status == http.StatusNotFound && i.DescribeWriteNotFound != nil:
+		return i.DescribeWriteNotFound(id, err)
 	case status == http.StatusNotFound:
 		return fmt.Sprintf("Could not %s %s component", step, i.Component),
 			fmt.Sprintf("P0 has no %s item %q. It may have been removed while Terraform was applying this change. Apply again to recreate it.", i.Component, id)
@@ -274,9 +288,9 @@ func (i *Install) Read(ctx context.Context, diags *diag.Diagnostics, state *tfsd
 	}
 
 	resp, httpErr := i.ProviderData.Get(i.itemPath(*id), json)
-	if resp != nil && resp.StatusCode == 404 {
-		if i.DescribeReadNotFound != nil {
-			diags.AddError(i.DescribeReadNotFound(*id, httpErr))
+	if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if i.FailReadOnNotFound != nil {
+			diags.AddError(i.FailReadOnNotFound(*id, httpErr))
 			return
 		}
 		state.RemoveResource(ctx)
