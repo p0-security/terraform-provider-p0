@@ -191,10 +191,11 @@ resource "aws_lambda_function" "harbor" {
 
   environment {
     variables = {
-      # A regular expression for the email domains that may receive access
-      # through this connector. It is set here alone, and isn't an attribute
-      # of p0_harbor_connector: P0 doesn't set it.
-      ALLOWED_EMAIL_DOMAIN_PATTERN = "^example\\.com$"
+      # A regular expression that an email's whole domain must match for
+      # its user to receive access through this connector. It is set here
+      # alone, and isn't an attribute of p0_harbor_connector: P0 doesn't set
+      # it.
+      ALLOWED_EMAIL_DOMAIN_PATTERN = "example[.]com"
     }
   }
 

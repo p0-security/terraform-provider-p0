@@ -9,7 +9,7 @@ description: |-
   Destroying this resource returns the connector to its staged state, which p0_harbor_connector_staged still owns. P0 refuses that while a Harbor instance uses the connector, so remove each p0_harbor_instance that uses it first. Terraform does so in the same apply when the instance refers to this resource, as the examples do.
   Prerequisites:
   
-  P0's Harbor connector, deployed where hosting says. Set its ALLOWED_EMAIL_DOMAIN_PATTERN environment variable to a regular expression for the email domains that may receive access, such as ^example\.com$. The pattern is set on the connector alone, and isn't an attribute of this resource: P0 doesn't set it.
+  P0's Harbor connector, deployed where hosting says. Set its ALLOWED_EMAIL_DOMAIN_PATTERN environment variable to a regular expression that an email's whole domain must match for its user to receive access, such as example[.]com. The pattern is set on the connector alone, and isn't an attribute of this resource: P0 doesn't set it.
   For AWS Lambda, the image p0security/p0-connector-harbor. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. p0_aws_iam_write must be installed for the account the connector runs in. Grant that installation's role lambda:InvokeFunction on the connector's function.
   For Google Cloud Run, the image p0security/p0-connector-harbor-gcloud, running as the staged resource's hosting.connector_service_account. p0_gcp must be installed. Grant its service account roles/run.invoker and roles/run.viewer on the connector's service, and pass the same address to the connector as its INVOKER_SA_EMAIL environment variable.
   If P0 stops finding the connector: while Harbor isn't enabled for your organization, or after the connector is removed in P0, every refresh of this resource fails, and so do plan, destroy and import. Terraform keeps the resource in state rather than stage the connector again. If Harbor should be enabled, contact support@p0.dev. To plan or apply other changes meanwhile, run Terraform with -refresh=false. If the connector was removed in P0, remove the resource from state with terraform state rm <address>, and the next apply stages it again.
@@ -30,7 +30,7 @@ Destroying this resource returns the connector to its staged state, which `p0_ha
 
 **Prerequisites:**
 
-- P0's Harbor connector, deployed where `hosting` says. Set its `ALLOWED_EMAIL_DOMAIN_PATTERN` environment variable to a regular expression for the email domains that may receive access, such as `^example\.com$`. The pattern is set on the connector alone, and isn't an attribute of this resource: P0 doesn't set it.
+- P0's Harbor connector, deployed where `hosting` says. Set its `ALLOWED_EMAIL_DOMAIN_PATTERN` environment variable to a regular expression that an email's whole domain must match for its user to receive access, such as `example[.]com`. The pattern is set on the connector alone, and isn't an attribute of this resource: P0 doesn't set it.
 
 - For AWS Lambda, the image `p0security/p0-connector-harbor`. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. `p0_aws_iam_write` must be installed for the account the connector runs in. Grant that installation's role `lambda:InvokeFunction` on the connector's function.
 
@@ -118,12 +118,12 @@ resource "google_cloud_run_v2_service" "harbor" {
         value = p0_gcp.example.service_account_email
       }
 
-      # A regular expression for the email domains that may receive access
-      # through this connector. It is set here alone, and isn't an attribute of
-      # p0_harbor_connector: P0 doesn't set it.
+      # A regular expression that an email's whole domain must match for its
+      # user to receive access through this connector. It is set here alone,
+      # and isn't an attribute of p0_harbor_connector: P0 doesn't set it.
       env {
         name  = "ALLOWED_EMAIL_DOMAIN_PATTERN"
-        value = "^example\\.com$"
+        value = "example[.]com"
       }
     }
   }
@@ -367,10 +367,11 @@ resource "aws_lambda_function" "harbor" {
 
   environment {
     variables = {
-      # A regular expression for the email domains that may receive access
-      # through this connector. It is set here alone, and isn't an attribute
-      # of p0_harbor_connector: P0 doesn't set it.
-      ALLOWED_EMAIL_DOMAIN_PATTERN = "^example\\.com$"
+      # A regular expression that an email's whole domain must match for
+      # its user to receive access through this connector. It is set here
+      # alone, and isn't an attribute of p0_harbor_connector: P0 doesn't set
+      # it.
+      ALLOWED_EMAIL_DOMAIN_PATTERN = "example[.]com"
     }
   }
 

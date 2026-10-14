@@ -44,7 +44,7 @@ Destroying this resource returns the connector to its staged state, which ` + "`
 
 **Prerequisites:**
 
-- P0's Harbor connector, deployed where ` + "`hosting`" + ` says. Set its ` + "`ALLOWED_EMAIL_DOMAIN_PATTERN`" + ` environment variable to a regular expression for the email domains that may receive access, such as ` + "`^example\\.com$`" + `. The pattern is set on the connector alone, and isn't an attribute of this resource: P0 doesn't set it.
+- P0's Harbor connector, deployed where ` + "`hosting`" + ` says. Set its ` + "`ALLOWED_EMAIL_DOMAIN_PATTERN`" + ` environment variable to a regular expression that an email's whole domain must match for its user to receive access, such as ` + "`example[.]com`" + `. The pattern is set on the connector alone, and isn't an attribute of this resource: P0 doesn't set it.
 
 - For AWS Lambda, the image ` + "`p0security/p0-connector-harbor`" + `. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. ` + "`p0_aws_iam_write`" + ` must be installed for the account the connector runs in. Grant that installation's role ` + "`lambda:InvokeFunction`" + ` on the connector's function.
 

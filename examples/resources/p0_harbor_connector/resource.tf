@@ -71,12 +71,12 @@ resource "google_cloud_run_v2_service" "harbor" {
         value = p0_gcp.example.service_account_email
       }
 
-      # A regular expression for the email domains that may receive access
-      # through this connector. It is set here alone, and isn't an attribute of
-      # p0_harbor_connector: P0 doesn't set it.
+      # A regular expression that an email's whole domain must match for its
+      # user to receive access through this connector. It is set here alone,
+      # and isn't an attribute of p0_harbor_connector: P0 doesn't set it.
       env {
         name  = "ALLOWED_EMAIL_DOMAIN_PATTERN"
-        value = "^example\\.com$"
+        value = "example[.]com"
       }
     }
   }
