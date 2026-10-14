@@ -6,6 +6,7 @@ description: |-
   A MySQL Installation for AWS RDS.
   Installing MySQL allows you to manage access to your MySQL database instances using IAM authentication.
   Note: This integration is currently experimental and only supports AWS RDS MySQL instances.
+  For the full install steps, including the SQL to run in the database before applying this resource, see Installing MySQL https://docs.p0.dev/integrations/resource-integrations/mysql/installation.
 ---
 
 # p0_mysql (Resource)
@@ -15,6 +16,8 @@ A MySQL Installation for AWS RDS.
 Installing MySQL allows you to manage access to your MySQL database instances using IAM authentication.
 
 **Note:** This integration is currently experimental and only supports AWS RDS MySQL instances.
+
+For the full install steps, including the SQL to run in the database before applying this resource, see [Installing MySQL](https://docs.p0.dev/integrations/resource-integrations/mysql/installation).
 
 ## Example Usage
 

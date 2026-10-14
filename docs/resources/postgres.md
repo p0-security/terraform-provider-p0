@@ -6,6 +6,7 @@ description: |-
   A PostgreSQL Installation for AWS RDS.
   Installing PostgreSQL allows you to manage access to your PostgreSQL database instances and clusters using IAM authentication.
   Note: This Terraform resource currently supports AWS RDS PostgreSQL instances and clusters.
+  For the full install steps, including the SQL to run in the database before applying this resource, see Installing an RDS instance https://docs.p0.dev/integrations/resource-integrations/postgresql/installing-an-rds-database.
 ---
 
 # p0_postgres (Resource)
@@ -15,6 +16,8 @@ A PostgreSQL Installation for AWS RDS.
 Installing PostgreSQL allows you to manage access to your PostgreSQL database instances and clusters using IAM authentication.
 
 **Note:** This Terraform resource currently supports AWS RDS PostgreSQL instances and clusters.
+
+For the full install steps, including the SQL to run in the database before applying this resource, see [Installing an RDS instance](https://docs.p0.dev/integrations/resource-integrations/postgresql/installing-an-rds-database).
 
 ## Example Usage
 

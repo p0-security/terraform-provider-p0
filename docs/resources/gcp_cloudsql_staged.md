@@ -6,6 +6,7 @@ description: |-
   A staged GCP CloudSQL installation. Staging generates the connector identifiers needed to deploy P0's Cloud Run connector.
   Use the read-only connector_service_name and connector_service_account attributes to deploy the connector's Cloud Run service (for example via the p0-security/p0-connector/google Terraform Registry module, version 0.0.3). Once the connector is deployed, create a p0_gcp_cloudsql resource with the same id to complete the installation.
   Note: This integration is currently in preview.
+  For the full install steps, see Installing a Cloud SQL instance https://docs.p0.dev/integrations/resource-integrations/postgresql/installing-a-cloudsql-database.
 ---
 
 # p0_gcp_cloudsql_staged (Resource)
@@ -15,6 +16,8 @@ A staged GCP CloudSQL installation. Staging generates the connector identifiers 
 Use the read-only `connector_service_name` and `connector_service_account` attributes to deploy the connector's Cloud Run service (for example via the `p0-security/p0-connector/google` Terraform Registry module, version 0.0.3). Once the connector is deployed, create a `p0_gcp_cloudsql` resource with the same `id` to complete the installation.
 
 **Note:** This integration is currently in preview.
+
+For the full install steps, see [Installing a Cloud SQL instance](https://docs.p0.dev/integrations/resource-integrations/postgresql/installing-a-cloudsql-database).
 
 ## Example Usage
 

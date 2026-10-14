@@ -7,6 +7,7 @@ description: |-
   Installing GCP CloudSQL allows P0 to manage just-in-time access to your CloudSQL (PostgreSQL) database instances (MySQL is not yet supported) using GCP IAM authentication.
   Important: Before creating this resource you must stage the installation with p0_gcp_cloudsql_staged and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is reachable.
   Note: This integration is currently in preview.
+  For the full install steps, see Installing a Cloud SQL instance https://docs.p0.dev/integrations/resource-integrations/postgresql/installing-a-cloudsql-database.
 ---
 
 # p0_gcp_cloudsql (Resource)
@@ -18,6 +19,8 @@ Installing GCP CloudSQL allows P0 to manage just-in-time access to your CloudSQL
 **Important:** Before creating this resource you must stage the installation with `p0_gcp_cloudsql_staged` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is reachable.
 
 **Note:** This integration is currently in preview.
+
+For the full install steps, see [Installing a Cloud SQL instance](https://docs.p0.dev/integrations/resource-integrations/postgresql/installing-a-cloudsql-database).
 
 ## Example Usage
 
