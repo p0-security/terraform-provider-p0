@@ -55,7 +55,13 @@ locals {
   enable_workspace_admin = false
 }
 
-# Workspace assignments are made at the account level.
+# Workspace assignments are made at the account level, so the provider must be
+# account-level. Unless told how to sign in, it uses whatever Databricks
+# credentials it finds, such as a CLI login, so everyone who plans or applies
+# needs their own account admin login. To avoid that, sign it in as a service
+# principal with the account_admin role and a federation policy, which needs no
+# secret: add auth_type = "env-oidc" and client_id = "<its application ID>", and
+# set DATABRICKS_OIDC_TOKEN to an identity token that the policy accepts.
 provider "databricks" {
   host       = "https://accounts.cloud.databricks.com"
   account_id = local.databricks_account_id
