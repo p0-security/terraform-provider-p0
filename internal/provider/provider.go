@@ -40,6 +40,7 @@ import (
 	installgithubai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-ai"
 	installgithubrepositories "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-repositories"
 	installgoogledriveai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/google-drive-ai"
+	installharbor "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/harbor"
 	installidentityprovider "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/identity-provider"
 	installintegrationitem "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/integration-item"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
@@ -231,6 +232,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installdocker.NewDockerConnectorStaged,
 		installdocker.NewDockerConnector,
 		installdocker.NewDockerOrganization,
+		installharbor.NewHarborConnectorStaged,
+		installharbor.NewHarborConnector,
 		installfiletransfer.NewFileTransferIamWrite,
 		installawssm.NewAwsSmVault,
 		installapp.NewAppIamWrite,
