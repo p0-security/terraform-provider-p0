@@ -40,6 +40,8 @@ The connector lets P0 grant Unity Catalog privileges, workspace admin and accoun
 - The ` + "`p0-connector-databricks`" + ` Lambda, running as that role, with its ` + "`DOMAIN_PATTERN`" + ` environment variable set to ` + "`domain_pattern`" + `.
 - A policy on P0's AWS integration role that allows ` + "`lambda:InvokeFunction`" + ` on the Lambda.
 
+Creating this resource has P0 check that it can invoke the Lambda. P0 retries for about half a minute while a new IAM policy takes effect, then the apply fails with P0's message. If the first apply is denied access, apply again.
+
 A connector that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
 ` + betaNote,

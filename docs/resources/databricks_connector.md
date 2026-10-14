@@ -7,6 +7,7 @@ description: |-
   The connector lets P0 grant Unity Catalog privileges, workspace admin and account admin in your Databricks accounts. After you install it, add each Databricks account with p0_databricks_account, then the account's workspaces with p0_databricks_workspace and their catalogs with p0_databricks_catalog.
   Important: Before creating this resource you must stage the connector with p0_databricks_connector_staged, and set up the following in the staged AWS account and region:
   Outbound identity federation, enabled for the AWS account (aws_iam_outbound_web_identity_federation).An IAM role named p0-connector-databricks that Lambda can assume. Each Databricks account's federation policy trusts this role's ARN.A policy on that role that allows sts:GetWebIdentityToken only for the audience databricks (this resource's federation_audience).The p0-connector-databricks Lambda, running as that role, with its DOMAIN_PATTERN environment variable set to domain_pattern.A policy on P0's AWS integration role that allows lambda:InvokeFunction on the Lambda.
+  Creating this resource has P0 check that it can invoke the Lambda. P0 retries for about half a minute while a new IAM policy takes effect, then the apply fails with P0's message. If the first apply is denied access, apply again.
   A connector that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
   Note: This integration is currently in beta.
 ---
@@ -24,6 +25,8 @@ The connector lets P0 grant Unity Catalog privileges, workspace admin and accoun
 - A policy on that role that allows `sts:GetWebIdentityToken` only for the audience `databricks` (this resource's `federation_audience`).
 - The `p0-connector-databricks` Lambda, running as that role, with its `DOMAIN_PATTERN` environment variable set to `domain_pattern`.
 - A policy on P0's AWS integration role that allows `lambda:InvokeFunction` on the Lambda.
+
+Creating this resource has P0 check that it can invoke the Lambda. P0 retries for about half a minute while a new IAM policy takes effect, then the apply fails with P0's message. If the first apply is denied access, apply again.
 
 A connector that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
@@ -285,7 +288,9 @@ resource "aws_iam_role_policy" "p0_invoke_connector" {
 }
 
 # Completes the install. Like the staged connector, it ignores later changes to
-# the domain pattern.
+# the domain pattern. P0 checks that it can invoke the connector, retrying for
+# about half a minute while a new IAM policy takes effect. If the first apply is
+# denied access, apply again.
 resource "p0_databricks_connector" "example" {
   id             = p0_databricks_connector_staged.example.id
   region         = p0_databricks_connector_staged.example.region

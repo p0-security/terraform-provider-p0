@@ -251,7 +251,9 @@ resource "aws_iam_role_policy" "p0_invoke_connector" {
 }
 
 # Completes the install. Like the staged connector, it ignores later changes to
-# the domain pattern.
+# the domain pattern. P0 checks that it can invoke the connector, retrying for
+# about half a minute while a new IAM policy takes effect. If the first apply is
+# denied access, apply again.
 resource "p0_databricks_connector" "example" {
   id             = p0_databricks_connector_staged.example.id
   region         = p0_databricks_connector_staged.example.region
