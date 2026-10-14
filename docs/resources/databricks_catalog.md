@@ -4,7 +4,7 @@ page_title: "p0_databricks_catalog Resource - p0"
 subcategory: ""
 description: |-
   A Unity Catalog catalog installation. P0 grants privileges in a catalog through its account's service principal, which must hold MANAGE on the catalog.
-  Important: Before creating this resource, the workspace that P0 reaches the catalog through must be installed (see the p0_databricks_workspace resource), and the service principal must hold MANAGE on the catalog. Grant it with databricks_grant, never databricks_grants, which overwrites every other grant on the catalog. Granting MANAGE takes the catalog's owner, a holder of MANAGE on it, or a metastore admin.
+  Important: Before creating this resource, the workspace that P0 reaches the catalog through must be installed (see the p0_databricks_workspace resource), and the service principal must hold MANAGE on the catalog. Grant it with databricks_grant, never databricks_grants, which overwrites every other grant on the catalog. Granting MANAGE takes the catalog's owner, a holder of MANAGE on it, or a metastore admin. Account admin alone doesn't give MANAGE on a catalog.
   A catalog that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
   Note: This integration is currently in beta.
 ---
@@ -13,7 +13,7 @@ description: |-
 
 A Unity Catalog catalog installation. P0 grants privileges in a catalog through its account's service principal, which must hold `MANAGE` on the catalog.
 
-**Important:** Before creating this resource, the workspace that P0 reaches the catalog through must be installed (see the `p0_databricks_workspace` resource), and the service principal must hold `MANAGE` on the catalog. Grant it with `databricks_grant`, never `databricks_grants`, which overwrites every other grant on the catalog. Granting `MANAGE` takes the catalog's owner, a holder of `MANAGE` on it, or a metastore admin.
+**Important:** Before creating this resource, the workspace that P0 reaches the catalog through must be installed (see the `p0_databricks_workspace` resource), and the service principal must hold `MANAGE` on the catalog. Grant it with `databricks_grant`, never `databricks_grants`, which overwrites every other grant on the catalog. Granting `MANAGE` takes the catalog's owner, a holder of `MANAGE` on it, or a metastore admin. Account admin alone doesn't give `MANAGE` on a catalog.
 
 A catalog that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
@@ -25,7 +25,8 @@ A catalog that P0 hasn't finished installing, such as one imported before its in
 # Adds Unity Catalog catalogs in an installed workspace, by granting the
 # account's service principal MANAGE on each one. Apply it as a Databricks
 # account admin who is also the catalog's owner, holds MANAGE on it, or is a
-# metastore admin. To add a catalog later, add it to the list and apply again.
+# metastore admin. Account admin alone doesn't give MANAGE on a catalog. To add
+# a catalog later, add it to the list and apply again.
 #
 # To install the connector, account, workspaces and catalogs in one
 # configuration that wires them together, see
@@ -82,6 +83,13 @@ resource "databricks_grant" "p0_manage" {
   provider_config {
     workspace_id = local.workspace_id
   }
+
+  # If this configuration also holds the workspace's
+  # databricks_mws_permission_assignment, as P0's installer arranges it, make
+  # the grant wait for it, so that Terraform assigns the service principal to
+  # the workspace before it grants through that workspace:
+  #
+  # depends_on = [databricks_mws_permission_assignment.p0]
 }
 
 # Each catalog's ID in P0 is "<catalog_name>@<workspace_id>", e.g.

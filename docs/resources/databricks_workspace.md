@@ -4,7 +4,7 @@ page_title: "p0_databricks_workspace Resource - p0"
 subcategory: ""
 description: |-
   A Databricks workspace installation. P0 calls the workspace at workspace_url as its account's service principal.
-  Important: Before creating this resource, the workspace's account must be installed (see the p0_databricks_account resource), and its service principal must be assigned to the workspace as USER, or as ADMIN when is_workspace_admin_enabled is true. Assign it with databricks_mws_permission_assignment or databricks_permission_assignment.
+  Important: Before creating this resource, the workspace's account must be installed (see the p0_databricks_account resource), and its service principal must be assigned to the workspace as USER, or as ADMIN when is_workspace_admin_enabled is true. Assign it with databricks_mws_permission_assignment or databricks_permission_assignment. The workspace also needs a Unity Catalog metastore assigned to it, or P0's install check fails.
   A workspace that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
   Note: This integration is currently in beta.
 ---
@@ -13,7 +13,7 @@ description: |-
 
 A Databricks workspace installation. P0 calls the workspace at `workspace_url` as its account's service principal.
 
-**Important:** Before creating this resource, the workspace's account must be installed (see the `p0_databricks_account` resource), and its service principal must be assigned to the workspace as `USER`, or as `ADMIN` when `is_workspace_admin_enabled` is `true`. Assign it with `databricks_mws_permission_assignment` or `databricks_permission_assignment`.
+**Important:** Before creating this resource, the workspace's account must be installed (see the `p0_databricks_account` resource), and its service principal must be assigned to the workspace as `USER`, or as `ADMIN` when `is_workspace_admin_enabled` is `true`. Assign it with `databricks_mws_permission_assignment` or `databricks_permission_assignment`. The workspace also needs a Unity Catalog metastore assigned to it, or P0's install check fails.
 
 A workspace that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
@@ -46,7 +46,8 @@ terraform {
 
 locals {
   databricks_account_id = "01234567-89ab-cdef-0123-456789abcdef"
-  workspace_id          = "1234567890123456"
+  # The number after ?o= in the workspace's URL when you open it in a browser.
+  workspace_id = "1234567890123456"
   # If this configuration also holds the workspace's databricks_mws_workspaces,
   # pass its workspace_id, workspace_url and workspace_name straight through.
   workspace_url = "https://dbc-1234abcd-5678.cloud.databricks.com"
@@ -103,7 +104,7 @@ resource "p0_databricks_workspace" "example" {
 ### Required
 
 - `account` (String) The `id` of the `p0_databricks_account` that this workspace is in
-- `id` (String) The Databricks workspace ID
+- `id` (String) The Databricks workspace ID, e.g. `1234567890123456`. When you open the workspace in a browser, its ID is the number after `?o=` in the URL.
 - `workspace_name` (String) A name for the workspace in P0, e.g. `analytics-prod`. Requests show it, and approval rules can match it with the workspace filter's name key. Changing it updates the workspace in place. A configuration that holds the workspace's `databricks_mws_workspaces` can pass its `workspace_name` here.
 - `workspace_url` (String) The workspace's URL, e.g. `https://dbc-1234abcd-5678.cloud.databricks.com`: `https://` and a lowercase host on the workspace domain of the account's cloud, with no port, path or trailing slash. P0 calls the workspace there, and checks that it belongs to this workspace ID. P0 can't change a workspace's URL, so a new value replaces the workspace. A configuration that holds the workspace's `databricks_mws_workspaces` can pass its `workspace_url` here.
 

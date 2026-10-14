@@ -22,7 +22,8 @@ terraform {
 
 locals {
   databricks_account_id = "01234567-89ab-cdef-0123-456789abcdef"
-  workspace_id          = "1234567890123456"
+  # The number after ?o= in the workspace's URL when you open it in a browser.
+  workspace_id = "1234567890123456"
   # If this configuration also holds the workspace's databricks_mws_workspaces,
   # pass its workspace_id, workspace_url and workspace_name straight through.
   workspace_url = "https://dbc-1234abcd-5678.cloud.databricks.com"

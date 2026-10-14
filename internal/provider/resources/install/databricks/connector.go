@@ -37,7 +37,8 @@ The connector lets P0 grant Unity Catalog privileges, workspace admin and accoun
 - Outbound identity federation, enabled for the AWS account (` + "`aws_iam_outbound_web_identity_federation`" + `).
 - An IAM role named ` + "`p0-connector-databricks`" + ` that Lambda can assume. Each Databricks account's federation policy trusts this role's ARN.
 - A policy on that role that allows ` + "`sts:GetWebIdentityToken`" + ` only for the audience ` + "`" + FederationAudience + "`" + ` (this resource's ` + "`federation_audience`" + `).
-- The ` + "`p0-connector-databricks`" + ` Lambda, running as that role, with its ` + "`DOMAIN_PATTERN`" + ` environment variable set to ` + "`domain_pattern`" + `.
+- The Lambda's CloudWatch log group, ` + "`/aws/lambda/p0-connector-databricks`" + `, and a policy that lets the role write to it. The role can't create the log group, so create it before the Lambda.
+- The ` + "`p0-connector-databricks`" + ` Lambda, running as that role with a 30-second timeout, and with its ` + "`DOMAIN_PATTERN`" + ` environment variable set to ` + "`domain_pattern`" + `. Lambda's default timeout of 3 seconds is too short for the connector.
 - A policy on P0's AWS integration role that allows ` + "`lambda:InvokeFunction`" + ` on the Lambda.
 
 Creating this resource has P0 check that it can invoke the Lambda. P0 retries for about half a minute while a new IAM policy takes effect, then the apply fails with P0's message. If the first apply is denied access, apply again.

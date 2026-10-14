@@ -57,13 +57,13 @@ func (*Workspace) Schema(_ context.Context, _ resource.SchemaRequest, resp *reso
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Databricks workspace installation. P0 calls the workspace at ` + "`workspace_url`" + ` as its account's service principal.
 
-**Important:** Before creating this resource, the workspace's account must be installed (see the ` + "`p0_databricks_account`" + ` resource), and its service principal must be assigned to the workspace as ` + "`USER`" + `, or as ` + "`ADMIN`" + ` when ` + "`is_workspace_admin_enabled`" + ` is ` + "`true`" + `. Assign it with ` + "`databricks_mws_permission_assignment`" + ` or ` + "`databricks_permission_assignment`" + `.
+**Important:** Before creating this resource, the workspace's account must be installed (see the ` + "`p0_databricks_account`" + ` resource), and its service principal must be assigned to the workspace as ` + "`USER`" + `, or as ` + "`ADMIN`" + ` when ` + "`is_workspace_admin_enabled`" + ` is ` + "`true`" + `. Assign it with ` + "`databricks_mws_permission_assignment`" + ` or ` + "`databricks_permission_assignment`" + `. The workspace also needs a Unity Catalog metastore assigned to it, or P0's install check fails.
 
 A workspace that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
 ` + betaNote,
 		Attributes: map[string]schema.Attribute{
-			"id": fixedAttribute(`The Databricks workspace ID`, workspaceIdValidator()),
+			"id": fixedAttribute("The Databricks workspace ID, e.g. `1234567890123456`. When you open the workspace in a browser, its ID is the number after `?o=` in the URL.", workspaceIdValidator()),
 			"account": fixedAttribute(
 				"The `id` of the `p0_databricks_account` that this workspace is in",
 				accountIdValidator(),
