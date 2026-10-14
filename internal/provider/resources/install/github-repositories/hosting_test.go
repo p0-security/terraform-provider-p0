@@ -15,16 +15,21 @@ import (
 // P0's messages, as its own tests spell them out.
 const (
 	awsNameRule      = "Use 2 to 64 characters for the connector name: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit."
+	gcpNameRule      = "Use 2 to 49 characters for the connector name: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit."
 	awsAccountRule   = "Enter the 12-digit ID of the AWS account the connector runs in."
 	awsRegionRule    = "Enter the AWS region the connector runs in, such as us-west-2."
+	gcpProjectRule   = "Enter the ID of the Google Cloud project the connector runs in."
+	gcpRegionRule    = "Enter the Google Cloud region the connector runs in, such as us-central1."
 	vaultAccountRule = "Enter the 12-digit ID of the AWS account the private key's secret is in."
 	vaultRegionRule  = "Enter the AWS region the private key's secret is in, such as us-west-2."
+	vaultProjectRule = "Enter the ID of the Google Cloud project the private key's secret is in."
 	unsupported      = "GitHub Repositories doesn't support AWS GovCloud or China regions yet."
 	invalidOrg       = "Enter the organization's GitHub login, as in github.com/<login>"
 	invalidAppId     = "The GitHub App ID is a number. Find it on the app's settings page."
 	// The private key's secret name.
-	invalidSecretName  = "That doesn't look like a secret name. Enter the name of the secret that holds the key, not its ARN or the key itself."
-	suffixedSecretName = "Secrets Manager can't find a secret by its name when the name ends in a hyphen and six characters, like -AbCdEf. Use a secret whose name doesn't end that way."
+	invalidSecretName    = "That doesn't look like a secret name. Enter the name of the secret that holds the key, not its ARN or the key itself."
+	suffixedSecretName   = "Secrets Manager can't find a secret by its name when the name ends in a hyphen and six characters, like -AbCdEf. Use a secret whose name doesn't end that way."
+	invalidGcpSecretName = "That doesn't look like a secret name. Enter the name of the secret that holds the key, not its resource name or the key itself."
 )
 
 // Each error as "<path>: <detail>".
@@ -44,14 +49,20 @@ func errorDetails(diags diag.Diagnostics) []string {
 
 // P0's own cases for its hosting and vault rules
 // (packages/integrations/github-repositories-shared/src/__tests__/hosting.test.ts in the
-// app) for AWS, plus the region edges it settled on, run through ValidateConfig: each refused
+// app), plus the region edges it settled on, run through ValidateConfig: each refused
 // value gets one error, at its attribute, with P0's message.
 func TestRepositoryAccessValidateConfigHostingAndVault(t *testing.T) {
 	awsName := func(name string) func(tftypes.Object) tftypes.Value {
 		return with(awsHostingFields, "connector_name", str(name))
 	}
+	gcpName := func(name string) func(tftypes.Object) tftypes.Value {
+		return with(gcpHostingFields, "connector_name", str(name))
+	}
 	awsRegion := func(region string) func(tftypes.Object) tftypes.Value {
 		return with(awsHostingFields, "connector_region", str(region))
+	}
+	gcpRegion := func(region string) func(tftypes.Object) tftypes.Value {
+		return with(gcpHostingFields, "connector_region", str(region))
 	}
 
 	cases := []struct {
@@ -61,7 +72,9 @@ func TestRepositoryAccessValidateConfigHostingAndVault(t *testing.T) {
 		want    []string
 	}{
 		{name: "aws", vault: awsVault, hosting: awsHosting},
+		{name: "gcp", vault: gcpVault, hosting: gcpHosting},
 		{name: "a longest Lambda name", vault: awsVault, hosting: awsName("p" + strings.Repeat("0", 63))},
+		{name: "a longest Cloud Run name", vault: gcpVault, hosting: gcpName("p" + strings.Repeat("0", 48))},
 		{name: "a name with capitals", vault: awsVault, hosting: awsName("P0-GitHub"), want: []string{"hosting.connector_name: " + awsNameRule}},
 		{name: "a name of one character", vault: awsVault, hosting: awsName("p"), want: []string{"hosting.connector_name: " + awsNameRule}},
 		{name: "a name with two hyphens in a row", vault: awsVault, hosting: awsName("p0--github"), want: []string{"hosting.connector_name: " + awsNameRule}},
@@ -69,6 +82,7 @@ func TestRepositoryAccessValidateConfigHostingAndVault(t *testing.T) {
 		{name: "a name with a leading digit", vault: awsVault, hosting: awsName("0p-github"), want: []string{"hosting.connector_name: " + awsNameRule}},
 		{name: "a name with an underscore", vault: awsVault, hosting: awsName("p0_github"), want: []string{"hosting.connector_name: " + awsNameRule}},
 		{name: "a Lambda name over 64 characters", vault: awsVault, hosting: awsName("p" + strings.Repeat("0", 64)), want: []string{"hosting.connector_name: " + awsNameRule}},
+		{name: "a Cloud Run name over 49 characters", vault: gcpVault, hosting: gcpName("p" + strings.Repeat("0", 49)), want: []string{"hosting.connector_name: " + gcpNameRule}},
 		{name: "an 11-digit account", vault: awsVault, hosting: with(awsHostingFields, "account_id", str("11111111111")), want: []string{"hosting.account_id: " + awsAccountRule}},
 		{name: "an AWS region without its number", vault: awsVault, hosting: awsRegion("us-west"), want: []string{"hosting.connector_region: " + awsRegionRule}},
 		{name: "a Google Cloud region on AWS", vault: awsVault, hosting: awsRegion("us-central1"), want: []string{"hosting.connector_region: " + awsRegionRule}},
@@ -82,10 +96,19 @@ func TestRepositoryAccessValidateConfigHostingAndVault(t *testing.T) {
 		{name: "mx-central-1", vault: awsVault, hosting: awsRegion("mx-central-1")},
 		{name: "il-central-1", vault: awsVault, hosting: awsRegion("il-central-1")},
 		{name: "ca-west-1", vault: awsVault, hosting: awsRegion("ca-west-1")},
+		{name: "a project ID with capitals", vault: gcpVault, hosting: with(gcpHostingFields, "project_id", str("Acme-Project")), want: []string{"hosting.project_id: " + gcpProjectRule}},
+		{name: "a project ID shorter than 6 characters", vault: gcpVault, hosting: with(gcpHostingFields, "project_id", str("acme")), want: []string{"hosting.project_id: " + gcpProjectRule}},
+		{name: "a project ID of 30 characters", vault: gcpVault, hosting: with(gcpHostingFields, "project_id", str("a"+strings.Repeat("0", 29)))},
+		{name: "a project ID of 31 characters", vault: gcpVault, hosting: with(gcpHostingFields, "project_id", str("a"+strings.Repeat("0", 30))), want: []string{"hosting.project_id: " + gcpProjectRule}},
+		{name: "a project ID ending in a hyphen", vault: gcpVault, hosting: with(gcpHostingFields, "project_id", str("acme-project-")), want: []string{"hosting.project_id: " + gcpProjectRule}},
+		{name: "a Google Cloud region without its number", vault: gcpVault, hosting: gcpRegion("us-central"), want: []string{"hosting.connector_region: " + gcpRegionRule}},
+		{name: "an AWS region on Google Cloud", vault: gcpVault, hosting: gcpRegion("us-east-1"), want: []string{"hosting.connector_region: " + gcpRegionRule}},
+		{name: "a two-digit Google Cloud region", vault: gcpVault, hosting: gcpRegion("europe-west12")},
 		{name: "a vault account that isn't one", vault: with(awsVaultFields, "account_id", str("acme")), hosting: awsHosting, want: []string{"vault.account_id: " + vaultAccountRule}},
 		{name: "a vault region without its number", vault: with(awsVaultFields, "secrets_region", str("us-west")), hosting: awsHosting, want: []string{"vault.secrets_region: " + vaultRegionRule}},
 		{name: "a vault region in China", vault: with(awsVaultFields, "secrets_region", str("cn-north-1")), hosting: awsHosting, want: []string{"vault.secrets_region: " + unsupported}},
 		{name: "a vault region in ISO-E", vault: with(awsVaultFields, "secrets_region", str("eu-isoe-west-1")), hosting: awsHosting, want: []string{"vault.secrets_region: " + unsupported}},
+		{name: "a vault project with an underscore", vault: with(gcpVaultFields, "project_id", str("Acme_Project")), hosting: gcpHosting, want: []string{"vault.project_id: " + vaultProjectRule}},
 		// P0 checks a value trimmed, and stores it trimmed, so a padded value that's valid
 		// otherwise is refused for its whitespace alone.
 		{
@@ -96,6 +119,10 @@ func TestRepositoryAccessValidateConfigHostingAndVault(t *testing.T) {
 				"wouldn't match this configuration. Remove the whitespace, for example with trimspace()."},
 		},
 		{name: "a padded region in China", vault: awsVault, hosting: awsRegion(" cn-north-1"), want: []string{"hosting.connector_region: " + unsupported}},
+		// A missing field is left to the checks that it's set, which have their own words.
+		{name: "no account", vault: awsVault, hosting: with(awsHostingFields, "account_id", tftypes.NewValue(tftypes.String, nil)), want: []string{
+			"hosting.account_id: 'hosting.account_id' is required when 'hosting.type' is \"aws\".",
+		}},
 	}
 
 	for _, c := range cases {
@@ -142,7 +169,7 @@ func TestRepositoryAccessHostingFieldsHaveNoValidators(t *testing.T) {
 	if !ok {
 		t.Fatalf("hosting is not a nested attribute")
 	}
-	for _, name := range []string{"account_id", "connector_name", "connector_region"} {
+	for _, name := range []string{"account_id", "project_id", "connector_name", "connector_region"} {
 		field, ok := hosting.Attributes[name].(schema.StringAttribute)
 		if !ok {
 			t.Fatalf("hosting.%s is not a string attribute", name)
@@ -191,18 +218,5 @@ func TestRepositoryAccessValidateConfigPartitionSummaries(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("errors = %v; want %v", got, want)
-	}
-}
-
-// The hosting's type takes only `aws` for now.
-func TestHostingTypeValidator(t *testing.T) {
-	hostingType, ok := hostingAttribute().Attributes["type"].(schema.StringAttribute)
-	if !ok {
-		t.Fatalf("hosting.type is not a string attribute")
-	}
-	for value, want := range map[string]bool{"aws": true, "gcp": false, "": false} {
-		if got := accepts(t, hostingType, value); got != want {
-			t.Errorf("hosting.type accepts %q = %v; want %v", value, got, want)
-		}
 	}
 }
