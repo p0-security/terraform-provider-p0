@@ -41,6 +41,10 @@ A connector that P0 hasn't finished installing, such as one imported before its 
 # AWS account (see p0_aws_iam_write). P0 invokes the connector as that
 # installation's role. Once the connector is installed, add Databricks
 # accounts (see p0_databricks_account).
+#
+# To install the connector, account, workspaces and catalogs in one
+# configuration that wires them together, see
+# https://registry.terraform.io/providers/p0-security/p0/latest/docs/guides/databricks
 
 terraform {
   # 1.4 added terraform_data.

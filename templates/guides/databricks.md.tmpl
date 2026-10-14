@@ -1,0 +1,40 @@
+---
+page_title: "Installing Databricks in one configuration"
+subcategory: ""
+description: |-
+  One Terraform configuration that installs the Databricks connector, account, workspaces and catalogs, with each step referring to the one before it.
+---
+
+# Installing Databricks in one configuration
+
+The examples for
+[`p0_databricks_connector`](https://registry.terraform.io/providers/p0-security/p0/latest/docs/resources/databricks_connector),
+[`p0_databricks_account`](https://registry.terraform.io/providers/p0-security/p0/latest/docs/resources/databricks_account),
+[`p0_databricks_workspace`](https://registry.terraform.io/providers/p0-security/p0/latest/docs/resources/databricks_workspace) and
+[`p0_databricks_catalog`](https://registry.terraform.io/providers/p0-security/p0/latest/docs/resources/databricks_catalog)
+each stand alone, so you copy IDs from one into the next. The configuration
+below joins them. The account refers to the connector, the workspaces to the
+account and the catalogs to their workspace, and the service principal's
+federation policy reads the connector's role and token issuer directly.
+
+Fill in the `locals` block and apply once. To add a workspace or a catalog
+later, add it to `local.workspaces` and apply again.
+
+## Before you apply
+
+- Install P0's AWS IAM management for the connector's AWS account, with
+  [`p0_aws_iam_write`](https://registry.terraform.io/providers/p0-security/p0/latest/docs/resources/aws_iam_write).
+  P0 invokes the connector as that installation's role, `local.p0_role_name`.
+- Sign the AWS provider in to the connector's AWS account as an admin. The
+  apply copies P0's connector image into Amazon ECR, so docker and the AWS CLI
+  must work in the shell that runs Terraform, signed in to the same account.
+- Sign the Databricks provider in as an account admin who also owns each
+  catalog, holds `MANAGE` on it, or is a metastore admin.
+- If outbound identity federation is already on in the AWS account, import
+  `aws_iam_outbound_web_identity_federation.this` with the AWS account ID as
+  its ID before you apply. Destroying that resource turns federation off for
+  the whole account.
+
+## Configuration
+
+{{ tffile "examples/guides/databricks/main.tf" }}

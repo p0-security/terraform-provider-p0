@@ -2,6 +2,10 @@
 # account's service principal MANAGE on each one. Apply it as a Databricks
 # account admin who is also the catalog's owner, holds MANAGE on it, or is a
 # metastore admin. To add a catalog later, add it to the list and apply again.
+#
+# To install the connector, account, workspaces and catalogs in one
+# configuration that wires them together, see
+# https://registry.terraform.io/providers/p0-security/p0/latest/docs/guides/databricks
 
 terraform {
   required_providers {
