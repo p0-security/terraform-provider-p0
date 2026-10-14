@@ -5,6 +5,10 @@
 # Full chain: p0_databricks_connector -> p0_databricks_account_staged ->
 # service principal, federation policy and, if enabled, account admin role ->
 # p0_databricks_account. Then add workspaces (see p0_databricks_workspace).
+#
+# To install the connector, account, workspaces and catalogs in one
+# configuration that wires them together, see
+# https://registry.terraform.io/providers/p0-security/p0/latest/docs/guides/databricks
 
 terraform {
   required_providers {

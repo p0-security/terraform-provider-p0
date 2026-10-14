@@ -3,6 +3,10 @@
 # admin if local.enable_workspace_admin is true. Apply it as a Databricks
 # account admin, once per workspace. Then add the workspace's catalogs (see
 # p0_databricks_catalog).
+#
+# To install the connector, account, workspaces and catalogs in one
+# configuration that wires them together, see
+# https://registry.terraform.io/providers/p0-security/p0/latest/docs/guides/databricks
 
 terraform {
   required_providers {
