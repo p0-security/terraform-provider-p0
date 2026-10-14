@@ -95,7 +95,11 @@ resource "p0_databricks_connector_staged" "example" {
 # of a secret. This is a setting of the whole AWS account: destroying this
 # resource turns outbound identity federation off for everything in it. If it
 # is already on, import it, with the AWS account ID as its ID, rather than
-# create it:
+# create it. To check, run this with AWS CLI 2.32.0 or later:
+#   aws iam get-outbound-web-identity-federation-info
+# If it's on, the output shows "JwtVendingEnabled": true and the issuer URL as
+# IssuerIdentifier. If it's off, the command fails with FeatureDisabled. Import
+# it with:
 #   terraform import aws_iam_outbound_web_identity_federation.this <account ID>
 # To remove the connector but leave federation on, replace this block with a
 # removed block (Terraform 1.7+) before you destroy the rest. Terraform then
