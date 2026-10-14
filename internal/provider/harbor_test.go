@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -104,6 +105,24 @@ type harborFake struct {
 	writes int
 }
 
+// The IDs of the Harbor instances that name the connector id, sorted.
+func harborInstancesUsing(items map[fakeItemKey]map[string]any, id string) []string {
+	users := []string{}
+	for key, item := range items {
+		if key.integration == "harbor" && key.component == "harbor-instance" && item["connector"] == id {
+			users = append(users, key.id)
+		}
+	}
+	slices.Sort(users)
+	return users
+}
+
+// P0's refusal to stage or verify again a connector that instances use.
+func harborConnectorInUse(id string, action string, users []string) string {
+	return fmt.Sprintf("The Harbor connector %s can't be %s while a Harbor instance uses it (%s). Remove each instance that uses it first.",
+		id, action, strings.Join(users, ", "))
+}
+
 // The fields of a connector's hosting that P0 fixes when it creates the item.
 var harborAddressFields = []string{"type", "accountId", "projectId", "connectorName", "connectorRegion"}
 
@@ -113,7 +132,7 @@ func newHarborFake(t *testing.T) *harborFake {
 		return fmt.Sprintf("%s@%s.iam.gserviceaccount.com", hosting["connectorName"], hosting["projectId"])
 	}
 
-	f.refuse = func(step fakeStep, _ map[fakeItemKey]map[string]any) (int, string) {
+	f.refuse = func(step fakeStep, items map[fakeItemKey]map[string]any) (int, string) {
 		if step.key.integration != "harbor" {
 			return 0, ""
 		}
@@ -127,15 +146,24 @@ func newHarborFake(t *testing.T) *harborFake {
 			if f.stageRefusal != "" {
 				return http.StatusBadRequest, f.stageRefusal
 			}
-			// P0 takes a PUT over a connector it holds only when the hosting matches.
+			// P0 takes a PUT over a connector it holds only when the hosting matches, and
+			// no instance uses the connector.
 			if stored, ok := step.previous["hosting"].(map[string]any); ok {
 				for _, field := range harborAddressFields {
 					if hosting[field] != stored[field] {
-						return http.StatusConflict, "This Harbor connector already exists with another hosting."
+						return http.StatusConflict, fmt.Sprintf("A Harbor connector with the ID %s already exists, and a connector can't be changed once it's added. "+
+							"To run a connector somewhere else, add one under another ID.", step.key.id)
 					}
+				}
+				if users := harborInstancesUsing(items, step.key.id); len(users) > 0 {
+					return http.StatusConflict, harborConnectorInUse(step.key.id, "staged again", users)
 				}
 			}
 			return 0, ""
+		}
+
+		if users := harborInstancesUsing(items, step.key.id); step.nextState == "configure" && step.previous["state"] == "installed" && len(users) > 0 {
+			return http.StatusConflict, harborConnectorInUse(step.key.id, "verified again", users)
 		}
 
 		staged, _ := step.previous["hosting"].(map[string]any)
@@ -614,6 +642,84 @@ func TestHarborConnectorStagedOverExisting(t *testing.T) {
 			}
 		})
 	}
+}
+
+// While a Harbor instance uses the connector, P0 refuses to return it to "stage", so
+// destroying p0_harbor_connector fails and says to remove the instances first. The
+// connector stays installed, and goes once the instance has.
+func TestHarborConnectorInUse(t *testing.T) {
+	f := newHarborFake(t)
+	instance := fakeItemKey{"harbor", "harbor-instance", "prod"}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkHarborDestroyed(f),
+		Steps: []resource.TestStep{
+			{Config: harborConnectorConfig(f, harborGcp)},
+			{
+				PreConfig: func() {
+					f.mu.Lock()
+					defer f.mu.Unlock()
+					f.items[instance] = map[string]any{"connector": harborConnector, "state": "installed"}
+				},
+				Config: harborStagedConfig(f, harborGcp),
+				ExpectError: harborError(
+					"Harbor connector is in use", `the Harbor connector "prod"`, "Remove each p0_harbor_instance that uses it first",
+					"409 Conflict: The Harbor connector prod can't be staged again while a Harbor instance uses it (prod).",
+				),
+			},
+			{
+				PreConfig: func() {
+					if item := f.connector(); item["state"] != "installed" {
+						t.Errorf("P0 item = %v; want it still installed", item)
+					}
+					f.mu.Lock()
+					defer f.mu.Unlock()
+					delete(f.items, instance)
+				},
+				Config: harborStagedConfig(f, harborGcp),
+				Check: func(*terraform.State) error {
+					if item := f.connector(); item["state"] != "stage" {
+						return fmt.Errorf("P0 item = %v; want it staged", item)
+					}
+					return nil
+				},
+			},
+		},
+	})
+}
+
+// An answer from P0 with no item fails the refresh with a diagnostic, not a panic.
+func TestHarborConnectorAnswerWithoutItem(t *testing.T) {
+	f := newHarborFake(t)
+	fake := f.server.Config.Handler
+	path := "/o/" + fakeOrg + "/integrations/harbor/config/connector/" + harborConnector
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkHarborDestroyed(f),
+		Steps: []resource.TestStep{
+			{Config: harborStagedConfig(f, harborGcp)},
+			{
+				PreConfig: func() {
+					f.server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						if r.Method == http.MethodGet && r.URL.Path == path {
+							writeJson(w, map[string]any{"ok": true})
+							return
+						}
+						fake.ServeHTTP(w, r)
+					})
+				},
+				Config:      harborStagedConfig(f, harborGcp),
+				PlanOnly:    true,
+				ExpectError: harborError("Bad API response", "Could not read 'item'"),
+			},
+			{
+				PreConfig: func() { f.server.Config.Handler = fake },
+				Config:    harborStagedConfig(f, harborGcp),
+			},
+		},
+	})
 }
 
 // With Harbor's feature flag off, P0 answers the request that stages a connector with

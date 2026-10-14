@@ -194,8 +194,10 @@ func connectorId(data any) *string {
 }
 
 func connectorItemJson(json any) any {
+	// An answer with no item leaves Item nil, which has to come back as an untyped
+	// nil: a nil *connectorJson in an any isn't nil, and would reach FromJson.
 	inner, ok := json.(*connectorApi)
-	if !ok {
+	if !ok || inner.Item == nil {
 		return nil
 	}
 	return inner.Item

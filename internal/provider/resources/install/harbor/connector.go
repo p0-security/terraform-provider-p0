@@ -2,11 +2,14 @@ package installharbor
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
+	installresources "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install"
 )
 
 var _ resource.Resource = &HarborConnector{}
@@ -37,7 +40,7 @@ The connector is how P0 reaches your Harbor instances. You deploy it in your own
 
 ` + "`id`" + ` and ` + "`hosting`" + ` must match the staged resource. P0 refuses to install a connector anywhere but where it was staged, and changing either replaces the connector.
 
-Destroying this resource returns the connector to its staged state, which ` + "`p0_harbor_connector_staged`" + ` still owns.
+Destroying this resource returns the connector to its staged state, which ` + "`p0_harbor_connector_staged`" + ` still owns. P0 refuses that while a Harbor instance uses the connector, so remove each ` + "`p0_harbor_instance`" + ` that uses it first. Terraform does so in the same apply when the instance refers to this resource, as the examples do.
 
 **Prerequisites:**
 
@@ -87,9 +90,29 @@ func (r *HarborConnector) Update(ctx context.Context, req resource.UpdateRequest
 
 // Returns the item to the "stage" state rather than deleting it, so that the staged
 // resource still owns it. The PUT that does so sends the hosting P0 already has, which
-// P0 accepts for an item that exists.
+// P0 accepts for an item that exists, unless a Harbor instance uses the connector:
+// then P0 refuses to stage it again (409), since every such instance would stop
+// working. This is common.Install's Rollback, with that refusal told apart.
 func (r *HarborConnector) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	r.installer.Rollback(ctx, &resp.Diagnostics, &req.State, &connectorModel{})
+	var data connectorModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	id := data.Id.ValueString()
+	httpResp, err := r.installer.ProviderData.Put(itemPath(installresources.Connector, id), connectorToJson(&data), &struct{}{})
+	switch {
+	case err == nil:
+	case httpResp != nil && httpResp.StatusCode == http.StatusConflict:
+		resp.Diagnostics.AddError(
+			"Harbor connector is in use",
+			fmt.Sprintf("P0 won't return the Harbor connector %q to its staged state while a Harbor instance uses it. "+
+				"Remove each p0_harbor_instance that uses it first, in the same apply or an earlier one, then apply again.\n\nP0's response: %s", id, err),
+		)
+	default:
+		resp.Diagnostics.AddError("Error communicating with P0", fmt.Sprintf("Could not rollback, got error:\n%s", err))
+	}
 }
 
 func (r *HarborConnector) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

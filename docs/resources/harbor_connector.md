@@ -6,7 +6,7 @@ description: |-
   The connector is how P0 reaches your Harbor instances. You deploy it in your own AWS account or Google Cloud project, and one connector can serve several Harbor instances.
   Important: Before creating this resource you must stage the installation with p0_harbor_connector_staged and deploy the connector. Creating this resource has P0 check the connector where hosting says it runs. If the check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the first check is denied access, apply again.
   id and hosting must match the staged resource. P0 refuses to install a connector anywhere but where it was staged, and changing either replaces the connector.
-  Destroying this resource returns the connector to its staged state, which p0_harbor_connector_staged still owns.
+  Destroying this resource returns the connector to its staged state, which p0_harbor_connector_staged still owns. P0 refuses that while a Harbor instance uses the connector, so remove each p0_harbor_instance that uses it first. Terraform does so in the same apply when the instance refers to this resource, as the examples do.
   Prerequisites:
   
   P0's Harbor connector, deployed where hosting says. Set its ALLOWED_EMAIL_DOMAIN_PATTERN environment variable to a regular expression for the email domains that may receive access, such as ^example\.com$. The pattern is set on the connector alone, and isn't an attribute of this resource: P0 doesn't set it.
@@ -26,7 +26,7 @@ The connector is how P0 reaches your Harbor instances. You deploy it in your own
 
 `id` and `hosting` must match the staged resource. P0 refuses to install a connector anywhere but where it was staged, and changing either replaces the connector.
 
-Destroying this resource returns the connector to its staged state, which `p0_harbor_connector_staged` still owns.
+Destroying this resource returns the connector to its staged state, which `p0_harbor_connector_staged` still owns. P0 refuses that while a Harbor instance uses the connector, so remove each `p0_harbor_instance` that uses it first. Terraform does so in the same apply when the instance refers to this resource, as the examples do.
 
 **Prerequisites:**
 
