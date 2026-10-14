@@ -12,13 +12,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/p0-security/terraform-provider-p0/internal"
-	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installvaultedcredential "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/vaulted-credential"
 )
 
 const HarborKey = "harbor"
 
-const previewNote = "**Note:** This integration is currently in preview."
+const betaNote = "**Note:** This integration is currently in beta."
 
 const supportEmail = "support@p0.dev"
 
@@ -64,8 +63,7 @@ func itemPath(component string, id string) string {
 // app. kind names the item, as in "the Harbor connector". P0 accepts a PUT that
 // changes nothing over an item it holds, and the PUT returns an installed item to
 // "stage", where it does no work until it is verified again. P0 answers 404 for an
-// item it doesn't have, and also while Harbor's flag is off, which the PUT that
-// follows reports.
+// item it doesn't have.
 func refuseExistingItem(data *internal.P0ProviderData, component string, kind string, id string, diags *diag.Diagnostics) {
 	resp, err := data.Get(itemPath(component, id), &struct{}{})
 	switch {
@@ -80,34 +78,3 @@ func refuseExistingItem(data *internal.P0ProviderData, component string, kind st
 		)
 	}
 }
-
-// Harbor is behind a feature flag in P0, which each of its components names. While
-// the flag is off for an organization, P0 answers every request for a Harbor item with
-// a bare 404: the request that stages one, and the verify and configure steps. kind
-// names the item, as in "the Harbor connector".
-func describeHarborNotEnabled(kind string) common.DescribeError {
-	return func(id string, err error) (string, string) {
-		return "Harbor isn't enabled for this P0 organization",
-			fmt.Sprintf("P0 couldn't stage or install the Harbor %s %q. This usually means Harbor isn't enabled for your organization yet. "+
-				"Harbor is in preview: contact %s to have it enabled, then apply again.\n\nP0's response: %s", kind, id, supportEmail, err)
-	}
-}
-
-// A read gets the same bare 404 while the flag is off. Removing the resource from
-// state then would have the next apply stage the connector again, which returns an
-// installed connector to the "stage" state. So the read fails, which fails every
-// plan, destroy and import too, and the diagnostic says how to go on.
-func describeHarborConnectorNotFound(id string, err error) (string, string) {
-	return "Harbor connector not found in P0",
-		fmt.Sprintf("P0 has no Harbor connector %q. Either Harbor isn't enabled for your organization, or the connector was removed in P0. "+
-			"Until one of those changes, every refresh of this resource fails, and so do plan, destroy and import.\n\n"+
-			"If Harbor should be enabled, contact %s. To plan or apply other changes meanwhile, run Terraform with `-refresh=false`. "+
-			"If the connector was removed in P0, remove this resource from Terraform state with `terraform state rm <address>`, "+
-			"and the next apply stages the connector again.\n\nP0's response: %s", id, supportEmail, err)
-}
-
-// What the resources' pages say about the read failure above.
-var notFoundRecoveryNote = "**If P0 stops finding the connector:** while Harbor isn't enabled for your organization, or after the connector is removed in P0, " +
-	"every refresh of this resource fails, and so do `plan`, `destroy` and `import`. Terraform keeps the resource in state rather than stage the connector again. " +
-	"If Harbor should be enabled, contact " + supportEmail + ". To plan or apply other changes meanwhile, run Terraform with `-refresh=false`. " +
-	"If the connector was removed in P0, remove the resource from state with `terraform state rm <address>`, and the next apply stages it again."

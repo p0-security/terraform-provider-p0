@@ -93,7 +93,7 @@ The email domains that may receive access are set on the connector, as its ` + "
 
 - For ` + "`gcp-sm`" + `, Google Secret Manager installed in P0 for the project that holds the secret. This provider has no resource for it, so install it in the P0 app. Give the connector's service account ` + "`roles/secretmanager.secretAccessor`" + ` and ` + "`roles/secretmanager.viewer`" + ` on the secret alone.
 
-` + previewNote,
+` + betaNote,
 		Attributes: map[string]schema.Attribute{
 			"id": itemIdAttribute(`A name you choose for the instance, such as ` + "`prod`" + `: ` + itemIdRule),
 			"connector": itemIdAttribute("The `id` of the `p0_harbor_connector` that reaches this instance. " +
@@ -206,20 +206,16 @@ func validateField(attribute path.Path, value types.String, rules []rule, diags 
 func (r *HarborInstance) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	data := internal.Configure(&req, resp)
 	r.installer = &common.Install{
-		Integration:           HarborKey,
-		Component:             installresources.HarborInstance,
-		ProviderData:          data,
-		GetId:                 instanceId,
-		GetItemJson:           instanceItemJson,
-		FromJson:              instanceFromJson,
-		ToJson:                instanceToJson,
-		DescribeCheckError:    describeInstanceCheckError,
-		DescribeWriteNotFound: describeHarborNotEnabled("instance"),
-		// No FailReadOnNotFound, which the connector's resources set. An instance that
-		// P0 no longer returns is dropped from state, as most resources are, so one
-		// deleted in the P0 app is created again by the next apply. That is safe while
-		// Harbor's flag is off too: Create never writes over an instance P0 holds, so
-		// once the flag is back on, the apply says to import it.
+		Integration:        HarborKey,
+		Component:          installresources.HarborInstance,
+		ProviderData:       data,
+		GetId:              instanceId,
+		GetItemJson:        instanceItemJson,
+		FromJson:           instanceFromJson,
+		ToJson:             instanceToJson,
+		DescribeCheckError: describeInstanceCheckError,
+		// An instance that P0 no longer has is dropped from state, as other resources
+		// do, and the next apply creates it again.
 	}
 }
 
