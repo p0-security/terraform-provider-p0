@@ -19,6 +19,10 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 6.36.0"
     }
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0"
+    }
     p0 = {
       source = "p0-security/p0"
     }
@@ -48,11 +52,14 @@ locals {
   p0_role_name = "P0RoleIamManager"
 
   # The connector image's version: the sha- tag P0 publishes each release
-  # under. To update, use the tag in the latest version of this example in the
-  # Terraform registry. Changing it copies the image again and redeploys the
-  # Lambda.
-  connector_image_tag = "sha-e7a7816"
-  connector_image     = "p0security/p0-connector-databricks:${local.connector_image_tag}"
+  # under, and the digest that tag must resolve to. Docker Hub lets a tag be
+  # pushed again, so the plan fails if the tag no longer resolves to this
+  # digest. To update, take both from the latest version of this example in
+  # the Terraform registry: they change together. Changing them copies the
+  # image again and redeploys the Lambda.
+  connector_image_name   = "p0security/p0-connector-databricks"
+  connector_image_tag    = "sha-e7a7816"
+  connector_image_digest = "sha256:1b3b8c31e2b9b542935631847caf956e866342b63d889671b2fae0432a8bd729"
 
   tags = {
     ManagedBy  = "Terraform"
@@ -153,6 +160,17 @@ resource "aws_iam_role_policy" "connector_identity_token" {
   })
 }
 
+data "docker_registry_image" "connector" {
+  name = "${local.connector_image_name}:${local.connector_image_tag}"
+
+  lifecycle {
+    postcondition {
+      condition     = self.sha256_digest == local.connector_image_digest
+      error_message = "The connector image's tag doesn't resolve to the digest pinned here. Take both from the latest p0_databricks_connector example in P0's Terraform registry docs, or contact support@p0.dev."
+    }
+  }
+}
+
 # Lambda only runs images from Amazon ECR, so this copies P0's image into a
 # repository in this account. It needs docker and the AWS CLI, signed in to this
 # account, wherever Terraform runs.
@@ -169,12 +187,16 @@ resource "aws_ecr_repository" "connector" {
   }
 }
 
-# Copies the image again whenever local.connector_image_tag changes, tagged
-# with that tag and this copy's id. ECR's tags can't be overwritten, so each
-# copy needs a tag of its own: copying the image again, to roll back or after
-# an interrupted apply, pushes a new one.
+# Copies the pinned image again whenever its tag or digest changes, tagged
+# with the image's tag and this copy's id. ECR's tags can't be overwritten, so
+# each copy needs a tag of its own: copying the image again, to roll back or
+# after an interrupted apply, pushes a new one.
 resource "terraform_data" "connector_image" {
-  triggers_replace = [aws_ecr_repository.connector.repository_url, local.connector_image]
+  triggers_replace = {
+    digest         = data.docker_registry_image.connector.sha256_digest
+    repository_url = aws_ecr_repository.connector.repository_url
+    tag            = local.connector_image_tag
+  }
 
   provisioner "local-exec" {
     # Signs Docker out of ECR at the end, so its login doesn't outlast the copy.
@@ -192,12 +214,15 @@ resource "terraform_data" "connector_image" {
     environment = {
       REGION   = local.region
       REGISTRY = split("/", aws_ecr_repository.connector.repository_url)[0]
-      SOURCE   = local.connector_image
+      SOURCE   = "${local.connector_image_name}@${local.connector_image_digest}"
       TARGET   = "${aws_ecr_repository.connector.repository_url}:${local.connector_image_tag}-${self.id}"
     }
   }
 }
 
+# Pulling one platform and pushing it can give ECR a different manifest from
+# the one the tag names on Docker Hub, so the digest there can differ from the
+# one pinned above. Lambda needs ECR's.
 data "aws_ecr_image" "connector" {
   repository_name = aws_ecr_repository.connector.name
   image_tag       = "${local.connector_image_tag}-${terraform_data.connector_image.id}"
