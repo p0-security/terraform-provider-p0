@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 	"regexp"
 	"slices"
@@ -90,7 +91,8 @@ func harborConnectorConfig(f *harborFake, hosting string) string {
 //   - a verify or configure that would move a connector from where it was staged is
 //     refused
 //
-// The fields make it fail, for the test of each failure.
+// and for an instance, as refuseInstance says. The fields make it fail, for the test
+// of each failure.
 type harborFake struct {
 	*fakeP0
 	// Harbor's feature flag is off, so P0 answers as if it had no Harbor items.
@@ -101,6 +103,12 @@ type harborFake struct {
 	failedCheck string
 	// P0's message for a connector it refuses to stage.
 	stageRefusal string
+	// P0's message for an instance that fails its install check, on verify.
+	failedInstanceCheck string
+	// The instance's check couldn't reach Harbor, so P0 answers 502 rather than 422.
+	instanceCheckUnreachable bool
+	// The state each write to an instance would move it to, in order, refused or not.
+	instanceSteps []string
 	// How many writes to Harbor items P0 got, refused or not.
 	writes int
 }
@@ -139,6 +147,9 @@ func newHarborFake(t *testing.T) *harborFake {
 		f.writes++
 		if f.disabled {
 			return http.StatusNotFound, "Not found"
+		}
+		if step.key.component == "harbor-instance" {
+			return f.refuseInstance(step, items)
 		}
 
 		hosting, _ := step.body["hosting"].(map[string]any)
@@ -195,6 +206,109 @@ func newHarborFake(t *testing.T) *harborFake {
 	}
 
 	return f
+}
+
+// The cloud each vault type is in, as a connector's hosting names it.
+var harborVaultCloud = map[string]string{"aws-sm": "aws", "gcp-sm": "gcp"}
+
+// Answers as P0's installer for an instance does (app#7443, INT-394, at 5341116959),
+// in its words. The provider checks the ID, URL, vault and secret name at plan time,
+// so the fake doesn't repeat those checks for a new instance:
+//   - a PUT over an instance that exists is refused if it changes or leaves out a
+//     field, or if the instance is installed. An unchanged one at stage or configure is
+//     staged again.
+//   - a new instance needs an installed connector in its vault's cloud, and on AWS a
+//     secret in another account than the connector's can't end like an ARN's suffix
+//   - verify and configure refuse a change to any field, in the install framework's
+//     words, and an instance whose connector is gone or isn't installed
+//   - only verify runs the install check
+func (f *harborFake) refuseInstance(step fakeStep, items map[fakeItemKey]map[string]any) (int, string) {
+	f.instanceSteps = append(f.instanceSteps, step.nextState)
+	id := step.key.id
+
+	if step.nextState == "stage" {
+		if step.previous != nil {
+			if changedHarborInstanceField(step.previous, step.body, true) != "" {
+				return http.StatusConflict, fmt.Sprintf("A Harbor instance with the ID %s already exists, and an instance can't be changed once it's added. "+
+					"To add another instance, use another ID.", id)
+			}
+			if step.previous["state"] == "installed" {
+				return http.StatusConflict, fmt.Sprintf("The Harbor instance %s is already installed, and there's nothing to change.", id)
+			}
+			return 0, ""
+		}
+		connectorId, _ := step.body["connector"].(string)
+		connector := items[fakeItemKey{"harbor", "connector", connectorId}]
+		if connector == nil || connector["state"] != "installed" {
+			return http.StatusBadRequest, "That Harbor connector isn't installed in P0. Install it, and finish its setup, before you add an instance that uses it."
+		}
+		hosting, _ := connector["hosting"].(map[string]any)
+		vault, _ := step.body["vault"].(map[string]any)
+		vaultType, _ := vault["type"].(string)
+		if harborVaultCloud[vaultType] != hosting["type"] {
+			return http.StatusBadRequest, map[any]string{
+				"aws": "The instance's connector runs on AWS, so the robot account's secret has to be in AWS Secrets Manager.",
+				"gcp": "The instance's connector runs on Google Cloud, so the robot account's secret has to be in Google Secret Manager.",
+			}[hosting["type"]]
+		}
+		name, _ := step.body["secretName"].(string)
+		if vaultType == "aws-sm" && vault["install"] != hosting["accountId"] && regexp.MustCompile(`-[A-Za-z0-9]{6}$`).MatchString(name) {
+			return http.StatusBadRequest, "Secrets Manager can't find a secret in another account by its name when the name ends in a hyphen and six characters, like -AbCdEf. " +
+				"Use a secret whose name doesn't end that way, or one in the connector's own account."
+		}
+		return 0, ""
+	}
+
+	if field := changedHarborInstanceField(step.previous, step.body, false); field != "" {
+		return http.StatusUnprocessableEntity, fmt.Sprintf(
+			"'%s' can only be altered on initial installation. Create a new installation to change this field.", field,
+		)
+	}
+	connectorId, _ := step.previous["connector"].(string)
+	connector := items[fakeItemKey{"harbor", "connector", connectorId}]
+	switch {
+	case connector == nil:
+		return http.StatusUnprocessableEntity, fmt.Sprintf("The Harbor connector %s, which the instance %s uses, isn't in P0 any more. "+
+			"Add a connector with that ID, in the cloud that holds the instance's secret, then retry.", connectorId, id)
+	case connector["state"] != "installed":
+		return http.StatusUnprocessableEntity, fmt.Sprintf("The Harbor connector %s, which the instance %s uses, isn't installed. Finish installing it, then retry.", connectorId, id)
+	case step.nextState == "configure" && f.failedInstanceCheck != "":
+		status := http.StatusUnprocessableEntity
+		if f.instanceCheckUnreachable {
+			status = http.StatusBadGateway
+		}
+		return status, f.failedInstanceCheck
+	}
+	return 0, ""
+}
+
+// The first field of a stored instance that body changes, by its path as P0 names it,
+// or "" if body changes none.
+// A PUT has to send the whole instance, so whole counts a field it leaves out as a
+// change. Verify and configure are merged over the stored instance first.
+func changedHarborInstanceField(item, body map[string]any, whole bool) string {
+	for _, field := range []string{"connector", "url", "secretName"} {
+		if sent, ok := body[field]; (ok || whole) && sent != item[field] {
+			return field
+		}
+	}
+	sent, ok := body["vault"].(map[string]any)
+	if !ok {
+		if whole {
+			return "vault"
+		}
+		return ""
+	}
+	stored, _ := item["vault"].(map[string]any)
+	if sent["type"] != stored["type"] {
+		return "vault"
+	}
+	for _, field := range slices.Sorted(maps.Keys(sent)) {
+		if sent[field] != stored[field] {
+			return fmt.Sprintf("vault/%s/%s", sent["type"], field)
+		}
+	}
+	return ""
 }
 
 func (f *harborFake) connector() map[string]any {

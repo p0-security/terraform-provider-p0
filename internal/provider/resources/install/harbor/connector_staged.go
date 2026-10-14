@@ -32,7 +32,7 @@ func (*HarborConnectorStaged) Schema(_ context.Context, _ resource.SchemaRequest
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A staged Harbor connector installation. Staging tells P0 where the connector will run. For Google Cloud, P0 answers with the service account the connector must run as.
 
-Use ` + "`hosting`" + ` to deploy P0's Harbor connector: a Lambda function on AWS, or a Cloud Run service that runs as ` + "`hosting.connector_service_account`" + ` on Google Cloud. Once the connector is deployed, create a ` + "`p0_harbor_connector`" + ` resource with the same ` + "`id`" + ` and ` + "`hosting`" + ` to complete the installation.
+Use ` + "`hosting`" + ` to deploy P0's Harbor connector: a Lambda function on AWS, or a Cloud Run service that runs as ` + "`hosting.connector_service_account`" + ` on Google Cloud. Once the connector is deployed, create a ` + "`p0_harbor_connector`" + ` resource with the same ` + "`id`" + ` and ` + "`hosting`" + ` to complete the installation, then add each Harbor instance it reaches with ` + "`p0_harbor_instance`" + `.
 
 Where a connector runs can't change once it is staged, so changing ` + "`id`" + ` or ` + "`hosting`" + ` replaces the connector.
 

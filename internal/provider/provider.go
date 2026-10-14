@@ -234,6 +234,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installdocker.NewDockerOrganization,
 		installharbor.NewHarborConnectorStaged,
 		installharbor.NewHarborConnector,
+		installharbor.NewHarborInstance,
 		installfiletransfer.NewFileTransferIamWrite,
 		installawssm.NewAwsSmVault,
 		installapp.NewAppIamWrite,

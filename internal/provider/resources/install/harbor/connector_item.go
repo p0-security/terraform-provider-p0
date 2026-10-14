@@ -161,7 +161,7 @@ func newConnectorInstaller(data *internal.P0ProviderData) *common.Install {
 		FromJson:              connectorFromJson(missingServiceAccountOnWrite),
 		ToJson:                connectorToJson,
 		DescribeCheckError:    describeConnectorCheckError,
-		DescribeWriteNotFound: describeHarborNotEnabled,
+		DescribeWriteNotFound: describeHarborNotEnabled("connector"),
 	}
 }
 

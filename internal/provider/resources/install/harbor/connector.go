@@ -34,7 +34,7 @@ func (*HarborConnector) Schema(_ context.Context, _ resource.SchemaRequest, resp
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Harbor connector installation.
 
-The connector is how P0 reaches your Harbor instances. You deploy it in your own AWS account or Google Cloud project, and one connector can serve several Harbor instances.
+The connector is how P0 reaches your Harbor instances. You deploy it in your own AWS account or Google Cloud project, and one connector can serve several Harbor instances. Once it is installed, add each instance with ` + "`p0_harbor_instance`" + `.
 
 **Important:** Before creating this resource you must stage the installation with ` + "`p0_harbor_connector_staged`" + ` and deploy the connector. Creating this resource has P0 check the connector where ` + "`hosting`" + ` says it runs. If the check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the first check is denied access, apply again.
 
