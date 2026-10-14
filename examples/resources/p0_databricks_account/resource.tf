@@ -43,7 +43,13 @@ provider "aws" {
   allowed_account_ids = [local.aws_account_id]
 }
 
-# Service principals and their roles live at the account level.
+# Service principals and their roles live at the account level, so the provider
+# must be account-level. Unless told how to sign in, it uses whatever Databricks
+# credentials it finds, such as a CLI login, so everyone who plans or applies
+# needs their own account admin login. To avoid that, sign it in as a service
+# principal with the account_admin role and a federation policy, which needs no
+# secret: add auth_type = "env-oidc" and client_id = "<its application ID>", and
+# set DATABRICKS_OIDC_TOKEN to an identity token that the policy accepts.
 provider "databricks" {
   host       = local.accounts_url
   account_id = local.databricks_account_id

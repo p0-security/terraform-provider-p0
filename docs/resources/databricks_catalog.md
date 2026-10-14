@@ -50,9 +50,17 @@ locals {
   catalogs = ["main", "analytics"]
 }
 
-# The account-level provider grants through the workspace that provider_config
-# names. It looks the workspace up through the account API, which only account
-# admins can call.
+# The provider must be account-level. It grants through the workspace that
+# provider_config names, and looks the workspace up through the account API,
+# which only account admins can call. Whoever it signs in as also needs a USER
+# assignment to the workspace, which account admins don't get by default, and
+# MANAGE on each catalog. Unless told how to sign in, it uses whatever
+# Databricks credentials it finds, such as a CLI login, so everyone who plans or
+# applies needs their own account admin login. To avoid that, sign it in as a
+# service principal with the account_admin role and a federation policy, which
+# needs no secret: add auth_type = "env-oidc" and
+# client_id = "<its application ID>", and set DATABRICKS_OIDC_TOKEN to an
+# identity token that the policy accepts.
 provider "databricks" {
   host       = "https://accounts.cloud.databricks.com"
   account_id = local.databricks_account_id
