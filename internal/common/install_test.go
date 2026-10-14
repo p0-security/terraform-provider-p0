@@ -18,8 +18,32 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal"
 )
 
+// A DescribeError that records what it was called with, and returns summary.
+type describeCall struct {
+	called bool
+	id     string
+	err    error
+}
+
+func recordingDescribe(summary string) (DescribeError, *describeCall) {
+	call := &describeCall{}
+	return func(id string, err error) (string, string) {
+		*call = describeCall{called: true, id: id, err: err}
+		return summary, "detail"
+	}, call
+}
+
+// Checks that a hook was called for the item "item", with P0's error.
+func (c *describeCall) check(t *testing.T) {
+	t.Helper()
+	if !c.called || c.id != "item" || c.err == nil {
+		t.Errorf("hook called = %v with id %q and err %v; want it called with id %q and an error", c.called, c.id, c.err, "item")
+	}
+}
+
 // A failed install check on either step goes to DescribeCheckError, a step that finds
-// no item says so, and every other failure keeps the generic diagnostic.
+// no item goes to DescribeWriteNotFound or says so, and every other failure keeps the
+// generic diagnostic.
 func TestStepError(t *testing.T) {
 	const generic = "Error communicating with P0"
 	const described = "described"
@@ -27,9 +51,11 @@ func TestStepError(t *testing.T) {
 	describe := func(id string, err error) (string, string) { return described, id }
 	status := func(code int) *http.Response { return &http.Response{StatusCode: code} }
 
+	const notFoundDescribed = "not found described"
 	cases := []struct {
 		name     string
-		describe func(string, error) (string, string)
+		describe DescribeError
+		notFound bool
 		step     string
 		resp     *http.Response
 		want     string
@@ -48,17 +74,70 @@ func TestStepError(t *testing.T) {
 		{name: "never reached P0", describe: describe, step: Verify, resp: nil, want: generic},
 		{name: "item not found", describe: describe, step: Verify, resp: status(http.StatusNotFound), want: notFound},
 		{name: "item not found without a describer", step: Verify, resp: status(http.StatusNotFound), want: notFound},
+		{name: "verify not found with a not-found describer", describe: describe, notFound: true, step: Verify, resp: status(http.StatusNotFound), want: notFoundDescribed},
+		{name: "configure not found with a not-found describer", notFound: true, step: Config, resp: status(http.StatusNotFound), want: notFoundDescribed},
+		{name: "check failed with a not-found describer", describe: describe, notFound: true, step: Verify, resp: status(http.StatusUnprocessableEntity), want: described},
+		{name: "server error with a not-found describer", notFound: true, step: Verify, resp: status(http.StatusInternalServerError), want: generic},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			install := &Install{Component: "component", DescribeCheckError: c.describe}
+			var notFoundCall *describeCall
+			if c.notFound {
+				install.DescribeWriteNotFound, notFoundCall = recordingDescribe(notFoundDescribed)
+			}
 			summary, detail := install.stepError("item", c.step, c.resp, errors.New("boom"))
+			if summary == notFoundDescribed {
+				notFoundCall.check(t)
+			}
 			if summary != c.want {
 				t.Errorf("summary = %q; want %q", summary, c.want)
 			}
 			if summary == described && detail != "item" {
 				t.Errorf("DescribeCheckError got id %q; want %q", detail, "item")
+			}
+		})
+	}
+}
+
+// A 404 from staging goes to DescribeWriteNotFound. Every other failure, and a 404
+// without the hook, keeps the generic diagnostic, which carries P0's message.
+func TestStageError(t *testing.T) {
+	const generic = "Could not stage component component"
+	const described = "described"
+	status := func(code int) *http.Response { return &http.Response{StatusCode: code} }
+
+	cases := []struct {
+		name     string
+		describe bool
+		resp     *http.Response
+		want     string
+	}{
+		{name: "not found", describe: true, resp: status(http.StatusNotFound), want: described},
+		{name: "not found without a describer", resp: status(http.StatusNotFound), want: generic},
+		{name: "refused value", describe: true, resp: status(http.StatusBadRequest), want: generic},
+		{name: "conflict", describe: true, resp: status(http.StatusConflict), want: generic},
+		{name: "unauthorized", describe: true, resp: status(http.StatusForbidden), want: generic},
+		{name: "never reached P0", describe: true, resp: nil, want: generic},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			install := &Install{Component: "component"}
+			var call *describeCall
+			if c.describe {
+				install.DescribeWriteNotFound, call = recordingDescribe(described)
+			}
+			summary, detail := install.stageError("item", c.resp, errors.New("boom"))
+			if summary != c.want {
+				t.Errorf("stageError() summary = %q; want %q", summary, c.want)
+			}
+			switch {
+			case summary == described:
+				call.check(t)
+			case detail != "Error: boom":
+				t.Errorf("stageError() detail = %q; want P0's error as before", detail)
 			}
 		})
 	}
@@ -249,5 +328,88 @@ func TestUpsertFromConfigureKeepsStateOnFailure(t *testing.T) {
 	}
 	if !installed.Raw.Equal(testItemValue(t, StateInstalled)) {
 		t.Errorf("state = %v; want the installed state kept", installed.Raw)
+	}
+}
+
+// A read that finds no item removes the resource from state, so that the next apply
+// creates it again. With FailReadOnNotFound set, it fails instead, and keeps the
+// resource.
+func TestReadNotFound(t *testing.T) {
+	server := newRecordingServer(t, func(*http.Request) (int, string) {
+		return http.StatusNotFound, `{"error":"Not found"}`
+	})
+
+	t.Run("without a describer", func(t *testing.T) {
+		state := tfsdk.State{Schema: testItemSchema, Raw: testItemValue(t, StateInstalled)}
+		var diags diag.Diagnostics
+		newTestInstall(server.URL, server.Client()).Read(context.Background(), &diags, &state, &testItemApi{}, &testItemModel{})
+
+		if diags.HasError() {
+			t.Fatalf("diagnostics = %v", diags)
+		}
+		if !state.Raw.IsNull() {
+			t.Errorf("state = %v; want the resource removed", state.Raw)
+		}
+	})
+
+	t.Run("with a describer", func(t *testing.T) {
+		state := tfsdk.State{Schema: testItemSchema, Raw: testItemValue(t, StateInstalled)}
+		install := newTestInstall(server.URL, server.Client())
+		var call *describeCall
+		install.FailReadOnNotFound, call = recordingDescribe("described")
+		var diags diag.Diagnostics
+		install.Read(context.Background(), &diags, &state, &testItemApi{}, &testItemModel{})
+
+		errs := diags.Errors()
+		if len(errs) != 1 || errs[0].Summary() != "described" {
+			t.Fatalf("diagnostics = %v; want the described error", diags)
+		}
+		call.check(t)
+		if !state.Raw.Equal(testItemValue(t, StateInstalled)) {
+			t.Errorf("state = %v; want the resource kept", state.Raw)
+		}
+	})
+}
+
+// Stage, end to end, against a P0 that answers the PUT with a 404: the hook's
+// diagnostic when it's set, the generic one when it isn't, and no state either way.
+func TestStageNotFound(t *testing.T) {
+	server := newRecordingServer(t, func(*http.Request) (int, string) {
+		return http.StatusNotFound, `{"error":"Not found"}`
+	})
+
+	for _, c := range []struct {
+		name     string
+		describe bool
+		want     string
+	}{
+		{name: "with a describer", describe: true, want: "described"},
+		{name: "without a describer", want: "Could not stage component component"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			install := newTestInstall(server.URL, server.Client())
+			var call *describeCall
+			if c.describe {
+				install.DescribeWriteNotFound, call = recordingDescribe("described")
+			}
+			plan := tfsdk.Plan{Schema: testItemSchema, Raw: testItemValue(t, tftypes.UnknownValue)}
+			state := tfsdk.State{Schema: testItemSchema, Raw: tftypes.NewValue(testItemSchema.Type().TerraformType(context.Background()), nil)}
+
+			var diags diag.Diagnostics
+			install.Stage(context.Background(), &diags, &plan, &state, &testItemApi{}, &testItemModel{}, &struct{}{})
+
+			if errs := diags.Errors(); len(errs) != 1 || errs[0].Summary() != c.want {
+				t.Fatalf("diagnostics = %v; want one error %q", diags, c.want)
+			}
+			if c.describe {
+				call.check(t)
+			}
+			if !state.Raw.IsNull() {
+				t.Errorf("state = %v; want none", state.Raw)
+			}
+			if got := server.Requests(); len(got) == 0 || got[len(got)-1] != "PUT "+testItemPath {
+				t.Errorf("requests = %v; want the PUT last", got)
+			}
+		})
 	}
 }
