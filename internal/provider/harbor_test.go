@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 	"regexp"
 	"slices"
@@ -90,7 +91,8 @@ func harborConnectorConfig(f *harborFake, hosting string) string {
 //   - a verify or configure that would move a connector from where it was staged is
 //     refused
 //
-// The fields make it fail, for the test of each failure.
+// and for an instance, as refuseInstance says. The fields make it fail, for the test
+// of each failure.
 type harborFake struct {
 	*fakeP0
 	// Harbor's feature flag is off, so P0 answers as if it had no Harbor items.
@@ -101,6 +103,12 @@ type harborFake struct {
 	failedCheck string
 	// P0's message for a connector it refuses to stage.
 	stageRefusal string
+	// P0's message for an instance that fails its install check, on verify.
+	failedInstanceCheck string
+	// P0's message for an instance whose configure step fails, after verify passed.
+	failedInstanceConfigure string
+	// The state each write to an instance would move it to, in order, refused or not.
+	instanceSteps []string
 	// How many writes to Harbor items P0 got, refused or not.
 	writes int
 }
@@ -139,6 +147,9 @@ func newHarborFake(t *testing.T) *harborFake {
 		f.writes++
 		if f.disabled {
 			return http.StatusNotFound, "Not found"
+		}
+		if step.key.component == "harbor-instance" {
+			return f.refuseInstance(step, items)
 		}
 
 		hosting, _ := step.body["hosting"].(map[string]any)
@@ -195,6 +206,87 @@ func newHarborFake(t *testing.T) *harborFake {
 	}
 
 	return f
+}
+
+// The cloud each vault type is in, as a connector's hosting names it.
+var harborVaultCloud = map[string]string{"aws-sm": "aws", "gcp-sm": "gcp"}
+
+// Stands in for P0's assembler, verifier and configurer for an instance, which aren't
+// written yet. What it refuses follows the agreed contract. The status codes and the
+// messages are this fake's guesses:
+//   - staging refuses a vault in another cloud from the connector's, and a PUT that
+//     changes an instance that exists (A12, A12b)
+//   - verify and configure refuse a change to any field, since P0 fixes each one when
+//     it creates the instance (A6), in the install framework's own words
+//   - a guess, outside the contract's list: staging refuses a connector that P0
+//     doesn't have, and verify and configure refuse an instance whose connector isn't
+//     installed
+//
+// The tests check that P0's message reaches the customer, whatever it says.
+func (f *harborFake) refuseInstance(step fakeStep, items map[fakeItemKey]map[string]any) (int, string) {
+	f.instanceSteps = append(f.instanceSteps, step.nextState)
+
+	if step.nextState == "stage" {
+		if step.previous != nil {
+			if changedHarborInstanceField(step.previous, step.body) != "" {
+				return http.StatusConflict, "This Harbor instance already exists. Create a new installation to change it."
+			}
+			return 0, ""
+		}
+		id, _ := step.body["connector"].(string)
+		connector := items[fakeItemKey{"harbor", "connector", id}]
+		if connector == nil {
+			return http.StatusBadRequest, fmt.Sprintf("P0 has no Harbor connector %q.", id)
+		}
+		hosting, _ := connector["hosting"].(map[string]any)
+		vault, _ := step.body["vault"].(map[string]any)
+		vaultType, _ := vault["type"].(string)
+		if cloud, ok := harborVaultCloud[vaultType]; !ok || cloud != hosting["type"] {
+			return http.StatusBadRequest, "The instance's secret manager must be in the connector's cloud."
+		}
+		return 0, ""
+	}
+
+	if field := changedHarborInstanceField(step.previous, step.body); field != "" {
+		return http.StatusUnprocessableEntity, fmt.Sprintf(
+			"'%s' can only be altered on initial installation. Create a new installation to change this field.", field,
+		)
+	}
+	id, _ := step.previous["connector"].(string)
+	if connector := items[fakeItemKey{"harbor", "connector", id}]; connector == nil || connector["state"] != "installed" {
+		return http.StatusUnprocessableEntity, fmt.Sprintf("The Harbor connector %q isn't installed.", id)
+	}
+	if step.nextState == "configure" && f.failedInstanceCheck != "" {
+		return http.StatusUnprocessableEntity, f.failedInstanceCheck
+	}
+	if step.nextState == "installed" && f.failedInstanceConfigure != "" {
+		return http.StatusUnprocessableEntity, f.failedInstanceConfigure
+	}
+	return 0, ""
+}
+
+// The first field of a stored instance that body changes, by its path as P0 names it,
+// or "" if body changes none.
+func changedHarborInstanceField(item, body map[string]any) string {
+	for _, field := range []string{"connector", "url", "secretName"} {
+		if sent, ok := body[field]; ok && sent != item[field] {
+			return field
+		}
+	}
+	sent, ok := body["vault"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	stored, _ := item["vault"].(map[string]any)
+	if sent["type"] != stored["type"] {
+		return "vault"
+	}
+	for _, field := range slices.Sorted(maps.Keys(sent)) {
+		if sent[field] != stored[field] {
+			return fmt.Sprintf("vault/%s/%s", sent["type"], field)
+		}
+	}
+	return ""
 }
 
 func (f *harborFake) connector() map[string]any {
