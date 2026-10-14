@@ -32,7 +32,8 @@ locals {
   accounts_url          = "https://accounts.cloud.databricks.com"
 
   # Whether users can request account admin in this account. P0's service
-  # principal holds account admin only while this is true.
+  # principal holds account admin only while this is true. P0 refuses to
+  # turn it off while an approved account-admin request here hasn't ended.
   enable_account_admin = false
 }
 

@@ -51,7 +51,8 @@ locals {
   workspace_name = "analytics-prod"
 
   # Whether users can request workspace admin on this workspace. P0's service
-  # principal is a workspace admin only while this is true.
+  # principal is a workspace admin only while this is true. P0 refuses to
+  # turn it off while an approved workspace-admin request here hasn't ended.
   enable_workspace_admin = false
 }
 
@@ -98,7 +99,7 @@ resource "p0_databricks_workspace" "example" {
 
 ### Optional
 
-- `is_workspace_admin_enabled` (Boolean) Whether users can request workspace admin on this workspace. Defaults to `false`. The service principal needs an `ADMIN` assignment, in place of `USER`, only when this is `true`, and P0 then checks that it is a workspace admin. Changing it updates the workspace in place. If P0's check fails, the apply fails, and the workspace stays as it was. Turning it off also stops P0 from revoking workspace admin that it granted on this workspace, so let open workspace-admin requests on it end first.
+- `is_workspace_admin_enabled` (Boolean) Whether users can request workspace admin on this workspace. Defaults to `false`. The service principal needs an `ADMIN` assignment, in place of `USER`, only when this is `true`, and P0 then checks that it is a workspace admin. Changing it updates the workspace in place. P0 needs the role to revoke the workspace admin it granted, so it refuses to turn this off while an approved workspace-admin request on this workspace hasn't ended. Its error starts `P0 still manages workspace admin on Databricks workspace` and lists those requests. Let them end, or revoke them, then apply again. If P0's check fails or P0 refuses, the apply fails, and the workspace stays as it was. Terraform may change the assignment in that apply before P0 refuses, so if it did, apply your previous configuration again to restore `ADMIN`.
 
 ### Read-Only
 

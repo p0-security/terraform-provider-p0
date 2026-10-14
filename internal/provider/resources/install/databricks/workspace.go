@@ -85,7 +85,7 @@ A workspace that P0 hasn't finished installing, such as one imported before its 
 			// P0 checks the assignment on the configure step, as it checks
 			// workspace_name.
 			"is_workspace_admin_enabled": adminSwitchAttribute(
-				"Whether users can request workspace admin on this workspace. Defaults to `false`. The service principal needs an `ADMIN` assignment, in place of `USER`, only when this is `true`, and P0 then checks that it is a workspace admin. Changing it updates the workspace in place. If P0's check fails, the apply fails, and the workspace stays as it was. Turning it off also stops P0 from revoking workspace admin that it granted on this workspace, so let open workspace-admin requests on it end first.",
+				"Whether users can request workspace admin on this workspace. Defaults to `false`. The service principal needs an `ADMIN` assignment, in place of `USER`, only when this is `true`, and P0 then checks that it is a workspace admin. Changing it updates the workspace in place. P0 needs the role to revoke the workspace admin it granted, so it refuses to turn this off while an approved workspace-admin request on this workspace hasn't ended. Its error starts `P0 still manages workspace admin on Databricks workspace` and lists those requests. Let them end, or revoke them, then apply again. If P0's check fails or P0 refuses, the apply fails, and the workspace stays as it was. Terraform may change the assignment in that apply before P0 refuses, so if it did, apply your previous configuration again to restore `ADMIN`.",
 			),
 			"state": common.StateAttribute,
 		},

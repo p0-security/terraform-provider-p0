@@ -42,7 +42,7 @@ func (*Account) Schema(_ context.Context, _ resource.SchemaRequest, resp *resour
 	}
 	// P0 checks the role on the configure step, as it checks application_id.
 	attributes["is_account_admin_enabled"] = adminSwitchAttribute(
-		"Whether users can request account admin in this account. Defaults to `false`. The service principal needs the `account_admin` role only when this is `true`, and P0 then checks that it holds the role. Changing it updates the account in place. If P0's check fails, the apply fails, and the account stays as it was. Turning it off also stops P0 from revoking account admin that it granted, so let open account-admin requests end first.",
+		"Whether users can request account admin in this account. Defaults to `false`. The service principal needs the `account_admin` role only when this is `true`, and P0 then checks that it holds the role. Changing it updates the account in place. P0 needs the role to revoke the account admin it granted, so it refuses to turn this off while an approved account-admin request in this account hasn't ended. Its error starts `P0 still manages account admin in Databricks account` and lists those requests. Let them end, or revoke them, then apply again. If P0's check fails or P0 refuses, the apply fails, and the account stays as it was. Terraform may change the role in that apply before P0 refuses, so if it did, apply your previous configuration again to restore the role.",
 	)
 
 	resp.Schema = schema.Schema{

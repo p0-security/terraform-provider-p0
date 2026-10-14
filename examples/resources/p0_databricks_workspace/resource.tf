@@ -27,7 +27,8 @@ locals {
   workspace_name = "analytics-prod"
 
   # Whether users can request workspace admin on this workspace. P0's service
-  # principal is a workspace admin only while this is true.
+  # principal is a workspace admin only while this is true. P0 refuses to
+  # turn it off while an approved workspace-admin request here hasn't ended.
   enable_workspace_admin = false
 }
 
