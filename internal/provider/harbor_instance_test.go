@@ -824,35 +824,8 @@ func TestHarborFakeInstanceRefusals(t *testing.T) {
 	}
 }
 
-// With Harbor's feature flag off, P0 answers the request that stages an instance with
-// a bare 404. The apply fails with what that means, and what to do about it.
-func TestHarborInstanceUnavailable(t *testing.T) {
-	f := newHarborFake(t)
-	f.disabled = true
-	instance := harborGcpInstance()
-	instance.connector = fmt.Sprintf("%q", harborConnector)
-
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             checkHarborInstanceDestroyed(f, harborInstance),
-		Steps: []resource.TestStep{
-			{
-				Config: providerConfig(f.fakeP0) + instance.hcl(),
-				ExpectError: harborError(
-					"Harbor isn't enabled for this P0 organization",
-					`P0 couldn't stage or install the Harbor instance "prod"`,
-					"contact support@p0.dev to have it enabled",
-					"P0's response: 404 Not Found: Not found",
-				),
-			},
-		},
-	})
-}
-
-// An instance that P0 no longer returns is dropped from state, as most resources are.
-// One deleted in the P0 app is created again by the next apply. One that P0 only
-// hides, as while Harbor's feature flag is off, is never written over: once it is
-// back, the apply says to import it.
+// An instance that P0 no longer has is dropped from state, as other resources are, and
+// the next apply creates it again.
 func TestHarborInstanceGoneFromP0(t *testing.T) {
 	key := fakeItemKey{"harbor", "harbor-instance", harborInstance}
 
@@ -879,55 +852,6 @@ func TestHarborInstanceGoneFromP0(t *testing.T) {
 					Check: func(*terraform.State) error {
 						return f.checkInstance("installed", harborGcpInstanceItem)
 					},
-				},
-			},
-		})
-	})
-
-	t.Run("hidden", func(t *testing.T) {
-		f := newHarborFake(t)
-		config := harborInstanceConfig(f, harborGcp, harborGcpInstance())
-		var hidden map[string]any
-		resource.UnitTest(t, resource.TestCase{
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-			Steps: []resource.TestStep{
-				{Config: config},
-				// The refresh drops the instance, and the flag is off for the apply.
-				{
-					PreConfig: func() {
-						f.mu.Lock()
-						defer f.mu.Unlock()
-						hidden = f.items[key]
-						delete(f.items, key)
-						f.disabled = true
-					},
-					Config:      config,
-					ExpectError: harborError("Harbor isn't enabled for this P0 organization", `the Harbor instance "prod"`),
-				},
-				{
-					PreConfig: func() {
-						f.mu.Lock()
-						defer f.mu.Unlock()
-						f.items[key] = hidden
-						f.disabled = false
-						f.instanceSteps = nil
-					},
-					Config:      config,
-					ExpectError: harborError("Harbor instance already exists in P0", "terraform import <address> prod"),
-				},
-				{
-					PreConfig: func() {
-						if steps := f.steps(); len(steps) != 0 {
-							t.Errorf("P0 got the instance's steps %v; want no write", steps)
-						}
-						if err := f.checkInstance("installed", harborGcpInstanceItem); err != nil {
-							t.Errorf("after the refused create: %v", err)
-						}
-						f.mu.Lock()
-						defer f.mu.Unlock()
-						delete(f.items, key)
-					},
-					Config: harborConnectorConfig(f, harborGcp),
 				},
 			},
 		})

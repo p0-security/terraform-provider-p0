@@ -9,8 +9,7 @@ description: |-
   A connector that already exists in P0, such as one added in the P0 app, isn't staged again: the apply fails, and says to import it with terraform import. Staging it again would return an installed connector to its staged state.
   P0 checks hosting.connector_name when it stages the connector, and so does a plan. For AWS Lambda: Use 2 to 64 characters for the connector name: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. For Google Cloud Run: Use 6 to 30 characters for the connector name: lowercase letters, digits and hyphens, starting with a letter and ending with a letter or digit.
   Prerequisite: P0 invokes the connector as its own identity in your cloud. For AWS Lambda, p0_aws_iam_write must be installed for the account the connector runs in. For Google Cloud Run, p0_gcp must be installed.
-  If P0 stops finding the connector: while Harbor isn't enabled for your organization, or after the connector is removed in P0, every refresh of this resource fails, and so do plan, destroy and import. Terraform keeps the resource in state rather than stage the connector again. If Harbor should be enabled, contact support@p0.dev. To plan or apply other changes meanwhile, run Terraform with -refresh=false. If the connector was removed in P0, remove the resource from state with terraform state rm <address>, and the next apply stages it again.
-  Note: This integration is currently in preview.
+  Note: This integration is currently in beta.
 ---
 
 # p0_harbor_connector_staged (Resource)
@@ -27,9 +26,7 @@ P0 checks `hosting.connector_name` when it stages the connector, and so does a p
 
 **Prerequisite:** P0 invokes the connector as its own identity in your cloud. For AWS Lambda, `p0_aws_iam_write` must be installed for the account the connector runs in. For Google Cloud Run, `p0_gcp` must be installed.
 
-**If P0 stops finding the connector:** while Harbor isn't enabled for your organization, or after the connector is removed in P0, every refresh of this resource fails, and so do `plan`, `destroy` and `import`. Terraform keeps the resource in state rather than stage the connector again. If Harbor should be enabled, contact support@p0.dev. To plan or apply other changes meanwhile, run Terraform with `-refresh=false`. If the connector was removed in P0, remove the resource from state with `terraform state rm <address>`, and the next apply stages it again.
-
-**Note:** This integration is currently in preview.
+**Note:** This integration is currently in beta.
 
 ## Example Usage
 

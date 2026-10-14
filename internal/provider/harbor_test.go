@@ -95,8 +95,6 @@ func harborConnectorConfig(f *harborFake, hosting string) string {
 // of each failure.
 type harborFake struct {
 	*fakeP0
-	// Harbor's feature flag is off, so P0 answers as if it had no Harbor items.
-	disabled bool
 	// The service account P0 generates for a connector on Google Cloud, or nil for none.
 	serviceAccount func(hosting map[string]any) any
 	// P0's message for a connector that fails its install check, on verify.
@@ -145,9 +143,6 @@ func newHarborFake(t *testing.T) *harborFake {
 			return 0, ""
 		}
 		f.writes++
-		if f.disabled {
-			return http.StatusNotFound, "Not found"
-		}
 		if step.key.component == "harbor-instance" {
 			return f.refuseInstance(step, items)
 		}
@@ -836,57 +831,10 @@ func TestHarborConnectorAnswerWithoutItem(t *testing.T) {
 	})
 }
 
-// With Harbor's feature flag off, P0 answers the request that stages a connector with
-// a bare 404. The apply fails with what that means, and what to do about it.
-func TestHarborConnectorUnavailable(t *testing.T) {
+// A connector that P0 no longer has is dropped from state, as other resources are,
+// and the next apply stages and installs it again.
+func TestHarborConnectorRemovedInP0(t *testing.T) {
 	f := newHarborFake(t)
-	f.disabled = true
-
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             checkHarborDestroyed(f),
-		Steps: []resource.TestStep{
-			{
-				Config: harborStagedConfig(f, harborGcp),
-				ExpectError: harborError(
-					"Harbor isn't enabled for this P0 organization",
-					`P0 couldn't stage or install the Harbor connector "prod"`,
-					"contact support@p0.dev to have it enabled",
-					"P0's response: 404 Not Found: Not found",
-				),
-			},
-		},
-	})
-}
-
-// While Harbor's feature flag is off, P0 answers a read with a bare 404 too. The
-// refresh fails and keeps both resources, rather than drop them and have the next
-// apply stage the installed connector again. Once the flag is back on, nothing has
-// changed.
-func TestHarborConnectorNotFoundOnRead(t *testing.T) {
-	f := newHarborFake(t)
-	key := fakeItemKey{"harbor", "connector", harborConnector}
-	// The fake has no flag, so the item is taken out while the flag is "off", and put
-	// back as it was: P0 keeps an item while it hides it.
-	var hidden map[string]any
-	hide := func() {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		hidden = f.items[key]
-		delete(f.items, key)
-	}
-	unhide := func() {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		f.items[key] = hidden
-	}
-	// Each resource fails on its own: Terraform shows the resource after the summary.
-	notFound := func(address string) string {
-		return `Harbor connector not found in P0\s+with ` + regexp.QuoteMeta(address) + `,` +
-			`.*P0 has no Harbor connector "prod".*-refresh=false.*terraform\s+state\s+rm\s+<address>.*404 Not Found`
-	}
-	staged, final := notFound("p0_harbor_connector_staged.example"), notFound("p0_harbor_connector.example")
-	notFoundForBoth := regexp.MustCompile(`(?s)(` + staged + `.*` + final + `|` + final + `.*` + staged + `)`)
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -894,93 +842,24 @@ func TestHarborConnectorNotFoundOnRead(t *testing.T) {
 		Steps: []resource.TestStep{
 			{Config: harborConnectorConfig(f, harborGcp)},
 			{
-				PreConfig: hide,
-				// The final resource names the connector itself, so that Terraform refreshes
-				// it whether or not the staged resource fails.
-				Config: harborStagedConfig(f, harborGcp) + fmt.Sprintf(`
-resource "p0_harbor_connector" "example" {
-  id      = %q
-  hosting = %s
-}
-`, harborConnector, harborGcp),
-				PlanOnly:    true,
-				ExpectError: notFoundForBoth,
-			},
-			{
-				PreConfig: unhide,
-				Config:    harborConnectorConfig(f, harborGcp),
+				PreConfig: func() {
+					f.mu.Lock()
+					defer f.mu.Unlock()
+					delete(f.items, fakeItemKey{"harbor", "connector", harborConnector})
+				},
+				Config: harborConnectorConfig(f, harborGcp),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_harbor_connector_staged.example", plancheck.ResourceActionNoop),
-						plancheck.ExpectResourceAction("p0_harbor_connector.example", plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction("p0_harbor_connector_staged.example", plancheck.ResourceActionCreate),
+						plancheck.ExpectResourceAction("p0_harbor_connector.example", plancheck.ResourceActionCreate),
 					},
 				},
 				Check: func(*terraform.State) error {
 					if item := f.connector(); item["state"] != "installed" {
-						return fmt.Errorf("P0 item = %v; want it still installed", item)
+						return fmt.Errorf("P0 item = %v; want the connector installed again", item)
 					}
 					return nil
 				},
-			},
-		},
-	})
-}
-
-// Other resources keep the framework's usual behaviour: an item that P0 no longer has
-// is dropped from state, and the next apply creates it again.
-func TestNonHarborResourceDroppedOnNotFound(t *testing.T) {
-	f := newGoogleDriveFake(t)
-	config := providerConfig(f) + fmt.Sprintf(`
-resource "p0_google_drive_connector_staged" "example" {
-  project_id = %q
-}
-`, driveProject)
-
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{Config: config},
-			{
-				PreConfig: func() {
-					f.mu.Lock()
-					delete(f.items, fakeItemKey{"google-drive-ai", "connector", driveProject})
-					f.mu.Unlock()
-				},
-				Config: config,
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_google_drive_connector_staged.example", plancheck.ResourceActionCreate),
-					},
-				},
-			},
-		},
-	})
-}
-
-// The flag can go off between staging and installing. The verify step gets the same
-// bare 404, and fails with the same diagnostic.
-func TestHarborConnectorUnavailableOnVerify(t *testing.T) {
-	f := newHarborFake(t)
-
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             checkHarborDestroyed(f),
-		Steps: []resource.TestStep{
-			{Config: harborStagedConfig(f, harborGcp)},
-			{
-				PreConfig: func() { f.disabled = true },
-				Config:    harborConnectorConfig(f, harborGcp),
-				ExpectError: harborError(
-					"Harbor isn't enabled for this P0 organization",
-					`P0 couldn't stage or install the Harbor connector "prod"`,
-					"P0's response: 404 Not Found: Not found",
-				),
-			},
-			// With the flag back on, the next apply installs it.
-			{
-				PreConfig: func() { f.disabled = false },
-				Config:    harborConnectorConfig(f, harborGcp),
-				Check:     resource.TestCheckResourceAttr("p0_harbor_connector.example", "state", "installed"),
 			},
 		},
 	})

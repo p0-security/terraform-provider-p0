@@ -153,25 +153,25 @@ func validateConnectorName(hosting *installapp.ConnectorHostingModel, diags *dia
 // The installer that stages, verifies and configures the item, and rolls it back.
 func newConnectorInstaller(data *internal.P0ProviderData) *common.Install {
 	return &common.Install{
-		Integration:           HarborKey,
-		Component:             installresources.Connector,
-		ProviderData:          data,
-		GetId:                 connectorId,
-		GetItemJson:           connectorItemJson,
-		FromJson:              connectorFromJson(missingServiceAccountOnWrite),
-		ToJson:                connectorToJson,
-		DescribeCheckError:    describeConnectorCheckError,
-		DescribeWriteNotFound: describeHarborNotEnabled("connector"),
+		Integration:        HarborKey,
+		Component:          installresources.Connector,
+		ProviderData:       data,
+		GetId:              connectorId,
+		GetItemJson:        connectorItemJson,
+		FromJson:           connectorFromJson(missingServiceAccountOnWrite),
+		ToJson:             connectorToJson,
+		DescribeCheckError: describeConnectorCheckError,
 	}
 }
 
 // The installer that reads the item. It differs from the other only in what it says
-// when P0 can't give the resource what it needs: a refresh fails in place of dropping
-// or blanking the resource, and says how to plan in the meantime.
+// when P0 returns a Google Cloud connector without its service account: a refresh
+// fails in place of blanking the account, and says how to plan in the meantime. A
+// connector that P0 no longer has is dropped from state, as other resources do, and
+// the next apply stages it again.
 func newConnectorReader(data *internal.P0ProviderData) *common.Install {
 	reader := newConnectorInstaller(data)
 	reader.FromJson = connectorFromJson(missingServiceAccountOnRead)
-	reader.FailReadOnNotFound = describeHarborConnectorNotFound
 	return reader
 }
 
