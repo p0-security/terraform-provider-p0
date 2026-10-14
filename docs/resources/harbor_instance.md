@@ -161,13 +161,13 @@ data "aws_partition" "harbor" {
 resource "aws_iam_role_policy" "harbor_robot_secret" {
   provider = aws.harbor
 
-  name = "ReadHarborRobotSecret-prod-aws"
+  name = "p0-harbor-prod-aws-read"
   role = aws_iam_role.harbor.id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
       [{
-        Sid    = "ReadRobotSecret"
+        Sid    = "ReadSecret"
         Effect = "Allow"
         Action = "secretsmanager:GetSecretValue"
         # Secrets Manager adds a hyphen and six random characters to the name
@@ -182,7 +182,7 @@ resource "aws_iam_role_policy" "harbor_robot_secret" {
         ])
       }],
       local.harbor_instance_aws.kms_key_arn == null ? [] : [{
-        Sid      = "DecryptRobotSecret"
+        Sid      = "DecryptSecret"
         Effect   = "Allow"
         Action   = "kms:Decrypt"
         Resource = local.harbor_instance_aws.kms_key_arn
@@ -222,7 +222,7 @@ resource "p0_harbor_instance" "aws_example" {
 
 - `connector` (String) The `id` of the `p0_harbor_connector` that reaches this instance. The connector must be installed, and run in the same cloud as `vault`: on AWS Lambda for `aws-sm`, on Google Cloud Run for `gcp-sm`.
 - `id` (String) A name you choose for the instance, such as `prod`: lowercase letters, digits and hyphens, starting and ending with a letter or digit, up to 63 characters
-- `secret_name` (String) The name of the secret that holds the robot account's credentials, in `vault`: the name alone, never an ARN or a resource name. For `aws-sm`, up to 512 letters, digits and `/_+=.@-`. For `gcp-sm`, up to 255 letters, digits, underscores and hyphens.
+- `secret_name` (String) The name of the secret that holds the robot account's credentials, in `vault`: the name alone, never an ARN or a resource name. For `aws-sm`, up to 512 letters, digits and `/_+=.@-`, and, when the vault's account isn't the connector's, not ending in a hyphen and six letters or digits, like `-AbCdEf`. For `gcp-sm`, up to 255 letters, digits, underscores and hyphens.
 - `url` (String) The address your Harbor instance is served at, such as `https://harbor.example.com`: `https://` and the host, with a port if it isn't 443, in lowercase and with nothing after it. Leave out a trailing slash, any path, and any username or password. P0 stores the address in this spelling alone, and the connector sends the robot account's credentials to it. It can't change: for another address, add a new `p0_harbor_instance` with its own `id`.
 - `vault` (Attributes) The secret manager that holds the connector robot account's secret, as installed in P0. P0 never reads the secret. The connector does, so the secret manager must be in the connector's cloud: AWS Secrets Manager for a connector on AWS Lambda, Google Secret Manager for one on Google Cloud Run. (see [below for nested schema](#nestedatt--vault))
 

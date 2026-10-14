@@ -34,13 +34,13 @@ data "aws_partition" "harbor" {
 resource "aws_iam_role_policy" "harbor_robot_secret" {
   provider = aws.harbor
 
-  name = "ReadHarborRobotSecret-prod-aws"
+  name = "p0-harbor-prod-aws-read"
   role = aws_iam_role.harbor.id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
       [{
-        Sid    = "ReadRobotSecret"
+        Sid    = "ReadSecret"
         Effect = "Allow"
         Action = "secretsmanager:GetSecretValue"
         # Secrets Manager adds a hyphen and six random characters to the name
@@ -55,7 +55,7 @@ resource "aws_iam_role_policy" "harbor_robot_secret" {
         ])
       }],
       local.harbor_instance_aws.kms_key_arn == null ? [] : [{
-        Sid      = "DecryptRobotSecret"
+        Sid      = "DecryptSecret"
         Effect   = "Allow"
         Action   = "kms:Decrypt"
         Resource = local.harbor_instance_aws.kms_key_arn

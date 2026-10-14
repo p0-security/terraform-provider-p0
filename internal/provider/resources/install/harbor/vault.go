@@ -113,7 +113,7 @@ func vaultAttribute() schema.SingleNestedAttribute {
 				MarkdownDescription: "The ID of the AWS account that holds the secret: one of your AWS Secrets Manager installations in P0 (`p0_aws_secrets_manager`). " +
 					"Required for, and only valid with, `aws-sm`.",
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(installaws.AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
+					stringvalidator.RegexMatches(installaws.AwsAccountIdRegex, invalidAwsVaultAccount),
 				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -123,7 +123,7 @@ func vaultAttribute() schema.SingleNestedAttribute {
 				Optional:            true,
 				MarkdownDescription: "The AWS region the secret is stored in, such as `us-west-2`. Required for, and only valid with, `aws-sm`.",
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(installapp.ConnectorRegionRegex, "Must be a valid AWS region, such as us-west-2"),
+					stringvalidator.RegexMatches(awsRegionRegex, invalidAwsVaultRegion),
 				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -135,7 +135,7 @@ func vaultAttribute() schema.SingleNestedAttribute {
 					"This provider has no resource for that installation, so install Google Secret Manager in the P0 app first. " +
 					"Required for, and only valid with, `gcp-sm`.",
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(gcpProjectIdRegex, invalidGcpProjectId),
+					stringvalidator.RegexMatches(gcpVaultProjectRegex, invalidGcpVaultProject),
 				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -168,6 +168,22 @@ var vaultFields = []vaultField{
 	{"project_id", installvaultedcredential.GcpSecretManager, func(v *vaultModel) types.String { return v.ProjectId }},
 }
 
+// P0's rules for the vault's fields, and its messages for a value that breaks one
+// (packages/integrations/harbor/shared/src/vault.ts and aws-hosting.ts in the app).
+var (
+	// An AWS region, such as us-west-2.
+	awsRegionRegex = regexp.MustCompile(`^[a-z]+(?:-[a-z]+)+-\d+$`)
+	// A Google Cloud project's ID as the Harbor connector takes one: it becomes a
+	// segment of the path the secret is read at.
+	gcpVaultProjectRegex = regexp.MustCompile(`^[a-z][a-z0-9-]{4,28}[a-z0-9]$`)
+)
+
+const (
+	invalidAwsVaultAccount = "Choose the AWS Secrets Manager installation, by its 12-digit AWS account ID, that holds the connector robot account's credentials."
+	invalidAwsVaultRegion  = "Enter the AWS region the secret is in, such as us-west-2."
+	invalidGcpVaultProject = "Choose the Google Secret Manager installation, by its Google Cloud project ID, that holds the connector robot account's credentials."
+)
+
 // A region outside AWS's commercial partition: GovCloud, China, the ISO regions or the
 // European Sovereign Cloud. P0 has the connector read the secret by an `arn:aws:` ARN,
 // so the secret can't be in one.
@@ -176,7 +192,7 @@ var vaultFields = []vaultField{
 // with Harbor's name in the message.
 var awsOtherPartitionRegionRegex = regexp.MustCompile(`^(?:us-gov-|cn-|[a-z]+-iso[a-z]*-|eusc-)`)
 
-const unsupportedAwsPartition = "Harbor doesn't support AWS GovCloud or China regions yet."
+const unsupportedAwsPartition = "Harbor supports only AWS commercial regions for now."
 
 var secretsRegionRules = []rule{{
 	summary: "Unsupported AWS region for the robot account's secret",

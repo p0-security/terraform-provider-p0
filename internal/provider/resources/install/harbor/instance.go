@@ -114,7 +114,8 @@ The email domains that may receive access are set on the connector, as its ` + "
 			"secret_name": schema.StringAttribute{
 				Required: true,
 				MarkdownDescription: "The name of the secret that holds the robot account's credentials, in `vault`: the name alone, never an ARN or a resource name. " +
-					"For `aws-sm`, up to 512 letters, digits and `/_+=.@-`. For `gcp-sm`, up to 255 letters, digits, underscores and hyphens.",
+					"For `aws-sm`, up to 512 letters, digits and `/_+=.@-`, and, when the vault's account isn't the connector's, not ending in a hyphen and six letters or digits, like `-AbCdEf`. " +
+					"For `gcp-sm`, up to 255 letters, digits, underscores and hyphens.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -259,8 +260,10 @@ func instanceId(data any) *string {
 }
 
 func instanceItemJson(json any) any {
+	// An answer with no item leaves Item nil, which has to come back as an untyped
+	// nil: a nil *instanceJson in an any isn't nil, and would reach FromJson.
 	inner, ok := json.(*instanceApi)
-	if !ok {
+	if !ok || inner.Item == nil {
 		return nil
 	}
 	return inner.Item
@@ -395,9 +398,14 @@ func refuseNewUrl(ctx context.Context, state tfsdk.State, plan tfsdk.Plan, diags
 // difference while the configuration matches it.
 //
 // TODO(INT-417): the second half is a copy of github-repositories' ModifyPlan.
-func (*HarborInstance) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	// Nothing is installed yet on create, and nothing is left to finish on destroy.
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+func (r *HarborInstance) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Nothing is left to finish on destroy.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	r.checkSecretNameAcrossAccounts(ctx, req, resp)
+	// Nothing is installed yet on create.
+	if resp.Diagnostics.HasError() || req.State.Raw.IsNull() {
 		return
 	}
 
@@ -420,6 +428,60 @@ func (*HarborInstance) ModifyPlan(ctx context.Context, req resource.ModifyPlanRe
 	// As in any update the framework plans, the state, which only P0 sets, is unknown
 	// until apply. Update takes it from P0's response, which has the item's new state.
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("state"), types.StringUnknown())...)
+}
+
+// Refuses, for an instance that the apply will create, a secret name that Secrets
+// Manager can't find from another account: one ending in a hyphen and six letters or
+// digits, when the vault's account isn't the connector's. P0 reads such a secret by
+// its partial ARN, which Secrets Manager reads as a full one. The configuration names
+// the connector by its ID alone, so its account is read from P0. A value that isn't
+// known yet, a connector P0 doesn't have yet, and any error reading it skip the check:
+// P0 makes it again when it stages the instance.
+func (r *HarborInstance) checkSecretNameAcrossAccounts(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if r.installer == nil || r.installer.ProviderData == nil {
+		return
+	}
+	var plan instanceModel
+	if resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...); resp.Diagnostics.HasError() {
+		return
+	}
+	if !req.State.Raw.IsNull() {
+		var state instanceModel
+		// An instance that exists keeps its secret: P0 took it when it was created.
+		if resp.Diagnostics.Append(req.State.Get(ctx, &state)...); resp.Diagnostics.HasError() || !instanceWillBeCreated(&state, &plan) {
+			return
+		}
+	}
+	if plan.Vault == nil || !installapp.IsSet(plan.Vault.Type) || plan.Vault.Type.ValueString() != awsSecretsManager ||
+		!installapp.IsSet(plan.Vault.AccountId) || !installapp.IsSet(plan.SecretName) || !installapp.IsSet(plan.Connector) ||
+		!awsArnSuffixRegex.MatchString(plan.SecretName.ValueString()) {
+		return
+	}
+	var connector connectorApi
+	if _, err := r.installer.ProviderData.Get(itemPath(installresources.Connector, plan.Connector.ValueString()), &connector); err != nil ||
+		connector.Item == nil || connector.Item.Hosting == nil || connector.Item.Hosting.AccountId == nil {
+		return
+	}
+	if *connector.Item.Hosting.AccountId != plan.Vault.AccountId.ValueString() {
+		resp.Diagnostics.AddAttributeError(path.Root("secret_name"), invalidSecretNameSummary, suffixedSecretName)
+	}
+}
+
+// Whether the planned instance is another item than the one in state, which the
+// apply creates by replacing the resource. Each of these fields requires replacement.
+func instanceWillBeCreated(state *instanceModel, plan *instanceModel) bool {
+	if state.Vault == nil || plan.Vault == nil {
+		return true
+	}
+	for _, pair := range [][2]types.String{
+		{state.Id, plan.Id}, {state.Connector, plan.Connector}, {state.SecretName, plan.SecretName},
+		{state.Vault.Type, plan.Vault.Type}, {state.Vault.AccountId, plan.Vault.AccountId}, {state.Vault.SecretsRegion, plan.Vault.SecretsRegion},
+	} {
+		if !pair[0].Equal(pair[1]) {
+			return true
+		}
+	}
+	return false
 }
 
 // Terraform plans an update in two cases. ModifyPlan plans one to finish the install

@@ -26,12 +26,18 @@ var (
 	// out an ARN, a wildcard and the robot account's JSON.
 	awsSecretNameRegex = regexp.MustCompile(`^[A-Za-z0-9/_+=.@-]{1,512}$`)
 	gcpSecretNameRegex = regexp.MustCompile(`^[A-Za-z0-9_-]{1,255}$`)
+	// The hyphen and six letters or digits that Secrets Manager adds to a secret's
+	// name in its full ARN. It reads a partial ARN that ends this way as a full one,
+	// and finds no secret by it.
+	awsArnSuffixRegex = regexp.MustCompile(`-[A-Za-z0-9]{6}$`)
 )
 
 const (
 	invalidSecretNameSummary = "Invalid robot account secret name"
 	invalidSecretName        = "That doesn't look like a secret name. Enter the name of the secret that holds the connector robot account's credentials, " +
 		"not its ARN or the credentials themselves."
+	suffixedSecretName = "Secrets Manager can't find a secret in another account by its name when the name ends in a hyphen and six characters, like -AbCdEf. " +
+		"Use a secret whose name doesn't end that way, or one in the connector's own account."
 	invalidGcpSecretName = "That isn't a secret's name in Google Secret Manager. Enter the name alone, without its project or a version: " +
 		"letters, digits, underscores and hyphens, up to 255 characters."
 )

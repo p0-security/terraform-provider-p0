@@ -69,3 +69,11 @@ func TestVaultToJson(t *testing.T) {
 		t.Errorf("a vault with no type gives %v; want nil", json)
 	}
 }
+
+// An answer from P0 with no item reads as none, so the install flow reports it rather
+// than hand FromJson a nil item.
+func TestInstanceItemJsonWithoutItem(t *testing.T) {
+	if item := instanceItemJson(&instanceApi{}); item != nil {
+		t.Errorf("instanceItemJson of an answer with no item = %#v; want nil", item)
+	}
+}

@@ -457,22 +457,22 @@ resource "p0_harbor_instance" "example" {
 	})
 }
 
-// An instance that fails P0's install check fails the apply with P0's message and the
-// way out, and stays where the failed step left it: staged if verify failed, at
-// configure if configure did. Its resource is tainted, so the next apply replaces it,
+// An instance that fails P0's install check, on verify, fails the apply with P0's
+// message and the way out, and stays staged: 422 for a failed check, 502 when the
+// check couldn't reach Harbor. Its resource is tainted, so the next apply replaces it,
 // and can give it another URL: Terraform plans a tainted resource as a new one.
 func TestHarborInstanceFailedCheck(t *testing.T) {
 	for _, tc := range []struct {
-		name, leftAt string
-		fail         func(f *harborFake, message string)
+		name, status string
+		unreachable  bool
 	}{
-		{"verify", "stage", func(f *harborFake, message string) { f.failedInstanceCheck = message }},
-		{"configure", "configure", func(f *harborFake, message string) { f.failedInstanceConfigure = message }},
+		{"failed check", "422 Unprocessable Entity", false},
+		{"Harbor unreachable", "502 Bad Gateway", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newHarborFake(t)
 			const message = "The connector couldn't find its robot account's secret in Google Secret Manager."
-			tc.fail(f, message)
+			f.failedInstanceCheck, f.instanceCheckUnreachable = message, tc.unreachable
 			fixed := harborGcpInstance().with(func(a *harborInstanceArgs) { a.url = "https://registry.example.com" })
 
 			resource.UnitTest(t, resource.TestCase{
@@ -482,16 +482,16 @@ func TestHarborInstanceFailedCheck(t *testing.T) {
 					{
 						Config: harborInstanceConfig(f, harborGcp, harborGcpInstance()),
 						ExpectError: harborError(
-							"P0 didn't finish installing the Harbor instance", `Harbor instance "prod"`, message,
+							"P0 didn't finish installing the Harbor instance", `Harbor instance "prod"`, tc.status+": "+message,
 							"terraform apply -replace=<address>", "terraform state rm <address>",
 						),
 					},
 					{
 						PreConfig: func() {
-							if err := f.checkInstance(tc.leftAt, harborGcpInstanceItem); err != nil {
+							if err := f.checkInstance("stage", harborGcpInstanceItem); err != nil {
 								t.Errorf("after the failed step: %v", err)
 							}
-							tc.fail(f, "")
+							f.failedInstanceCheck = ""
 						},
 						Config: harborInstanceConfig(f, harborGcp, fixed),
 						ConfigPlanChecks: resource.ConfigPlanChecks{
@@ -528,7 +528,7 @@ func TestHarborInstanceRefusedByP0(t *testing.T) {
 					Config: harborInstanceConfig(f, harborGcp, harborAwsInstance()),
 					ExpectError: harborError(
 						"Could not stage harbor-instance component",
-						"400 Bad Request: The instance's secret manager must be in the connector's cloud.",
+						"400 Bad Request: The instance's connector runs on Google Cloud, so the robot account's secret has to be in Google Secret Manager.",
 					),
 				},
 				{
@@ -552,7 +552,7 @@ func TestHarborInstanceRefusedByP0(t *testing.T) {
 			Steps: []resource.TestStep{
 				{
 					Config:      harborConnectorConfig(f, harborGcp) + instance.hcl(),
-					ExpectError: harborError("Could not stage harbor-instance component", `400 Bad Request: P0 has no Harbor connector "missing".`),
+					ExpectError: harborError("Could not stage harbor-instance component", "400 Bad Request: That Harbor connector isn't installed in P0."),
 				},
 			},
 		})
@@ -569,7 +569,7 @@ func TestHarborInstanceRefusedByP0(t *testing.T) {
 			Steps: []resource.TestStep{
 				{
 					Config:      harborStagedConfig(f, harborGcp) + instance.hcl(),
-					ExpectError: harborError("P0 didn't finish installing the Harbor instance", `The Harbor connector "prod" isn't installed.`),
+					ExpectError: harborError("Could not stage harbor-instance component", "400 Bad Request: That Harbor connector isn't installed in P0.", "Install it, and finish its setup"),
 				},
 			},
 		})
@@ -668,9 +668,117 @@ func TestHarborInstanceCreateReadFails(t *testing.T) {
 	})
 }
 
-// The provider never sends these, so the fake's refusals for them are exercised
-// directly: a PUT that changes an instance P0 holds, the same PUT unchanged, and a
-// verify that changes a field.
+// On AWS, P0 reads a secret in another account than the connector's by its partial
+// ARN, so a name ending like an ARN's suffix is refused there, at plan time once the
+// connector is in P0. In the connector's own account the name is taken. In an apply
+// that creates both, Terraform plans the instance again once the connector exists,
+// and the check refuses it then, before anything is staged.
+func TestHarborInstanceSecretNameAcrossAccounts(t *testing.T) {
+	const suffixed = "harbor-robot-AbC123"
+	const refusal = "Secrets Manager can't find a secret in another account by its name when the name ends in a hyphen and six characters"
+	other := harborAwsInstance().with(func(a *harborInstanceArgs) { a.secretName = suffixed })
+	own := other.with(func(a *harborInstanceArgs) { a.vault = harborAwsVault("123456789012", "us-west-2") })
+
+	t.Run("plan", func(t *testing.T) {
+		f := newHarborFake(t)
+		resource.UnitTest(t, resource.TestCase{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			CheckDestroy:             checkHarborInstanceDestroyed(f, harborInstance),
+			Steps: []resource.TestStep{
+				{Config: harborConnectorConfig(f, harborAws)},
+				{
+					Config:      harborInstanceConfig(f, harborAws, other),
+					PlanOnly:    true,
+					ExpectError: harborError("Invalid robot account secret name", refusal),
+				},
+				{
+					Config: harborInstanceConfig(f, harborAws, own),
+					Check:  resource.TestCheckResourceAttr(harborInstanceAddress, "state", "installed"),
+				},
+			},
+		})
+	})
+
+	t.Run("apply", func(t *testing.T) {
+		f := newHarborFake(t)
+		resource.UnitTest(t, resource.TestCase{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			CheckDestroy:             checkHarborInstanceDestroyed(f, harborInstance),
+			Steps: []resource.TestStep{
+				{
+					Config:      harborInstanceConfig(f, harborAws, other),
+					ExpectError: harborError("Invalid robot account secret name", refusal),
+				},
+				{
+					PreConfig: func() {
+						if steps := f.steps(); len(steps) != 0 {
+							t.Errorf("P0 got the instance's steps %v; want none", steps)
+						}
+					},
+					Config: harborConnectorConfig(f, harborAws),
+				},
+			},
+		})
+	})
+}
+
+// While an instance uses the connector, P0 won't return the connector to "stage". The
+// examples' instance refers to the connector, so Terraform removes the instance first
+// and the rollback goes through. An instance that names the connector by a literal ID
+// doesn't order them, and destroying the connector alone fails and says why.
+func TestHarborConnectorWithInstance(t *testing.T) {
+	t.Run("removed together", func(t *testing.T) {
+		f := newHarborFake(t)
+		resource.UnitTest(t, resource.TestCase{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			CheckDestroy:             checkHarborInstanceDestroyed(f, harborInstance),
+			Steps: []resource.TestStep{
+				{Config: harborInstanceConfig(f, harborGcp, harborGcpInstance())},
+				{
+					Config: harborStagedConfig(f, harborGcp),
+					Check: func(*terraform.State) error {
+						if item := f.connector(); item["state"] != "stage" {
+							return fmt.Errorf("P0 item = %v; want the connector staged", item)
+						}
+						return nil
+					},
+				},
+			},
+		})
+	})
+
+	t.Run("connector removed alone", func(t *testing.T) {
+		f := newHarborFake(t)
+		literal := harborGcpInstance().with(func(a *harborInstanceArgs) { a.connector = fmt.Sprintf("%q", harborConnector) })
+		resource.UnitTest(t, resource.TestCase{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			CheckDestroy:             checkHarborInstanceDestroyed(f, harborInstance),
+			Steps: []resource.TestStep{
+				{Config: harborConnectorConfig(f, harborGcp)},
+				{Config: harborConnectorConfig(f, harborGcp) + literal.hcl()},
+				{
+					Config: harborStagedConfig(f, harborGcp) + literal.hcl(),
+					ExpectError: harborError(
+						"Harbor connector is in use", "Remove each p0_harbor_instance that uses it first",
+						"409 Conflict: The Harbor connector prod can't be staged again while a Harbor instance uses it (prod).",
+					),
+				},
+				{
+					PreConfig: func() {
+						if item := f.connector(); item["state"] != "installed" {
+							t.Errorf("P0 item = %v; want the connector still installed", item)
+						}
+					},
+					Config: harborConnectorConfig(f, harborGcp),
+				},
+			},
+		})
+	})
+}
+
+// The provider never sends these, so the fake's answers to them are exercised
+// directly: a PUT over an instance P0 holds, changed or unchanged, before and after
+// it is installed, and a verify that changes a field.
 func TestHarborFakeInstanceRefusals(t *testing.T) {
 	f := newHarborFake(t)
 	f.integrations["harbor"] = true
@@ -702,6 +810,10 @@ func TestHarborFakeInstanceRefusals(t *testing.T) {
 		{"a PUT that changes the URL", http.MethodPut, item, "https://other.example.com", http.StatusConflict},
 		{"a verify that changes the URL", http.MethodPost, item + "/verify", "https://other.example.com", http.StatusUnprocessableEntity},
 		{"a verify that changes nothing", http.MethodPost, item + "/verify", harborUrl, http.StatusOK},
+		{"an identical PUT at configure", http.MethodPut, item, harborUrl, http.StatusOK},
+		{"a verify after it", http.MethodPost, item + "/verify", harborUrl, http.StatusOK},
+		{"a configure", http.MethodPost, item + "/configure", harborUrl, http.StatusOK},
+		{"an identical PUT once installed", http.MethodPut, item, harborUrl, http.StatusConflict},
 	} {
 		if got := send(tc.method, tc.path, tc.url); got != tc.want {
 			t.Errorf("%s: status %d; want %d", tc.name, got, tc.want)
@@ -919,47 +1031,77 @@ func TestHarborInstanceImportedInstallFails(t *testing.T) {
 		}
 	}
 
-	t.Run("configure fails", func(t *testing.T) {
-		f := newHarborFake(t)
-		f.failedInstanceConfigure = "The robot account can read every user's CLI secret."
-		config := providerConfig(f.fakeP0) + instance.hcl()
-		resource.UnitTest(t, resource.TestCase{
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-			CheckDestroy:             destroyed(f),
-			Steps: []resource.TestStep{
-				importStaged(f, config, harborUrl),
-				{
-					Config: config,
-					ExpectError: harborError(
-						"P0 didn't finish installing the Harbor instance", f.failedInstanceConfigure,
-						"terraform apply -replace=<address>", "terraform state rm <address>",
-					),
-				},
-				{
-					PreConfig: func() {
-						if err := f.checkInstance("configure", harborGcpInstanceItem); err != nil {
-							t.Errorf("after the failed configure: %v", err)
-						}
-						f.mu.Lock()
-						defer f.mu.Unlock()
-						f.failedInstanceConfigure, f.instanceSteps = "", nil
+	// P0 checks the instance's connector on configure too. The instance waits at
+	// configure until the connector is back, or installed, and then finishes with
+	// configure alone.
+	for _, tc := range []struct {
+		name, message string
+		break_        func(item map[string]any) map[string]any
+	}{
+		{"connector not installed", "The Harbor connector prod, which the instance prod uses, isn't installed. Finish installing it, then retry.",
+			func(item map[string]any) map[string]any { item["state"] = "configure"; return item }},
+		{"connector gone", "The Harbor connector prod, which the instance prod uses, isn't in P0 any more.",
+			func(map[string]any) map[string]any { return nil }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newHarborFake(t)
+			config := providerConfig(f.fakeP0) + instance.hcl()
+			key := fakeItemKey{"harbor", "connector", harborConnector}
+			var installed map[string]any
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				CheckDestroy:             destroyed(f),
+				Steps: []resource.TestStep{
+					{
+						PreConfig: func() {
+							f.seedInstance("configure", harborUrl)
+							f.mu.Lock()
+							defer f.mu.Unlock()
+							installed = harborItemFields(f.items[key])
+							installed["label"], installed["state"] = harborConnector, "installed"
+							if broken := tc.break_(f.items[key]); broken == nil {
+								delete(f.items, key)
+							}
+						},
+						Config:             config,
+						ResourceName:       harborInstanceAddress,
+						ImportState:        true,
+						ImportStateId:      harborInstance,
+						ImportStatePersist: true,
 					},
-					Config: config,
-					ConfigPlanChecks: resource.ConfigPlanChecks{
-						PreApply: []plancheck.PlanCheck{
-							plancheck.ExpectResourceAction(harborInstanceAddress, plancheck.ResourceActionUpdate),
+					{
+						Config: config,
+						ExpectError: harborError(
+							"P0 didn't finish installing the Harbor instance", "422 Unprocessable Entity: "+tc.message,
+							"terraform apply -replace=<address>", "terraform state rm <address>",
+						),
+					},
+					{
+						PreConfig: func() {
+							if err := f.checkInstance("configure", harborGcpInstanceItem); err != nil {
+								t.Errorf("after the refused configure: %v", err)
+							}
+							f.mu.Lock()
+							defer f.mu.Unlock()
+							f.items[key], f.instanceSteps = installed, nil
+						},
+						Config: config,
+						ConfigPlanChecks: resource.ConfigPlanChecks{
+							PreApply: []plancheck.PlanCheck{
+								plancheck.ExpectResourceAction(harborInstanceAddress, plancheck.ResourceActionUpdate),
+							},
+						},
+						Check: func(*terraform.State) error {
+							if steps := f.steps(); !slices.Equal(steps, []string{"installed"}) {
+								return fmt.Errorf("P0 got the instance's steps %v; want configure alone", steps)
+							}
+							return f.checkInstance("installed", harborGcpInstanceItem)
 						},
 					},
-					Check: func(*terraform.State) error {
-						if steps := f.steps(); !slices.Equal(steps, []string{"installed"}) {
-							return fmt.Errorf("P0 got the instance's steps %v; want configure alone", steps)
-						}
-						return f.checkInstance("installed", harborGcpInstanceItem)
-					},
 				},
-			},
+			})
 		})
-	})
+	}
 
 	// The instance in P0 has another URL than the configuration. It was never
 	// installed, so the plan lets the URL through, and P0 refuses to change it.
@@ -1083,11 +1225,14 @@ func TestHarborInstanceValidation(t *testing.T) {
     project_id = "acme-secrets"
     secrets_region = "us-west-2"`)), []string{`'vault.secrets_region' may only be set when 'vault.type' is "aws-sm"`}},
 		{"vault of another kind", base.with(vault(`    type = "azure-kv"`)), []string{`value must be one of: ["aws-sm" "gcp-sm"]`}},
-		{"account that isn't one", aws.with(func(a *harborInstanceArgs) { a.vault = harborAwsVault("1234", "us-west-2") }), []string{"12 numeric digits"}},
-		{"region that isn't one", aws.with(func(a *harborInstanceArgs) { a.vault = harborAwsVault(harborSecretsAccount, "us west 2") }), []string{"Must be a valid AWS region"}},
-		{"region in GovCloud", aws.with(func(a *harborInstanceArgs) { a.vault = harborAwsVault(harborSecretsAccount, "us-gov-west-1") }), []string{"Unsupported AWS region for the robot account's secret", "Harbor doesn't support AWS GovCloud or China regions yet."}},
-		{"region in China", aws.with(func(a *harborInstanceArgs) { a.vault = harborAwsVault(harborSecretsAccount, "cn-north-1") }), []string{"Harbor doesn't support AWS GovCloud or China regions yet."}},
-		{"project with an underscore", base.with(func(a *harborInstanceArgs) { a.vault = harborGcpVault("acme_secrets") }), []string{"Google Cloud project identifiers must consist of alphanumeric characters and hyphens only"}},
+		{"account that isn't one", aws.with(func(a *harborInstanceArgs) { a.vault = harborAwsVault("1234", "us-west-2") }), []string{"Choose the AWS Secrets Manager installation, by its 12-digit AWS account ID"}},
+		{"region that isn't one", aws.with(func(a *harborInstanceArgs) { a.vault = harborAwsVault(harborSecretsAccount, "us west 2") }), []string{"Enter the AWS region the secret is in, such as us-west-2."}},
+		{"region without its last hyphen", aws.with(func(a *harborInstanceArgs) { a.vault = harborAwsVault(harborSecretsAccount, "us-west2") }), []string{"Enter the AWS region the secret is in, such as us-west-2."}},
+		{"region in GovCloud", aws.with(func(a *harborInstanceArgs) { a.vault = harborAwsVault(harborSecretsAccount, "us-gov-west-1") }), []string{"Unsupported AWS region for the robot account's secret", "Harbor supports only AWS commercial regions for now."}},
+		{"region in China", aws.with(func(a *harborInstanceArgs) { a.vault = harborAwsVault(harborSecretsAccount, "cn-north-1") }), []string{"Harbor supports only AWS commercial regions for now."}},
+		{"project with an underscore", base.with(func(a *harborInstanceArgs) { a.vault = harborGcpVault("acme_secrets") }), []string{"Choose the Google Secret Manager installation, by its Google Cloud project ID"}},
+		{"project with capitals", base.with(func(a *harborInstanceArgs) { a.vault = harborGcpVault("Acme-Secrets") }), []string{"Choose the Google Secret Manager installation"}},
+		{"project too short", base.with(func(a *harborInstanceArgs) { a.vault = harborGcpVault("acme") }), []string{"Choose the Google Secret Manager installation"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newHarborFake(t)
