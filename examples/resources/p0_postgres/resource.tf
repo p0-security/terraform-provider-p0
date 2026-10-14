@@ -127,7 +127,14 @@ module "aws_pg_install" {
   depends_on                  = [p0_aws_rds.example]
 }
 
-# Create the DB user P0 authenticates as by running this SQL in the database
+# Create the DB user P0 authenticates as by running these in the database as the master
+# user, before applying p0_postgres (not manageable via the AWS provider). P0 verifies the
+# connector can connect as this user, and that it holds rds_superuser, at install:
+#   CREATE USER p0_iam_manager;
+#   GRANT rds_iam TO p0_iam_manager;
+#   GRANT rds_superuser TO p0_iam_manager;
+
+# Completes the install once the connector is deployed and the user exists.
 resource "p0_postgres" "example" {
   id         = p0_postgres_staged.example.id
   port       = "5432"
