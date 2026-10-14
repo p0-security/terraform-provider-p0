@@ -11,12 +11,16 @@ description: |-
   Prerequisites:
   
   A GitHub App for the organization. Make it private, turn off its webhook, and give it these permissions:
-  Repository: Administration (read and write) and Metadata (read)Organization: Members (read) and Custom repository roles (read)
+  
+  Repository: Administration (read and write) and Metadata (read)
+  Organization: Members (read) and Custom repository roles (read)
   An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager, in the account and region that vault names, or in Google Secret Manager, in the project that vault names.
   Warning: Administration: write lets the App change roles on, and administer, every repository it is installed on. Select only the repositories P0 should manage.
   P0's GitHub Repositories connector, from the image p0security/p0-connector-github-repositories on AWS Lambda or p0security/p0-connector-github-repositories-gcloud on Google Cloud Run. Lambda runs images only from Amazon ECR, so copy the Lambda image from Docker Hub into ECR first. P0's GitHub Repositories installer generates Terraform that deploys the connector with its image pinned, as in the example.
   Grant the connector's identity read access to the private key secret alone, never through a wildcard that matches other secrets, or at the account or project level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
-  On AWS, give its execution role secretsmanager:GetSecretValue on arn:aws:secretsmanager:<secrets_region>:<account_id>:secret:<name>-??????, with the vault's region and account and the secret's name. Secrets Manager adds a hyphen and six random characters to the name in a secret's ARN, and ?????? matches those, so the grant covers this one secret. If a customer-managed KMS key encrypts the secret, also give the role kms:Decrypt on that key, with the condition that kms:ViaService is secretsmanager.<secrets_region>.amazonaws.com. A secret in an account other than the connector's needs a customer-managed key, because the default aws/secretsmanager key can't be used from another account, and in that account the secret's resource policy and the key's policy must allow the connector's role too. For its logs, give the role logs:CreateLogStream and logs:PutLogEvents on its own log group alone, /aws/lambda/<function name>. The role can't create that log group, so create it before the function first runs.On Google Cloud, give its service account secretmanager.versions.access and secretmanager.versions.get on the secret, for example by binding roles/secretmanager.secretAccessor and roles/secretmanager.viewer on it, and on nothing else.
+  
+  On AWS, give its execution role secretsmanager:GetSecretValue on arn:aws:secretsmanager:<secrets_region>:<account_id>:secret:<name>-??????, with the vault's region and account and the secret's name. Secrets Manager adds a hyphen and six random characters to the name in a secret's ARN, and ?????? matches those, so the grant covers this one secret. If a customer-managed KMS key encrypts the secret, also give the role kms:Decrypt on that key, with the condition that kms:ViaService is secretsmanager.<secrets_region>.amazonaws.com. A secret in an account other than the connector's needs a customer-managed key, because the default aws/secretsmanager key can't be used from another account, and in that account the secret's resource policy and the key's policy must allow the connector's role too. For its logs, give the role logs:CreateLogStream and logs:PutLogEvents on its own log group alone, /aws/lambda/<function name>. The role can't create that log group, so create it before the function first runs.
+  On Google Cloud, give its service account secretmanager.versions.access and secretmanager.versions.get on the secret, for example by binding roles/secretmanager.secretAccessor and roles/secretmanager.viewer on it, and on nothing else.
   For AWS Lambda hosting, p0_aws_iam_write installed for the account the connector runs in. Grant that installation's role lambda:InvokeFunction on the connector's function.
   For Google Cloud Run hosting, p0_gcp installed. Grant its service account roles/run.invoker and roles/run.viewer on the connector's service: P0 invokes the connector, and reads the service to find its URL. Set the connector's INVOKER_SA_EMAIL environment variable to the same service account.
   Note: This integration is in beta.
@@ -38,6 +42,7 @@ P0 checks where the connector runs, and the secret's name, when it creates the i
 
 - A GitHub App for the organization. Make it private, turn off its webhook, and give it these permissions:
   - Repository: Administration (read and write) and Metadata (read)
+
   - Organization: Members (read) and Custom repository roles (read)
 
   An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager, in the account and region that `vault` names, or in Google Secret Manager, in the project that `vault` names.
@@ -48,6 +53,7 @@ P0 checks where the connector runs, and the secret's name, when it creates the i
 
   Grant the connector's identity read access to the private key secret alone, never through a wildcard that matches other secrets, or at the account or project level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
   - On AWS, give its execution role `secretsmanager:GetSecretValue` on `arn:aws:secretsmanager:<secrets_region>:<account_id>:secret:<name>-??????`, with the vault's region and account and the secret's name. Secrets Manager adds a hyphen and six random characters to the name in a secret's ARN, and `??????` matches those, so the grant covers this one secret. If a customer-managed KMS key encrypts the secret, also give the role `kms:Decrypt` on that key, with the condition that `kms:ViaService` is `secretsmanager.<secrets_region>.amazonaws.com`. A secret in an account other than the connector's needs a customer-managed key, because the default `aws/secretsmanager` key can't be used from another account, and in that account the secret's resource policy and the key's policy must allow the connector's role too. For its logs, give the role `logs:CreateLogStream` and `logs:PutLogEvents` on its own log group alone, `/aws/lambda/<function name>`. The role can't create that log group, so create it before the function first runs.
+
   - On Google Cloud, give its service account `secretmanager.versions.access` and `secretmanager.versions.get` on the secret, for example by binding `roles/secretmanager.secretAccessor` and `roles/secretmanager.viewer` on it, and on nothing else.
 
 - For AWS Lambda hosting, `p0_aws_iam_write` installed for the account the connector runs in. Grant that installation's role `lambda:InvokeFunction` on the connector's function.
