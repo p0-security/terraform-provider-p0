@@ -180,7 +180,7 @@ type rule struct {
 // set. The value is never repeated: a URL or a secret's name may be the robot
 // account's credentials, pasted into the wrong field.
 //
-// TODO(INT-417): a copy of github-repositories' validateField, with its rule type and
+// TODO(INT-465): a copy of github-repositories' validateField, with its rule type and
 // its whitespace check, kept close to it so that the two can merge into one.
 func validateField(attribute path.Path, value types.String, rules []rule, diags *diag.Diagnostics) {
 	if !installapp.IsSet(value) {
@@ -397,7 +397,7 @@ func refuseNewUrl(ctx context.Context, state tfsdk.State, plan tfsdk.Plan, diags
 // checks passed. An installed item keeps the framework's plan, which shows no
 // difference while the configuration matches it.
 //
-// TODO(INT-417): the second half is a copy of github-repositories' ModifyPlan.
+// TODO(INT-465): the second half is a copy of github-repositories' ModifyPlan.
 func (r *HarborInstance) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// Nothing is left to finish on destroy.
 	if req.Plan.Raw.IsNull() {

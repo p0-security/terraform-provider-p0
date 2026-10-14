@@ -28,7 +28,7 @@ import (
 // AWS Secrets Manager, as P0 names the vault type. Google Secret Manager's name is
 // installvaultedcredential.GcpSecretManager.
 //
-// TODO(INT-417): this constant, vaultJson and vaultFromConfig are copies of
+// TODO(INT-465): this constant, vaultJson and vaultFromConfig are copies of
 // github-repositories', whose vault block they can merge with.
 const awsSecretsManager = "aws-sm"
 
@@ -188,7 +188,7 @@ const (
 // European Sovereign Cloud. P0 has the connector read the secret by an `arn:aws:` ARN,
 // so the secret can't be in one.
 //
-// TODO(INT-417): a copy of github-repositories' rule and message (hosting.go there),
+// TODO(INT-465): a copy of github-repositories' rule and message (hosting.go there),
 // with Harbor's name in the message.
 var awsOtherPartitionRegionRegex = regexp.MustCompile(`^(?:us-gov-|cn-|[a-z]+-iso[a-z]*-|eusc-)`)
 

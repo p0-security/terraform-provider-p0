@@ -19,7 +19,7 @@ import (
 // that rule today. This one is from the first version of the app's file, and the
 // instance's installer (INT-394) is to keep it.
 //
-// TODO(INT-417): awsSecretNameRegex and its message's first sentence are also in
+// TODO(INT-465): awsSecretNameRegex and its message's first sentence are also in
 // github-repositories' secret_name.go.
 var (
 	// Neither pattern admits whitespace, a colon, a quote or a wildcard, which keeps
