@@ -5,7 +5,7 @@ description: |-
   A Harbor instance that P0 can grant project roles on.
   P0 reaches the instance through a Harbor connector, which you install with p0_harbor_connector. The connector calls the instance as a robot account whose credentials stay in your own secret manager: P0 never reads them, and only the connector does. One connector can serve several instances, and each instance has its own robot account and secret.
   Important: Install the connector first, and grant its identity read access to the robot account's secret: in an earlier apply, or in the same one with this resource depending on the grant, as the examples do. Creating this resource has P0 check the instance through the connector. If the check fails, the apply fails with P0's message.
-  An instance's attributes can't change once it is created. Changing id, connector, vault, secret_name or admin_secret_name replaces the instance. A plan refuses a change to an installed instance's url: a user's ID on one Harbor instance means nothing on another, so for another address, add a new p0_harbor_instance with its own id, and remove this one once its open access has ended. To rotate the robot account's secret, add a new version to the same secret, which needs no change here.
+  An instance's attributes, except admin_secret_name, can't change once it is created. Changing id, connector, vault or secret_name replaces the instance. A plan refuses a change to an installed instance's url: a user's ID on one Harbor instance means nothing on another, so for another address, add a new p0_harbor_instance with its own id, and remove this one once its open access has ended. To rotate the robot account's secret, add a new version to the same secret, which needs no change here.
   Warning: Replacing or destroying this resource removes the instance from P0. P0 can't revoke access it granted on an instance it no longer has, so that access stays in Harbor until you remove it there. Before you change an attribute or destroy this resource, revoke the instance's open access in P0 or wait for it to expire.
   An instance that already exists in P0, such as one added in the P0 app, isn't created again: the apply fails, and says to import it with terraform import. An imported instance that P0 hasn't finished installing plans an update, and applying it finishes the install. If that install can't finish, fix what P0's message names and apply again, or start over: terraform apply -replace=<address> deletes the instance and creates it again, and terraform state rm <address> stops managing it.
   The email domains that may receive access are set on the connector, as its ALLOWED_EMAIL_DOMAIN_PATTERN environment variable, and aren't an attribute of this resource.
@@ -28,7 +28,7 @@ P0 reaches the instance through a Harbor connector, which you install with `p0_h
 
 **Important:** Install the connector first, and grant its identity read access to the robot account's secret: in an earlier apply, or in the same one with this resource depending on the grant, as the examples do. Creating this resource has P0 check the instance through the connector. If the check fails, the apply fails with P0's message.
 
-An instance's attributes can't change once it is created. Changing `id`, `connector`, `vault`, `secret_name` or `admin_secret_name` replaces the instance. A plan refuses a change to an installed instance's `url`: a user's ID on one Harbor instance means nothing on another, so for another address, add a new `p0_harbor_instance` with its own `id`, and remove this one once its open access has ended. To rotate the robot account's secret, add a new version to the same secret, which needs no change here.
+An instance's attributes, except `admin_secret_name`, can't change once it is created. Changing `id`, `connector`, `vault` or `secret_name` replaces the instance. A plan refuses a change to an installed instance's `url`: a user's ID on one Harbor instance means nothing on another, so for another address, add a new `p0_harbor_instance` with its own `id`, and remove this one once its open access has ended. To rotate the robot account's secret, add a new version to the same secret, which needs no change here.
 
 **Warning:** Replacing or destroying this resource removes the instance from P0. P0 can't revoke access it granted on an instance it no longer has, so that access stays in Harbor until you remove it there. Before you change an attribute or destroy this resource, revoke the instance's open access in P0 or wait for it to expire.
 
@@ -87,7 +87,9 @@ locals {
     # administrator access. Store it like the robot's, as a JSON object with
     # issuer, clientId, clientSecret and refreshToken for a dedicated identity
     # provider user who is a Harbor system administrator. It is as sensitive as
-    # an admin password.
+    # an admin password. It can be added, changed or removed in place: grant the
+    # connector read on a new secret first, as below, and revoke open system
+    # administrator access in P0 before you remove it.
     admin_secret_name = "harbor-prod-admin"
   }
 }
@@ -175,7 +177,9 @@ locals {
     secret_name    = "harbor/prod/robot"
     # Optional: the secret that holds a Harbor admin credential, for the system
     # administrator access, in the same account and region. It is as sensitive
-    # as an admin password.
+    # as an admin password. It can be added, changed or removed in place: grant
+    # the connector read on a new secret first, and revoke open system
+    # administrator access in P0 before you remove it.
     admin_secret_name = "harbor/prod/admin"
     # The ARN of the customer-managed KMS key that encrypts the secret, or null
     # if the secret uses the default aws/secretsmanager key. A secret in an
@@ -264,7 +268,9 @@ resource "p0_harbor_instance" "aws_example" {
 
 ### Optional
 
-- `admin_secret_name` (String) Optional. The name of the secret that holds a Harbor admin credential, in `vault` beside the robot account's secret: the name alone, never an ARN or a resource name, under the same rules as `secret_name`. Setting it lets P0 grant Harbor's system administrator access on this instance, which a robot account can't do. The secret holds a JSON object, `{ "issuer", "clientId", "clientSecret", "refreshToken" }`, for a dedicated user in your identity provider who is a Harbor system administrator. It is as sensitive as an admin password: give the connector, and only the connector, read access to it, as for the robot account's secret. P0 never reads it. Install validation also checks it. Leave it unset for no system administrator access. Changing it replaces the instance.
+- `admin_secret_name` (String) Optional. The name of the secret that holds a Harbor admin credential, in `vault` beside the robot account's secret: the name alone, never an ARN or a resource name, under the same rules as `secret_name`, and not the same secret. Setting it lets P0 grant Harbor's system administrator access on this instance, which a robot account can't do. The secret holds a JSON object, `{ "issuer", "clientId", "clientSecret", "refreshToken" }`, for a dedicated user in your identity provider who is a Harbor system administrator. It is as sensitive as an admin password: give the connector, and only the connector, read access to it, as for the robot account's secret. P0 never reads it. Leave it unset for no system administrator access.
+
+It can be added, changed or removed in place, and the instance stays installed. P0 checks the instance with the new credential first, and changes nothing if the check fails, so apply the connector's read grant on a new secret before you set it, in an earlier apply or with this resource depending on the grant. P0 refuses to remove it while system administrator access granted through it is still open: revoke that access in P0 first.
 
 ### Read-Only
 

@@ -42,6 +42,8 @@ const (
 	// The app's message for the admin credential's name (INVALID_ADMIN_SECRET_NAME).
 	invalidAdminSecretName = "That doesn't look like a secret name. Enter the name of the secret that holds the Harbor admin credential, " +
 		"not its ARN or the credential itself, or leave it empty."
+	// The app's refusal of an admin credential that is the robot account's secret.
+	sameSecretName       = "The admin credential has to be a different secret from the robot account's."
 	invalidGcpSecretName = "That isn't a secret's name in Google Secret Manager. Enter the name alone, without its project or a version: " +
 		"letters, digits, underscores and hyphens, up to 255 characters."
 )

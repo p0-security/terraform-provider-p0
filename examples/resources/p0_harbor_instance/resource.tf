@@ -28,7 +28,9 @@ locals {
     # administrator access. Store it like the robot's, as a JSON object with
     # issuer, clientId, clientSecret and refreshToken for a dedicated identity
     # provider user who is a Harbor system administrator. It is as sensitive as
-    # an admin password.
+    # an admin password. It can be added, changed or removed in place: grant the
+    # connector read on a new secret first, as below, and revoke open system
+    # administrator access in P0 before you remove it.
     admin_secret_name = "harbor-prod-admin"
   }
 }

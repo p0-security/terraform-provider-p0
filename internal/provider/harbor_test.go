@@ -105,6 +105,11 @@ type harborFake struct {
 	failedInstanceCheck string
 	// The instance's check couldn't reach Harbor, so P0 answers 502 rather than 422.
 	instanceCheckUnreachable bool
+	// The instance has open system administrator grants, so P0 refuses to remove its
+	// admin credential.
+	openSystemAdminGrants bool
+	// P0's message for a new admin credential that fails the install check.
+	failedAdminCheck string
 	// The state each write to an instance would move it to, in order, refused or not.
 	instanceSteps []string
 	// How many writes to Harbor items P0 got, refused or not.
@@ -188,6 +193,10 @@ func newHarborFake(t *testing.T) *harborFake {
 	}
 
 	f.normalize = func(key fakeItemKey, item map[string]any) {
+		// P0 stores no admin credential for a blank one.
+		if key.integration == "harbor" && key.component == "harbor-instance" && harborAdminSecretName(item) == "" {
+			delete(item, "adminSecretName")
+		}
 		hosting, ok := item["hosting"].(map[string]any)
 		if key.integration != "harbor" || key.component != "connector" || !ok || hosting["type"] != "gcp" {
 			return
@@ -227,10 +236,15 @@ func (f *harborFake) refuseInstance(step fakeStep, items map[fakeItemKey]map[str
 				return http.StatusConflict, fmt.Sprintf("A Harbor instance with the ID %s already exists, and an instance can't be changed once it's added. "+
 					"To add another instance, use another ID.", id)
 			}
-			if step.previous["state"] == "installed" {
-				return http.StatusConflict, fmt.Sprintf("The Harbor instance %s is already installed, and there's nothing to change.", id)
+			// The admin credential is the one field a PUT may change, which stages the
+			// instance again. One that leaves it out keeps it.
+			if !harborAdminChanged(step.previous, step.body) {
+				if step.previous["state"] == "installed" {
+					return http.StatusConflict, fmt.Sprintf("The Harbor instance %s is already installed, and there's nothing to change.", id)
+				}
+				return 0, ""
 			}
-			return 0, ""
+			return f.refuseAdminChange(id, step.previous, step.body)
 		}
 		connectorId, _ := step.body["connector"].(string)
 		connector := items[fakeItemKey{"harbor", "connector", connectorId}]
@@ -253,6 +267,9 @@ func (f *harborFake) refuseInstance(step fakeStep, items map[fakeItemKey]map[str
 			return http.StatusBadRequest, "Secrets Manager can't find a secret in another account by its name when the name ends in a hyphen and six characters, like -AbCdEf. " +
 				"Use a secret whose name doesn't end that way, or one in the connector's own account."
 		}
+		if admin := harborAdminSecretName(step.body); admin != "" && admin == strings.TrimSpace(name) {
+			return http.StatusBadRequest, harborSameSecret
+		}
 		return 0, ""
 	}
 
@@ -269,12 +286,52 @@ func (f *harborFake) refuseInstance(step fakeStep, items map[fakeItemKey]map[str
 			"Add a connector with that ID, in the cloud that holds the instance's secret, then retry.", connectorId, id)
 	case connector["state"] != "installed":
 		return http.StatusUnprocessableEntity, fmt.Sprintf("The Harbor connector %s, which the instance %s uses, isn't installed. Finish installing it, then retry.", connectorId, id)
+	case harborAdminChanged(step.previous, step.body):
+		if status, message := f.refuseAdminChange(id, step.previous, step.body); status != 0 {
+			return status, message
+		}
+		// A verify or a configure that changes the admin credential checks the
+		// instance with the new one before it stores it.
+		if f.failedAdminCheck != "" {
+			return http.StatusUnprocessableEntity, f.failedAdminCheck
+		}
+		if step.nextState == "configure" && f.failedInstanceCheck != "" {
+			return http.StatusUnprocessableEntity, f.failedInstanceCheck
+		}
 	case step.nextState == "configure" && f.failedInstanceCheck != "":
 		status := http.StatusUnprocessableEntity
 		if f.instanceCheckUnreachable {
 			status = http.StatusBadGateway
 		}
 		return status, f.failedInstanceCheck
+	}
+	return 0, ""
+}
+
+// P0's refusal of an admin credential that is the robot account's secret.
+const harborSameSecret = "The admin credential has to be a different secret from the robot account's."
+
+// Whether body changes the admin credential of the stored item. One that leaves it
+// out keeps it, as P0 merges the request over the item, and blank is none.
+func harborAdminChanged(item, body map[string]any) bool {
+	_, sent := body["adminSecretName"]
+	return sent && harborAdminSecretName(body) != harborAdminSecretName(item)
+}
+
+// Refuses a change of the admin credential as P0 does (app#7493 at 87ac7f8f28):
+// removing it while system administrator grants are open, and naming the robot
+// account's secret.
+func (f *harborFake) refuseAdminChange(id string, item, body map[string]any) (int, string) {
+	admin := harborAdminSecretName(body)
+	if admin == "" {
+		if f.openSystemAdminGrants {
+			return http.StatusConflict, fmt.Sprintf("The Harbor instance %s has open system administrator grants, which are revoked with its admin credential. "+
+				"Revoke the open system administrator grants first, then remove the admin credential.", id)
+		}
+		return 0, ""
+	}
+	if robot, _ := item["secretName"].(string); admin == strings.TrimSpace(robot) {
+		return http.StatusBadRequest, harborSameSecret
 	}
 	return 0, ""
 }
@@ -294,12 +351,6 @@ func changedHarborInstanceField(item, body map[string]any, whole bool) string {
 		if sent, ok := body[field]; (ok || whole) && sent != item[field] {
 			return field
 		}
-	}
-	// Optional, so a request that leaves it out agrees with an instance that has none,
-	// and blank is none (app#7493). A verify or configure that leaves it out keeps the
-	// stored one.
-	if _, ok := body["adminSecretName"]; (ok || whole) && harborAdminSecretName(body) != harborAdminSecretName(item) {
-		return "adminSecretName"
 	}
 	sent, ok := body["vault"].(map[string]any)
 	if !ok {

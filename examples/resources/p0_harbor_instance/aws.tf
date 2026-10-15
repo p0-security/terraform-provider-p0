@@ -21,7 +21,9 @@ locals {
     secret_name    = "harbor/prod/robot"
     # Optional: the secret that holds a Harbor admin credential, for the system
     # administrator access, in the same account and region. It is as sensitive
-    # as an admin password.
+    # as an admin password. It can be added, changed or removed in place: grant
+    # the connector read on a new secret first, and revoke open system
+    # administrator access in P0 before you remove it.
     admin_secret_name = "harbor/prod/admin"
     # The ARN of the customer-managed KMS key that encrypts the secret, or null
     # if the secret uses the default aws/secretsmanager key. A secret in an

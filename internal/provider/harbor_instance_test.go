@@ -791,47 +791,141 @@ func TestHarborInstanceAdminSecret(t *testing.T) {
 	stored := harborItemFields(harborGcpInstanceItem)
 	stored["adminSecretName"] = admin
 
-	t.Run("set, changed and removed", func(t *testing.T) {
+	// Each change after the first apply is one configure request that holds the whole
+	// item, and the instance stays installed.
+	inPlace := func(f *harborFake, config string, want map[string]any, adminAttr string) resource.TestStep {
+		return resource.TestStep{
+			PreConfig: func() {
+				f.mu.Lock()
+				defer f.mu.Unlock()
+				f.instanceSteps = nil
+			},
+			Config: config,
+			ConfigPlanChecks: resource.ConfigPlanChecks{
+				PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(harborInstanceAddress, plancheck.ResourceActionUpdate)},
+			},
+			Check: resource.ComposeAggregateTestCheckFunc(
+				func(*terraform.State) error {
+					if steps := f.steps(); !slices.Equal(steps, []string{"installed"}) {
+						return fmt.Errorf("P0 got the instance's steps %v; want one configure", steps)
+					}
+					return f.checkInstance("installed", want)
+				},
+				func(state *terraform.State) error {
+					if adminAttr == "" {
+						return resource.TestCheckNoResourceAttr(harborInstanceAddress, "admin_secret_name")(state)
+					}
+					return resource.TestCheckResourceAttr(harborInstanceAddress, "admin_secret_name", adminAttr)(state)
+				},
+			),
+		}
+	}
+	changed := harborItemFields(stored)
+	changed["adminSecretName"] = "harbor-prod-admin-2"
+
+	t.Run("added, changed and removed in place", func(t *testing.T) {
 		f := newHarborFake(t)
 		resource.UnitTest(t, resource.TestCase{
 			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 			CheckDestroy:             checkHarborInstanceDestroyed(f, harborInstance),
 			Steps: []resource.TestStep{
-				{
-					Config: harborInstanceConfig(f, harborGcp, withAdmin),
-					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr(harborInstanceAddress, "admin_secret_name", admin),
-						func(*terraform.State) error { return f.checkInstance("installed", stored) },
-					),
-				},
+				{Config: harborInstanceConfig(f, harborGcp, harborGcpInstance())},
+				inPlace(f, harborInstanceConfig(f, harborGcp, withAdmin), stored, admin),
 				{
 					ResourceName:      harborInstanceAddress,
 					ImportState:       true,
 					ImportStateId:     harborInstance,
 					ImportStateVerify: true,
 				},
+				inPlace(f, harborInstanceConfig(f, harborGcp, withAdmin.with(func(a *harborInstanceArgs) { a.adminSecretName = "harbor-prod-admin-2" })), changed, "harbor-prod-admin-2"),
+				// Removing it sends a blank name, and P0 stores none.
+				inPlace(f, harborInstanceConfig(f, harborGcp, harborGcpInstance()), harborGcpInstanceItem, ""),
+			},
+		})
+	})
+
+	// An instance that P0 hasn't installed takes the new name through the usual steps:
+	// verify, then configure.
+	t.Run("added before the install finished", func(t *testing.T) {
+		f := newHarborFake(t)
+		instance := withAdmin.with(func(a *harborInstanceArgs) { a.connector = fmt.Sprintf("%q", harborConnector) })
+		config := providerConfig(f.fakeP0) + instance.hcl()
+		resource.UnitTest(t, resource.TestCase{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			CheckDestroy: func(*terraform.State) error {
+				if item := f.instance(harborInstance); item != nil {
+					return fmt.Errorf("the instance was not removed from P0: %v", item)
+				}
+				return nil
+			},
+			Steps: []resource.TestStep{
 				{
-					Config: harborInstanceConfig(f, harborGcp, withAdmin.with(func(a *harborInstanceArgs) { a.adminSecretName = "harbor-prod-admin-2" })),
+					PreConfig:          func() { f.seedInstance("stage", harborUrl) },
+					Config:             config,
+					ResourceName:       harborInstanceAddress,
+					ImportState:        true,
+					ImportStateId:      harborInstance,
+					ImportStatePersist: true,
+				},
+				{
+					Config: config,
 					ConfigPlanChecks: resource.ConfigPlanChecks{
-						PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(harborInstanceAddress, plancheck.ResourceActionReplace)},
+						PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(harborInstanceAddress, plancheck.ResourceActionUpdate)},
 					},
 					Check: func(*terraform.State) error {
-						if item := f.instance(harborInstance); item["adminSecretName"] != "harbor-prod-admin-2" {
-							return fmt.Errorf("P0 item = %v; want the new admin secret", item)
+						if steps := f.steps(); !slices.Equal(steps, []string{"configure", "installed"}) {
+							return fmt.Errorf("P0 got the instance's steps %v; want verify, then configure", steps)
 						}
-						return nil
+						return f.checkInstance("installed", stored)
 					},
 				},
-				// Unset, the name is left out of every request, and P0 stores none.
+			},
+		})
+	})
+
+	// Each refusal changes nothing in P0 or in state, and says why in P0's words.
+	t.Run("refused", func(t *testing.T) {
+		f := newHarborFake(t)
+		const check = "The connector couldn't sign in to Harbor with the admin credential."
+		resource.UnitTest(t, resource.TestCase{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			CheckDestroy:             checkHarborInstanceDestroyed(f, harborInstance),
+			Steps: []resource.TestStep{
+				{Config: harborInstanceConfig(f, harborGcp, withAdmin)},
+				// The new credential fails P0's check.
 				{
-					Config: harborInstanceConfig(f, harborGcp, harborGcpInstance()),
-					ConfigPlanChecks: resource.ConfigPlanChecks{
-						PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(harborInstanceAddress, plancheck.ResourceActionReplace)},
+					PreConfig: func() { f.failedAdminCheck = check },
+					Config:    harborInstanceConfig(f, harborGcp, withAdmin.with(func(a *harborInstanceArgs) { a.adminSecretName = "harbor-prod-admin-2" })),
+					ExpectError: harborError("Harbor admin credential check failed", `the Harbor instance "prod" with the new admin credential`,
+						"P0 changed nothing", "422 Unprocessable Entity: "+check),
+				},
+				// Removing it while system administrator access is open.
+				{
+					PreConfig: func() {
+						f.failedAdminCheck, f.openSystemAdminGrants = "", true
+						if err := f.checkInstance("installed", stored); err != nil {
+							t.Errorf("after the failed check: %v", err)
+						}
 					},
-					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckNoResourceAttr(harborInstanceAddress, "admin_secret_name"),
-						func(*terraform.State) error { return f.checkInstance("installed", harborGcpInstanceItem) },
-					),
+					Config: harborInstanceConfig(f, harborGcp, harborGcpInstance()),
+					ExpectError: harborError("Harbor admin credential can't be removed yet",
+						"409 Conflict: The Harbor instance prod has open system administrator grants",
+						"Revoke the open system administrator grants first, then remove the admin credential."),
+				},
+				// The robot's secret, refused at plan time.
+				{
+					PreConfig: func() { f.openSystemAdminGrants = false },
+					Config:    harborInstanceConfig(f, harborGcp, withAdmin.with(func(a *harborInstanceArgs) { a.adminSecretName = harborSecret })),
+					PlanOnly:  true,
+					ExpectError: harborError("Invalid Harbor admin credential secret name",
+						"The admin credential has to be a different secret from the robot account's."),
+				},
+				{
+					Config: harborInstanceConfig(f, harborGcp, withAdmin),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+					},
+					Check: func(*terraform.State) error { return f.checkInstance("installed", stored) },
 				},
 			},
 		})
@@ -928,9 +1022,10 @@ func TestHarborFakeInstanceRefusals(t *testing.T) {
 	}
 }
 
-// The fake holds the admin credential's secret as app#7493 does: a PUT over an
-// instance has to agree on it, leaving it out agrees only with an instance that has
-// none, and a verify can't change it.
+// The fake holds the admin credential's secret as app#7493 (at 87ac7f8f28) does: a
+// PUT, verify or configure may change it, one that leaves it out keeps it, the robot's
+// secret is refused, and removing it is refused while system administrator grants
+// are open.
 func TestHarborFakeInstanceAdminSecret(t *testing.T) {
 	f := newHarborFake(t)
 	f.integrations["harbor"] = true
@@ -964,18 +1059,22 @@ func TestHarborFakeInstanceAdminSecret(t *testing.T) {
 	}{
 		{"the first PUT", http.MethodPut, item, "harbor-admin", http.StatusOK},
 		{"the same PUT", http.MethodPut, item, "harbor-admin", http.StatusOK},
-		{"a PUT without it", http.MethodPut, item, "-", http.StatusConflict},
-		{"a PUT with a blank one", http.MethodPut, item, " ", http.StatusConflict},
-		{"a PUT with another", http.MethodPut, item, "harbor-admin-2", http.StatusConflict},
-		{"a verify with another", http.MethodPost, item + "/verify", "harbor-admin-2", http.StatusUnprocessableEntity},
-		{"a verify without it", http.MethodPost, item + "/verify", "-", http.StatusOK},
+		{"a PUT without it, which keeps it", http.MethodPut, item, "-", http.StatusOK},
+		{"a PUT naming the robot's secret", http.MethodPut, item, harborSecret, http.StatusBadRequest},
+		{"a verify with another", http.MethodPost, item + "/verify", "harbor-admin-2", http.StatusOK},
+		{"a configure", http.MethodPost, item + "/configure", "-", http.StatusOK},
+		{"the same PUT once installed", http.MethodPut, item, "harbor-admin-2", http.StatusConflict},
+		{"a configure naming the robot's secret", http.MethodPost, item + "/configure", harborSecret, http.StatusBadRequest},
+		{"a configure that removes it, with open grants", http.MethodPost, item + "/configure", "", http.StatusConflict},
+		{"a configure that removes it", http.MethodPost, item + "/configure", " ", http.StatusOK},
 	} {
+		f.openSystemAdminGrants = strings.HasSuffix(tc.name, "with open grants")
 		if got := send(tc.method, tc.path, tc.admin); got != tc.want {
 			t.Errorf("%s: status %d; want %d", tc.name, got, tc.want)
 		}
 	}
-	if stored := f.instance(harborInstance); stored["adminSecretName"] != "harbor-admin" {
-		t.Errorf("P0 item = %v; want the first admin secret kept", stored)
+	if stored := f.instance(harborInstance); stored["adminSecretName"] != nil || stored["state"] != "installed" {
+		t.Errorf("P0 item = %v; want it installed with no admin secret", stored)
 	}
 }
 
