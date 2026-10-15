@@ -24,6 +24,12 @@ locals {
     # installed in P0.
     secrets_project_id = "my-secrets-project"
     secret_name        = "harbor-prod-robot"
+    # Optional: the secret that holds a Harbor admin credential, for the system
+    # administrator access. Store it like the robot's, as a JSON object with
+    # issuer, clientId, clientSecret and refreshToken for a dedicated identity
+    # provider user who is a Harbor system administrator. It is as sensitive as
+    # an admin password.
+    admin_secret_name = "harbor-prod-admin"
   }
 }
 
@@ -44,6 +50,21 @@ resource "google_secret_manager_secret_iam_member" "harbor_viewer" {
   member    = "serviceAccount:${google_service_account.harbor.email}"
 }
 
+# The same two roles on the admin credential's secret.
+resource "google_secret_manager_secret_iam_member" "harbor_admin_accessor" {
+  project   = local.harbor_instance.secrets_project_id
+  secret_id = local.harbor_instance.admin_secret_name
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.harbor.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "harbor_admin_viewer" {
+  project   = local.harbor_instance.secrets_project_id
+  secret_id = local.harbor_instance.admin_secret_name
+  role      = "roles/secretmanager.viewer"
+  member    = "serviceAccount:${google_service_account.harbor.email}"
+}
+
 # Creating it has P0 check the instance through the connector, so it waits
 # until the connector is installed and the grants exist. IAM changes can take a
 # few seconds to take effect, so if the first check is denied access, apply
@@ -57,10 +78,13 @@ resource "p0_harbor_instance" "example" {
     type       = "gcp-sm"
     project_id = local.harbor_instance.secrets_project_id
   }
-  secret_name = local.harbor_instance.secret_name
+  secret_name       = local.harbor_instance.secret_name
+  admin_secret_name = local.harbor_instance.admin_secret_name
 
   depends_on = [
     google_secret_manager_secret_iam_member.harbor_accessor,
     google_secret_manager_secret_iam_member.harbor_viewer,
+    google_secret_manager_secret_iam_member.harbor_admin_accessor,
+    google_secret_manager_secret_iam_member.harbor_admin_viewer,
   ]
 }

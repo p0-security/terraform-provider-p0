@@ -25,6 +25,8 @@ const (
 // such as a reference to the connector's resource, and vault an HCL object.
 type harborInstanceArgs struct {
 	id, connector, url, vault, secretName string
+	// Optional: left out of the configuration when empty.
+	adminSecretName string
 }
 
 func harborGcpVault(project string) string {
@@ -67,15 +69,19 @@ func (a harborInstanceArgs) with(change func(*harborInstanceArgs)) harborInstanc
 }
 
 func (a harborInstanceArgs) hcl() string {
+	admin := ""
+	if a.adminSecretName != "" {
+		admin = fmt.Sprintf("\n  admin_secret_name = %q", a.adminSecretName)
+	}
 	return fmt.Sprintf(`
 resource "p0_harbor_instance" "example" {
   id          = %q
   connector   = %s
   url         = %q
   vault       = %s
-  secret_name = %q
+  secret_name = %q%s
 }
-`, a.id, a.connector, a.url, a.vault, a.secretName)
+`, a.id, a.connector, a.url, a.vault, a.secretName, admin)
 }
 
 // The connector installed at hosting, and the instance it reaches.
@@ -776,6 +782,104 @@ func TestHarborConnectorWithInstance(t *testing.T) {
 	})
 }
 
+// An instance with an admin credential's secret, for the system administrator access.
+// P0 stores the name beside the robot's secret, fixes it at creation, and holds it to
+// the same rules, the cross-account suffix included.
+func TestHarborInstanceAdminSecret(t *testing.T) {
+	const admin = "harbor-prod-admin"
+	withAdmin := harborGcpInstance().with(func(a *harborInstanceArgs) { a.adminSecretName = admin })
+	stored := harborItemFields(harborGcpInstanceItem)
+	stored["adminSecretName"] = admin
+
+	t.Run("set, changed and removed", func(t *testing.T) {
+		f := newHarborFake(t)
+		resource.UnitTest(t, resource.TestCase{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			CheckDestroy:             checkHarborInstanceDestroyed(f, harborInstance),
+			Steps: []resource.TestStep{
+				{
+					Config: harborInstanceConfig(f, harborGcp, withAdmin),
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr(harborInstanceAddress, "admin_secret_name", admin),
+						func(*terraform.State) error { return f.checkInstance("installed", stored) },
+					),
+				},
+				{
+					ResourceName:      harborInstanceAddress,
+					ImportState:       true,
+					ImportStateId:     harborInstance,
+					ImportStateVerify: true,
+				},
+				{
+					Config: harborInstanceConfig(f, harborGcp, withAdmin.with(func(a *harborInstanceArgs) { a.adminSecretName = "harbor-prod-admin-2" })),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(harborInstanceAddress, plancheck.ResourceActionReplace)},
+					},
+					Check: func(*terraform.State) error {
+						if item := f.instance(harborInstance); item["adminSecretName"] != "harbor-prod-admin-2" {
+							return fmt.Errorf("P0 item = %v; want the new admin secret", item)
+						}
+						return nil
+					},
+				},
+				// Unset, the name is left out of every request, and P0 stores none.
+				{
+					Config: harborInstanceConfig(f, harborGcp, harborGcpInstance()),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(harborInstanceAddress, plancheck.ResourceActionReplace)},
+					},
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckNoResourceAttr(harborInstanceAddress, "admin_secret_name"),
+						func(*terraform.State) error { return f.checkInstance("installed", harborGcpInstanceItem) },
+					),
+				},
+			},
+		})
+	})
+
+	// A blank name in P0 is none, so it reads as unset and plans nothing.
+	t.Run("blank in P0", func(t *testing.T) {
+		f := newHarborFake(t)
+		config := harborInstanceConfig(f, harborGcp, harborGcpInstance())
+		resource.UnitTest(t, resource.TestCase{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			CheckDestroy:             checkHarborInstanceDestroyed(f, harborInstance),
+			Steps: []resource.TestStep{
+				{Config: config},
+				{
+					PreConfig: func() {
+						f.update("harbor", "harbor-instance", harborInstance, func(item map[string]any) { item["adminSecretName"] = " " })
+					},
+					Config:           config,
+					ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()}},
+				},
+			},
+		})
+	})
+
+	t.Run("cross-account suffix", func(t *testing.T) {
+		f := newHarborFake(t)
+		suffixed := harborAwsInstance().with(func(a *harborInstanceArgs) { a.adminSecretName = "harbor-admin-AbC123" })
+		resource.UnitTest(t, resource.TestCase{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			CheckDestroy:             checkHarborInstanceDestroyed(f, harborInstance),
+			Steps: []resource.TestStep{
+				{Config: harborConnectorConfig(f, harborAws)},
+				{
+					Config:   harborInstanceConfig(f, harborAws, suffixed),
+					PlanOnly: true,
+					ExpectError: harborError("Invalid Harbor admin credential secret name",
+						"Secrets Manager can't find a secret in another account by its name when the name ends in a hyphen and six characters"),
+				},
+				{
+					Config: harborInstanceConfig(f, harborAws, suffixed.with(func(a *harborInstanceArgs) { a.vault = harborAwsVault("123456789012", "us-west-2") })),
+					Check:  resource.TestCheckResourceAttr(harborInstanceAddress, "admin_secret_name", "harbor-admin-AbC123"),
+				},
+			},
+		})
+	})
+}
+
 // The provider never sends these, so the fake's answers to them are exercised
 // directly: a PUT over an instance P0 holds, changed or unchanged, before and after
 // it is installed, and a verify that changes a field.
@@ -821,6 +925,57 @@ func TestHarborFakeInstanceRefusals(t *testing.T) {
 	}
 	if stored := f.instance(harborInstance); stored["url"] != harborUrl {
 		t.Errorf("P0 item = %v; want the first URL kept", stored)
+	}
+}
+
+// The fake holds the admin credential's secret as app#7493 does: a PUT over an
+// instance has to agree on it, leaving it out agrees only with an instance that has
+// none, and a verify can't change it.
+func TestHarborFakeInstanceAdminSecret(t *testing.T) {
+	f := newHarborFake(t)
+	f.integrations["harbor"] = true
+	f.items[fakeItemKey{"harbor", "connector", harborConnector}] = map[string]any{
+		"hosting": map[string]any{"type": "gcp"}, "state": "installed",
+	}
+	item := "/o/" + fakeOrg + "/integrations/harbor/config/harbor-instance/" + harborInstance
+	send := func(method, path, admin string) int {
+		t.Helper()
+		adminField := ""
+		if admin != "-" {
+			adminField = fmt.Sprintf(`,"adminSecretName":%q`, admin)
+		}
+		body := fmt.Sprintf(`{"connector":%q,"url":%q,"secretName":%q,"vault":{"type":"gcp-sm","install":%q}%s}`,
+			harborConnector, harborUrl, harborSecret, harborSecretsProject, adminField)
+		req, err := http.NewRequest(method, f.server.URL+path, strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	for _, tc := range []struct {
+		name, method, path, admin string
+		want                      int
+	}{
+		{"the first PUT", http.MethodPut, item, "harbor-admin", http.StatusOK},
+		{"the same PUT", http.MethodPut, item, "harbor-admin", http.StatusOK},
+		{"a PUT without it", http.MethodPut, item, "-", http.StatusConflict},
+		{"a PUT with a blank one", http.MethodPut, item, " ", http.StatusConflict},
+		{"a PUT with another", http.MethodPut, item, "harbor-admin-2", http.StatusConflict},
+		{"a verify with another", http.MethodPost, item + "/verify", "harbor-admin-2", http.StatusUnprocessableEntity},
+		{"a verify without it", http.MethodPost, item + "/verify", "-", http.StatusOK},
+	} {
+		if got := send(tc.method, tc.path, tc.admin); got != tc.want {
+			t.Errorf("%s: status %d; want %d", tc.name, got, tc.want)
+		}
+	}
+	if stored := f.instance(harborInstance); stored["adminSecretName"] != "harbor-admin" {
+		t.Errorf("P0 item = %v; want the first admin secret kept", stored)
 	}
 }
 
@@ -1132,6 +1287,12 @@ func TestHarborInstanceValidation(t *testing.T) {
 		}), []string{invalidAwsName}},
 		{"secret resource name in Google Cloud", base.with(func(a *harborInstanceArgs) { a.secretName = "projects/acme-secrets/secrets/harbor-robot" }), []string{invalidGcpName}},
 		{"secret name over 255 characters in Google Cloud", base.with(func(a *harborInstanceArgs) { a.secretName = strings.Repeat("s", 256) }), []string{invalidGcpName}},
+		{"admin secret ARN in AWS", aws.with(func(a *harborInstanceArgs) {
+			a.adminSecretName = "arn:aws:secretsmanager:us-west-2:210987654321:secret:harbor-admin"
+		}), []string{"Invalid Harbor admin credential secret name", "the secret that holds the Harbor admin credential"}},
+		{"admin secret resource name in Google Cloud", base.with(func(a *harborInstanceArgs) { a.adminSecretName = "projects/acme-secrets/secrets/harbor-admin" }), []string{"Invalid Harbor admin credential secret name", invalidGcpName}},
+		{"blank admin secret name", base.with(func(a *harborInstanceArgs) { a.adminSecretName = " " }), []string{"Invalid Harbor admin credential secret name"}},
+		{"admin secret name with whitespace around it", base.with(func(a *harborInstanceArgs) { a.adminSecretName = "harbor-admin " }), []string{"P0 removes the whitespace around 'admin_secret_name'"}},
 		{"secret name with whitespace around it", base.with(func(a *harborInstanceArgs) { a.secretName = " " + harborSecret }), []string{"P0 removes the whitespace around 'secret_name'"}},
 		{"AWS vault with no account", base.with(vault(`    type = "aws-sm"
     secrets_region = "us-west-2"`)), []string{"Missing vault field", `'vault.account_id' is required when 'vault.type' is "aws-sm"`}},

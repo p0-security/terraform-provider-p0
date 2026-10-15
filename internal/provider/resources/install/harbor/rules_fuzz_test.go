@@ -281,6 +281,10 @@ func FuzzSecretName(f *testing.F) {
 			{installvaultedcredential.GcpSecretManager, referenceGcpSecretName(name), invalidGcpSecretName},
 			{"", referenceAwsSecretName(name), invalidSecretName},
 		} {
+			admin := adminSecretNameRules(tc.vaultType)
+			if len(admin) != 1 || admin[0].test(name) != tc.want {
+				t.Errorf("adminSecretNameRules(%q) on %q: want one rule that accepts it: %v", tc.vaultType, name, tc.want)
+			}
 			rules := secretNameRules(tc.vaultType)
 			if len(rules) != 1 || rules[0].test(name) != tc.want || rules[0].message != tc.message {
 				t.Errorf("secretNameRules(%q) on %q: want one rule that accepts it: %v, with the message %q", tc.vaultType, name, tc.want, tc.message)

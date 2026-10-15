@@ -38,6 +38,10 @@ const (
 		"not its ARN or the credentials themselves."
 	suffixedSecretName = "Secrets Manager can't find a secret in another account by its name when the name ends in a hyphen and six characters, like -AbCdEf. " +
 		"Use a secret whose name doesn't end that way, or one in the connector's own account."
+	invalidAdminSecretNameSummary = "Invalid Harbor admin credential secret name"
+	// The app's message for the admin credential's name (INVALID_ADMIN_SECRET_NAME).
+	invalidAdminSecretName = "That doesn't look like a secret name. Enter the name of the secret that holds the Harbor admin credential, " +
+		"not its ARN or the credential itself, or leave it empty."
 	invalidGcpSecretName = "That isn't a secret's name in Google Secret Manager. Enter the name alone, without its project or a version: " +
 		"letters, digits, underscores and hyphens, up to 255 characters."
 )
@@ -50,4 +54,14 @@ func secretNameRules(vaultType string) []rule {
 		return []rule{{summary: invalidSecretNameSummary, message: invalidGcpSecretName, test: gcpSecretNameRegex.MatchString}}
 	}
 	return []rule{{summary: invalidSecretNameSummary, message: invalidSecretName, test: awsSecretNameRegex.MatchString}}
+}
+
+// P0's rule for the name of the admin credential's secret, which is in the same vault
+// and held to the same per-vault rule as the robot account's. Only the message for a
+// name no vault takes is its own.
+func adminSecretNameRules(vaultType string) []rule {
+	if vaultType == installvaultedcredential.GcpSecretManager {
+		return []rule{{summary: invalidAdminSecretNameSummary, message: invalidGcpSecretName, test: gcpSecretNameRegex.MatchString}}
+	}
+	return []rule{{summary: invalidAdminSecretNameSummary, message: invalidAdminSecretName, test: awsSecretNameRegex.MatchString}}
 }

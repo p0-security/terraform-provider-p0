@@ -247,7 +247,9 @@ func (f *harborFake) refuseInstance(step fakeStep, items map[fakeItemKey]map[str
 			}[hosting["type"]]
 		}
 		name, _ := step.body["secretName"].(string)
-		if vaultType == "aws-sm" && vault["install"] != hosting["accountId"] && regexp.MustCompile(`-[A-Za-z0-9]{6}$`).MatchString(name) {
+		suffixed := regexp.MustCompile(`-[A-Za-z0-9]{6}$`)
+		if vaultType == "aws-sm" && vault["install"] != hosting["accountId"] &&
+			(suffixed.MatchString(name) || suffixed.MatchString(harborAdminSecretName(step.body))) {
 			return http.StatusBadRequest, "Secrets Manager can't find a secret in another account by its name when the name ends in a hyphen and six characters, like -AbCdEf. " +
 				"Use a secret whose name doesn't end that way, or one in the connector's own account."
 		}
@@ -277,6 +279,12 @@ func (f *harborFake) refuseInstance(step fakeStep, items map[fakeItemKey]map[str
 	return 0, ""
 }
 
+// The admin credential's secret name an instance holds, trimmed, or "" for none.
+func harborAdminSecretName(item map[string]any) string {
+	name, _ := item["adminSecretName"].(string)
+	return strings.TrimSpace(name)
+}
+
 // The first field of a stored instance that body changes, by its path as P0 names it,
 // or "" if body changes none.
 // A PUT has to send the whole instance, so whole counts a field it leaves out as a
@@ -286,6 +294,12 @@ func changedHarborInstanceField(item, body map[string]any, whole bool) string {
 		if sent, ok := body[field]; (ok || whole) && sent != item[field] {
 			return field
 		}
+	}
+	// Optional, so a request that leaves it out agrees with an instance that has none,
+	// and blank is none (app#7493). A verify or configure that leaves it out keeps the
+	// stored one.
+	if _, ok := body["adminSecretName"]; (ok || whole) && harborAdminSecretName(body) != harborAdminSecretName(item) {
+		return "adminSecretName"
 	}
 	sent, ok := body["vault"].(map[string]any)
 	if !ok {
