@@ -83,7 +83,7 @@ The email domains that may receive access are set on the connector, as its ` + "
 
 **Prerequisites:**
 
-- Harbor signing users in with OIDC.
+- Harbor 2.12.0 or later, signing users in with OIDC. The connector checks the version, and P0 doesn't install an older one.
 
 - A dedicated user in your identity provider who is a Harbor system administrator, used for nothing else. The connector signs in as this user, so it can make anyone a member of any project at any role, and a system administrator.
 
@@ -115,7 +115,7 @@ For the full install steps, see [Installing Harbor](https://docs.p0.dev/integrat
 			"vault": vaultAttribute(),
 			"secret_name": schema.StringAttribute{
 				Required: true,
-				MarkdownDescription: "The name of the secret that holds the OIDC credential of a Harbor admin account, in the vault above: " +
+				MarkdownDescription: "The name of the secret that holds the OIDC credential of a Harbor admin account, in `vault`: " +
 					"JSON with \"issuer\", \"clientId\", \"clientSecret\" and \"refreshToken\". Harbor has to sign users in with OIDC. P0 never reads it; only your connector does. " +
 					"The name alone, never an ARN or a resource name. " +
 					"For `aws-sm`, up to 512 letters, digits and `/_+=.@-`, and, when the vault's account isn't the connector's, not ending in a hyphen and six letters or digits, like `-AbCdEf`. " +

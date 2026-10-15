@@ -11,7 +11,7 @@ description: |-
   The email domains that may receive access are set on the connector, as its ALLOWED_EMAIL_DOMAIN_PATTERN environment variable, and aren't an attribute of this resource.
   Prerequisites:
   
-  Harbor signing users in with OIDC.
+  Harbor 2.12.0 or later, signing users in with OIDC. The connector checks the version, and P0 doesn't install an older one.
   A dedicated user in your identity provider who is a Harbor system administrator, used for nothing else. The connector signs in as this user, so it can make anyone a member of any project at any role, and a system administrator.
   A secret that holds that user's OIDC credential, in the secret manager that vault names: JSON with issuer, clientId, clientSecret and refreshToken. It is as sensitive as an admin password.
   For aws-sm, p0_aws_secrets_manager installed for the account that holds the secret. Give the connector's role secretsmanager:GetSecretValue on the secret alone, and kms:Decrypt on its key if a customer-managed KMS key encrypts it. A secret in an account other than the connector's needs a customer-managed key, and the secret's resource policy and the key's policy must allow the connector's role.
@@ -38,7 +38,7 @@ The email domains that may receive access are set on the connector, as its `ALLO
 
 **Prerequisites:**
 
-- Harbor signing users in with OIDC.
+- Harbor 2.12.0 or later, signing users in with OIDC. The connector checks the version, and P0 doesn't install an older one.
 
 - A dedicated user in your identity provider who is a Harbor system administrator, used for nothing else. The connector signs in as this user, so it can make anyone a member of any project at any role, and a system administrator.
 
@@ -226,7 +226,7 @@ resource "p0_harbor_instance" "aws_example" {
 
 - `connector` (String) The `id` of the `p0_harbor_connector` that reaches this instance. The connector must be installed, and run in the same cloud as `vault`: on AWS Lambda for `aws-sm`, on Google Cloud Run for `gcp-sm`.
 - `id` (String) A name you choose for the instance, such as `prod`: lowercase letters, digits and hyphens, starting and ending with a letter or digit, up to 63 characters
-- `secret_name` (String) The name of the secret that holds the OIDC credential of a Harbor admin account, in the vault above: JSON with "issuer", "clientId", "clientSecret" and "refreshToken". Harbor has to sign users in with OIDC. P0 never reads it; only your connector does. The name alone, never an ARN or a resource name. For `aws-sm`, up to 512 letters, digits and `/_+=.@-`, and, when the vault's account isn't the connector's, not ending in a hyphen and six letters or digits, like `-AbCdEf`. For `gcp-sm`, up to 255 letters, digits, underscores and hyphens.
+- `secret_name` (String) The name of the secret that holds the OIDC credential of a Harbor admin account, in `vault`: JSON with "issuer", "clientId", "clientSecret" and "refreshToken". Harbor has to sign users in with OIDC. P0 never reads it; only your connector does. The name alone, never an ARN or a resource name. For `aws-sm`, up to 512 letters, digits and `/_+=.@-`, and, when the vault's account isn't the connector's, not ending in a hyphen and six letters or digits, like `-AbCdEf`. For `gcp-sm`, up to 255 letters, digits, underscores and hyphens.
 - `url` (String) The address your Harbor instance is served at, such as `https://harbor.example.com`: `https://` and the host, with a port if it isn't 443, in lowercase and with nothing after it. Leave out a trailing slash, any path, and any username or password. P0 stores the address in this spelling alone, and the connector signs in to it with the admin credential. It can't change: for another address, add a new `p0_harbor_instance` with its own `id`.
 - `vault` (Attributes) The secret manager that holds the admin credential's secret, as installed in P0. P0 never reads the secret. The connector does, so the secret manager must be in the connector's cloud: AWS Secrets Manager for a connector on AWS Lambda, Google Secret Manager for one on Google Cloud Run. (see [below for nested schema](#nestedatt--vault))
 
