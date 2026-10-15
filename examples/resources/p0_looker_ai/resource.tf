@@ -142,13 +142,15 @@ resource "google_project_iam_member" "connector_secret_create" {
 }
 
 # The connector writes each grant's key and deletes the secret when the grant
-# ends. It never reads a grant secret back.
+# ends. secrets.get matches the role P0's in-app install generates. The
+# condition below keeps all three to the Looker grant secrets.
 resource "google_project_iam_custom_role" "connector_secret_manage" {
   project = local.project
   role_id = "p0LookerConnectorSecretManage"
   title   = "P0 Looker connector grant secret management"
   permissions = [
     "secretmanager.secrets.delete",
+    "secretmanager.secrets.get",
     "secretmanager.versions.add",
   ]
 
