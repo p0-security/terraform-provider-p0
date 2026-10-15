@@ -103,7 +103,7 @@ resource "p0_mysql_staged" "example" {
 # repo/image and provisions the Lambda under the name P0 set in hosting.connector_arn.
 module "p0_connector" {
   source  = "p0-security/p0-connector/aws"
-  version = "0.5.1"
+  version = "0.6.0"
 
   aws_role_name       = "P0RoleIamManager"
   aws_services        = ["rds"]

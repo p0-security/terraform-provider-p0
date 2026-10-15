@@ -101,7 +101,7 @@ resource "p0_postgres_staged" "example" {
 # connector_arn) with VPC endpoints for AWS/P0 API access, and lets P0's iam-write role invoke it.
 module "aws_db_connector_install" {
   source  = "p0-security/p0-connector/aws"
-  version = "0.5.1"
+  version = "0.6.0"
 
   aws_role_name       = aws_iam_role.p0_iam_manager.name
   aws_services        = ["rds"]
@@ -120,7 +120,7 @@ module "aws_pg_install" {
   source  = "p0-security/p0-db/aws"
   version = "0.3.0"
 
-  rds_cluster_arn = aws_db_instance.postgres.arn
+  rds_instance_arn = aws_db_instance.postgres.arn
 
   connector_security_group_id = module.aws_db_connector_install.connector_security_group.id
   lambda_execution_role_name  = reverse(split("/", reverse(split(":", module.aws_db_connector_install.lambda.role))[0]))[0]
