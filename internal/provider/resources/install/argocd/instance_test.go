@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // An instance that P0 returns without a vault, or with one this provider doesn't
@@ -77,5 +78,41 @@ func TestVaultToJson(t *testing.T) {
 func TestInstanceItemJsonWithoutItem(t *testing.T) {
 	if item := instanceItemJson(&instanceApi{}); item != nil {
 		t.Errorf("instanceItemJson of an answer with no item = %#v; want nil", item)
+	}
+}
+
+// An instance keeps its secret once it exists, so the cross-account check of the
+// secret's name runs only for one the apply creates: a new one, or one that a change
+// to a field that requires replacement recreates. A new URL doesn't recreate it.
+func TestInstanceWillBeCreated(t *testing.T) {
+	instance := func(change func(*instanceModel)) *instanceModel {
+		model := &instanceModel{
+			Id: types.StringValue("prod"), Connector: types.StringValue("prod"), Url: types.StringValue("https://argocd.example.com"),
+			SecretName: types.StringValue("argocd-token-AbC123"),
+			Vault: &vaultModel{
+				Type: types.StringValue(awsSecretsManager), AccountId: types.StringValue("210987654321"),
+				SecretsRegion: types.StringValue("us-west-2"), ProjectId: types.StringNull(),
+			},
+		}
+		change(model)
+		return model
+	}
+	unchanged := func(*instanceModel) {}
+	for _, tc := range []struct {
+		name  string
+		plan  func(*instanceModel)
+		state func(*instanceModel)
+		want  bool
+	}{
+		{"nothing changes", unchanged, unchanged, false},
+		{"a new URL", func(m *instanceModel) { m.Url = types.StringValue("https://other.example.com") }, unchanged, false},
+		{"a new secret", func(m *instanceModel) { m.SecretName = types.StringValue("argocd-token-2") }, unchanged, true},
+		{"a new vault account", func(m *instanceModel) { m.Vault.AccountId = types.StringValue("123456789012") }, unchanged, true},
+		{"no vault in state", unchanged, func(m *instanceModel) { m.Vault = nil }, true},
+		{"no vault planned", func(m *instanceModel) { m.Vault = nil }, unchanged, true},
+	} {
+		if got := instanceWillBeCreated(instance(tc.state), instance(tc.plan)); got != tc.want {
+			t.Errorf("%s: instanceWillBeCreated = %v; want %v", tc.name, got, tc.want)
+		}
 	}
 }
