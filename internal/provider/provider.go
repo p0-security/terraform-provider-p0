@@ -166,6 +166,9 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		UserAgent:      fmt.Sprintf("terraform-provider-p0/%s Terraform/%s", p.version, req.TerraformVersion),
 		Client:         http.DefaultClient,
 		BaseUrl:        fmt.Sprintf("%s/o/%s", p0_host, model.Org.ValueString()),
+		// Each resource gets its own copy of data; they share this throttle,
+		// so a 429 on any of them pauses them all.
+		Throttle: internal.NewThrottle(),
 	}
 	resp.DataSourceData = data
 	resp.ResourceData = data
