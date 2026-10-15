@@ -15,12 +15,12 @@ import (
 )
 
 // shortRetryDelays makes backoff without a Retry-After header take
-// milliseconds, for the duration of a test.
+// milliseconds, and the retry window 100ms, for the duration of a test.
 func shortRetryDelays(t *testing.T) {
 	t.Helper()
-	oldBase, oldMax := baseRetryDelay, maxRetryDelay
-	baseRetryDelay, maxRetryDelay = time.Millisecond, 10*time.Millisecond
-	t.Cleanup(func() { baseRetryDelay, maxRetryDelay = oldBase, oldMax })
+	oldBase, oldMax, oldWindow := baseRetryDelay, maxRetryDelay, retryWindow
+	baseRetryDelay, maxRetryDelay, retryWindow = time.Millisecond, 10*time.Millisecond, 100*time.Millisecond
+	t.Cleanup(func() { baseRetryDelay, maxRetryDelay, retryWindow = oldBase, oldMax, oldWindow })
 }
 
 // The page P0's load balancer sends with a 429.
@@ -83,7 +83,9 @@ func TestRateLimitExhaustedSaysSo(t *testing.T) {
 	}
 	for name, call := range methods {
 		calls.Store(0)
+		start := time.Now()
 		err := call()
+		elapsed := time.Since(start)
 		if err == nil {
 			t.Fatalf("%s: expected an error, got nil", name)
 		}
@@ -93,8 +95,11 @@ func TestRateLimitExhaustedSaysSo(t *testing.T) {
 		if !strings.Contains(err.Error(), "rate limiting") || !strings.Contains(err.Error(), "429") {
 			t.Errorf("%s: expected the error to name the rate limit, got %q", name, err.Error())
 		}
-		if got := calls.Load(); got != maxRetries+1 {
-			t.Errorf("%s: expected %d requests, got %d", name, maxRetries+1, got)
+		if got := calls.Load(); got < 2 {
+			t.Errorf("%s: expected the request to be retried, got %d requests", name, got)
+		}
+		if elapsed < retryWindow || elapsed > retryWindow+time.Second {
+			t.Errorf("%s: expected to give up once the %s retry window passed, gave up after %s", name, retryWindow, elapsed)
 		}
 	}
 }
@@ -219,19 +224,35 @@ func TestParseRetryAfter(t *testing.T) {
 	}
 }
 
-// TestRetriesSpanTheRateLimitWindow guards the retry budget: P0 counts
-// requests per minute, so the backoff without Retry-After has to outlast a
-// minute before the provider gives up.
-func TestRetriesSpanTheRateLimitWindow(t *testing.T) {
-	var total time.Duration
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		// The delay before jitter.
-		total += min(baseRetryDelay*(1<<attempt), maxRetryDelay)
-		if d := computeRetryDelay(attempt); d > maxRetryDelay+maxRetryDelay/4 {
-			t.Errorf("attempt %d: delay %s is over the cap", attempt, d)
+// TestRetryDelayStaysCapped guards computeRetryDelay over the many attempts a
+// five-minute window allows, including attempts large enough to overflow the
+// doubling.
+func TestRetryDelayStaysCapped(t *testing.T) {
+	for attempt := 0; attempt < 100; attempt++ {
+		if d := computeRetryDelay(attempt); d < baseRetryDelay || d > maxRetryDelay+maxRetryDelay/4 {
+			t.Errorf("attempt %d: delay %s is outside [%s, %s]", attempt, d, baseRetryDelay, maxRetryDelay+maxRetryDelay/4)
 		}
 	}
-	if total < 2*time.Minute {
-		t.Errorf("expected the retries to span over two minutes, got %s", total)
+}
+
+// TestRetryAfterZeroStillBacksOff confirms a Retry-After of 0 doesn't send
+// requests back to back for the whole retry window.
+func TestRetryAfterZeroStillBacksOff(t *testing.T) {
+	shortRetryDelays(t)
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Retry-After", "0")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	data := P0ProviderData{BaseUrl: server.URL, Authentication: "Bearer x", Client: server.Client()}
+	if _, err := data.Get("some/path", nil); err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	// At most one request per baseRetryDelay, plus the first.
+	if limit := int32(retryWindow/baseRetryDelay) + 1; calls.Load() > limit {
+		t.Errorf("expected at most %d requests in the %s window, got %d", limit, retryWindow, calls.Load())
 	}
 }

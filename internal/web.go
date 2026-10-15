@@ -76,14 +76,13 @@ func (t *Throttle) wait(done <-chan struct{}) bool {
 	}
 }
 
-// P0 allows a number of requests per minute, so the retries span more than a
-// minute in total: 1+2+4+8+16+32+60+60 seconds, plus jitter.
-const maxRetries = 8
-
 // Variables rather than constants so tests can shorten them.
 var (
 	baseRetryDelay = 1 * time.Second
 	maxRetryDelay  = 60 * time.Second
+	// How long a request keeps retrying 429s, counted from its first attempt.
+	// P0 counts requests per minute, so this spans several windows.
+	retryWindow = 5 * time.Minute
 )
 
 // doWithRetry sends req via the underlying http.Client, retrying on 429
@@ -94,14 +93,13 @@ func (data *P0ProviderData) doWithRetry(req *http.Request) (*http.Response, erro
 		req.Header.Set("User-Agent", data.UserAgent)
 	}
 
-	var lastResp *http.Response
-	var lastErr error
+	deadline := time.Now().Add(retryWindow)
 
-	for attempt := 0; attempt <= maxRetries; attempt++ {
+	for attempt := 0; ; attempt++ {
 		if attempt > 0 && req.GetBody != nil {
 			newBody, err := req.GetBody()
 			if err != nil {
-				return lastResp, err
+				return nil, err
 			}
 			req.Body = newBody
 		}
@@ -111,14 +109,12 @@ func (data *P0ProviderData) doWithRetry(req *http.Request) (*http.Response, erro
 		}
 
 		resp, err := data.Client.Do(req)
-		lastResp = resp
-		lastErr = err
-
 		if err != nil {
 			return resp, err
 		}
 
-		if resp.StatusCode != http.StatusTooManyRequests || attempt == maxRetries {
+		remaining := time.Until(deadline)
+		if resp.StatusCode != http.StatusTooManyRequests || remaining <= 0 {
 			return resp, nil
 		}
 
@@ -126,6 +122,10 @@ func (data *P0ProviderData) doWithRetry(req *http.Request) (*http.Response, erro
 		if !ok {
 			delay = computeRetryDelay(attempt)
 		}
+		// Wait at least the base delay, so a Retry-After of 0 can't send
+		// requests back to back for the whole window, and make the last
+		// attempt at the deadline rather than giving up early.
+		delay = min(max(delay, baseRetryDelay), remaining)
 		data.Throttle.pauseUntil(time.Now().Add(delay))
 
 		// Drain and close so the underlying connection can be reused.
@@ -138,8 +138,6 @@ func (data *P0ProviderData) doWithRetry(req *http.Request) (*http.Response, erro
 			return nil, req.Context().Err()
 		}
 	}
-
-	return lastResp, lastErr
 }
 
 // computeRetryDelay returns an exponential backoff delay with jitter,
@@ -188,9 +186,9 @@ func parseRetryAfter(header string, now time.Time) (time.Duration, bool) {
 func statusError(resp *http.Response) error {
 	if resp.StatusCode == http.StatusTooManyRequests {
 		return fmt.Errorf(
-			"P0 is still rate limiting this provider's requests (%s) after %d retries. "+
+			"P0 is still rate limiting this provider's requests (%s) after retrying for %g minutes. "+
 				"Wait a minute and run Terraform again with fewer concurrent operations, for example -parallelism=2",
-			resp.Status, maxRetries,
+			resp.Status, retryWindow.Minutes(),
 		)
 	}
 	return fmt.Errorf("unexpected response from P0: %s", resp.Status)
