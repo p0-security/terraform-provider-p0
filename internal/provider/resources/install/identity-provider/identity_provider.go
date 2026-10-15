@@ -92,7 +92,9 @@ func (r *IdentityProvider) Metadata(ctx context.Context, req resource.MetadataRe
 
 func (r *IdentityProvider) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `Enrolls an identity provider, allowing headless agents to authenticate as P0-managed identities.`,
+		MarkdownDescription: `Enrolls an identity provider, allowing headless agents to authenticate as P0-managed identities.
+
+For the full install steps, see [Identity provider](https://docs.p0.dev/integrations/resource-integrations/identity-provider).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

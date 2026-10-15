@@ -34,7 +34,9 @@ Staging records the account in P0 and checks its ID and accounts URL before you 
 
 **Prerequisite:** The connector that reaches the account must be installed (see the ` + "`p0_databricks_connector`" + ` resource).
 
-` + betaNote,
+` + betaNote + `
+
+For the full install steps, see [Installing Databricks](https://docs.p0.dev/integrations/resource-integrations/databricks/installation).`,
 		Attributes: accountStagedAttributes(),
 	}
 }

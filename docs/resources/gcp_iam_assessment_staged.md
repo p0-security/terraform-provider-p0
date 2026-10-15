@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   A staged installation of P0, on a single Google Cloud project, for IAM assessment.
   For instructions on using this resource, see the documentation for p0_gcp_iam_assessment.
+  For the full install steps, see IAM assessment https://docs.p0.dev/integrations/resource-integrations/google-cloud/iam-assessment.
 ---
 
 # p0_gcp_iam_assessment_staged (Resource)
@@ -12,6 +13,8 @@ description: |-
 A staged installation of P0, on a single Google Cloud project, for IAM assessment.
 
 For instructions on using this resource, see the documentation for `p0_gcp_iam_assessment`.
+
+For the full install steps, see [IAM assessment](https://docs.p0.dev/integrations/resource-integrations/google-cloud/iam-assessment).
 
 ## Example Usage
 

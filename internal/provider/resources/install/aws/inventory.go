@@ -63,7 +63,9 @@ Allows P0 to inventory your AWS resources. Required for resource-level just-in-t
 **Important**: This resource should be used together with the p0_aws_inventory_staged resource, with a dependency chain
 requiring this resource to be updated after the p0_aws_inventory_staged resource.
 
-Create the AWS role using the attributes from p0_aws_inventory_staged, then create this resource with depends_on = [aws_iam_role.p0_inventory].`,
+Create the AWS role using the attributes from p0_aws_inventory_staged, then create this resource with depends_on = [aws_iam_role.p0_inventory].
+
+For the full install steps, see [AWS](https://docs.p0.dev/integrations/resource-integrations/aws).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

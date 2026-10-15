@@ -7,6 +7,7 @@ description: |-
   Staging records the account in P0 and checks its ID and accounts URL before you create the service principal. Then create the service principal and its federation policy, and create a p0_databricks_account resource with the same id to complete the installation. The service principal needs the account_admin role only if that resource's is_account_admin_enabled is true.
   Prerequisite: The connector that reaches the account must be installed (see the p0_databricks_connector resource).
   Note: This integration is currently in beta.
+  For the full install steps, see Installing Databricks https://docs.p0.dev/integrations/resource-integrations/databricks/installation.
 ---
 
 # p0_databricks_account_staged (Resource)
@@ -18,6 +19,8 @@ Staging records the account in P0 and checks its ID and accounts URL before you 
 **Prerequisite:** The connector that reaches the account must be installed (see the `p0_databricks_connector` resource).
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [Installing Databricks](https://docs.p0.dev/integrations/resource-integrations/databricks/installation).
 
 ## Example Usage
 

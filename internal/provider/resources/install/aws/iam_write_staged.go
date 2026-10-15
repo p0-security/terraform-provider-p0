@@ -71,6 +71,8 @@ func (r *AwsIamWriteStaged) Schema(ctx context.Context, req resource.SchemaReque
 		MarkdownDescription: `A staged AWS IAM-management installation. Staged resources are used to generate AWS trust policies.
 
 **Important** Before using this resource, please read the instructions for the 'aws_iam_write' resource.
+
+For the full install steps, see [Setting up AWS IAM management](https://docs.p0.dev/integrations/resource-integrations/aws/installation-methods).
 `,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

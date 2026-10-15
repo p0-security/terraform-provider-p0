@@ -4,11 +4,14 @@ page_title: "p0_gcp Resource - p0"
 subcategory: ""
 description: |-
   A Google Cloud installation.
+  For the full install steps, see Google Cloud https://docs.p0.dev/integrations/resource-integrations/google-cloud.
 ---
 
 # p0_gcp (Resource)
 
 A Google Cloud installation.
+
+For the full install steps, see [Google Cloud](https://docs.p0.dev/integrations/resource-integrations/google-cloud).
 
 ## Example Usage
 

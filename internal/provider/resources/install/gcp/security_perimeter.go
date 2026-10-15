@@ -66,7 +66,9 @@ To use this resource, you must also:
 - Install the ` + "`p0_gcp_security_perimeter_staged`" + ` resource.
 - Deploy the P0 Security Perimeter cloud run service and the corresponding service account.
 
-Install the security perimeter before (or alongside) ` + "`p0_gcp_iam_write`" + `; the perimeter does not require an existing ` + "`p0_gcp_iam_write`" + ` install. Every Google Cloud project that installs ` + "`p0_gcp_iam_write`" + ` while the perimeter is in use must grant the security-perimeter service account the ` + "`p0IamWriter`" + ` custom role and ` + "`roles/iam.securityAdmin`" + `.`,
+Install the security perimeter before (or alongside) ` + "`p0_gcp_iam_write`" + `; the perimeter does not require an existing ` + "`p0_gcp_iam_write`" + ` install. Every Google Cloud project that installs ` + "`p0_gcp_iam_write`" + ` while the perimeter is in use must grant the security-perimeter service account the ` + "`p0IamWriter`" + ` custom role and ` + "`roles/iam.securityAdmin`" + `.
+
+For the full install steps, see [Security perimeter](https://docs.p0.dev/integrations/resource-integrations/google-cloud/security-perimeter).`,
 		Attributes: map[string]schema.Attribute{
 			"project": projectAttribute,
 			"state":   common.StateAttribute,

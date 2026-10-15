@@ -68,7 +68,9 @@ func (*fileTransferIamWrite) Schema(_ context.Context, _ resource.SchemaRequest,
 
 Installing File Transfer allows P0 to broker temporary, audited file transfers to your AWS EC2 instances through a customer-owned S3 bucket.
 
-**Prerequisite:** AWS SSH (` + "`p0_ssh_aws`" + `) must be installed for the same AWS account before file transfer can be requested. This also requires the AWS integration (` + "`p0_aws_iam_write`" + `), which P0 uses to verify the bucket at install time.`,
+**Prerequisite:** AWS SSH (` + "`p0_ssh_aws`" + `) must be installed for the same AWS account before file transfer can be requested. This also requires the AWS integration (` + "`p0_aws_iam_write`" + `), which P0 uses to verify the bucket at install time.
+
+For the full install steps, see [File transfer](https://docs.p0.dev/integrations/resource-integrations/file-transfer).`,
 		Attributes: map[string]schema.Attribute{
 			"account_id": schema.StringAttribute{
 				MarkdownDescription: `The AWS account ID. AWS SSH must already be installed for this account.`,

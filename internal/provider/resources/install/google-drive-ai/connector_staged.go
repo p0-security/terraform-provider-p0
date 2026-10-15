@@ -61,7 +61,9 @@ Use the read-only ` + "`connector_service_name`" + `, ` + "`connector_service_ac
 
 **Prerequisite:** the GCP Service Account Creator (` + "`p0_gcp_service_account_creator`" + `) must be installed for the same project.
 
-**Note:** This integration is currently in beta.`,
+**Note:** This integration is currently in beta.
+
+For the full install steps, see [Google Drive](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/google-drive).`,
 		Attributes: map[string]schema.Attribute{
 			"project_id": schema.StringAttribute{
 				Required:            true,

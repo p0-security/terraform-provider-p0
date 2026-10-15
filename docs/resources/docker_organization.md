@@ -16,6 +16,7 @@ description: |-
   On Google Cloud, give the connector's service account roles/secretmanager.secretAccessor and roles/secretmanager.viewer on the secret itself, not on its project.
   P0's secret manager integration for where the secret is: AWS Secrets Manager (p0_aws_secrets_manager) for the AWS account, or Google Secret Manager for the Google Cloud project.
   Note: This integration is currently in beta.
+  For the full install steps, see Docker Hub https://docs.p0.dev/integrations/resource-integrations/docker.
 ---
 
 # p0_docker_organization (Resource)
@@ -43,6 +44,8 @@ The connector, the vault and the secret are fixed when the organization is added
 - P0's secret manager integration for where the secret is: AWS Secrets Manager (`p0_aws_secrets_manager`) for the AWS account, or Google Secret Manager for the Google Cloud project.
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [Docker Hub](https://docs.p0.dev/integrations/resource-integrations/docker).
 
 ## Example Usage
 

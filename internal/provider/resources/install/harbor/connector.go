@@ -50,7 +50,9 @@ Destroying this resource returns the connector to its staged state, which ` + "`
 
 - For Google Cloud Run, the image ` + "`p0security/p0-connector-harbor-gcloud`" + `, running as the staged resource's ` + "`hosting.connector_service_account`" + `. ` + "`p0_gcp`" + ` must be installed. Grant its service account ` + "`roles/run.invoker`" + ` and ` + "`roles/run.viewer`" + ` on the connector's service, and pass the same address to the connector as its ` + "`INVOKER_SA_EMAIL`" + ` environment variable.
 
-` + betaNote,
+` + betaNote + `
+
+For the full install steps, see [Installing Harbor](https://docs.p0.dev/integrations/resource-integrations/harbor/installation).`,
 		Attributes: connectorAttributes(
 			"The `id` of the `p0_harbor_connector_staged` resource being finalized",
 			`Where the connector runs. Must match the `+"`p0_harbor_connector_staged`"+` resource.`,

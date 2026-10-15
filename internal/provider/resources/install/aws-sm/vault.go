@@ -60,7 +60,9 @@ func (*awsSmVault) Schema(_ context.Context, _ resource.SchemaRequest, resp *res
 
 Installing AWS Secrets Manager lets P0 use the account's Secrets Manager as a vault, such as for the private key of a GitHub Repositories installation (` + "`p0_github_repositories`" + `), whose ` + "`vault.account_id`" + ` names this account.
 
-**Prerequisite:** the AWS integration (` + "`p0_aws_iam_write`" + `) must be installed for the same AWS account.`,
+**Prerequisite:** the AWS integration (` + "`p0_aws_iam_write`" + `) must be installed for the same AWS account.
+
+For the full install steps, see [AWS Secrets Manager](https://docs.p0.dev/integrations/resource-integrations/aws-secrets-manager).`,
 		Attributes: map[string]schema.Attribute{
 			"account_id": schema.StringAttribute{
 				MarkdownDescription: `The AWS account ID. AWS IAM management must already be installed for this account.`,

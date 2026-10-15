@@ -32,6 +32,8 @@ description: |-
       admin_access_role_id    = "/subscriptions/<id>/providers/Microsoft.Authorization/roleDefinitions/<guid>"
     }
   }
+  
+  For the full install steps, see Azure bastion host https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/configure-bastion-host-integration/azure-bastion-host.
 ---
 
 # p0_azure_bastion_host (Resource)
@@ -81,6 +83,8 @@ resource "p0_azure_bastion_host" "example" {
   }
 }
 ```
+
+For the full install steps, see [Azure bastion host](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/configure-bastion-host-integration/azure-bastion-host).
 
 ## Example Usage
 

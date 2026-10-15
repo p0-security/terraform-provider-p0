@@ -4,11 +4,14 @@ page_title: "p0_splunk_audit_logs Resource - p0"
 subcategory: ""
 description: |-
   Allows P0 to send access events and security findings to a Splunk HTTP event collector. Only one p0_splunk_audit_logs resource is supported per P0 organization; creating more than one disables Splunk event forwarding for the entire organization.
+  For the full install steps, see Splunk HEC setup https://docs.p0.dev/integrations/siem-integrations/splunk-hec-setup.
 ---
 
 # p0_splunk_audit_logs (Resource)
 
 Allows P0 to send access events and security findings to a Splunk HTTP event collector. Only one `p0_splunk_audit_logs` resource is supported per P0 organization; creating more than one disables Splunk event forwarding for the entire organization.
+
+For the full install steps, see [Splunk HEC setup](https://docs.p0.dev/integrations/siem-integrations/splunk-hec-setup).
 
 ## Example Usage
 

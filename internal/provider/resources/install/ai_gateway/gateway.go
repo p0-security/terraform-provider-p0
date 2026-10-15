@@ -113,7 +113,9 @@ To use this resource, you must also install the ` + "`p0_ai_gateway_staged`" + `
 gateway to trust the service account returned by that resource (e.g. the ` + "`manageAllowedEmails`" + ` value in the
 ` + "`ai-gateway-stack`" + ` Helm chart).
 
-See the example usage for the recommended pattern to define this infrastructure.`,
+See the example usage for the recommended pattern to define this infrastructure.
+
+For the full install steps, see [Gateway](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/gateway).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

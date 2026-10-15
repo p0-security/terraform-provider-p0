@@ -33,6 +33,8 @@ description: |-
     partition  = p0_aws_midc_staged.staged_account.partition
     depends_on = [aws_iam_role_policy.p0_midc_manager]
   }
+  
+  For the full install steps, see Identity Center (merged) https://docs.p0.dev/integrations/resource-integrations/aws/installation-methods/identity-center-merged.
 ---
 
 # p0_aws_midc (Resource)
@@ -71,6 +73,8 @@ resource "p0_aws_midc" "installed_account" {
   depends_on = [aws_iam_role_policy.p0_midc_manager]
 }
 ```
+
+For the full install steps, see [Identity Center (merged)](https://docs.p0.dev/integrations/resource-integrations/aws/installation-methods/identity-center-merged).
 
 ## Example Usage
 

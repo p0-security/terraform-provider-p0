@@ -119,7 +119,9 @@ func (r *Server) Schema(ctx context.Context, req resource.SchemaRequest, resp *r
 		MarkdownDescription: `Registers an MCP server behind an AI gateway, giving agents access to your resources.
 
 To reference an AWS- or GCP-federated credential, install the corresponding ` + "`p0_aws_oidc_identity`" + ` or
-` + "`p0_gcp_wif_identity`" + ` resource first and pass its ` + "`id`" + ` as ` + "`credential.provider`" + `.`,
+` + "`p0_gcp_wif_identity`" + ` resource first and pass its ` + "`id`" + ` as ` + "`credential.provider`" + `.
+
+For the full install steps, see [MCP server](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

@@ -8,6 +8,7 @@ description: |-
   install the p0_gcp_iam_assessment_staged resource,create a custom role allowing IAM-assessment operations, andgrant this custom role to P0's service account.
   Use the read-only attributes defined on p0_gcp_iam_assessment_staged to create the requisite Google Cloud infrastructure.
   P0 recommends defining this infrastructure according to the pattern in the example usage.
+  For the full install steps, see IAM assessment https://docs.p0.dev/integrations/resource-integrations/google-cloud/iam-assessment.
 ---
 
 # p0_gcp_iam_assessment (Resource)
@@ -22,6 +23,8 @@ To use this resource, you must also:
 Use the read-only attributes defined on `p0_gcp_iam_assessment_staged` to create the requisite Google Cloud infrastructure.
 
 P0 recommends defining this infrastructure according to the pattern in the example usage.
+
+For the full install steps, see [IAM assessment](https://docs.p0.dev/integrations/resource-integrations/google-cloud/iam-assessment).
 
 ## Example Usage
 

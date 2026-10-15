@@ -42,7 +42,9 @@ A connector that already exists in P0, such as one added in the P0 app, isn't st
 
 **Prerequisite:** P0 invokes the connector as its own identity in your cloud. For AWS Lambda, ` + "`p0_aws_iam_write`" + ` must be installed for the account the connector runs in. For Google Cloud Run, ` + "`p0_gcp`" + ` must be installed.
 
-` + betaNote,
+` + betaNote + `
+
+For the full install steps, see [Installing Harbor](https://docs.p0.dev/integrations/resource-integrations/harbor/installation).`,
 		Attributes: connectorAttributes(
 			`A name you choose for the connector, such as `+"`prod`"+`: `+itemIdRule,
 			`Where the connector runs. The connector's Terraform deploys it there, and P0 invokes it there.`,

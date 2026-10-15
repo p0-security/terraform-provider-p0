@@ -116,7 +116,9 @@ resource "p0_aws_iam_write" "installed_account" {
   depends_on = [aws_iam_role_policy.p0_iam_manager]
   ...
 }
-` + "```",
+` + "```" + `
+
+For the full install steps, see [Setting up AWS IAM management](https://docs.p0.dev/integrations/resource-integrations/aws/installation-methods).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

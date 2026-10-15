@@ -92,7 +92,9 @@ To use this resource, you must also:
   (` + "`google_iam_workload_identity_pool`" + ` and ` + "`google_iam_workload_identity_pool_provider`" + `).
 
 Requires the Google Cloud integration (` + "`p0_gcp`" + `) to be installed for the same project. See the example
-usage for the recommended pattern to define this infrastructure.`,
+usage for the recommended pattern to define this infrastructure.
+
+For the full install steps, see [GCP Workload Identity Federation](https://docs.p0.dev/integrations/resource-integrations/gcp-wif).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

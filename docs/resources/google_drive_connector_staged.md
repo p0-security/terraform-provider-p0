@@ -7,6 +7,7 @@ description: |-
   Use the read-only connector_service_name, connector_service_account and region attributes to deploy the connector's Cloud Run service and its service account. Once the connector is deployed, create a p0_google_drive_connector resource with the same project_id to complete the installation.
   Prerequisite: the GCP Service Account Creator (p0_gcp_service_account_creator) must be installed for the same project.
   Note: This integration is currently in beta.
+  For the full install steps, see Google Drive https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/google-drive.
 ---
 
 # p0_google_drive_connector_staged (Resource)
@@ -18,6 +19,8 @@ Use the read-only `connector_service_name`, `connector_service_account` and `reg
 **Prerequisite:** the GCP Service Account Creator (`p0_gcp_service_account_creator`) must be installed for the same project.
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [Google Drive](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/google-drive).
 
 ## Example Usage
 

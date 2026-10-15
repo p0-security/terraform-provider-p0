@@ -4,11 +4,14 @@ page_title: "p0_identity_provider Resource - p0"
 subcategory: ""
 description: |-
   Enrolls an identity provider, allowing headless agents to authenticate as P0-managed identities.
+  For the full install steps, see Identity provider https://docs.p0.dev/integrations/resource-integrations/identity-provider.
 ---
 
 # p0_identity_provider (Resource)
 
 Enrolls an identity provider, allowing headless agents to authenticate as P0-managed identities.
+
+For the full install steps, see [Identity provider](https://docs.p0.dev/integrations/resource-integrations/identity-provider).
 
 ## Example Usage
 

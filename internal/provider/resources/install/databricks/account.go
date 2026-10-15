@@ -52,7 +52,9 @@ func (*Account) Schema(_ context.Context, _ resource.SchemaRequest, resp *resour
 
 An account that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
-` + betaNote,
+` + betaNote + `
+
+For the full install steps, see [Installing Databricks](https://docs.p0.dev/integrations/resource-integrations/databricks/installation).`,
 		Attributes: attributes,
 	}
 }

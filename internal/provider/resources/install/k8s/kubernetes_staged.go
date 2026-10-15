@@ -82,7 +82,9 @@ be added in a future release.
 for the 'p0_kubernetes' resource.
 
 **Prerequisite**: The EKS cluster's AWS account must already be installed for P0 IAM management (for example via the 'p0_aws' resource) before this resource can be
-applied. The P0 backend resolves the AWS account from the cluster ARN and rejects the install if that account is not yet installed for IAM management.`,
+applied. The P0 backend resolves the AWS account from the cluster ARN and rejects the install if that account is not yet installed for IAM management.
+
+For the full install steps, see [Terraform installation](https://docs.p0.dev/integrations/resource-integrations/kubernetes/terraform-installation).`,
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

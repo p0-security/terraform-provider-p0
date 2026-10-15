@@ -62,7 +62,9 @@ To use this resource, you must also:
 - grant the application the required Okta OAuth API scopes, and
 - assign the application an Okta admin role that can read all users and groups (for example, a custom role with the ` + "`okta.users.read`" + ` and ` + "`okta.groups.read`" + ` permissions).
 
-See the example usage for the recommended pattern to define this infrastructure.`,
+See the example usage for the recommended pattern to define this infrastructure.
+
+For the full install steps, see [Okta](https://docs.p0.dev/integrations/directory-integrations/okta).`,
 		Attributes: map[string]schema.Attribute{
 			"domain": schema.StringAttribute{
 				Required:            true,

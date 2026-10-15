@@ -66,7 +66,9 @@ func (*sshAwsIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `An AWS SSH Installation.
 		
-Installing SSH allows you to manage access to your servers on AWS.`,
+Installing SSH allows you to manage access to your servers on AWS.
+
+For the full install steps, see [SSH](https://docs.p0.dev/integrations/resource-integrations/ssh).`,
 		Attributes: map[string]schema.Attribute{
 			"account_id": schema.StringAttribute{
 				MarkdownDescription: `The AWS account ID`,

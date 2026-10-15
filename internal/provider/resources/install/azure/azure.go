@@ -76,7 +76,9 @@ func (r *Azure) Metadata(ctx context.Context, req resource.MetadataRequest, resp
 
 func (r *Azure) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A Microsoft Azure installation.`,
+		MarkdownDescription: `A Microsoft Azure installation.
+
+For the full install steps, see [Microsoft Azure](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure).`,
 		Attributes: map[string]schema.Attribute{
 			"directory_id": schema.StringAttribute{
 				Required:            true,

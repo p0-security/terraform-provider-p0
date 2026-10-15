@@ -72,7 +72,9 @@ P0 can reach the connector, and fails if it cannot.
 
 - For Google Cloud Run hosting, ` + "`p0_gcp`" + ` must be installed. Grant its service account
   ` + "`roles/run.invoker`" + ` on the connector's service, and pass the same address to the connector as its
-  ` + "`INVOKER_SA_EMAIL`" + ` environment variable.`,
+  ` + "`INVOKER_SA_EMAIL`" + ` environment variable.
+
+For the full install steps, see [Deploying a connector with Terraform](https://docs.p0.dev/integrations/resource-integrations/custom-application/deploying-a-connector-with-terraform).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				MarkdownDescription: `A unique identifier for this application (can be any string, e.g. "internal-admin-tool")`,

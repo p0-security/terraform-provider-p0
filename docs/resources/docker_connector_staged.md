@@ -8,6 +8,7 @@ description: |-
   Where a connector runs can't change once it is added, so changing id or hosting replaces the connector. If the connector is already added in P0, import it rather than creating it: P0 refuses to add a connector twice.
   Prerequisite: P0 invokes the connector as its own identity in your cloud. For AWS Lambda, p0_aws_iam_write must be installed for the account the connector runs in. For Google Cloud Run, p0_gcp must be installed.
   Note: This integration is currently in beta.
+  For the full install steps, see Docker Hub https://docs.p0.dev/integrations/resource-integrations/docker.
 ---
 
 # p0_docker_connector_staged (Resource)
@@ -21,6 +22,8 @@ Where a connector runs can't change once it is added, so changing `id` or `hosti
 **Prerequisite:** P0 invokes the connector as its own identity in your cloud. For AWS Lambda, `p0_aws_iam_write` must be installed for the account the connector runs in. For Google Cloud Run, `p0_gcp` must be installed.
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [Docker Hub](https://docs.p0.dev/integrations/resource-integrations/docker).
 
 ## Example Usage
 

@@ -19,6 +19,8 @@ description: |-
   
     subscription_id = local.subscription_id
   }
+  
+  For the full install steps, see Azure bastion host https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/configure-bastion-host-integration/azure-bastion-host.
 ---
 
 # p0_azure_bastion_host_staged (Resource)
@@ -48,6 +50,8 @@ resource "p0_azure_bastion_host_staged" "example" {
   subscription_id = local.subscription_id
 }
 ```
+
+For the full install steps, see [Azure bastion host](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/configure-bastion-host-integration/azure-bastion-host).
 
 ## Example Usage
 

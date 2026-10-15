@@ -63,7 +63,9 @@ Installing the GCP Service Account Creator lets P0 create a short-lived service 
 
 **Important:** Before creating this resource you must stage the installation with ` + "`p0_gcp_service_account_creator_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that P0 can reach the connector.
 
-**Note:** This integration is currently in beta.`,
+**Note:** This integration is currently in beta.
+
+For the full install steps, see [GCP Service Account Creator](https://docs.p0.dev/integrations/resource-integrations/gcp-service-account-creator).`,
 		Attributes: map[string]schema.Attribute{
 			"project_id": schema.StringAttribute{
 				Required:            true,

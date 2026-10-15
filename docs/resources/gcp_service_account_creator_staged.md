@@ -7,6 +7,7 @@ description: |-
   Use the read-only connector_service_name, connector_service_account and region attributes to deploy the connector's Cloud Run service, its service account, and the custom role it holds. Once the connector is deployed, create a p0_gcp_service_account_creator resource with the same project_id to complete the installation.
   Prerequisites: GCP IAM management (p0_gcp_iam_write) and GCP Workload Identity Federation (p0_gcp_wif_identity) must be installed for the same project.
   Note: This integration is currently in beta.
+  For the full install steps, see GCP Service Account Creator https://docs.p0.dev/integrations/resource-integrations/gcp-service-account-creator.
 ---
 
 # p0_gcp_service_account_creator_staged (Resource)
@@ -18,6 +19,8 @@ Use the read-only `connector_service_name`, `connector_service_account` and `reg
 **Prerequisites:** GCP IAM management (`p0_gcp_iam_write`) and GCP Workload Identity Federation (`p0_gcp_wif_identity`) must be installed for the same project.
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [GCP Service Account Creator](https://docs.p0.dev/integrations/resource-integrations/gcp-service-account-creator).
 
 ## Example Usage
 

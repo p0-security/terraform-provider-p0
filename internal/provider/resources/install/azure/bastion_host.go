@@ -187,7 +187,9 @@ See ` + "`examples/resources/p0_azure_bastion_host/`" + ` for full chains.
 			"    admin_access_role_id    = \"" + roleDefinitionResourceIdExample + "\"\n" +
 			"  }\n" +
 			"}\n" +
-			"```\n",
+			"```\n" +
+			"\n" +
+			"For the full install steps, see [Azure bastion host](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/configure-bastion-host-integration/azure-bastion-host).",
 		Attributes: map[string]schema.Attribute{
 			"subscription_id": schema.StringAttribute{
 				Description: "The Azure subscription ID where the bastion host or jump host is used.",

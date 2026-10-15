@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   An installation of P0, on a single Azure tenant.
   Complete a prior p0_azure_app_staged apply, create the Azure AD application, its service principal, and federated identity credential using that resource's computed app_name and credential_info (see examples/resources/p0_azure_app_staged/), then set client_id here to the new application's client ID.
+  For the full install steps, see Azure app registration https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/azure-app-registration.
 ---
 
 # p0_azure_app (Resource)
@@ -12,6 +13,8 @@ description: |-
 An installation of P0, on a single Azure tenant.
 
 Complete a prior `p0_azure_app_staged` apply, create the Azure AD application, its service principal, and federated identity credential using that resource's computed `app_name` and `credential_info` (see `examples/resources/p0_azure_app_staged/`), then set `client_id` here to the new application's client ID.
+
+For the full install steps, see [Azure app registration](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/azure-app-registration).
 
 ## Example Usage
 

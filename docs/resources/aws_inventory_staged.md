@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   A staged AWS resource inventory installation. Staged resources are used to generate AWS trust policies and role configuration.
   Important Before using this resource, please read the instructions for the p0_aws_inventory resource. Create the AWS role using the attributes from this resource, then create the p0_aws_inventory resource with depends_on = [aws_iam_role.p0_inventory].
+  For the full install steps, see AWS https://docs.p0.dev/integrations/resource-integrations/aws.
 ---
 
 # p0_aws_inventory_staged (Resource)
@@ -12,6 +13,8 @@ description: |-
 A staged AWS resource inventory installation. Staged resources are used to generate AWS trust policies and role configuration.
 
 **Important** Before using this resource, please read the instructions for the p0_aws_inventory resource. Create the AWS role using the attributes from this resource, then create the p0_aws_inventory resource with depends_on = [aws_iam_role.p0_inventory].
+
+For the full install steps, see [AWS](https://docs.p0.dev/integrations/resource-integrations/aws).
 
 ## Example Usage
 

@@ -6,6 +6,7 @@ description: |-
   An AWS Secrets Manager (preview) installation for an AWS account.
   Installing AWS Secrets Manager lets P0 use the account's Secrets Manager as a vault, such as for the private key of a GitHub Repositories installation (p0_github_repositories), whose vault.account_id names this account.
   Prerequisite: the AWS integration (p0_aws_iam_write) must be installed for the same AWS account.
+  For the full install steps, see AWS Secrets Manager https://docs.p0.dev/integrations/resource-integrations/aws-secrets-manager.
 ---
 
 # p0_aws_secrets_manager (Resource)
@@ -15,6 +16,8 @@ An AWS Secrets Manager (preview) installation for an AWS account.
 Installing AWS Secrets Manager lets P0 use the account's Secrets Manager as a vault, such as for the private key of a GitHub Repositories installation (`p0_github_repositories`), whose `vault.account_id` names this account.
 
 **Prerequisite:** the AWS integration (`p0_aws_iam_write`) must be installed for the same AWS account.
+
+For the full install steps, see [AWS Secrets Manager](https://docs.p0.dev/integrations/resource-integrations/aws-secrets-manager).
 
 ## Example Usage
 

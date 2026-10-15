@@ -42,6 +42,8 @@ To use this resource, you must also:
 Use the read-only attributes defined on ` + "`p0_gcp_iam_assessment_staged`" + ` to create the requisite Google Cloud infrastructure.
 
 P0 recommends defining this infrastructure according to the pattern in the example usage.
+
+For the full install steps, see [IAM assessment](https://docs.p0.dev/integrations/resource-integrations/google-cloud/iam-assessment).
 `,
 		Attributes: map[string]schema.Attribute{
 			// In P0 we would name this 'id' or 'project_id'; it is named 'project' here to align with Terraform's naming for

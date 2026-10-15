@@ -43,7 +43,9 @@ To use this resource, you must also:
 
 Use the read-only attributes defined on ` + "`p0_gcp`" + ` to create the requisite Google Cloud infrastructure.
 
-P0 recommends defining this infrastructure according to the example usage pattern.`,
+P0 recommends defining this infrastructure according to the example usage pattern.
+
+For the full install steps, see [IAM assessment](https://docs.p0.dev/integrations/resource-integrations/google-cloud/iam-assessment).`,
 		Attributes: map[string]schema.Attribute{
 			"state": common.StateAttribute,
 		},

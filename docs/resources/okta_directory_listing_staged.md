@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   A staged installation of P0, on an Okta organization for directory listing.
   For instructions on using this resource, see the documentation for p0_okta_directory_listing.
+  For the full install steps, see Okta https://docs.p0.dev/integrations/directory-integrations/okta.
 ---
 
 # p0_okta_directory_listing_staged (Resource)
@@ -12,6 +13,8 @@ description: |-
 A staged installation of P0, on an Okta organization for directory listing.
 
 For instructions on using this resource, see the documentation for `p0_okta_directory_listing`.
+
+For the full install steps, see [Okta](https://docs.p0.dev/integrations/directory-integrations/okta).
 
 ## Example Usage
 

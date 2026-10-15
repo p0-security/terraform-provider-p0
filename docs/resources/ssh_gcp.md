@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   A Google Cloud SSH installation.
   Installing SSH allows you to manage access to your servers on Google Cloud.
+  For the full install steps, see SSH https://docs.p0.dev/integrations/resource-integrations/ssh.
 ---
 
 # p0_ssh_gcp (Resource)
@@ -12,6 +13,8 @@ description: |-
 A Google Cloud SSH installation. 
 		
 Installing SSH allows you to manage access to your servers on Google Cloud.
+
+For the full install steps, see [SSH](https://docs.p0.dev/integrations/resource-integrations/ssh).
 
 ## Example Usage
 

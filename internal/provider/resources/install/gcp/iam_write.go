@@ -40,7 +40,9 @@ To use this resource, you must also:
 
 Use the read-only attributes defined on ` + "`p0_gcp_iam_write_staged`" + ` to create the requisite Google Cloud infrastructure.
 
-See the example usage for the recommended pattern to define this infrastructure.`,
+See the example usage for the recommended pattern to define this infrastructure.
+
+For the full install steps, see [Google Cloud](https://docs.p0.dev/integrations/resource-integrations/google-cloud).`,
 		Attributes: itemAttributes,
 	}
 }

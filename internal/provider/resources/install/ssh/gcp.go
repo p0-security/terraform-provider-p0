@@ -63,7 +63,9 @@ func (*sshGcpIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Google Cloud SSH installation. 
 		
-Installing SSH allows you to manage access to your servers on Google Cloud.`,
+Installing SSH allows you to manage access to your servers on Google Cloud.
+
+For the full install steps, see [SSH](https://docs.p0.dev/integrations/resource-integrations/ssh).`,
 		Attributes: map[string]schema.Attribute{
 			"group_key": schema.StringAttribute{
 				MarkdownDescription: "If present, Google Cloud instances will be grouped by the value of this tag. Access can be requested, in one request, to all instances with a shared tag value. Google Cloud group keys must be formatted as `<project_id_or_org_id>/<key>`; instances are matched either by a resource-manager tag with this full key, or by an instance label named by the part after the `/`.",

@@ -98,7 +98,9 @@ To use this resource, you must also:
 			"  client_id                = \"12345678-1234-1234-1234-123456789012\"\n" +
 			"  function_app_resource_id = \"" + functionAppResourceIdExample + "\"\n" +
 			"}\n" +
-			"```\n",
+			"```\n" +
+			"\n" +
+			"For the full install steps, see [Jump host management](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/jump-host-management).",
 		Attributes: map[string]schema.Attribute{
 			"client_id": schema.StringAttribute{
 				Description: "The application (client) ID of the app registration P0 uses (via workload identity federation) to authenticate to the jump host management Azure Function.",

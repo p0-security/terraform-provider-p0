@@ -11,6 +11,7 @@ description: |-
   p0_gcp_wif_identity can finish installing; P0 does not create this GCP-side infrastructure on your
   behalf.
   For instructions on using this resource, see the documentation for p0_gcp_wif_identity.
+  For the full install steps, see GCP Workload Identity Federation https://docs.p0.dev/integrations/resource-integrations/gcp-wif.
 ---
 
 # p0_gcp_wif_identity_staged (Resource)
@@ -25,6 +26,8 @@ Create a Workload Identity Pool and provider with exactly this name (see the exa
 behalf.
 
 For instructions on using this resource, see the documentation for `p0_gcp_wif_identity`.
+
+For the full install steps, see [GCP Workload Identity Federation](https://docs.p0.dev/integrations/resource-integrations/gcp-wif).
 
 ## Example Usage
 
