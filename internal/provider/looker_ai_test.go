@@ -3,6 +3,7 @@ package provider
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -26,6 +27,8 @@ type lookerFake struct {
 	*fakeP0
 	// When set, verify fails the install check with this message.
 	failedCheck string
+	// Each write to a Looker install that P0 accepted or refused, in order.
+	steps []fakeStep
 }
 
 // Adds the fields P0's installer does: the connector's identifiers when it is staged,
@@ -46,7 +49,11 @@ func newLookerFake(t *testing.T) *lookerFake {
 		}
 	}
 	f.refuse = func(step fakeStep, _ map[fakeItemKey]map[string]any) (int, string) {
-		if step.key.integration != "looker-ai" || step.nextState == "stage" {
+		if step.key.integration != "looker-ai" {
+			return 0, ""
+		}
+		f.steps = append(f.steps, step)
+		if step.nextState == "stage" {
 			return 0, ""
 		}
 		for _, field := range lookerFixedFields {
@@ -66,6 +73,26 @@ func newLookerFake(t *testing.T) *lookerFake {
 
 func (f *lookerFake) credential() map[string]any {
 	return f.item("looker-ai", "credential", lookerId)
+}
+
+// The states that the writes since the step at index from moved the install to,
+// accepted or not.
+func (f *lookerFake) stepsSince(from int) []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	states := []string{}
+	for _, step := range f.steps[from:] {
+		states = append(states, step.nextState)
+	}
+	return states
+}
+
+func (f *lookerFake) stepCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return len(f.steps)
 }
 
 func lookerStagedConfig(f *lookerFake, url string) string {
@@ -356,6 +383,42 @@ resource "p0_looker_ai" "example" {
   }
 }
 `, "last part of its URL"},
+		{"staged without a secret manager", `
+resource "p0_looker_ai_staged" "example" {
+  id               = "acme"
+  instance_url     = "https://acme.looker.app"
+  admin_key_secret = "key"
+}
+`, `The argument "secret_manager" is required`},
+		{"staged without an instance url", `
+resource "p0_looker_ai_staged" "example" {
+  id               = "acme"
+  admin_key_secret = "key"
+
+  secret_manager = {
+    type       = "gcp-sm"
+    project_id = "agents-project"
+  }
+}
+`, `The argument "instance_url" is required`},
+		{"staged without an admin key secret", `
+resource "p0_looker_ai_staged" "example" {
+  id           = "acme"
+  instance_url = "https://acme.looker.app"
+
+  secret_manager = {
+    type       = "gcp-sm"
+    project_id = "agents-project"
+  }
+}
+`, `The argument "admin_key_secret" is required`},
+		{"final without a secret manager", `
+resource "p0_looker_ai" "example" {
+  id               = "acme"
+  instance_url     = "https://acme.looker.app"
+  admin_key_secret = "key"
+}
+`, `The argument "secret_manager" is required`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newLookerFake(t)
@@ -420,6 +483,84 @@ resource "p0_looker_ai" "example" {
 					})
 				},
 				Config: lookerConfig(f, lookerUrl, ""),
+			},
+		},
+	})
+}
+
+// Completing the install sends P0 the final resource's whole configuration on every
+// step, so P0 checks the install against what Terraform holds, not only against what
+// was staged.
+func TestLookerAiSendsConfiguration(t *testing.T) {
+	f := newLookerFake(t)
+	var staged int
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkLookerDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: lookerStagedConfig(f, lookerUrl),
+				Check:  func(*terraform.State) error { staged = f.stepCount(); return nil },
+			},
+			{
+				Config: lookerConfig(f, lookerUrl, "42"),
+				Check: func(*terraform.State) error {
+					f.mu.Lock()
+					defer f.mu.Unlock()
+
+					steps := f.steps[staged:]
+					if len(steps) != 3 {
+						return fmt.Errorf("the install took %d steps, want stage, verify and configure", len(steps))
+					}
+					for _, step := range steps {
+						secretManager, _ := step.body["secretManager"].(map[string]any)
+						if step.body["instanceUrl"] != lookerUrl || step.body["adminKeySecret"] != lookerAdminSecret ||
+							step.body["contentFolderId"] != "42" ||
+							secretManager["type"] != "gcp-sm" || secretManager["install"] != lookerProject {
+							return fmt.Errorf("the %s step did not send the configuration: %v", step.nextState, step.body)
+						}
+					}
+					return nil
+				},
+			},
+		},
+	})
+}
+
+// An update runs P0's install check again, so a folder change that fails the check
+// fails the apply and leaves P0's folder as it was.
+func TestLookerAiUpdateChecksAgain(t *testing.T) {
+	f := newLookerFake(t)
+	var installed int
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkLookerDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: lookerConfig(f, lookerUrl, "42"),
+				Check:  func(*terraform.State) error { installed = f.stepCount(); return nil },
+			},
+			{
+				PreConfig:   func() { f.failedCheck = "Looker has no folder 43." },
+				Config:      lookerConfig(f, lookerUrl, "43"),
+				ExpectError: harborError("Looker install check failed", `Looker instance "acme"`, "Looker has no folder 43."),
+			},
+			{
+				PreConfig: func() { f.failedCheck = "" },
+				Config:    lookerConfig(f, lookerUrl, "43"),
+				Check: func(*terraform.State) error {
+					// The refused update, then the update that P0 accepted.
+					want := []string{"configure", "configure", "installed"}
+					if got := f.stepsSince(installed); !slices.Equal(got, want) {
+						return fmt.Errorf("the updates took the steps %v, want %v", got, want)
+					}
+					if item := f.credential(); item["contentFolderId"] != "43" || item["state"] != "installed" {
+						return fmt.Errorf("P0 item does not hold the new folder: %v", item)
+					}
+					return nil
+				},
 			},
 		},
 	})

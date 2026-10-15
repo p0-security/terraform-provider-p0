@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -86,6 +88,7 @@ func TestValidators(t *testing.T) {
 				"http://acme.looker.app",
 				"https://acme.looker.app/",
 				"https://ACME.Looker.App",
+				"https://Acme.looker.app",
 				"https://looker.app",
 				"https://acme.looker.app/browse",
 				"https://acme.looker.app:443",
@@ -108,8 +111,8 @@ func TestValidators(t *testing.T) {
 		},
 		{
 			"content folder id", folderIdRegex.MatchString,
-			[]string{"42", "abc_DEF-1"},
-			[]string{"", "/folders/42", "42/43", "4.2", "42 "},
+			[]string{"42", "abc_DEF-1", strings.Repeat("a", 64)},
+			[]string{"", "/folders/42", "42/43", "4.2", "42 ", strings.Repeat("a", 65)},
 		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -124,5 +127,81 @@ func TestValidators(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A value of the resource's schema with every attribute null except the strings in
+// set.
+func schemaValue(t *testing.T, r resource.Resource, set map[string]string) (tftypes.Value, resource.SchemaResponse) {
+	t.Helper()
+	ctx := context.Background()
+
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	objectType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	values := make(map[string]tftypes.Value, len(objectType.AttributeTypes))
+	for name, attributeType := range objectType.AttributeTypes {
+		values[name] = tftypes.NewValue(attributeType, nil)
+		if value, ok := set[name]; ok {
+			values[name] = tftypes.NewValue(tftypes.String, value)
+		}
+	}
+	return tftypes.NewValue(objectType, values), schemaResp
+}
+
+// Plans a change from prior to planned, where nil is no resource, and returns the
+// diagnostics.
+func modifyPlan(t *testing.T, prior, planned map[string]string) resource.ModifyPlanResponse {
+	t.Helper()
+	r := &LookerAiCredential{}
+	nullValue, schemaResp := schemaValue(t, r, nil)
+	value := func(set map[string]string) tftypes.Value {
+		if set == nil {
+			return tftypes.NewValue(nullValue.Type(), nil)
+		}
+		v, _ := schemaValue(t, r, set)
+		return v
+	}
+
+	req := resource.ModifyPlanRequest{
+		State: tfsdk.State{Schema: schemaResp.Schema, Raw: value(prior)},
+		Plan:  tfsdk.Plan{Schema: schemaResp.Schema, Raw: value(planned)},
+	}
+	resp := resource.ModifyPlanResponse{Plan: req.Plan}
+	r.ModifyPlan(context.Background(), req, &resp)
+	return resp
+}
+
+// Only removing a folder that is set is refused, and the error points at the folder.
+func TestModifyPlanRefusesFolderRemoval(t *testing.T) {
+	folder := map[string]string{"id": "acme", "content_folder_id": "42"}
+	noFolder := map[string]string{"id": "acme"}
+	otherFolder := map[string]string{"id": "acme", "content_folder_id": "43"}
+
+	for _, c := range []struct {
+		name           string
+		prior, planned map[string]string
+	}{
+		{"create", nil, noFolder},
+		{"create with a folder", nil, folder},
+		{"destroy", folder, nil},
+		{"no folder", noFolder, noFolder},
+		{"new folder", folder, otherFolder},
+		{"first folder", noFolder, folder},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if resp := modifyPlan(t, c.prior, c.planned); resp.Diagnostics.HasError() {
+				t.Errorf("refused: %v", resp.Diagnostics)
+			}
+		})
+	}
+
+	resp := modifyPlan(t, folder, noFolder)
+	if resp.Diagnostics.ErrorsCount() != 1 {
+		t.Fatalf("diagnostics = %v, want one error", resp.Diagnostics)
+	}
+	withPath, ok := resp.Diagnostics.Errors()[0].(diag.DiagnosticWithPath)
+	if !ok || !withPath.Path().Equal(path.Root("content_folder_id")) {
+		t.Errorf("error is not on content_folder_id: %v", resp.Diagnostics.Errors()[0])
 	}
 }
