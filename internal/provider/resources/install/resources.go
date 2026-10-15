@@ -16,6 +16,7 @@ const (
 	Provider         = "provider"
 	RepositoryAccess = "repository-access"
 	Connector        = "connector"
+	ArgocdInstance   = "argocd-instance"
 	HarborInstance   = "harbor-instance"
 	SharedDrive      = "shared-drive"
 	Organization     = "organization"

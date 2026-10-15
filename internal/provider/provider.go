@@ -24,6 +24,7 @@ import (
 	accesspolicy "github.com/p0-security/terraform-provider-p0/internal/provider/resources/access_policy"
 	installaigateway "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ai_gateway"
 	installapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/app"
+	installargocd "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/argocd"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
 	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
@@ -235,6 +236,9 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installharbor.NewHarborConnectorStaged,
 		installharbor.NewHarborConnector,
 		installharbor.NewHarborInstance,
+		installargocd.NewArgocdConnectorStaged,
+		installargocd.NewArgocdConnector,
+		installargocd.NewArgocdInstance,
 		installfiletransfer.NewFileTransferIamWrite,
 		installawssm.NewAwsSmVault,
 		installapp.NewAppIamWrite,
