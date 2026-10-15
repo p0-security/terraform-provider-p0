@@ -103,13 +103,15 @@ resource "p0_looker_ai" "example" {
   id               = p0_looker_ai_staged.example.id
   instance_url     = p0_looker_ai_staged.example.instance_url
   admin_key_secret = p0_looker_ai_staged.example.admin_key_secret
-` + folderLine + `
+` + folderLine + fmt.Sprintf(`
+  # Terraform before 1.3 can't read a nested attribute in configuration, so
+  # these are literals. The id above orders this after staging.
   secret_manager = {
-    type       = p0_looker_ai_staged.example.secret_manager.type
-    project_id = p0_looker_ai_staged.example.secret_manager.project_id
+    type       = "gcp-sm"
+    project_id = %q
   }
 }
-`
+`, lookerProject)
 }
 
 func checkLookerDestroyed(f *lookerFake) resource.TestCheckFunc {
