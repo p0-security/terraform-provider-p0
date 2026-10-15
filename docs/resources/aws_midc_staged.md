@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   A staged AWS Identity Center (merged permission set) installation. Staged resources are used to generate AWS trust policies.
   Important: Before using this resource, please read the instructions for the 'aws_midc' resource.
+  For the full install steps, see Identity Center (merged) https://docs.p0.dev/integrations/resource-integrations/aws/installation-methods/identity-center-merged.
 ---
 
 # p0_aws_midc_staged (Resource)
@@ -12,6 +13,8 @@ description: |-
 A staged AWS Identity Center (merged permission set) installation. Staged resources are used to generate AWS trust policies.
 
 **Important**: Before using this resource, please read the instructions for the 'aws_midc' resource.
+
+For the full install steps, see [Identity Center (merged)](https://docs.p0.dev/integrations/resource-integrations/aws/installation-methods/identity-center-merged).
 
 ## Example Usage
 

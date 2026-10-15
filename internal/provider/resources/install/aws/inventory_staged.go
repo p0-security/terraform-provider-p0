@@ -66,7 +66,9 @@ func (r *AwsInventoryStaged) Schema(ctx context.Context, req resource.SchemaRequ
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A staged AWS resource inventory installation. Staged resources are used to generate AWS trust policies and role configuration.
 
-**Important** Before using this resource, please read the instructions for the p0_aws_inventory resource. Create the AWS role using the attributes from this resource, then create the p0_aws_inventory resource with depends_on = [aws_iam_role.p0_inventory].`,
+**Important** Before using this resource, please read the instructions for the p0_aws_inventory resource. Create the AWS role using the attributes from this resource, then create the p0_aws_inventory resource with depends_on = [aws_iam_role.p0_inventory].
+
+For the full install steps, see [AWS](https://docs.p0.dev/integrations/resource-integrations/aws).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

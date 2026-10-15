@@ -109,7 +109,9 @@ Destroying this resource returns the connector to its staged state, which ` + "`
 
 - For Google Cloud Run, the image ` + "`p0security/p0-connector-docker-gcloud`" + `. ` + "`p0_gcp`" + ` must be installed. Grant its service account ` + "`roles/run.invoker`" + ` and ` + "`roles/run.viewer`" + ` on the connector's service, and pass the same address to the connector as its ` + "`INVOKER_SA_EMAIL`" + ` environment variable.
 
-**Note:** This integration is currently in beta.`,
+**Note:** This integration is currently in beta.
+
+For the full install steps, see [Docker Hub](https://docs.p0.dev/integrations/resource-integrations/docker).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

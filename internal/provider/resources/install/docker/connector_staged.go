@@ -49,7 +49,9 @@ Where a connector runs can't change once it is added, so changing ` + "`id`" + `
 
 **Prerequisite:** P0 invokes the connector as its own identity in your cloud. For AWS Lambda, ` + "`p0_aws_iam_write`" + ` must be installed for the account the connector runs in. For Google Cloud Run, ` + "`p0_gcp`" + ` must be installed.
 
-**Note:** This integration is currently in beta.`,
+**Note:** This integration is currently in beta.
+
+For the full install steps, see [Docker Hub](https://docs.p0.dev/integrations/resource-integrations/docker).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

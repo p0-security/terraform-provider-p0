@@ -61,7 +61,9 @@ Use the read-only ` + "`connector_service_name`" + `, ` + "`connector_service_ac
 
 **Prerequisites:** GCP IAM management (` + "`p0_gcp_iam_write`" + `) and GCP Workload Identity Federation (` + "`p0_gcp_wif_identity`" + `) must be installed for the same project.
 
-**Note:** This integration is currently in beta.`,
+**Note:** This integration is currently in beta.
+
+For the full install steps, see [GCP Service Account Creator](https://docs.p0.dev/integrations/resource-integrations/gcp-service-account-creator).`,
 		Attributes: map[string]schema.Attribute{
 			"project_id": schema.StringAttribute{
 				Required:            true,

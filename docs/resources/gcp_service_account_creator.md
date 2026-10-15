@@ -7,6 +7,7 @@ description: |-
   Installing the GCP Service Account Creator lets P0 create a short-lived service account in this project for each agentic session, so that integrations such as Google Drive (p0_google_drive_connector) can grant access to it.
   Important: Before creating this resource you must stage the installation with p0_gcp_service_account_creator_staged and deploy the connector's Cloud Run service. Creating this resource verifies that P0 can reach the connector.
   Note: This integration is currently in beta.
+  For the full install steps, see GCP Service Account Creator https://docs.p0.dev/integrations/resource-integrations/gcp-service-account-creator.
 ---
 
 # p0_gcp_service_account_creator (Resource)
@@ -18,6 +19,8 @@ Installing the GCP Service Account Creator lets P0 create a short-lived service 
 **Important:** Before creating this resource you must stage the installation with `p0_gcp_service_account_creator_staged` and deploy the connector's Cloud Run service. Creating this resource verifies that P0 can reach the connector.
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [GCP Service Account Creator](https://docs.p0.dev/integrations/resource-integrations/gcp-service-account-creator).
 
 ## Example Usage
 

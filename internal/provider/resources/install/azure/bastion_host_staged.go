@@ -67,7 +67,9 @@ Read ` + "`custom_role`" + ` (name, description, actions, assignable_scope) when
 			"\n" +
 			"  subscription_id = local.subscription_id\n" +
 			"}\n" +
-			"```\n",
+			"```\n" +
+			"\n" +
+			"For the full install steps, see [Azure bastion host](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/configure-bastion-host-integration/azure-bastion-host).",
 		Attributes: map[string]schema.Attribute{
 			"subscription_id": subscriptionIdAttribute,
 			"state":           common.StateAttribute,

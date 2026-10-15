@@ -10,6 +10,7 @@ description: |-
   P0 checks hosting.connector_name when it stages the connector, and so does a plan. For AWS Lambda: Use 2 to 64 characters for the connector name: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. For Google Cloud Run: Use 6 to 30 characters for the connector name: lowercase letters, digits and hyphens, starting with a letter and ending with a letter or digit.
   Prerequisite: P0 invokes the connector as its own identity in your cloud. For AWS Lambda, p0_aws_iam_write must be installed for the account the connector runs in. For Google Cloud Run, p0_gcp must be installed.
   Note: This integration is currently in beta.
+  For the full install steps, see Installing Harbor https://docs.p0.dev/integrations/resource-integrations/harbor/installation.
 ---
 
 # p0_harbor_connector_staged (Resource)
@@ -27,6 +28,8 @@ P0 checks `hosting.connector_name` when it stages the connector, and so does a p
 **Prerequisite:** P0 invokes the connector as its own identity in your cloud. For AWS Lambda, `p0_aws_iam_write` must be installed for the account the connector runs in. For Google Cloud Run, `p0_gcp` must be installed.
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [Installing Harbor](https://docs.p0.dev/integrations/resource-integrations/harbor/installation).
 
 ## Example Usage
 

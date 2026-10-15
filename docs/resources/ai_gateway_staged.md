@@ -9,6 +9,7 @@ description: |-
   ai-gateway-stack Helm chart) before p0_ai_gateway can finish installing — P0 cannot
   authenticate to your gateway's management API otherwise. See the example usage for the recommended pattern.
   For instructions on using this resource, see the documentation for p0_ai_gateway.
+  For the full install steps, see Gateway https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/gateway.
 ---
 
 # p0_ai_gateway_staged (Resource)
@@ -21,6 +22,8 @@ gateway must be configured to trust this service account (e.g. the `manageAllowe
 authenticate to your gateway's management API otherwise. See the example usage for the recommended pattern.
 
 For instructions on using this resource, see the documentation for `p0_ai_gateway`.
+
+For the full install steps, see [Gateway](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/gateway).
 
 ## Example Usage
 

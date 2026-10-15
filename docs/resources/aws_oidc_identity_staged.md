@@ -9,6 +9,7 @@ description: |-
   not create this AWS-side infrastructure on your behalf). Only once that infrastructure exists can
   p0_aws_oidc_identity finish installing.
   For instructions on using this resource, see the documentation for p0_aws_oidc_identity.
+  For the full install steps, see AWS OIDC https://docs.p0.dev/integrations/resource-integrations/aws-oidc.
 ---
 
 # p0_aws_oidc_identity_staged (Resource)
@@ -21,6 +22,8 @@ not create this AWS-side infrastructure on your behalf). Only once that infrastr
 `p0_aws_oidc_identity` finish installing.
 
 For instructions on using this resource, see the documentation for `p0_aws_oidc_identity`.
+
+For the full install steps, see [AWS OIDC](https://docs.p0.dev/integrations/resource-integrations/aws-oidc).
 
 ## Example Usage
 

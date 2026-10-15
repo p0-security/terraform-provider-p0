@@ -50,7 +50,9 @@ func (r *GcpIamWriteStaged) Schema(ctx context.Context, req resource.SchemaReque
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A staged installation of P0, on a single Google Cloud project, for IAM management.
 
-For instructions on using this resource, see the documentation for ` + "`p0_gcp_iam_write`.",
+For instructions on using this resource, see the documentation for ` + "`p0_gcp_iam_write`." + `
+
+For the full install steps, see [Google Cloud](https://docs.p0.dev/integrations/resource-integrations/google-cloud).`,
 		Attributes: map[string]schema.Attribute{
 			// In P0 we would name this 'id' or 'project_id'; it is named 'project' here to align with Terraform's naming for
 			// Google Cloud resources

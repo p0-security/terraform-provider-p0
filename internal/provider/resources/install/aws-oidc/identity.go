@@ -98,7 +98,9 @@ To use this resource, you must also:
   from the staged resource.
 
 Requires the AWS integration (` + "`p0_aws_iam_write`" + `) to be installed for the same account. See the example
-usage for the recommended pattern to define this infrastructure.`,
+usage for the recommended pattern to define this infrastructure.
+
+For the full install steps, see [AWS OIDC](https://docs.p0.dev/integrations/resource-integrations/aws-oidc).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

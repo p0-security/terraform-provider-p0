@@ -7,6 +7,7 @@ description: |-
   Prerequisite: the Google Drive connector (p0_google_drive_connector) must be installed for project_id.
   Important: P0 grants access in the drive as the connector's service account, so that account must be a member of the drive. In Google Drive, open the shared drive, choose Manage members, and add the connector's connector_service_account with the Manager role. Only a manager of the drive can do this, and Terraform cannot. Requests for access in the drive fail until it is done.
   Note: This integration is currently in beta.
+  For the full install steps, see Google Drive https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/google-drive.
 ---
 
 # p0_google_drive_shared_drive (Resource)
@@ -18,6 +19,8 @@ A Google shared drive that P0 can grant agentic sessions access in.
 **Important:** P0 grants access in the drive as the connector's service account, so that account must be a member of the drive. In Google Drive, open the shared drive, choose **Manage members**, and add the connector's `connector_service_account` with the **Manager** role. Only a manager of the drive can do this, and Terraform cannot. Requests for access in the drive fail until it is done.
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [Google Drive](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/google-drive).
 
 ## Example Usage
 

@@ -13,6 +13,7 @@ description: |-
   For AWS Lambda, the image p0security/p0-connector-harbor. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. p0_aws_iam_write must be installed for the account the connector runs in. Grant that installation's role lambda:InvokeFunction on the connector's function.
   For Google Cloud Run, the image p0security/p0-connector-harbor-gcloud, running as the staged resource's hosting.connector_service_account. p0_gcp must be installed. Grant its service account roles/run.invoker and roles/run.viewer on the connector's service, and pass the same address to the connector as its INVOKER_SA_EMAIL environment variable.
   Note: This integration is currently in beta.
+  For the full install steps, see Installing Harbor https://docs.p0.dev/integrations/resource-integrations/harbor/installation.
 ---
 
 # p0_harbor_connector (Resource)
@@ -36,6 +37,8 @@ Destroying this resource returns the connector to its staged state, which `p0_ha
 - For Google Cloud Run, the image `p0security/p0-connector-harbor-gcloud`, running as the staged resource's `hosting.connector_service_account`. `p0_gcp` must be installed. Grant its service account `roles/run.invoker` and `roles/run.viewer` on the connector's service, and pass the same address to the connector as its `INVOKER_SA_EMAIL` environment variable.
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [Installing Harbor](https://docs.p0.dev/integrations/resource-integrations/harbor/installation).
 
 ## Example Usage
 

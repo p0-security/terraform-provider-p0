@@ -7,6 +7,7 @@ description: |-
   Important: Before creating this resource, the workspace that P0 reaches the catalog through must be installed (see the p0_databricks_workspace resource), and the service principal must hold MANAGE on the catalog. Grant it with databricks_grant, never databricks_grants, which overwrites every other grant on the catalog. Granting MANAGE takes the catalog's owner, a holder of MANAGE on it, or a metastore admin.
   A catalog that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
   Note: This integration is currently in beta.
+  For the full install steps, see Installing Databricks https://docs.p0.dev/integrations/resource-integrations/databricks/installation.
 ---
 
 # p0_databricks_catalog (Resource)
@@ -18,6 +19,8 @@ A Unity Catalog catalog installation. P0 grants privileges in a catalog through 
 A catalog that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [Installing Databricks](https://docs.p0.dev/integrations/resource-integrations/databricks/installation).
 
 ## Example Usage
 

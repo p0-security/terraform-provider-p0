@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   A staged installation of P0, on a single Google Cloud project, for IAM management.
   For instructions on using this resource, see the documentation for p0_gcp_iam_write.
+  For the full install steps, see Google Cloud https://docs.p0.dev/integrations/resource-integrations/google-cloud.
 ---
 
 # p0_gcp_iam_write_staged (Resource)
@@ -12,6 +13,8 @@ description: |-
 A staged installation of P0, on a single Google Cloud project, for IAM management.
 
 For instructions on using this resource, see the documentation for `p0_gcp_iam_write`.
+
+For the full install steps, see [Google Cloud](https://docs.p0.dev/integrations/resource-integrations/google-cloud).
 
 ## Example Usage
 

@@ -63,7 +63,9 @@ The connector is how P0 grants agentic sessions access to folders and files in G
 
 **Important:** Before creating this resource you must stage the installation with ` + "`p0_google_drive_connector_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector's Cloud Run service is deployed.
 
-**Note:** This integration is currently in beta.`,
+**Note:** This integration is currently in beta.
+
+For the full install steps, see [Google Drive](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/google-drive).`,
 		Attributes: map[string]schema.Attribute{
 			"project_id": schema.StringAttribute{
 				Required:            true,

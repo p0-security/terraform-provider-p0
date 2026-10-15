@@ -6,6 +6,7 @@ description: |-
   A File Transfer (beta) installation for AWS.
   Installing File Transfer allows P0 to broker temporary, audited file transfers to your AWS EC2 instances through a customer-owned S3 bucket.
   Prerequisite: AWS SSH (p0_ssh_aws) must be installed for the same AWS account before file transfer can be requested. This also requires the AWS integration (p0_aws_iam_write), which P0 uses to verify the bucket at install time.
+  For the full install steps, see File transfer https://docs.p0.dev/integrations/resource-integrations/file-transfer.
 ---
 
 # p0_file_transfer (Resource)
@@ -15,6 +16,8 @@ A File Transfer (beta) installation for AWS.
 Installing File Transfer allows P0 to broker temporary, audited file transfers to your AWS EC2 instances through a customer-owned S3 bucket.
 
 **Prerequisite:** AWS SSH (`p0_ssh_aws`) must be installed for the same AWS account before file transfer can be requested. This also requires the AWS integration (`p0_aws_iam_write`), which P0 uses to verify the bucket at install time.
+
+For the full install steps, see [File transfer](https://docs.p0.dev/integrations/resource-integrations/file-transfer).
 
 ## Example Usage
 

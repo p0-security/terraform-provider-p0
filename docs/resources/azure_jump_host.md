@@ -17,6 +17,8 @@ description: |-
     client_id                = "12345678-1234-1234-1234-123456789012"
     function_app_resource_id = "/subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.Web/sites/<name>"
   }
+  
+  For the full install steps, see Jump host management https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/jump-host-management.
 ---
 
 # p0_azure_jump_host (Resource)
@@ -43,6 +45,8 @@ resource "p0_azure_jump_host" "example" {
   function_app_resource_id = "/subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.Web/sites/<name>"
 }
 ```
+
+For the full install steps, see [Jump host management](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/jump-host-management).
 
 ## Example Usage
 

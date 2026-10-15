@@ -51,7 +51,9 @@ To use this resource, you must first:
 - Create the ` + "`p0_okta_directory_listing`" + ` resource
 - Grant the P0 Okta application the "Group Membership Administrator" role assignment
 
-See the example usage for the recommended pattern to define this infrastructure.`,
+See the example usage for the recommended pattern to define this infrastructure.
+
+For the full install steps, see [Okta](https://docs.p0.dev/integrations/directory-integrations/okta).`,
 		Attributes: map[string]schema.Attribute{
 			"domain": schema.StringAttribute{
 				Required:            true,

@@ -78,7 +78,9 @@ func (r *Gcp) Metadata(ctx context.Context, req resource.MetadataRequest, resp *
 
 func (r *Gcp) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A Google Cloud installation.`,
+		MarkdownDescription: `A Google Cloud installation.
+
+For the full install steps, see [Google Cloud](https://docs.p0.dev/integrations/resource-integrations/google-cloud).`,
 		Attributes: map[string]schema.Attribute{
 			"organization_id": schema.StringAttribute{
 				Required:            true,

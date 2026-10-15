@@ -37,6 +37,8 @@ description: |-
     ]
     client_id = azuread_application_registration.p0.client_id
   }
+  
+  For the full install steps, see Azure app registration https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/azure-app-registration.
 ---
 
 # p0_azure_app_staged (Resource)
@@ -81,6 +83,8 @@ resource "p0_azure_app" "example" {
   client_id = azuread_application_registration.p0.client_id
 }
 ```
+
+For the full install steps, see [Azure app registration](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/azure-app-registration).
 
 ## Example Usage
 

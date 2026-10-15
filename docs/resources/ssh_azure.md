@@ -6,6 +6,7 @@ description: |-
   A Microsoft Azure SSH installation.
   Installing SSH allows you to manage access to your virtual machines on Microsoft Azure.
   The VM-access roles P0 assigns when access is requested, and the Azure Bastion host or jump host P0 connects through, are configured on the p0_azure_bastion_host component for the same subscription, not here.
+  For the full install steps, see Install SSH access https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/install-ssh-access.
 ---
 
 # p0_ssh_azure (Resource)
@@ -15,6 +16,8 @@ A Microsoft Azure SSH installation.
 Installing SSH allows you to manage access to your virtual machines on Microsoft Azure.
 
 The VM-access roles P0 assigns when access is requested, and the Azure Bastion host or jump host P0 connects through, are configured on the `p0_azure_bastion_host` component for the same subscription, not here.
+
+For the full install steps, see [Install SSH access](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/install-ssh-access).
 
 ## Example Usage
 

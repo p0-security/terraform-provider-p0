@@ -89,7 +89,9 @@ To use this resource, you must first install the ` + "`p0_azure`" + ` resource.
 			"  ]\n" +
 			"  client_id = azuread_application_registration.p0.client_id\n" +
 			"}\n" +
-			"```\n",
+			"```\n" +
+			"\n" +
+			"For the full install steps, see [Azure app registration](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/azure-app-registration).",
 		Attributes: map[string]schema.Attribute{
 			"state": common.StateAttribute,
 			"app_name": schema.StringAttribute{

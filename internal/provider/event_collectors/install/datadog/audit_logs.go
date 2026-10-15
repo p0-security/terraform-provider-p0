@@ -71,7 +71,8 @@ func (r *AuditLogs) Schema(ctx context.Context, req resource.SchemaRequest, resp
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Allows P0 to send access events and security findings to Datadog Logs. " +
 			"Only one `p0_datadog_audit_logs` resource is supported per P0 organization; " +
-			"creating more than one disables Datadog log forwarding for the entire organization.",
+			"creating more than one disables Datadog log forwarding for the entire organization.\n\n" +
+			"For the full install steps, see [Datadog setup](https://docs.p0.dev/integrations/siem-integrations/datadog-setup).",
 		Attributes: map[string]schema.Attribute{
 			"state": common.StateAttribute,
 			"identifier": schema.StringAttribute{

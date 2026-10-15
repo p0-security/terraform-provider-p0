@@ -69,7 +69,9 @@ func (*sshAzureIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, res
 
 Installing SSH allows you to manage access to your virtual machines on Microsoft Azure.
 
-The VM-access roles P0 assigns when access is requested, and the Azure Bastion host or jump host P0 connects through, are configured on the ` + "`p0_azure_bastion_host`" + ` component for the same subscription, not here.`,
+The VM-access roles P0 assigns when access is requested, and the Azure Bastion host or jump host P0 connects through, are configured on the ` + "`p0_azure_bastion_host`" + ` component for the same subscription, not here.
+
+For the full install steps, see [Install SSH access](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/install-ssh-access).`,
 		Attributes: map[string]schema.Attribute{
 			"group_key": schema.StringAttribute{
 				MarkdownDescription: `If present, virtual machines on Azure will be grouped by the value of this tag. Access can be requested, in one request, to all instances with a shared tag value`,

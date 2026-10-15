@@ -59,7 +59,9 @@ To use this resource, you must also:
 - install the ` + "`p0_azure_app`" + ` resource,
 - install the ` + "`p0_azure_iam_write_staged`" + ` resource,
 
-See the example usage for the recommended pattern to define this infrastructure.`,
+See the example usage for the recommended pattern to define this infrastructure.
+
+For the full install steps, see [IAM management](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/iam-management).`,
 		Attributes: map[string]schema.Attribute{
 			"subscription_id": subscriptionIdAttribute,
 			"label":           labelAttribute,

@@ -9,6 +9,7 @@ description: |-
   gateway to trust the service account returned by that resource (e.g. the manageAllowedEmails value in the
   ai-gateway-stack Helm chart).
   See the example usage for the recommended pattern to define this infrastructure.
+  For the full install steps, see Gateway https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/gateway.
 ---
 
 # p0_ai_gateway (Resource)
@@ -21,6 +22,8 @@ gateway to trust the service account returned by that resource (e.g. the `manage
 `ai-gateway-stack` Helm chart).
 
 See the example usage for the recommended pattern to define this infrastructure.
+
+For the full install steps, see [Gateway](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/gateway).
 
 ## Example Usage
 

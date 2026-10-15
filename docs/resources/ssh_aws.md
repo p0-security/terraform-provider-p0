@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   An AWS SSH Installation.
   Installing SSH allows you to manage access to your servers on AWS.
+  For the full install steps, see SSH https://docs.p0.dev/integrations/resource-integrations/ssh.
 ---
 
 # p0_ssh_aws (Resource)
@@ -12,6 +13,8 @@ description: |-
 An AWS SSH Installation.
 		
 Installing SSH allows you to manage access to your servers on AWS.
+
+For the full install steps, see [SSH](https://docs.p0.dev/integrations/resource-integrations/ssh).
 
 ## Example Usage
 

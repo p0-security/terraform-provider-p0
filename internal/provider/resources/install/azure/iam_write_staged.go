@@ -64,7 +64,9 @@ To use this resource, you must first:
 - install the ` + "`p0_azure`" + ` resource,
 - install the ` + "`p0_azure_app`" + ` resource.
 
-For instructions on using this resource, see the documentation for ` + "`p0_azure_iam_write`.",
+For instructions on using this resource, see the documentation for ` + "`p0_azure_iam_write`." + `
+
+For the full install steps, see [IAM management](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure/iam-management).`,
 		Attributes: map[string]schema.Attribute{
 			"subscription_id": subscriptionIdAttribute,
 			"state":           common.StateAttribute,

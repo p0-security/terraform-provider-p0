@@ -7,6 +7,7 @@ description: |-
   The connector is how P0 grants agentic sessions access to folders and files in Google shared drives. Register each shared drive with a p0_google_drive_shared_drive resource that names this connector's project.
   Important: Before creating this resource you must stage the installation with p0_google_drive_connector_staged and deploy the connector's Cloud Run service. Creating this resource verifies that the connector's Cloud Run service is deployed.
   Note: This integration is currently in beta.
+  For the full install steps, see Google Drive https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/google-drive.
 ---
 
 # p0_google_drive_connector (Resource)
@@ -18,6 +19,8 @@ The connector is how P0 grants agentic sessions access to folders and files in G
 **Important:** Before creating this resource you must stage the installation with `p0_google_drive_connector_staged` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector's Cloud Run service is deployed.
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [Google Drive](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/google-drive).
 
 ## Example Usage
 

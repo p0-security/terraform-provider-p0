@@ -7,6 +7,7 @@ description: |-
   Important: Before creating this resource, the workspace's account must be installed (see the p0_databricks_account resource), and its service principal must be assigned to the workspace as USER, or as ADMIN when is_workspace_admin_enabled is true. Assign it with databricks_mws_permission_assignment or databricks_permission_assignment.
   A workspace that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
   Note: This integration is currently in beta.
+  For the full install steps, see Installing Databricks https://docs.p0.dev/integrations/resource-integrations/databricks/installation.
 ---
 
 # p0_databricks_workspace (Resource)
@@ -18,6 +19,8 @@ A Databricks workspace installation. P0 calls the workspace at `workspace_url` a
 A workspace that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [Installing Databricks](https://docs.p0.dev/integrations/resource-integrations/databricks/installation).
 
 ## Example Usage
 

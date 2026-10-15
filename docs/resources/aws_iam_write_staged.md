@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   A staged AWS IAM-management installation. Staged resources are used to generate AWS trust policies.
   Important Before using this resource, please read the instructions for the 'aws_iam_write' resource.
+  For the full install steps, see Setting up AWS IAM management https://docs.p0.dev/integrations/resource-integrations/aws/installation-methods.
 ---
 
 # p0_aws_iam_write_staged (Resource)
@@ -12,6 +13,8 @@ description: |-
 A staged AWS IAM-management installation. Staged resources are used to generate AWS trust policies.
 
 **Important** Before using this resource, please read the instructions for the 'aws_iam_write' resource.
+
+For the full install steps, see [Setting up AWS IAM management](https://docs.p0.dev/integrations/resource-integrations/aws/installation-methods).
 
 ## Example Usage
 

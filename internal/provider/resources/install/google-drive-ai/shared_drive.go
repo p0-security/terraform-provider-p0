@@ -73,7 +73,9 @@ func (*GoogleDriveSharedDrive) Schema(_ context.Context, _ resource.SchemaReques
 
 **Important:** P0 grants access in the drive as the connector's service account, so that account must be a member of the drive. In Google Drive, open the shared drive, choose **Manage members**, and add the connector's ` + "`connector_service_account`" + ` with the **Manager** role. Only a manager of the drive can do this, and Terraform cannot. Requests for access in the drive fail until it is done.
 
-**Note:** This integration is currently in beta.`,
+**Note:** This integration is currently in beta.
+
+For the full install steps, see [Google Drive](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/google-drive).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

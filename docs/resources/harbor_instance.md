@@ -17,6 +17,7 @@ description: |-
   For aws-sm, p0_aws_secrets_manager installed for the account that holds the secret. Give the connector's role secretsmanager:GetSecretValue on the secret alone, and kms:Decrypt on its key if a customer-managed KMS key encrypts it. A secret in an account other than the connector's needs a customer-managed key, and the secret's resource policy and the key's policy must allow the connector's role.
   For gcp-sm, Google Secret Manager installed in P0 for the project that holds the secret. This provider has no resource for it, so install it in the P0 app. Give the connector's service account roles/secretmanager.secretAccessor and roles/secretmanager.viewer on the secret alone.
   Note: This integration is currently in beta.
+  For the full install steps, see Installing Harbor https://docs.p0.dev/integrations/resource-integrations/harbor/installation.
 ---
 
 # p0_harbor_instance (Resource)
@@ -48,6 +49,8 @@ The email domains that may receive access are set on the connector, as its `ALLO
 - For `gcp-sm`, Google Secret Manager installed in P0 for the project that holds the secret. This provider has no resource for it, so install it in the P0 app. Give the connector's service account `roles/secretmanager.secretAccessor` and `roles/secretmanager.viewer` on the secret alone.
 
 **Note:** This integration is currently in beta.
+
+For the full install steps, see [Installing Harbor](https://docs.p0.dev/integrations/resource-integrations/harbor/installation).
 
 ## Example Usage
 

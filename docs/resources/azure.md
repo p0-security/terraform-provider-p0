@@ -4,11 +4,14 @@ page_title: "p0_azure Resource - p0"
 subcategory: ""
 description: |-
   A Microsoft Azure installation.
+  For the full install steps, see Microsoft Azure https://docs.p0.dev/integrations/resource-integrations/microsoft-azure.
 ---
 
 # p0_azure (Resource)
 
 A Microsoft Azure installation.
+
+For the full install steps, see [Microsoft Azure](https://docs.p0.dev/integrations/resource-integrations/microsoft-azure).
 
 ## Example Usage
 

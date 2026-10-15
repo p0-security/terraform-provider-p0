@@ -4,11 +4,14 @@ page_title: "p0_datadog_audit_logs Resource - p0"
 subcategory: ""
 description: |-
   Allows P0 to send access events and security findings to Datadog Logs. Only one p0_datadog_audit_logs resource is supported per P0 organization; creating more than one disables Datadog log forwarding for the entire organization.
+  For the full install steps, see Datadog setup https://docs.p0.dev/integrations/siem-integrations/datadog-setup.
 ---
 
 # p0_datadog_audit_logs (Resource)
 
 Allows P0 to send access events and security findings to Datadog Logs. Only one `p0_datadog_audit_logs` resource is supported per P0 organization; creating more than one disables Datadog log forwarding for the entire organization.
+
+For the full install steps, see [Datadog setup](https://docs.p0.dev/integrations/siem-integrations/datadog-setup).
 
 ## Example Usage
 
