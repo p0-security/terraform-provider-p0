@@ -19,4 +19,5 @@ const (
 	HarborInstance   = "harbor-instance"
 	SharedDrive      = "shared-drive"
 	Organization     = "organization"
+	Vault            = "vault"
 )
