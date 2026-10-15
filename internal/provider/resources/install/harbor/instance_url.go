@@ -10,8 +10,8 @@ import (
 // P0's rule for a Harbor instance's URL, and its message for one that breaks it
 // (packages/integrations/harbor/shared/src/instance-url.ts in the app): the instance's
 // origin in the one spelling P0 stores, `https://`, a lowercase host and, if it has
-// one, a port, with nothing after it. The connector sends the robot account's
-// credentials to this URL, and P0 fixes it when it creates the instance.
+// one, a port, with nothing after it. The connector signs in to this URL with the
+// instance's admin credential, and P0 fixes it when it creates the instance.
 
 const invalidInstanceUrl = "Enter the instance's address as https://<host> or https://<host>:<port>, in lowercase and with nothing after it, " +
 	"such as https://harbor.example.com. Leave out a trailing slash, any path, any username or password, and port 443."

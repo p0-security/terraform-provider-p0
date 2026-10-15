@@ -27,7 +27,7 @@ var _ resource.ResourceWithModifyPlan = &HarborInstance{}
 var _ resource.ResourceWithValidateConfig = &HarborInstance{}
 
 // The Harbor `harbor-instance` item: one Harbor instance, the connector that reaches
-// it, and where the connector finds the credentials of the instance's robot account
+// it, and where the connector finds the instance's admin credential
 // (packages/integrations/harbor/shared/src/components.ts in the app).
 type HarborInstance struct {
 	installer *common.Install
@@ -67,13 +67,13 @@ func (*HarborInstance) Metadata(_ context.Context, req resource.MetadataRequest,
 
 func (*HarborInstance) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A Harbor instance that P0 can grant project roles on.
+		MarkdownDescription: `A Harbor instance that P0 can grant project roles, and system administrator, on.
 
-P0 reaches the instance through a Harbor connector, which you install with ` + "`p0_harbor_connector`" + `. The connector calls the instance as a robot account whose credentials stay in your own secret manager: P0 never reads them, and only the connector does. One connector can serve several instances, and each instance has its own robot account and secret.
+P0 reaches the instance through a Harbor connector, which you install with ` + "`p0_harbor_connector`" + `. The connector signs in to the instance as a Harbor admin account whose OIDC credential stays in your own secret manager: P0 never reads it, and only the connector does. One connector can serve several instances, and each instance has its own admin credential and secret.
 
-**Important:** Install the connector first, and grant its identity read access to the robot account's secret: in an earlier apply, or in the same one with this resource depending on the grant, as the examples do. Creating this resource has P0 check the instance through the connector. If the check fails, the apply fails with P0's message.
+**Important:** Install the connector first, and grant its identity read access to the admin credential's secret: in an earlier apply, or in the same one with this resource depending on the grant, as the examples do. Creating this resource has P0 check the instance through the connector. If the check fails, the apply fails with P0's message.
 
-An instance's attributes can't change once it is created. Changing ` + "`id`" + `, ` + "`connector`" + `, ` + "`vault`" + ` or ` + "`secret_name`" + ` replaces the instance. A plan refuses a change to an installed instance's ` + "`url`" + `: a user's ID on one Harbor instance means nothing on another, so for another address, add a new ` + "`p0_harbor_instance`" + ` with its own ` + "`id`" + `, and remove this one once its open access has ended. To rotate the robot account's secret, add a new version to the same secret, which needs no change here.
+An instance's attributes can't change once it is created. Changing ` + "`id`" + `, ` + "`connector`" + `, ` + "`vault`" + ` or ` + "`secret_name`" + ` replaces the instance. A plan refuses a change to an installed instance's ` + "`url`" + `: a user's ID on one Harbor instance means nothing on another, so for another address, add a new ` + "`p0_harbor_instance`" + ` with its own ` + "`id`" + `, and remove this one once its open access has ended. To rotate the admin credential, add a new version to the same secret, which needs no change here.
 
 **Warning:** Replacing or destroying this resource removes the instance from P0. P0 can't revoke access it granted on an instance it no longer has, so that access stays in Harbor until you remove it there. Before you change an attribute or destroy this resource, revoke the instance's open access in P0 or wait for it to expire.
 
@@ -83,11 +83,11 @@ The email domains that may receive access are set on the connector, as its ` + "
 
 **Prerequisites:**
 
-- Harbor 2.12.0 or later, the first version whose robot accounts can hold the permissions below.
+- Harbor 2.12.0 or later, signing users in with OIDC. The connector checks the version, and P0 doesn't install an older one.
 
-- A robot account for P0's connector on the instance, created in Harbor under Administration, Robot Accounts, such as ` + "`p0-connector`" + `. Give it the system permission User: List, and Member: List, Create, Update and Delete on all projects. Don't give it User: Read, which reads every OIDC user's CLI secret. Set it never to expire, and use it for nothing else: it can make anyone a member of any project at any role, Project Admin included.
+- A dedicated user in your identity provider who is a Harbor system administrator, used for nothing else. The connector signs in as this user, so it can make anyone a member of any project at any role, and a system administrator.
 
-- A secret that holds the file Harbor exports for the robot account, unchanged, in the secret manager that ` + "`vault`" + ` names. The connector reads the file's ` + "`name`" + ` and ` + "`secret`" + ` fields.
+- A secret that holds that user's OIDC credential, in the secret manager that ` + "`vault`" + ` names: JSON with ` + "`issuer`" + `, ` + "`clientId`" + `, ` + "`clientSecret`" + ` and ` + "`refreshToken`" + `. It is as sensitive as an admin password.
 
 - For ` + "`aws-sm`" + `, ` + "`p0_aws_secrets_manager`" + ` installed for the account that holds the secret. Give the connector's role ` + "`secretsmanager:GetSecretValue`" + ` on the secret alone, and ` + "`kms:Decrypt`" + ` on its key if a customer-managed KMS key encrypts it. A secret in an account other than the connector's needs a customer-managed key, and the secret's resource policy and the key's policy must allow the connector's role.
 
@@ -109,13 +109,15 @@ For the full install steps, see [Installing Harbor](https://docs.p0.dev/integrat
 				Required: true,
 				MarkdownDescription: "The address your Harbor instance is served at, such as `https://harbor.example.com`: `https://` and the host, " +
 					"with a port if it isn't 443, in lowercase and with nothing after it. Leave out a trailing slash, any path, and any username or password. " +
-					"P0 stores the address in this spelling alone, and the connector sends the robot account's credentials to it. " +
+					"P0 stores the address in this spelling alone, and the connector signs in to it with the admin credential. " +
 					"It can't change: for another address, add a new `p0_harbor_instance` with its own `id`.",
 			},
 			"vault": vaultAttribute(),
 			"secret_name": schema.StringAttribute{
 				Required: true,
-				MarkdownDescription: "The name of the secret that holds the robot account's credentials, in `vault`: the name alone, never an ARN or a resource name. " +
+				MarkdownDescription: "The name of the secret that holds the OIDC credential of a Harbor admin account, in `vault`: " +
+					"JSON with \"issuer\", \"clientId\", \"clientSecret\" and \"refreshToken\". Harbor has to sign users in with OIDC. P0 never reads it; only your connector does. " +
+					"The name alone, never an ARN or a resource name. " +
 					"For `aws-sm`, up to 512 letters, digits and `/_+=.@-`, and, when the vault's account isn't the connector's, not ending in a hyphen and six letters or digits, like `-AbCdEf`. " +
 					"For `gcp-sm`, up to 255 letters, digits, underscores and hyphens.",
 				PlanModifiers: []planmodifier.String{
@@ -179,8 +181,8 @@ type rule struct {
 // whitespace is rejected on its own: P0 trims the strings it stores, so the value
 // would read back different from the configuration, which Terraform reports as an
 // inconsistent result after apply. A null value is left to the checks that a field is
-// set. The value is never repeated: a URL or a secret's name may be the robot
-// account's credentials, pasted into the wrong field.
+// set. The value is never repeated: a URL or a secret's name may be the admin
+// credential, pasted into the wrong field.
 //
 // TODO(INT-465): a copy of github-repositories' validateField, with its rule type and
 // its whitespace check, kept close to it so that the two can merge into one.
@@ -233,7 +235,7 @@ const installWayOut = "Fix what P0's message names and apply again. To start ove
 
 // Describes a verify or configure step that P0 refused. P0 answers alike when its
 // check of the instance fails, which usually points at the customer's setup (the
-// connector, the secret, the robot account or the instance itself), and when it
+// connector, the secret, the admin credential or the instance itself), and when it
 // refuses the request for another reason, so the summary blames neither and leaves
 // the reason to P0's message. A refusal to change a fixed field is told apart by its
 // text, since no setup causes it: the item P0 holds differs from the configuration.
