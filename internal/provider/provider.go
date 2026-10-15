@@ -49,6 +49,7 @@ import (
 	installpagerdutyai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/pagerduty-ai"
 	installpostgres "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/postgres"
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
+	installsalesforceai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/salesforce-ai"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
 	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/settings"
 )
@@ -250,6 +251,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installdatadogai.NewDatadogAiCredential,
 		installpagerdutyai.NewPagerdutyAiCredentialStaged,
 		installpagerdutyai.NewPagerdutyAiCredential,
+		installsalesforceai.NewSalesforceAiOrgStaged,
+		installsalesforceai.NewSalesforceAiOrg,
 		installgithubrepositories.NewRepositoryAccess,
 		installdatabricks.NewConnectorStaged,
 		installdatabricks.NewConnector,
