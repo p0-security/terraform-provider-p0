@@ -3,7 +3,6 @@ package installharbor
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -28,7 +27,7 @@ var _ resource.ResourceWithModifyPlan = &HarborInstance{}
 var _ resource.ResourceWithValidateConfig = &HarborInstance{}
 
 // The Harbor `harbor-instance` item: one Harbor instance, the connector that reaches
-// it, and where the connector finds the credentials of the instance's robot account
+// it, and where the connector finds the instance's admin credential
 // (packages/integrations/harbor/shared/src/components.ts in the app).
 type HarborInstance struct {
 	installer *common.Install
@@ -37,13 +36,12 @@ type HarborInstance struct {
 const invalidInstanceId = "Invalid Harbor instance ID"
 
 type instanceModel struct {
-	Id              types.String `tfsdk:"id"`
-	Connector       types.String `tfsdk:"connector"`
-	Url             types.String `tfsdk:"url"`
-	Vault           *vaultModel  `tfsdk:"vault"`
-	SecretName      types.String `tfsdk:"secret_name"`
-	AdminSecretName types.String `tfsdk:"admin_secret_name"`
-	State           types.String `tfsdk:"state"`
+	Id         types.String `tfsdk:"id"`
+	Connector  types.String `tfsdk:"connector"`
+	Url        types.String `tfsdk:"url"`
+	Vault      *vaultModel  `tfsdk:"vault"`
+	SecretName types.String `tfsdk:"secret_name"`
+	State      types.String `tfsdk:"state"`
 }
 
 // The item, as P0 stores it.
@@ -52,9 +50,7 @@ type instanceJson struct {
 	Url        *string    `json:"url,omitempty"`
 	Vault      *vaultJson `json:"vault,omitempty"`
 	SecretName *string    `json:"secretName,omitempty"`
-	// Optional. Left out when the instance has no admin credential.
-	AdminSecretName *string `json:"adminSecretName,omitempty"`
-	State           *string `json:"state,omitempty"`
+	State      *string    `json:"state,omitempty"`
 }
 
 type instanceApi struct {
@@ -71,13 +67,13 @@ func (*HarborInstance) Metadata(_ context.Context, req resource.MetadataRequest,
 
 func (*HarborInstance) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A Harbor instance that P0 can grant project roles on.
+		MarkdownDescription: `A Harbor instance that P0 can grant project roles, and system administrator, on.
 
-P0 reaches the instance through a Harbor connector, which you install with ` + "`p0_harbor_connector`" + `. The connector calls the instance as a robot account whose credentials stay in your own secret manager: P0 never reads them, and only the connector does. One connector can serve several instances, and each instance has its own robot account and secret.
+P0 reaches the instance through a Harbor connector, which you install with ` + "`p0_harbor_connector`" + `. The connector signs in to the instance as a Harbor admin account whose OIDC credential stays in your own secret manager: P0 never reads it, and only the connector does. One connector can serve several instances, and each instance has its own admin credential and secret.
 
-**Important:** Install the connector first, and grant its identity read access to the robot account's secret: in an earlier apply, or in the same one with this resource depending on the grant, as the examples do. Creating this resource has P0 check the instance through the connector. If the check fails, the apply fails with P0's message.
+**Important:** Install the connector first, and grant its identity read access to the admin credential's secret: in an earlier apply, or in the same one with this resource depending on the grant, as the examples do. Creating this resource has P0 check the instance through the connector. If the check fails, the apply fails with P0's message.
 
-An instance's attributes, except ` + "`admin_secret_name`" + `, can't change once it is created. Changing ` + "`id`" + `, ` + "`connector`" + `, ` + "`vault`" + ` or ` + "`secret_name`" + ` replaces the instance. A plan refuses a change to an installed instance's ` + "`url`" + `: a user's ID on one Harbor instance means nothing on another, so for another address, add a new ` + "`p0_harbor_instance`" + ` with its own ` + "`id`" + `, and remove this one once its open access has ended. To rotate the robot account's secret, add a new version to the same secret, which needs no change here.
+An instance's attributes can't change once it is created. Changing ` + "`id`" + `, ` + "`connector`" + `, ` + "`vault`" + ` or ` + "`secret_name`" + ` replaces the instance. A plan refuses a change to an installed instance's ` + "`url`" + `: a user's ID on one Harbor instance means nothing on another, so for another address, add a new ` + "`p0_harbor_instance`" + ` with its own ` + "`id`" + `, and remove this one once its open access has ended. To rotate the admin credential, add a new version to the same secret, which needs no change here.
 
 **Warning:** Replacing or destroying this resource removes the instance from P0. P0 can't revoke access it granted on an instance it no longer has, so that access stays in Harbor until you remove it there. Before you change an attribute or destroy this resource, revoke the instance's open access in P0 or wait for it to expire.
 
@@ -87,11 +83,11 @@ The email domains that may receive access are set on the connector, as its ` + "
 
 **Prerequisites:**
 
-- Harbor 2.12.0 or later, the first version whose robot accounts can hold the permissions below.
+- Harbor signing users in with OIDC.
 
-- A robot account for P0's connector on the instance, created in Harbor under Administration, Robot Accounts, such as ` + "`p0-connector`" + `. Give it the system permission User: List, and Member: List, Create, Update and Delete on all projects. Don't give it User: Read, which reads every OIDC user's CLI secret. Set it never to expire, and use it for nothing else: it can make anyone a member of any project at any role, Project Admin included.
+- A dedicated user in your identity provider who is a Harbor system administrator, used for nothing else. The connector signs in as this user, so it can make anyone a member of any project at any role, and a system administrator.
 
-- A secret that holds the file Harbor exports for the robot account, unchanged, in the secret manager that ` + "`vault`" + ` names. The connector reads the file's ` + "`name`" + ` and ` + "`secret`" + ` fields.
+- A secret that holds that user's OIDC credential, in the secret manager that ` + "`vault`" + ` names: JSON with ` + "`issuer`" + `, ` + "`clientId`" + `, ` + "`clientSecret`" + ` and ` + "`refreshToken`" + `. It is as sensitive as an admin password.
 
 - For ` + "`aws-sm`" + `, ` + "`p0_aws_secrets_manager`" + ` installed for the account that holds the secret. Give the connector's role ` + "`secretsmanager:GetSecretValue`" + ` on the secret alone, and ` + "`kms:Decrypt`" + ` on its key if a customer-managed KMS key encrypts it. A secret in an account other than the connector's needs a customer-managed key, and the secret's resource policy and the key's policy must allow the connector's role.
 
@@ -113,32 +109,20 @@ For the full install steps, see [Installing Harbor](https://docs.p0.dev/integrat
 				Required: true,
 				MarkdownDescription: "The address your Harbor instance is served at, such as `https://harbor.example.com`: `https://` and the host, " +
 					"with a port if it isn't 443, in lowercase and with nothing after it. Leave out a trailing slash, any path, and any username or password. " +
-					"P0 stores the address in this spelling alone, and the connector sends the robot account's credentials to it. " +
+					"P0 stores the address in this spelling alone, and the connector signs in to it with the admin credential. " +
 					"It can't change: for another address, add a new `p0_harbor_instance` with its own `id`.",
 			},
 			"vault": vaultAttribute(),
 			"secret_name": schema.StringAttribute{
 				Required: true,
-				MarkdownDescription: "The name of the secret that holds the robot account's credentials, in `vault`: the name alone, never an ARN or a resource name. " +
+				MarkdownDescription: "The name of the secret that holds the OIDC credential of a Harbor admin account, in the vault above: " +
+					"JSON with \"issuer\", \"clientId\", \"clientSecret\" and \"refreshToken\". Harbor has to sign users in with OIDC. P0 never reads it; only your connector does. " +
+					"The name alone, never an ARN or a resource name. " +
 					"For `aws-sm`, up to 512 letters, digits and `/_+=.@-`, and, when the vault's account isn't the connector's, not ending in a hyphen and six letters or digits, like `-AbCdEf`. " +
 					"For `gcp-sm`, up to 255 letters, digits, underscores and hyphens.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
-			},
-			// The one field P0 changes in place: it changes only how the connector sets
-			// Harbor's system administrator flag, not which Harbor P0 talks to.
-			"admin_secret_name": schema.StringAttribute{
-				Optional: true,
-				MarkdownDescription: "Optional. The name of the secret that holds a Harbor admin credential, in `vault` beside the robot account's secret: " +
-					"the name alone, never an ARN or a resource name, under the same rules as `secret_name`, and not the same secret. " +
-					"Setting it lets P0 grant Harbor's system administrator access on this instance, which a robot account can't do. " +
-					"The secret holds a JSON object, `{ \"issuer\", \"clientId\", \"clientSecret\", \"refreshToken\" }`, for a dedicated user in your identity provider who is a Harbor system administrator. " +
-					"It is as sensitive as an admin password: give the connector, and only the connector, read access to it, as for the robot account's secret. " +
-					"P0 never reads it. Leave it unset for no system administrator access.\n\n" +
-					"It can be added, changed or removed in place, and the instance stays installed. P0 checks the instance with the new credential first, " +
-					"and changes nothing if the check fails, so apply the connector's read grant on a new secret before you set it, in an earlier apply or with this resource depending on the grant. " +
-					"P0 refuses to remove it while system administrator access granted through it is still open: revoke that access in P0 first.",
 			},
 			"state": common.StateAttribute,
 		},
@@ -152,10 +136,9 @@ For the full install steps, see [Installing Harbor](https://docs.p0.dev/integrat
 // the configuration names the connector by its ID alone. P0 refuses an instance whose
 // vault isn't.
 func (*HarborInstance) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var url, secretName, adminSecretName types.String
+	var url, secretName types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("url"), &url)...)
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("secret_name"), &secretName)...)
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("admin_secret_name"), &adminSecretName)...)
 	vault := vaultFromConfig(ctx, req.Config, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
@@ -164,20 +147,6 @@ func (*HarborInstance) ValidateConfig(ctx context.Context, req resource.Validate
 	validateVault(vault, &resp.Diagnostics)
 	validateInstanceUrl(url, &resp.Diagnostics)
 	validateSecretName(vault, secretName, &resp.Diagnostics)
-	validateField(path.Root("admin_secret_name"), adminSecretName, adminSecretNameRules(vaultTypeOf(vault)), &resp.Diagnostics)
-	// P0 compares the two names trimmed. Whitespace around either is refused above.
-	if installapp.IsSet(adminSecretName) && installapp.IsSet(secretName) &&
-		strings.TrimSpace(adminSecretName.ValueString()) == strings.TrimSpace(secretName.ValueString()) {
-		resp.Diagnostics.AddAttributeError(path.Root("admin_secret_name"), invalidAdminSecretNameSummary, sameSecretName)
-	}
-}
-
-// The vault's type, or "" while it isn't known.
-func vaultTypeOf(vault *vaultModel) string {
-	if vault != nil && installapp.IsSet(vault.Type) {
-		return vault.Type.ValueString()
-	}
-	return ""
 }
 
 var instanceUrlRules = []rule{{
@@ -212,8 +181,8 @@ type rule struct {
 // whitespace is rejected on its own: P0 trims the strings it stores, so the value
 // would read back different from the configuration, which Terraform reports as an
 // inconsistent result after apply. A null value is left to the checks that a field is
-// set. The value is never repeated: a URL or a secret's name may be the robot
-// account's credentials, pasted into the wrong field.
+// set. The value is never repeated: a URL or a secret's name may be the admin
+// credential, pasted into the wrong field.
 //
 // TODO(INT-465): a copy of github-repositories' validateField, with its rule type and
 // its whitespace check, kept close to it so that the two can merge into one.
@@ -266,7 +235,7 @@ const installWayOut = "Fix what P0's message names and apply again. To start ove
 
 // Describes a verify or configure step that P0 refused. P0 answers alike when its
 // check of the instance fails, which usually points at the customer's setup (the
-// connector, the secret, the robot account or the instance itself), and when it
+// connector, the secret, the admin credential or the instance itself), and when it
 // refuses the request for another reason, so the summary blames neither and leaves
 // the reason to P0's message. A refusal to change a fixed field is told apart by its
 // text, since no setup causes it: the item P0 holds differs from the configuration.
@@ -335,19 +304,8 @@ func instanceFromJson(_ context.Context, diags *diag.Diagnostics, id string, jso
 		Url:        types.StringPointerValue(jsonv.Url),
 		Vault:      vault,
 		SecretName: types.StringPointerValue(jsonv.SecretName),
-		// P0 reads a blank name as none.
-		AdminSecretName: types.StringPointerValue(nonBlank(jsonv.AdminSecretName)),
-		State:           types.StringPointerValue(jsonv.State),
+		State:      types.StringPointerValue(jsonv.State),
 	}
-}
-
-// Returns value, or nil when it is nil or blank: P0 reads a blank admin secret name
-// as none.
-func nonBlank(value *string) *string {
-	if value == nil || strings.TrimSpace(*value) == "" {
-		return nil
-	}
-	return value
 }
 
 // The body of every request: the whole item. The PUT that stages the instance needs
@@ -361,19 +319,14 @@ func instanceToJson(data any) any {
 	}
 
 	json := instanceJson{
-		Connector:       datav.Connector.ValueStringPointer(),
-		Url:             datav.Url.ValueStringPointer(),
-		SecretName:      datav.SecretName.ValueStringPointer(),
-		AdminSecretName: datav.AdminSecretName.ValueStringPointer(),
+		Connector:  datav.Connector.ValueStringPointer(),
+		Url:        datav.Url.ValueStringPointer(),
+		SecretName: datav.SecretName.ValueStringPointer(),
 	}
 	if datav.Vault != nil {
 		json.Vault = datav.Vault.toJson()
 	}
 	return &json
-}
-
-func instanceItemPath(id string) string {
-	return itemPath(installresources.HarborInstance, id)
 }
 
 func (r *HarborInstance) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -492,31 +445,16 @@ func (r *HarborInstance) checkSecretNameAcrossAccounts(ctx context.Context, req 
 	if resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...); resp.Diagnostics.HasError() {
 		return
 	}
-	// An instance that exists keeps its robot secret: P0 took it when it was created.
-	// Its admin credential can change in place, and a new one is checked.
-	checkRobot, checkAdmin := true, true
 	if !req.State.Raw.IsNull() {
 		var state instanceModel
-		if resp.Diagnostics.Append(req.State.Get(ctx, &state)...); resp.Diagnostics.HasError() {
+		// An instance that exists keeps its secret: P0 took it when it was created.
+		if resp.Diagnostics.Append(req.State.Get(ctx, &state)...); resp.Diagnostics.HasError() || !instanceWillBeCreated(&state, &plan) {
 			return
-		}
-		created := instanceWillBeCreated(&state, &plan)
-		checkRobot, checkAdmin = created, created || !state.AdminSecretName.Equal(plan.AdminSecretName)
-	}
-	// The names that end like an ARN's suffix. The admin credential's secret is in the
-	// same vault, and P0 points the connector at it the same way.
-	suffixed := []path.Path{}
-	for attribute, name := range map[string]types.String{"secret_name": plan.SecretName, "admin_secret_name": plan.AdminSecretName} {
-		check := checkRobot
-		if attribute == "admin_secret_name" {
-			check = checkAdmin
-		}
-		if check && installapp.IsSet(name) && awsArnSuffixRegex.MatchString(name.ValueString()) {
-			suffixed = append(suffixed, path.Root(attribute))
 		}
 	}
 	if plan.Vault == nil || !installapp.IsSet(plan.Vault.Type) || plan.Vault.Type.ValueString() != awsSecretsManager ||
-		!installapp.IsSet(plan.Vault.AccountId) || !installapp.IsSet(plan.Connector) || len(suffixed) == 0 {
+		!installapp.IsSet(plan.Vault.AccountId) || !installapp.IsSet(plan.SecretName) || !installapp.IsSet(plan.Connector) ||
+		!awsArnSuffixRegex.MatchString(plan.SecretName.ValueString()) {
 		return
 	}
 	var connector connectorApi
@@ -524,15 +462,8 @@ func (r *HarborInstance) checkSecretNameAcrossAccounts(ctx context.Context, req 
 		connector.Item == nil || connector.Item.Hosting == nil || connector.Item.Hosting.AccountId == nil {
 		return
 	}
-	if *connector.Item.Hosting.AccountId == plan.Vault.AccountId.ValueString() {
-		return
-	}
-	for _, attribute := range suffixed {
-		summary := invalidSecretNameSummary
-		if attribute.Equal(path.Root("admin_secret_name")) {
-			summary = invalidAdminSecretNameSummary
-		}
-		resp.Diagnostics.AddAttributeError(attribute, summary, suffixedSecretName)
+	if *connector.Item.Hosting.AccountId != plan.Vault.AccountId.ValueString() {
+		resp.Diagnostics.AddAttributeError(path.Root("secret_name"), invalidSecretNameSummary, suffixedSecretName)
 	}
 }
 
@@ -562,86 +493,17 @@ func (r *HarborInstance) Update(ctx context.Context, req resource.UpdateRequest,
 	if refuseNewUrl(ctx, req.State, req.Plan, &resp.Diagnostics) {
 		return
 	}
-	var state, plan instanceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	var state types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("state"), &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// A removed admin credential is sent as blank, which P0 reads as none: leaving it
-	// out of the request would keep the stored one.
-	installer := *r.installer
-	if !state.AdminSecretName.IsNull() && plan.AdminSecretName.IsNull() {
-		installer.ToJson = func(data any) any {
-			json, ok := instanceToJson(data).(*instanceJson)
-			if ok {
-				blank := ""
-				json.AdminSecretName = &blank
-			}
-			return json
-		}
-	}
-
-	switch {
-	case !state.AdminSecretName.Equal(plan.AdminSecretName) && (state.State.ValueString() == common.StateConfigure || state.State.ValueString() == common.StateInstalled):
-		r.changeAdminSecret(ctx, &installer, &plan, resp)
-	case state.State.ValueString() == common.StateConfigure, state.State.ValueString() == common.StateInstalled:
-		installer.UpsertFromConfigure(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &instanceApi{}, &instanceModel{})
+	switch state.ValueString() {
+	case common.StateConfigure, common.StateInstalled:
+		r.installer.UpsertFromConfigure(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &instanceApi{}, &instanceModel{})
 	default:
-		installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &instanceApi{}, &instanceModel{})
-	}
-}
-
-// Changes the admin credential of an instance that P0 has verified with one configure
-// request that holds the whole item: P0 checks the instance with the new credential,
-// or without one, and the instance stays where it was. Each refusal changes nothing,
-// and gets a diagnostic of its own with P0's message.
-func (r *HarborInstance) changeAdminSecret(ctx context.Context, installer *common.Install, plan *instanceModel, resp *resource.UpdateResponse) {
-	id := plan.Id.ValueString()
-	var answer instanceApi
-	httpResp, err := installer.ProviderData.Post(instanceItemPath(id)+"/configure", installer.ToJson(plan), &answer)
-	if err != nil {
-		status := 0
-		if httpResp != nil {
-			status = httpResp.StatusCode
-		}
-		resp.Diagnostics.AddError(describeAdminChangeError(id, status, err))
-		return
-	}
-
-	item := instanceItemJson(&answer)
-	if item == nil {
-		resp.Diagnostics.AddError("Bad API response", fmt.Sprintf("P0 answered the change to the Harbor instance %q with no item.", id))
-		return
-	}
-	if updated, ok := instanceFromJson(ctx, &resp.Diagnostics, id, item).(*instanceModel); ok && updated != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, updated)...)
-	}
-}
-
-// The diagnostic for a change of the admin credential that P0 refused, by status.
-func describeAdminChangeError(id string, status int, err error) (string, string) {
-	switch status {
-	case http.StatusConflict:
-		return "Harbor admin credential can't be removed yet",
-			fmt.Sprintf("P0 won't remove the admin credential of the Harbor instance %q while system administrator access granted through it is open, "+
-				"and changed nothing:\n\n%s", id, err)
-	case http.StatusUnprocessableEntity:
-		if strings.Contains(err.Error(), fixedFieldRefusal) {
-			return describeInstanceCheckError(id, err)
-		}
-		return "Harbor admin credential check failed",
-			fmt.Sprintf("P0 checked the Harbor instance %q with the new admin credential, the check failed, and P0 changed nothing:\n\n%s\n\n"+
-				"Check the secret and the connector's read grant on it, then apply again.", id, err)
-	case http.StatusBadRequest:
-		return "Harbor admin credential refused",
-			fmt.Sprintf("P0 refused the admin credential's secret for the Harbor instance %q, and changed nothing:\n\n%s", id, err)
-	case http.StatusNotFound:
-		return "Could not configure harbor-instance component",
-			fmt.Sprintf("P0 has no harbor-instance item %q. It may have been removed while Terraform was applying this change. Apply again to recreate it.", id)
-	default:
-		return "Error communicating with P0", fmt.Sprintf("Could not change the admin credential of the Harbor instance %q, got error:\n%s", id, err)
+		r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &instanceApi{}, &instanceModel{})
 	}
 }
 

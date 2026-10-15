@@ -77,23 +77,3 @@ func TestInstanceItemJsonWithoutItem(t *testing.T) {
 		t.Errorf("instanceItemJson of an answer with no item = %#v; want nil", item)
 	}
 }
-
-// Each refusal of an admin credential change has a summary of its own and carries
-// P0's message. A refused field change keeps its own summary.
-func TestDescribeAdminChangeError(t *testing.T) {
-	for _, tc := range []struct {
-		status           int
-		message, summary string
-	}{
-		{409, "409 Conflict: The Harbor instance prod has open system administrator grants.", "Harbor admin credential can't be removed yet"},
-		{422, "422 Unprocessable Entity: The connector couldn't sign in.", "Harbor admin credential check failed"},
-		{422, "422 Unprocessable Entity: 'url' can only be altered on initial installation.", "Harbor instance differs from the one in P0"},
-		{400, "400 Bad Request: The admin credential has to be a different secret from the robot account's.", "Harbor admin credential refused"},
-		{500, "500 Internal Server Error: down", "Error communicating with P0"},
-	} {
-		summary, detail := describeAdminChangeError("prod", tc.status, errors.New(tc.message))
-		if summary != tc.summary || !strings.Contains(detail, tc.message) || !strings.Contains(detail, `"prod"`) {
-			t.Errorf("%d %q: got %q, %q; want %q with P0's message", tc.status, tc.message, summary, detail, tc.summary)
-		}
-	}
-}

@@ -266,7 +266,7 @@ func FuzzSecretName(f *testing.F) {
 	for _, seed := range []string{
 		"harbor-robot_2", "harbor/p0-harbor/robot", "Harbor.robot+v2=@acme", "projects/acme-vault/secrets/harbor-robot",
 		"arn:aws:secretsmanager:us-west-2:111111111111:secret:harbor-robot-AbC123", "projects/acme-vault/secrets/robot:latest",
-		`{"name":"robot$p0-connector","secret":"not-a-real-secret"}`, "robot$p0-connector", "harbor robot", "harbor/*", " harbor-robot\n",
+		`{"issuer":"https://idp.example.com","clientSecret":"not-a-real-secret"}`, "admin$p0", "harbor robot", "harbor/*", " harbor-robot\n",
 		strings.Repeat("s", 255), strings.Repeat("s", 256), strings.Repeat("s", 512), strings.Repeat("s", 513),
 	} {
 		f.Add(seed)
@@ -281,10 +281,6 @@ func FuzzSecretName(f *testing.F) {
 			{installvaultedcredential.GcpSecretManager, referenceGcpSecretName(name), invalidGcpSecretName},
 			{"", referenceAwsSecretName(name), invalidSecretName},
 		} {
-			admin := adminSecretNameRules(tc.vaultType)
-			if len(admin) != 1 || admin[0].test(name) != tc.want {
-				t.Errorf("adminSecretNameRules(%q) on %q: want one rule that accepts it: %v", tc.vaultType, name, tc.want)
-			}
 			rules := secretNameRules(tc.vaultType)
 			if len(rules) != 1 || rules[0].test(name) != tc.want || rules[0].message != tc.message {
 				t.Errorf("secretNameRules(%q) on %q: want one rule that accepts it: %v, with the message %q", tc.vaultType, name, tc.want, tc.message)
