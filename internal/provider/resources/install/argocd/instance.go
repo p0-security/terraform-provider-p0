@@ -145,7 +145,7 @@ For the full install steps, see [Installing Argo CD](https://docs.p0.dev/integra
 			"namespace": schema.StringAttribute{
 				Optional: true,
 				MarkdownDescription: "The Kubernetes namespace `argocd-rbac-cm` is in: up to 63 lowercase letters, digits and hyphens, " +
-					"starting and ending with a letter or digit. Leave it out for `" + defaultNamespace + "`, Argo CD's default. " +
+					"starting and ending with a letter or digit. Leave it out, rather than empty, for `" + defaultNamespace + "`, Argo CD's default. " +
 					"It can't change: for another namespace, add a new `p0_argocd_instance` with its own `id`.",
 			},
 			"vault": vaultAttribute(),
@@ -207,7 +207,15 @@ func validateManagingApp(app types.String, diags *diag.Diagnostics) {
 	validateField(path.Root("managing_app"), app, managingAppRules, diags)
 }
 
+// P0 takes a blank namespace as defaultNamespace, as the app's form sends one. Here it
+// is refused for a namespace left out, which P0 stores as no namespace: a blank one
+// it stored could read back other than the configuration, and would count as a new
+// namespace if the configuration then left it out.
 var namespaceRules = []rule{{
+	summary: "Invalid Argo CD namespace",
+	message: blankNamespace,
+	test:    func(namespace string) bool { return namespace != "" },
+}, {
 	summary: "Invalid Argo CD namespace",
 	message: invalidNamespace,
 	test:    namespaceRegex.MatchString,
@@ -356,8 +364,9 @@ func instanceFromJson(_ context.Context, diags *diag.Diagnostics, id string, jso
 		return nil
 	}
 
-	// A namespace that P0 doesn't hold stays null, rather than read as
-	// defaultNamespace: the configuration that leaves it out then plans no change.
+	// A namespace that P0 doesn't hold stays null here, rather than read as
+	// defaultNamespace, which only the app fills in: the configuration that leaves it
+	// out then plans no change.
 	return &instanceModel{
 		Id:          types.StringValue(id),
 		Connector:   types.StringPointerValue(jsonv.Connector),
@@ -431,41 +440,45 @@ func (r *ArgocdInstance) Read(ctx context.Context, _ resource.ReadRequest, resp 
 type fixedLocationField struct {
 	attribute string
 	summary   string
-	detail    string
+}
+
+var fixedLocationFields = []fixedLocationField{
+	{"url", "An Argo CD instance's address can't change"},
+	{"managing_app", "An Argo CD instance's managing application can't change"},
+	{"namespace", "An Argo CD instance's namespace can't change"},
 }
 
 const addAnotherInstance = "Add a new p0_argocd_instance with its own id, and remove this one once its open access has ended."
-
-var fixedLocationFields = []fixedLocationField{
-	{"url", "An Argo CD instance's address can't change", "An Argo CD instance's address can't change. " + addAnotherInstance},
-	{"managing_app", "An Argo CD instance's managing application can't change", "An Argo CD instance's managing application can't change. " + addAnotherInstance},
-	{"namespace", "An Argo CD instance's namespace can't change", "An Argo CD instance's namespace can't change. " + addAnotherInstance},
-}
 
 // Refuses a new URL, managing Application or namespace for an installed instance, and
 // reports whether it did. Only an installed instance can have open access. For one
 // imported before it finished installing, P0's own refusal of the change says more. A
 // value that Terraform doesn't know yet passes: one unknown until apply is checked
-// again in Update. A namespace that is set where it was left out, or the other way
-// round, is a new one, even if it is defaultNamespace: P0 compares what it stores.
+// again in Update. Any other difference from state is a new value, a null one
+// included: a namespace that is set where it was left out, or the other way round,
+// is a new one, even if it is defaultNamespace, since P0 compares what it stores.
 func refuseNewLocation(ctx context.Context, state tfsdk.State, plan tfsdk.Plan, diags *diag.Diagnostics) bool {
 	var installState types.String
-	diags.Append(state.GetAttribute(ctx, path.Root("state"), &installState)...)
-	if diags.HasError() || installState.ValueString() != common.StateInstalled {
+	if read := state.GetAttribute(ctx, path.Root("state"), &installState); read.HasError() {
+		diags.Append(read...)
+		return false
+	}
+	if installState.ValueString() != common.StateInstalled {
 		return false
 	}
 	refused := false
 	for _, field := range fixedLocationFields {
 		var before, after types.String
-		diags.Append(state.GetAttribute(ctx, path.Root(field.attribute), &before)...)
-		diags.Append(plan.GetAttribute(ctx, path.Root(field.attribute), &after)...)
-		if diags.HasError() {
-			return false
+		read := state.GetAttribute(ctx, path.Root(field.attribute), &before)
+		read.Append(plan.GetAttribute(ctx, path.Root(field.attribute), &after)...)
+		if read.HasError() {
+			diags.Append(read...)
+			return refused
 		}
 		if after.IsUnknown() || before.Equal(after) {
 			continue
 		}
-		diags.AddAttributeError(path.Root(field.attribute), field.summary, field.detail)
+		diags.AddAttributeError(path.Root(field.attribute), field.summary, field.summary+". "+addAnotherInstance)
 		refused = true
 	}
 	return refused

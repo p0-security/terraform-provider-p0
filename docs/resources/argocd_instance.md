@@ -265,7 +265,7 @@ resource "p0_argocd_instance" "aws_example" {
 
 ### Optional
 
-- `namespace` (String) The Kubernetes namespace `argocd-rbac-cm` is in: up to 63 lowercase letters, digits and hyphens, starting and ending with a letter or digit. Leave it out for `argocd`, Argo CD's default. It can't change: for another namespace, add a new `p0_argocd_instance` with its own `id`.
+- `namespace` (String) The Kubernetes namespace `argocd-rbac-cm` is in: up to 63 lowercase letters, digits and hyphens, starting and ending with a letter or digit. Leave it out, rather than empty, for `argocd`, Argo CD's default. It can't change: for another namespace, add a new `p0_argocd_instance` with its own `id`.
 
 ### Read-Only
 

@@ -435,7 +435,12 @@ func FuzzNamespace(f *testing.F) {
 		if accepted := !diags.HasError(); accepted != want {
 			t.Errorf("the namespace check accepts %q: %v; want %v", namespace, accepted, want)
 		}
-		checkRefusals(t, diags, "namespace", invalidNamespace)
+		for _, d := range diags {
+			blank := strings.TrimSpace(namespace) == ""
+			if (blank && d.Detail() != blankNamespace) || (!blank && d.Detail() != invalidNamespace && !strings.HasPrefix(d.Detail(), "P0 removes the whitespace")) {
+				t.Errorf("namespace %q refused with %q", namespace, d.Detail())
+			}
+		}
 	})
 }
 

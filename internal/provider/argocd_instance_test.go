@@ -336,12 +336,18 @@ func TestArgocdInstanceChangeReplaces(t *testing.T) {
 	for _, tc := range []struct {
 		name, summary string
 		before, after argocdInstanceArgs
+		// The refusals the plan gives after the first, if any.
+		also []string
 	}{
-		{"url", "An Argo CD instance's address can't change", gcp, gcp.with(func(a *argocdInstanceArgs) { a.url = "https://registry.example.com:8443" })},
-		{"managing app", "An Argo CD instance's managing application can't change", gcp, gcp.with(func(a *argocdInstanceArgs) { a.managingApp = "default/argocd" })},
-		{"namespace", "An Argo CD instance's namespace can't change", gcp, gcp.with(func(a *argocdInstanceArgs) { a.namespace = `"argocd"` })},
+		{"url", "An Argo CD instance's address can't change", gcp, gcp.with(func(a *argocdInstanceArgs) { a.url = "https://registry.example.com:8443" }), nil},
+		{"managing app", "An Argo CD instance's managing application can't change", gcp, gcp.with(func(a *argocdInstanceArgs) { a.managingApp = "default/argocd" }), nil},
+		{"namespace", "An Argo CD instance's namespace can't change", gcp, gcp.with(func(a *argocdInstanceArgs) { a.namespace = `"argocd"` }), nil},
 		{"namespace left out", "An Argo CD instance's namespace can't change",
-			gcp.with(func(a *argocdInstanceArgs) { a.namespace = `"gitops"` }), gcp},
+			gcp.with(func(a *argocdInstanceArgs) { a.namespace = `"gitops"` }), gcp, nil},
+		// Each changed field is refused, not only the first.
+		{"url and namespace", "An Argo CD instance's address can't change", gcp,
+			gcp.with(func(a *argocdInstanceArgs) { a.url, a.namespace = "https://registry.example.com", `"gitops"` }),
+			[]string{"An Argo CD instance's namespace can't change"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newArgocdFake(t)
@@ -360,10 +366,10 @@ func TestArgocdInstanceChangeReplaces(t *testing.T) {
 					{
 						Config:   argocdInstanceConfig(f, argocdGcp, tc.after),
 						PlanOnly: true,
-						ExpectError: argocdError(
+						ExpectError: argocdError(append([]string{
 							tc.summary,
 							"Add a new p0_argocd_instance with its own id, and remove this one once its open access has ended.",
-						),
+						}, tc.also...)...),
 					},
 					{
 						Config:      argocdInstanceConfig(f, argocdGcp, tc.after),
@@ -1185,7 +1191,7 @@ func TestArgocdInstanceValidation(t *testing.T) {
 		{"namespace with capitals", base.with(func(a *argocdInstanceArgs) { a.namespace = `"ArgoCD"` }), []string{"Invalid Argo CD namespace", invalidNamespace}},
 		{"namespace with a dot", base.with(func(a *argocdInstanceArgs) { a.namespace = `"argo.cd"` }), []string{invalidNamespace}},
 		{"namespace over 63 characters", base.with(func(a *argocdInstanceArgs) { a.namespace = fmt.Sprintf("%q", strings.Repeat("n", 64)) }), []string{invalidNamespace}},
-		{"empty namespace", base.with(func(a *argocdInstanceArgs) { a.namespace = `""` }), []string{invalidNamespace}},
+		{"empty namespace", base.with(func(a *argocdInstanceArgs) { a.namespace = `""` }), []string{"Leave namespace out, rather than empty, for argocd"}},
 		{"namespace with whitespace around it", base.with(func(a *argocdInstanceArgs) { a.namespace = `" argocd"` }), []string{"P0 removes the whitespace around 'namespace'"}},
 		{"URL with an IPv4 address in three parts", base.with(func(a *argocdInstanceArgs) { a.url = "https://1.2.3" }), []string{invalidUrl}},
 		// P0 would trim the URL and store it, and the apply would then fail on a value
