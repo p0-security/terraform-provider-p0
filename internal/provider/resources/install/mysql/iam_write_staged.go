@@ -68,7 +68,9 @@ func (r *MysqlIamWriteStaged) Schema(ctx context.Context, req resource.SchemaReq
 
 **Important:** If using RDS hosting, you must first install the p0_aws_rds resource for the instance's VPC.
 
-After staging, use the computed hosting.connector_arn to deploy P0's MySQL connector (via the p0-security/p0-connector/aws and p0-security/p0-db/aws Terraform modules, as shown in the example), then complete the install with the p0_mysql resource.`,
+After staging, use the computed hosting.connector_arn to deploy P0's MySQL connector (via the p0-security/p0-connector/aws and p0-security/p0-db/aws Terraform modules, as shown in the example), then complete the install with the p0_mysql resource.
+
+For the full install steps, see [Installing MySQL](https://docs.p0.dev/integrations/resource-integrations/mysql/installation).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,

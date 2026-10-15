@@ -6,6 +6,7 @@ description: |-
   An AWS RDS Installation.
   Installing this resource allows P0 to manage access to Aurora and RDS instances in a VPC using IAM authentication.
   Important: The AWS account must first be installed in P0 (see the p0_aws_iam_write resource), and P0's access must be provisioned by applying the p0-security/p0-rds-vpc/aws Terraform module (aws_role_name = the P0 IAM-management role, vpc_id = this resource's id) before this install can verify.
+  For the full install steps, see AWS RDS https://docs.p0.dev/integrations/resource-integrations/aws/managed-services/aws-rds.
 ---
 
 # p0_aws_rds (Resource)
@@ -15,6 +16,8 @@ An AWS RDS Installation.
 Installing this resource allows P0 to manage access to Aurora and RDS instances in a VPC using IAM authentication.
 
 **Important:** The AWS account must first be installed in P0 (see the p0_aws_iam_write resource), and P0's access must be provisioned by applying the p0-security/p0-rds-vpc/aws Terraform module (aws_role_name = the P0 IAM-management role, vpc_id = this resource's id) before this install can verify.
+
+For the full install steps, see [AWS RDS](https://docs.p0.dev/integrations/resource-integrations/aws/managed-services/aws-rds).
 
 ## Example Usage
 

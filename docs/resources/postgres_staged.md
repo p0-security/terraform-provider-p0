@@ -6,6 +6,7 @@ description: |-
   A staged PostgreSQL installation. Staged resources generate the infrastructure configuration needed to deploy P0's PostgreSQL connector.
   Important: If using RDS hosting, you must first install the p0_aws_rds resource for the instance's VPC.
   After staging, deploy the P0 connector infrastructure using the Terraform configuration shown in the P0 app (modules p0-security/p0-connector/aws and p0-security/p0-db/aws). The computed hosting.connector_arn attribute identifies the connector Lambda that will be deployed.
+  For the full install steps, see Installing an RDS instance https://docs.p0.dev/integrations/resource-integrations/postgresql/installing-an-rds-database.
 ---
 
 # p0_postgres_staged (Resource)
@@ -15,6 +16,8 @@ A staged PostgreSQL installation. Staged resources generate the infrastructure c
 **Important:** If using RDS hosting, you must first install the p0_aws_rds resource for the instance's VPC.
 
 After staging, deploy the P0 connector infrastructure using the Terraform configuration shown in the P0 app (modules p0-security/p0-connector/aws and p0-security/p0-db/aws). The computed hosting.connector_arn attribute identifies the connector Lambda that will be deployed.
+
+For the full install steps, see [Installing an RDS instance](https://docs.p0.dev/integrations/resource-integrations/postgresql/installing-an-rds-database).
 
 ## Example Usage
 

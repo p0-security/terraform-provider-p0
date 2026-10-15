@@ -60,7 +60,9 @@ func (*mysqlIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 
 Installing MySQL allows you to manage access to your MySQL database instances using IAM authentication.
 
-**Note:** This integration is currently experimental and only supports AWS RDS MySQL instances.`,
+**Note:** This integration is currently experimental and only supports AWS RDS MySQL instances.
+
+For the full install steps, including the SQL to run in the database before applying this resource, see [Installing MySQL](https://docs.p0.dev/integrations/resource-integrations/mysql/installation).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				MarkdownDescription: `A unique identifier for this MySQL installation (can be any string, e.g., "production-db" or "staging-mysql")`,
