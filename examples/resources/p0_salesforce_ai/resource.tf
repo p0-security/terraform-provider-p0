@@ -61,7 +61,7 @@ resource "google_cloud_run_v2_service" "connector" {
     service_account = google_service_account.connector.email
 
     containers {
-      image = "docker.io/p0security/p0-connector-salesforce-ai-gcloud:sha-UNPUBLISHED@sha256:UNPUBLISHED"
+      image = "docker.io/p0security/p0-connector-salesforce-ai-gcloud:sha-41b3cd4@sha256:1f1813bd8b9714086f619c3c700dab7f0a54220828441e3848f5c39a0f9661e6"
 
       # The connector also checks this against the caller's OIDC token.
       env {
