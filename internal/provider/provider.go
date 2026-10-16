@@ -44,6 +44,7 @@ import (
 	installharbor "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/harbor"
 	installidentityprovider "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/identity-provider"
 	installintegrationitem "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/integration-item"
+	installjiraai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/jira-ai"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
@@ -244,6 +245,10 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installharbor.NewHarborConnectorStaged,
 		installharbor.NewHarborConnector,
 		installharbor.NewHarborInstance,
+		installjiraai.NewJiraAiConnectorStaged,
+		installjiraai.NewJiraAiConnector,
+		installjiraai.NewJiraAiSite,
+		installjiraai.NewJiraAiPoolAccount,
 		installargocd.NewArgocdConnectorStaged,
 		installargocd.NewArgocdConnector,
 		installargocd.NewArgocdInstance,

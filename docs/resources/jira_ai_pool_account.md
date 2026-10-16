@@ -1,0 +1,127 @@
+---
+page_title: "p0_jira_ai_pool_account Resource - p0"
+subcategory: ""
+description: |-
+  An agent account: an Atlassian service account that P0 leases to one agent session at a time on a Jira site. When an agent is granted access to a project, P0 has the site's connector add the account to the project's role, and remove it when the access ends. Add as many as the site should serve sessions at once.
+  P0 never holds the account's OAuth client secret. When P0 adds the account it names the secret that holds it, secret_name, in the site's vault. Create that secret and store the client's secret in it, outside Terraform, which keeps it out of Terraform's state. Only the connector reads it, under the grant the site's Terraform gives it.
+  Important: Install the site first, in an earlier apply or in the same one with this resource referring to it, as the example does. Creating this resource has P0 look the account's Atlassian ID up through the site's connector, as the site's admin service account. That also checks the site's admin client. If the check fails, the apply fails with P0's message.
+  An agent account's attributes can't change once it is created, so changing any of them replaces the account. To rotate the client's secret, add a new version to the same secret, which needs no change here.
+  An agent account that already exists in P0, such as one added in the P0 app, isn't created again: the apply fails, and says to import it with terraform import. An imported account that P0 hasn't finished installing plans an update, and applying it finishes the install.
+  Prerequisite: an Atlassian service account that is a member of the site, with an OAuth client, and no project roles of its own: P0 gives it each role an agent is granted.
+  Note: This integration is currently in beta.
+---
+
+# p0_jira_ai_pool_account (Resource)
+
+An agent account: an Atlassian service account that P0 leases to one agent session at a time on a Jira site. When an agent is granted access to a project, P0 has the site's connector add the account to the project's role, and remove it when the access ends. Add as many as the site should serve sessions at once.
+
+P0 never holds the account's OAuth client secret. When P0 adds the account it names the secret that holds it, `secret_name`, in the site's vault. Create that secret and store the client's secret in it, outside Terraform, which keeps it out of Terraform's state. Only the connector reads it, under the grant the site's Terraform gives it.
+
+**Important:** Install the site first, in an earlier apply or in the same one with this resource referring to it, as the example does. Creating this resource has P0 look the account's Atlassian ID up through the site's connector, as the site's admin service account. That also checks the site's admin client. If the check fails, the apply fails with P0's message.
+
+An agent account's attributes can't change once it is created, so changing any of them replaces the account. To rotate the client's secret, add a new version to the same secret, which needs no change here.
+
+An agent account that already exists in P0, such as one added in the P0 app, isn't created again: the apply fails, and says to import it with `terraform import`. An imported account that P0 hasn't finished installing plans an update, and applying it finishes the install.
+
+**Prerequisite:** an Atlassian service account that is a member of the site, with an OAuth client, and no project roles of its own: P0 gives it each role an agent is granted.
+
+**Note:** This integration is currently in beta.
+
+## Example Usage
+
+```terraform
+# Adds an Atlassian service account that P0 leases to agent sessions on a
+# site. P0 names the secret its OAuth client secret goes in, as secret_name.
+# See gcp.tf in this directory for creating that secret.
+resource "p0_jira_ai_pool_account" "example" {
+  id        = "agent-1"
+  site      = p0_jira_ai_site.example.id
+  email     = "p0-agent-1@serviceaccount.atlassian.com"
+  client_id = "ZyXwVuTsRqPoNmLkJiHgFeDcBa543210"
+}
+```
+
+### Google Cloud
+
+```terraform
+# Adds two agent accounts on the site acme (see gcp.tf in the p0_jira_ai_site
+# example), and creates the secret each one's OAuth client secret goes in, in
+# the site's vault project. The site's grants already let its connector read
+# these secrets, by their prefix.
+#
+# Creating an account has P0 look its Atlassian ID up through the site's
+# connector, so the site must be installed, and its admin service account must
+# be able to see the account.
+
+locals {
+  # Each account's email and OAuth client ID, by the account's ID.
+  p0_jira_ai_pool_accounts = {
+    "agent-1" = {
+      email     = "p0-agent-1@serviceaccount.atlassian.com"
+      client_id = "ZyXwVuTsRqPoNmLkJiHgFeDcBa543210"
+    }
+    "agent-2" = {
+      email     = "p0-agent-2@serviceaccount.atlassian.com"
+      client_id = "QwErTyUiOpAsDfGhJkLzXcVbNm678901"
+    }
+  }
+}
+
+resource "p0_jira_ai_pool_account" "acme" {
+  for_each = local.p0_jira_ai_pool_accounts
+
+  id        = each.key
+  site      = p0_jira_ai_site.acme.id
+  email     = each.value.email
+  client_id = each.value.client_id
+}
+
+# The secret P0 names for each account, secret_name on the account. Its name is
+# fixed by the site's and the account's IDs, so it's written out here rather than
+# read from secret_name: replacing an account would otherwise make the name
+# unknown at plan time and replace the secret, deleting the stored client secret.
+#
+# This creates the secret alone, with no value, which keeps the client's secret
+# out of Terraform's state. Store it as the secret's first version:
+#
+#   read -rs JIRA_CLIENT_SECRET
+#   printf %s "$JIRA_CLIENT_SECRET" | gcloud secrets versions add p0_install_jira-ai_acme_agent-1_oauth-client \
+#     --project my-secrets-project-id --data-file=-
+resource "google_secret_manager_secret" "p0_jira_ai_pool_account_acme" {
+  for_each = local.p0_jira_ai_pool_accounts
+
+  project   = p0_jira_ai_site.acme.vault.project_id
+  secret_id = "p0_install_jira-ai_${p0_jira_ai_site.acme.id}_${each.key}_oauth-client"
+
+  replication {
+    auto {}
+  }
+
+  lifecycle {
+    # Stops the apply if P0 ever names the secret differently.
+    postcondition {
+      condition     = self.secret_id == p0_jira_ai_pool_account.acme[each.key].secret_name
+      error_message = "P0 names this account's secret ${p0_jira_ai_pool_account.acme[each.key].secret_name}. Rename this secret to match."
+    }
+  }
+}
+```
+
+<!-- schema generated by tfplugindocs -->
+## Schema
+
+### Required
+
+- `client_id` (String) The client ID of the service account's OAuth client. Its secret goes in the secret that `secret_name` names.
+- `email` (String) The service account's email, as Atlassian shows it.
+- `id` (String) A name you choose for the account, such as `agent-1`. Use lowercase letters, digits and hyphens, starting and ending with a letter or digit, up to 63 characters.
+- `site` (String) The `id` of the `p0_jira_ai_site` this account works on. The site must be installed.
+
+### Read-Only
+
+- `account_id` (String) Atlassian's ID for the account, which P0 looks up through the site's connector when it checks the install.
+- `secret_name` (String) The name of the secret in the site's vault that holds the OAuth client's secret. P0 names it when it adds the account: `p0_install_jira-ai_<site>_<id>_oauth-client`. Create it, and store the client's secret as its whole value.
+- `state` (String) This item's install progress in the P0 application:
+	- 'stage': The item has been staged for installation
+	- 'configure': The item is available to be added to P0, and may be configured
+	- 'installed': The item is fully installed
