@@ -35,9 +35,10 @@ locals {
     # How many days CloudWatch keeps the connector's logs.
     log_retention_days = 30
     # P0's connector image: its tag on Docker Hub, and the digest that tag must
-    # resolve to. Use the tag and digest of the release you want to run.
-    image_tag    = "sha-1234567"
-    image_digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    # resolve to. To update, take both from the latest version of this example
+    # in the Terraform registry: they change together.
+    image_tag    = "sha-7663c38"
+    image_digest = "sha256:109e007f15e268af996ad00e055bac13d4499a14064cfb318b411d2b9655855b"
   }
 }
 
