@@ -23,4 +23,5 @@ const (
 	Account          = "account"
 	Site             = "site"
 	PoolAccount      = "pool-account"
+	Tenant           = "tenant"
 )
