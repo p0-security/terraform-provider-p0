@@ -35,10 +35,10 @@ locals {
     # change it, and shows the one deployed as allowed_domains on each
     # p0_1password_account.
     domain_allow_pattern = "^example\\.com$"
-    # P0's connector image: the digest of its tag on Docker Hub. This is a
-    # placeholder, for an image that doesn't exist. Use the pinned value in the
-    # Terraform that P0's installer shows, or the image's published digest.
-    image_digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    # P0's connector image: the digest of its tag on Docker Hub. This pins the
+    # first published build, sha-f1af73d. For a later one, use the pinned value
+    # in the Terraform that P0's installer shows.
+    image_digest = "sha256:5c8f2d547a031202886bc31e4ef84d700a2fd05960fde7d0eda1b8bc2580e3ae"
   }
 }
 
@@ -79,7 +79,7 @@ resource "google_cloud_run_v2_service" "p0_1password_connector_gcp" {
     service_account = google_service_account.p0_1password_connector_gcp.email
 
     containers {
-      image = "1password.io/p0security/p0-connector-1password-gcloud@${local.p0_1password_connector_gcp.image_digest}"
+      image = "docker.io/p0security/p0-connector-1password-gcloud@${local.p0_1password_connector_gcp.image_digest}"
 
       # The connector checks this against the caller's OIDC token, so it is
       # not redundant with the roles/run.invoker grant.
