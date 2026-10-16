@@ -60,6 +60,28 @@ func hostingValue(fields map[string]tftypes.Value) func(tftypes.Object) tftypes.
 	}
 }
 
+const (
+	testDirectoryId    = "11111111-2222-3333-4444-555555555555"
+	testSubscriptionId = "66666666-7777-8888-9999-000000000000"
+)
+
+// A valid Azure hosting block, with the given fields changed.
+func azureHostingValue(changes map[string]tftypes.Value) func(tftypes.Object) tftypes.Value {
+	str := func(value string) tftypes.Value { return tftypes.NewValue(tftypes.String, value) }
+	fields := map[string]tftypes.Value{
+		"type":             str(AzureHosting),
+		"directory_id":     str(testDirectoryId),
+		"subscription_id":  str(testSubscriptionId),
+		"resource_group":   str("p0-connectors"),
+		"connector_name":   str("p0-connector"),
+		"connector_region": str("eastus"),
+	}
+	for name, value := range changes {
+		fields[name] = value
+	}
+	return hostingValue(fields)
+}
+
 // Terraform validates a configuration before it knows every value, so a hosting block
 // set from a module output, a variable or for_each can be wholly unknown. Validation
 // skips it rather than failing to read it.
@@ -120,6 +142,67 @@ func TestAppValidateConfigUnknownHosting(t *testing.T) {
 				"connector_region": str("us-east-1"),
 			}),
 		},
+		{
+			name:    "azure hosting",
+			hosting: azureHostingValue(nil),
+		},
+		{
+			name: "azure hosting without its address",
+			hosting: hostingValue(map[string]tftypes.Value{
+				"type":             str(AzureHosting),
+				"connector_name":   str("p0-connector"),
+				"connector_region": str("eastus"),
+			}),
+			want: []string{"Missing Azure directory ID", "Missing Azure subscription ID", "Missing Azure resource group"},
+		},
+		{
+			name:    "azure hosting with an AWS account and a project",
+			hosting: azureHostingValue(map[string]tftypes.Value{"account_id": str("123456789012"), "project_id": str("my-project-id")}),
+			want:    []string{"Unexpected AWS account ID", "Unexpected Google Cloud project"},
+		},
+		{
+			name: "aws hosting with an Azure address",
+			hosting: hostingValue(map[string]tftypes.Value{
+				"type":             str(AwsHosting),
+				"account_id":       str("123456789012"),
+				"directory_id":     str(testDirectoryId),
+				"subscription_id":  str(testSubscriptionId),
+				"resource_group":   str("p0-connectors"),
+				"connector_name":   str("p0-connector"),
+				"connector_region": str("us-east-1"),
+			}),
+			want: []string{"Unexpected Azure directory ID", "Unexpected Azure subscription ID", "Unexpected Azure resource group"},
+		},
+		{
+			name:    "azure hosting with a Lambda function's name",
+			hosting: azureHostingValue(map[string]tftypes.Value{"connector_name": str("P0_Connector")}),
+			want:    []string{"Invalid Container App name"},
+		},
+		{
+			name:    "azure hosting with two hyphens in a row",
+			hosting: azureHostingValue(map[string]tftypes.Value{"connector_name": str("p0--connector")}),
+			want:    []string{"Invalid Container App name"},
+		},
+		{
+			name:    "azure hosting with a name too long for a Container App",
+			hosting: azureHostingValue(map[string]tftypes.Value{"connector_name": str("p0-connector-for-the-admin-tool-x")}),
+			want:    []string{"Invalid Container App name"},
+		},
+		{
+			name:    "azure hosting with an AWS region",
+			hosting: azureHostingValue(map[string]tftypes.Value{"connector_region": str("us-east-1")}),
+			want:    []string{"Invalid Azure region"},
+		},
+		{
+			name: "aws hosting with an Azure region",
+			hosting: hostingValue(map[string]tftypes.Value{
+				"type":             str(AwsHosting),
+				"account_id":       str("123456789012"),
+				"connector_name":   str("p0-connector"),
+				"connector_region": str("eastus"),
+			}),
+			want: []string{"Invalid region"},
+		},
 	}
 
 	for _, c := range cases {
@@ -162,6 +245,17 @@ func TestAppHostingFieldValidators(t *testing.T) {
 		{field: "connector_region", value: "us-east-1", want: true},
 		{field: "connector_region", value: "us-central1", want: true},
 		{field: "connector_region", value: "us-east", want: false},
+		{field: "connector_region", value: "eastus", want: true},
+		{field: "connector_region", value: "eastus2", want: true},
+		{field: "connector_region", value: "East US", want: false},
+		{field: "directory_id", value: testDirectoryId, want: true},
+		{field: "directory_id", value: "contoso.onmicrosoft.com", want: false},
+		{field: "subscription_id", value: testSubscriptionId, want: true},
+		{field: "subscription_id", value: "my-subscription", want: false},
+		{field: "resource_group", value: "p0-connectors", want: true},
+		{field: "resource_group", value: "rg_(prod).eu", want: true},
+		{field: "resource_group", value: "p0-connectors.", want: false},
+		{field: "resource_group", value: "p0 connectors", want: false},
 	}
 
 	for _, c := range cases {

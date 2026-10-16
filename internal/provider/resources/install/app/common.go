@@ -12,8 +12,9 @@ const AppKey = "app"
 var Components = []string{installresources.IamWrite}
 
 const (
-	AwsHosting = "aws"
-	GcpHosting = "gcp"
+	AwsHosting   = "aws"
+	AzureHosting = "azure"
+	GcpHosting   = "gcp"
 )
 
 // A Lambda function name or a Cloud Run service name. This is the Lambda constraint,
@@ -29,3 +30,16 @@ var CloudRunServiceNameRegex = regexp.MustCompile(`^[a-z]([a-z0-9-]{0,47}[a-z0-9
 // number with a hyphen) or "us-central1" (Google Cloud does not). Google Cloud's
 // numbering runs into two digits, e.g. "europe-west12".
 var ConnectorRegionRegex = regexp.MustCompile(`^[a-z]{2,}(-[a-z]+)+-?\d{1,2}$`)
+
+// An Azure region's programmatic name, e.g. "eastus", "westeurope" or "eastus2":
+// lowercase letters and digits, without the hyphens AWS and Google Cloud use.
+var AzureRegionRegex = regexp.MustCompile(`^[a-z]+[a-z0-9]*$`)
+
+// A Container App name: 2 to 32 lowercase letters, digits and hyphens, starting with a
+// letter and ending with a letter or digit. Azure also refuses two hyphens in a row,
+// which validateAzureHosting checks, since Go's regexp has no lookahead.
+var ContainerAppNameRegex = regexp.MustCompile(`^[a-z][a-z0-9-]{0,30}[a-z0-9]$`)
+
+// A resource group name: up to 90 letters, digits, underscores, parentheses, hyphens
+// and periods, not ending with a period. Azure allows Unicode letters and digits.
+var ResourceGroupRegex = regexp.MustCompile(`^[\p{L}\p{N}_().-]{0,89}[\p{L}\p{N}_()-]$`)

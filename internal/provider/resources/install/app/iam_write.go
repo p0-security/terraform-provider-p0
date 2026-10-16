@@ -3,6 +3,7 @@ package installapp
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -41,10 +42,10 @@ type appIamWriteApi struct {
 }
 
 type appIamWriteModel struct {
-	Id      types.String           `tfsdk:"id"`
-	Hosting *ConnectorHostingModel `tfsdk:"hosting"`
-	Label   types.String           `tfsdk:"label"`
-	State   types.String           `tfsdk:"state"`
+	Id      types.String              `tfsdk:"id"`
+	Hosting *AppConnectorHostingModel `tfsdk:"hosting"`
+	Label   types.String              `tfsdk:"label"`
+	State   types.String              `tfsdk:"state"`
 }
 
 func NewAppIamWrite() resource.Resource {
@@ -60,7 +61,7 @@ func (*appIamWrite) Schema(_ context.Context, _ resource.SchemaRequest, resp *re
 		MarkdownDescription: `A custom application installation (preview).
 
 Registers a connector you built with [` + "`@p0security/connector-sdk`" + `](https://github.com/p0-security/connector) and
-deployed into your own AWS or Google Cloud account, so that access to your application can be requested through P0.
+deployed into your own AWS, Google Cloud or Azure account, so that access to your application can be requested through P0.
 
 Deploy the connector and grant P0 permission to invoke it before applying this resource. Creating it verifies that
 P0 can reach the connector, and fails if it cannot.
@@ -74,6 +75,9 @@ P0 can reach the connector, and fails if it cannot.
   ` + "`roles/run.invoker`" + ` on the connector's service, and pass the same address to the connector as its
   ` + "`INVOKER_SA_EMAIL`" + ` environment variable.
 
+- For Azure Container Apps hosting, ` + "`p0_azure`" + ` and ` + "`p0_azure_app`" + ` must be installed for the
+  connector's directory. Azure hosting is not available to every organization yet.
+
 For the full install steps, see [Deploying a connector with Terraform](https://docs.p0.dev/integrations/resource-integrations/custom-application/deploying-a-connector-with-terraform).`,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -83,7 +87,7 @@ For the full install steps, see [Deploying a connector with Terraform](https://d
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"hosting": ConnectorHostingAttribute(appHostingValidators),
+			"hosting": AppConnectorHostingAttribute(appHostingValidators),
 			"label": schema.StringAttribute{
 				MarkdownDescription: `The label for this installation (defaults to the application identifier)`,
 				Computed:            true,
@@ -97,8 +101,8 @@ For the full install steps, see [Deploying a connector with Terraform](https://d
 }
 
 // The checks on a custom application's connector address. A field's validator can't
-// see the hosting's type, so each accepts what either Lambda or Cloud Run does, and
-// ValidateConfig narrows the connector's name for `gcp`.
+// see the hosting's type, so each accepts what any of Lambda, Cloud Run or Container
+// Apps does, and ValidateConfig narrows the connector's name and region for the type.
 var appHostingValidators = ConnectorHostingValidators{
 	AccountId: []validator.String{
 		stringvalidator.RegexMatches(installaws.AwsAccountIdRegex, "AWS account IDs should be numeric"),
@@ -106,20 +110,29 @@ var appHostingValidators = ConnectorHostingValidators{
 	ProjectId: []validator.String{
 		stringvalidator.RegexMatches(installgcp.GcpProjectIdRegex, "Must be a valid Google Cloud project ID"),
 	},
+	// Every Container App name is also a valid Lambda function name.
 	ConnectorName: []validator.String{
-		stringvalidator.RegexMatches(ConnectorNameRegex, "Must be a valid Lambda function or Cloud Run service name"),
+		stringvalidator.RegexMatches(ConnectorNameRegex, "Must be a valid Lambda function, Cloud Run service or Container App name"),
 	},
 	ConnectorRegion: []validator.String{
-		stringvalidator.RegexMatches(ConnectorRegionRegex, "Must be a valid AWS or Google Cloud region"),
+		stringvalidator.Any(
+			stringvalidator.RegexMatches(ConnectorRegionRegex, "Must be a valid AWS or Google Cloud region"),
+			stringvalidator.RegexMatches(AzureRegionRegex, "Must be a valid Azure region"),
+		),
 	},
 }
 
 // Rejects a hosting block whose address fields do not match its type. Validating here
 // rather than in Create surfaces the mistake at plan time, before P0 is called.
 func (*appIamWrite) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	hosting := ConnectorHostingFromConfig(ctx, req.Config, &resp.Diagnostics)
-	ValidateConnectorHosting(hosting, &resp.Diagnostics)
-	validateCloudRunServiceName(hosting, &resp.Diagnostics)
+	hosting := AppConnectorHostingFromConfig(ctx, req.Config, &resp.Diagnostics)
+	ValidateAppConnectorHosting(hosting, &resp.Diagnostics)
+	if hosting == nil {
+		return
+	}
+	validateCloudRunServiceName(&hosting.ConnectorHostingModel, &resp.Diagnostics)
+	validateContainerAppName(&hosting.ConnectorHostingModel, &resp.Diagnostics)
+	validateConnectorRegion(&hosting.ConnectorHostingModel, &resp.Diagnostics)
 }
 
 // Cloud Run's naming rules are stricter than the connector name's own validator, which
@@ -134,6 +147,51 @@ func validateCloudRunServiceName(hosting *ConnectorHostingModel, diags *diag.Dia
 			"Invalid Cloud Run service name",
 			"'hosting.connector_name' names a Cloud Run service when 'hosting.type' is \"gcp\": at most 49 characters of "+
 				"lowercase letters, digits and hyphens, starting with a letter and not ending with one.",
+		)
+	}
+}
+
+// Container Apps' naming rules are stricter than the connector name's own validator,
+// which has to accept Lambda function names too.
+func validateContainerAppName(hosting *ConnectorHostingModel, diags *diag.Diagnostics) {
+	if !IsSet(hosting.Type) || hosting.Type.ValueString() != AzureHosting || !IsSet(hosting.ConnectorName) {
+		return
+	}
+	name := hosting.ConnectorName.ValueString()
+	if !ContainerAppNameRegex.MatchString(name) || strings.Contains(name, "--") {
+		diags.AddAttributeError(
+			path.Root("hosting").AtName("connector_name"),
+			"Invalid Container App name",
+			"'hosting.connector_name' names a Container App when 'hosting.type' is \"azure\": 2 to 32 characters of "+
+				"lowercase letters, digits and hyphens, starting with a letter, ending with a letter or digit, and "+
+				"without two hyphens in a row.",
+		)
+	}
+}
+
+// The region's own validator accepts both AWS and Google Cloud's form, with hyphens,
+// and Azure's, without. This holds each type to its own.
+func validateConnectorRegion(hosting *ConnectorHostingModel, diags *diag.Diagnostics) {
+	if !IsSet(hosting.Type) || !IsSet(hosting.ConnectorRegion) {
+		return
+	}
+	region := hosting.ConnectorRegion.ValueString()
+	if hosting.Type.ValueString() == AzureHosting {
+		if !AzureRegionRegex.MatchString(region) {
+			diags.AddAttributeError(
+				path.Root("hosting").AtName("connector_region"),
+				"Invalid Azure region",
+				"'hosting.connector_region' is an Azure region when 'hosting.type' is \"azure\", such as \"eastus\".",
+			)
+		}
+		return
+	}
+	if !ConnectorRegionRegex.MatchString(region) {
+		diags.AddAttributeError(
+			path.Root("hosting").AtName("connector_region"),
+			"Invalid region",
+			"'hosting.connector_region' is an AWS or Google Cloud region when 'hosting.type' is \"aws\" or \"gcp\", "+
+				"such as \"us-east-1\" or \"us-central1\".",
 		)
 	}
 }
@@ -192,7 +250,7 @@ func (r *appIamWrite) fromJson(ctx context.Context, diags *diag.Diagnostics, id 
 		return nil
 	}
 
-	data.Hosting = ConnectorHostingFromJson(jsonv.Hosting)
+	data.Hosting = AppConnectorHostingFromJson(jsonv.Hosting)
 
 	return &data
 }
