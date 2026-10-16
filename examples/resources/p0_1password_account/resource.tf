@@ -9,8 +9,10 @@
 # request and no other vault, and store its token as the secret
 # 1password/acme/token. The token starts with ops_. The example doesn't create
 # the secret, which keeps the token out of Terraform's state. People can
-# request items from every vault the service account can see, so to change
-# what's requestable later, change its vault access in 1Password.
+# request items from every vault the service account can see. 1Password
+# fixes a service account's vaults when it's created, so to change what's
+# requestable later, create a new service account and store its token as a
+# new version of the same secret.
 #
 # Creating p0_1password_account has the connector read the token, so the token
 # must be in its secret by then. To store it, with the AWS CLI signed in to the
