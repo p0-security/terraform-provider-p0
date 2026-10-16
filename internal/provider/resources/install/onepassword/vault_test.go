@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/defaults"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -22,7 +23,8 @@ type vaultCloud struct {
 	// The name of the secret that holds the token.
 	secret string
 	// The body of every request that carries the vault: its connector, its secret
-	// manager, its token's secret and its account's sign-in address.
+	// manager, its token's secret, its account's sign-in address and its one-time
+	// links switch, off by default.
 	body string
 }
 
@@ -32,7 +34,7 @@ var awsVault = vaultCloud{
 	secret:        "1password/engineering/token",
 	body: `{"connector":"prod",` +
 		`"secretManager":{"type":"aws-sm","install":"123456789012","secretsRegion":"us-west-2"},` +
-		`"tokenSecretName":"1password/engineering/token","signInAddress":"acme.1password.com"}`,
+		`"tokenSecretName":"1password/engineering/token","signInAddress":"acme.1password.com","oneTimeLinks":false}`,
 }
 
 var gcpVault = vaultCloud{
@@ -41,7 +43,7 @@ var gcpVault = vaultCloud{
 	secret:        "1password-engineering-token",
 	body: `{"connector":"prod",` +
 		`"secretManager":{"type":"gcp-sm","install":"acme-secrets"},` +
-		`"tokenSecretName":"1password-engineering-token","signInAddress":"acme.1password.com"}`,
+		`"tokenSecretName":"1password-engineering-token","signInAddress":"acme.1password.com","oneTimeLinks":false}`,
 }
 
 var vaultClouds = []vaultCloud{awsVault, gcpVault}
@@ -59,6 +61,7 @@ func (c vaultCloud) vault(state string) *onePasswordVaultModel {
 		SecretManager:   c.secretManager(),
 		TokenSecretName: types.StringValue(c.secret),
 		SignInAddress:   types.StringValue("acme.1password.com"),
+		OneTimeLinks:    types.BoolValue(false),
 		AllowedDomains:  domains,
 		State:           types.StringValue(state),
 	}
@@ -70,6 +73,13 @@ func (c vaultCloud) planned() *onePasswordVaultModel {
 	planned.AllowedDomains = types.StringUnknown()
 	planned.State = types.StringUnknown()
 	return planned
+}
+
+// The vault at state with one-time links on, and the body that carries it.
+func (c vaultCloud) withOneTimeLinks(state string) (*onePasswordVaultModel, string) {
+	model := c.vault(state)
+	model.OneTimeLinks = types.BoolValue(true)
+	return model, strings.Replace(c.body, `"oneTimeLinks":false`, `"oneTimeLinks":true`, 1)
 }
 
 // The item as P0's API answers at state.
@@ -178,6 +188,21 @@ func TestVaultSchema(t *testing.T) {
 		if !attribute.IsComputed() || attribute.IsOptional() || attribute.IsRequired() {
 			t.Errorf("%s = %+v; want a read-only attribute", name, attribute)
 		}
+	}
+
+	// P0 lets one_time_links change after install, so it changes in place, and it is
+	// off unless the configuration turns it on.
+	oneTimeLinks, ok := s.Attributes["one_time_links"].(schema.BoolAttribute)
+	if !ok || !oneTimeLinks.Optional || !oneTimeLinks.Computed || len(oneTimeLinks.PlanModifiers) != 0 {
+		t.Errorf("one_time_links = %+v; want an optional, computed attribute that changes in place", s.Attributes["one_time_links"])
+	}
+	if oneTimeLinks.Default == nil {
+		t.Fatal("one_time_links has no default")
+	}
+	var def defaults.BoolResponse
+	oneTimeLinks.Default.DefaultBool(context.Background(), defaults.BoolRequest{}, &def)
+	if !def.PlanValue.Equal(types.BoolValue(false)) {
+		t.Errorf("one_time_links default = %v; want false", def.PlanValue)
 	}
 }
 
@@ -605,5 +630,96 @@ func TestVaultUpdateFailedCheck(t *testing.T) {
 	wantRequests(t, fake, "POST "+vaultPath+"/verify "+awsVault.body)
 	if !resp.State.Raw.Equal(prior) {
 		t.Errorf("state = %v; want the staged vault kept", resp.State.Raw)
+	}
+}
+
+// Creating a vault with one-time links on sends the switch on every step, and reads
+// it back.
+func TestVaultCreateWithOneTimeLinks(t *testing.T) {
+	fake, server := newFakeItems(t)
+	r := configure(t, &OnePasswordVault{}, server)
+	installed, body := awsVault.withOneTimeLinks(common.StateInstalled)
+	planned := awsVault.planned()
+	planned.OneTimeLinks = types.BoolValue(true)
+
+	resp := create(t, r, rawOf(t, r, planned))
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Create: %v", resp.Diagnostics)
+	}
+	wantRequests(t, fake,
+		"POST "+basePath+" {}",
+		"PUT "+vaultPath+" "+body,
+		"POST "+vaultPath+"/verify "+body,
+		"POST "+vaultPath+"/configure "+body,
+	)
+	if want := rawOf(t, r, installed); !resp.State.Raw.Equal(want) {
+		t.Errorf("state =\n%v\nwant\n%v", resp.State.Raw, want)
+	}
+}
+
+// P0 lets one-time links change after install, so changing them on a vault P0 has
+// verified updates it with the configure step alone, without calling the connector
+// to validate the install again. Both directions converge.
+func TestVaultUpdateOneTimeLinks(t *testing.T) {
+	for _, from := range []string{common.StateConfigure, common.StateInstalled} {
+		t.Run("at "+from, func(t *testing.T) {
+			fake, server := newFakeItems(t)
+			fake.seed(t, vaultPath, from, json.RawMessage(awsVault.body))
+			r := configure(t, &OnePasswordVault{}, server)
+			on, onBody := awsVault.withOneTimeLinks(common.StateInstalled)
+
+			planned := *on
+			planned.AllowedDomains = types.StringUnknown()
+			planned.State = types.StringUnknown()
+			resp := update(t, r, rawOf(t, r, awsVault.vault(from)), rawOf(t, r, &planned))
+
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("Update: %v", resp.Diagnostics)
+			}
+			wantRequests(t, fake, "POST "+vaultPath+"/configure "+onBody)
+			if want := rawOf(t, r, on); !resp.State.Raw.Equal(want) {
+				t.Errorf("state =\n%v\nwant\n%v", resp.State.Raw, want)
+			}
+		})
+	}
+
+	t.Run("off again", func(t *testing.T) {
+		fake, server := newFakeItems(t)
+		on, onBody := awsVault.withOneTimeLinks(common.StateInstalled)
+		fake.seed(t, vaultPath, common.StateInstalled, json.RawMessage(onBody))
+		r := configure(t, &OnePasswordVault{}, server)
+
+		resp := update(t, r, rawOf(t, r, on), rawOf(t, r, awsVault.vault(common.StateInstalled)))
+
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("Update: %v", resp.Diagnostics)
+		}
+		wantRequests(t, fake, "POST "+vaultPath+"/configure "+awsVault.body)
+		if want := rawOf(t, r, awsVault.vault(common.StateInstalled)); !resp.State.Raw.Equal(want) {
+			t.Errorf("state =\n%v\nwant the vault with one-time links off", resp.State.Raw)
+		}
+	})
+}
+
+// A vault P0 stored before it had one-time links reads as off, as P0 treats it, so it
+// plans no difference against a configuration that leaves them out.
+func TestVaultFromJsonWithoutOneTimeLinks(t *testing.T) {
+	var item onePasswordVaultJson
+	body := strings.Replace(awsVault.response(common.StateInstalled), `"oneTimeLinks":false,`, "", 1)
+	if err := json.Unmarshal([]byte(body), &item); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if item.OneTimeLinks != nil {
+		t.Fatalf("response %s still carries oneTimeLinks", body)
+	}
+
+	var diags diag.Diagnostics
+	got, ok := (&OnePasswordVault{}).fromJson(context.Background(), &diags, "3fz7kq2xmw4vjn6rbt5hlpd8yc", &item).(*onePasswordVaultModel)
+	if !ok || diags.HasError() {
+		t.Fatalf("fromJson failed: %v", diags)
+	}
+	if want := awsVault.vault(common.StateInstalled); !reflect.DeepEqual(got, want) {
+		t.Errorf("fromJson =\n%+v\nwant\n%+v", got, want)
 	}
 }

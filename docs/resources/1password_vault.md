@@ -6,7 +6,7 @@ description: |-
   A 1Password vault whose items P0 can share, through one of your 1Password connectors. When a request for an item is approved, P0 has the connector create a read-only share link to it that only the requestor's email can open.
   P0 never holds the vault's service account token. You store it in your own secret manager, in the connector's cloud, and the connector reads it on every call. This resource tells P0 which connector shares the vault's items, where the token's secret is, and your account's sign-in address.
   Important: Create the token, store it and let the connector read it before you apply this resource, in an earlier apply or in the same one with this resource depending on the connector's read grant, as the example does. Creating this resource has P0 validate the install through the connector: the connector reads the secret, signs in to 1Password with the token, checks that the service account can see the vault, checks that the account's sharing policy allows sharing an item with a specific person by email, and reads its own allowed domains. It creates no share link. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the connector is denied the secret right after it is granted, apply again.
-  The connector, the secret manager, the secret and the sign-in address are fixed when the vault is added, so changing id, connector, secret_manager, token_secret_name or sign_in_address replaces the installation. To rotate the token, store the new one as a new version of the same secret, which needs no change here. If the vault is already added in P0, import it rather than creating it: P0 refuses to add a vault twice. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
+  The connector, the secret manager, the secret and the sign-in address are fixed when the vault is added, so changing id, connector, secret_manager, token_secret_name or sign_in_address replaces the installation. Changing one_time_links updates the installation in place, and applies to share links made after the change. To rotate the token, store the new one as a new version of the same secret, which needs no change here. If the vault is already added in P0, import it rather than creating it: P0 refuses to add a vault twice. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
   Prerequisites:
   
   A 1Password Business or Enterprise account.
@@ -29,7 +29,7 @@ P0 never holds the vault's service account token. You store it in your own secre
 
 **Important:** Create the token, store it and let the connector read it before you apply this resource, in an earlier apply or in the same one with this resource depending on the connector's read grant, as the example does. Creating this resource has P0 validate the install through the connector: the connector reads the secret, signs in to 1Password with the token, checks that the service account can see the vault, checks that the account's sharing policy allows sharing an item with a specific person by email, and reads its own allowed domains. It creates no share link. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the connector is denied the secret right after it is granted, apply again.
 
-The connector, the secret manager, the secret and the sign-in address are fixed when the vault is added, so changing `id`, `connector`, `secret_manager`, `token_secret_name` or `sign_in_address` replaces the installation. To rotate the token, store the new one as a new version of the same secret, which needs no change here. If the vault is already added in P0, import it rather than creating it: P0 refuses to add a vault twice. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
+The connector, the secret manager, the secret and the sign-in address are fixed when the vault is added, so changing `id`, `connector`, `secret_manager`, `token_secret_name` or `sign_in_address` replaces the installation. Changing `one_time_links` updates the installation in place, and applies to share links made after the change. To rotate the token, store the new one as a new version of the same secret, which needs no change here. If the vault is already added in P0, import it rather than creating it: P0 refuses to add a vault twice. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
 
 **Prerequisites:**
 
@@ -189,6 +189,11 @@ resource "p0_1password_vault" "example" {
   token_secret_name = local.p0_1password_vault_engineering.token_secret_name
   sign_in_address   = "acme.1password.com"
 
+  # Each share link opens only once, so the person gets one look at the item
+  # and should copy what they need. Unlike the fields above, this changes in
+  # place, and applies to links made after the change. Off by default.
+  one_time_links = true
+
   depends_on = [aws_iam_role_policy.p0_1password_vault_engineering_token]
 }
 
@@ -209,6 +214,10 @@ output "onepassword_allowed_domains" {
 - `secret_manager` (Attributes) The secret manager that holds the service account token. P0 never reads the token. Your connector does. It must be in the connector's cloud, and can be in another account or project. (see [below for nested schema](#nestedatt--secret_manager))
 - `sign_in_address` (String) Your 1Password account's sign-in address, such as `acme.1password.com`. Changing it replaces the installation.
 - `token_secret_name` (String) The name of the secret that holds the service account token, such as `1password/engineering/token` in AWS Secrets Manager or `1password-engineering-token` in Google Secret Manager: the name alone, not the secret's ARN or its full resource name. In AWS Secrets Manager the name can't end in a hyphen and six letters or digits, like `-AbCdEf`, because Secrets Manager can't find a secret by such a name. Changing it replaces the installation. To rotate the token, store the new one as a new version of the same secret, which needs no change here.
+
+### Optional
+
+- `one_time_links` (Boolean) Whether each share link opens only once. The person gets one look at the item, so they should copy what they need. Changing it applies to links made after the change, and updates the installation in place. Defaults to `false`.
 
 ### Read-Only
 

@@ -93,6 +93,11 @@ resource "p0_1password_connector" "example" {
 
 // A connector and a vault whose items it shares, as a customer's Terraform installs them.
 func onePasswordConfig(f *onePasswordFake, cloud onePasswordCloud) string {
+	return onePasswordConfigWith(f, cloud, "")
+}
+
+// onePasswordConfig, with extra lines in the vault's block.
+func onePasswordConfigWith(f *onePasswordFake, cloud onePasswordCloud, extra string) string {
 	return onePasswordConnectorConfig(f, cloud.hosting) + fmt.Sprintf(`
 resource "p0_1password_vault" "example" {
   id        = %q
@@ -101,8 +106,8 @@ resource "p0_1password_vault" "example" {
   secret_manager = %s
   token_secret_name = %q
   sign_in_address   = "acme.1password.com"
-}
-`, onePasswordVaultId, cloud.secretManager, cloud.secret)
+%s}
+`, onePasswordVaultId, cloud.secretManager, cloud.secret, extra)
 }
 
 // An in-memory stand-in for P0's install API for 1Password, behaving as P0's
@@ -443,10 +448,12 @@ func TestOnePasswordOnAws(t *testing.T) {
 					resource.TestCheckResourceAttr("p0_1password_vault.example", "state", "installed"),
 					resource.TestCheckResourceAttr("p0_1password_vault.example", "secret_manager.secrets_region", "us-west-2"),
 					resource.TestCheckResourceAttr("p0_1password_vault.example", "allowed_domains", onePasswordDomains),
+					// One-time links are off unless the configuration turns them on.
+					resource.TestCheckResourceAttr("p0_1password_vault.example", "one_time_links", "false"),
 					func(*terraform.State) error {
 						item := f.vault()
 						secretManager, _ := item["secretManager"].(map[string]any)
-						if item["tokenSecretName"] != onePasswordAws.secret || secretManager["type"] != "aws-sm" ||
+						if item["tokenSecretName"] != onePasswordAws.secret || item["oneTimeLinks"] != false || secretManager["type"] != "aws-sm" ||
 							secretManager["install"] != "123456789012" || secretManager["secretsRegion"] != "us-west-2" {
 							return fmt.Errorf("P0 item does not hold the configured vault: %v", item)
 						}
@@ -573,6 +580,62 @@ func TestOnePasswordUnfinishedInstallConverges(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("p0_1password_vault.example", "state", "installed"),
 					resource.TestCheckResourceAttr("p0_1password_vault.example", "allowed_domains", onePasswordDomains),
+				),
+			},
+		},
+	})
+}
+
+// One-time links can be on from the start, and change in place after: the update
+// configures the vault without verifying it again, so it doesn't call the connector,
+// whose check fails throughout. A change made in P0 shows as drift.
+func TestOnePasswordVaultOneTimeLinks(t *testing.T) {
+	f := newOnePasswordFake(t)
+	oneTimeLinks := func(want bool) resource.TestCheckFunc {
+		return resource.ComposeAggregateTestCheckFunc(
+			resource.TestCheckResourceAttr("p0_1password_vault.example", "one_time_links", fmt.Sprint(want)),
+			resource.TestCheckResourceAttr("p0_1password_vault.example", "state", "installed"),
+			func(*terraform.State) error {
+				if item := f.vault(); item["oneTimeLinks"] != want {
+					return fmt.Errorf("P0 item oneTimeLinks = %v; want %v", item["oneTimeLinks"], want)
+				}
+				return nil
+			},
+		)
+	}
+	inPlace := resource.ConfigPlanChecks{
+		PreApply: []plancheck.PlanCheck{
+			plancheck.ExpectResourceAction("p0_1password_vault.example", plancheck.ResourceActionUpdate),
+		},
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkOnePasswordDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: onePasswordConfigWith(f, onePasswordAws, "  one_time_links = true\n"),
+				Check:  oneTimeLinks(true),
+			},
+			{
+				PreConfig:        func() { f.failVerify = true },
+				Config:           onePasswordConfigWith(f, onePasswordAws, "  one_time_links = false\n"),
+				ConfigPlanChecks: inPlace,
+				Check:            oneTimeLinks(false),
+			},
+			{
+				Config:           onePasswordConfig(f, onePasswordAws),
+				ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()}},
+			},
+			{
+				PreConfig: func() {
+					f.update("vault", onePasswordVaultId, func(item map[string]any) { item["oneTimeLinks"] = true })
+				},
+				Config:           onePasswordConfig(f, onePasswordAws),
+				ConfigPlanChecks: inPlace,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					oneTimeLinks(false),
+					func(*terraform.State) error { f.failVerify = false; return nil },
 				),
 			},
 		},

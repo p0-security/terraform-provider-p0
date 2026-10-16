@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -36,6 +37,7 @@ type onePasswordVaultModel struct {
 	SecretManager   *secretManagerModel `tfsdk:"secret_manager"`
 	TokenSecretName types.String        `tfsdk:"token_secret_name"`
 	SignInAddress   types.String        `tfsdk:"sign_in_address"`
+	OneTimeLinks    types.Bool          `tfsdk:"one_time_links"`
 	AllowedDomains  types.String        `tfsdk:"allowed_domains"`
 	State           types.String        `tfsdk:"state"`
 }
@@ -46,6 +48,7 @@ type onePasswordVaultJson struct {
 	SecretManager   *secretManagerJson `json:"secretManager,omitempty"`
 	TokenSecretName *string            `json:"tokenSecretName,omitempty"`
 	SignInAddress   *string            `json:"signInAddress,omitempty"`
+	OneTimeLinks    *bool              `json:"oneTimeLinks,omitempty"`
 	AllowedDomains  *string            `json:"allowedDomains,omitempty"`
 	State           *string            `json:"state,omitempty"`
 }
@@ -70,7 +73,7 @@ P0 never holds the vault's service account token. You store it in your own secre
 
 **Important:** Create the token, store it and let the connector read it before you apply this resource, in an earlier apply or in the same one with this resource depending on the connector's read grant, as the example does. Creating this resource has P0 validate the install through the connector: the connector reads the secret, signs in to 1Password with the token, checks that the service account can see the vault, checks that the account's sharing policy allows sharing an item with a specific person by email, and reads its own allowed domains. It creates no share link. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the connector is denied the secret right after it is granted, apply again.
 
-The connector, the secret manager, the secret and the sign-in address are fixed when the vault is added, so changing ` + "`id`" + `, ` + "`connector`" + `, ` + "`secret_manager`" + `, ` + "`token_secret_name`" + ` or ` + "`sign_in_address`" + ` replaces the installation. To rotate the token, store the new one as a new version of the same secret, which needs no change here. If the vault is already added in P0, import it rather than creating it: P0 refuses to add a vault twice. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
+The connector, the secret manager, the secret and the sign-in address are fixed when the vault is added, so changing ` + "`id`" + `, ` + "`connector`" + `, ` + "`secret_manager`" + `, ` + "`token_secret_name`" + ` or ` + "`sign_in_address`" + ` replaces the installation. Changing ` + "`one_time_links`" + ` updates the installation in place, and applies to share links made after the change. To rotate the token, store the new one as a new version of the same secret, which needs no change here. If the vault is already added in P0, import it rather than creating it: P0 refuses to add a vault twice. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
 
 **Prerequisites:**
 
@@ -135,6 +138,14 @@ For the full install steps, see [1Password](https://docs.p0.dev/integrations/res
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+			},
+			// A configure-step switch, which P0 lets change after install. The provider
+			// always sends it, so removing it from a configuration turns it off in P0.
+			"one_time_links": schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+				MarkdownDescription: "Whether each share link opens only once. The person gets one look at the item, so they should copy what they need. Changing it applies to links made after the change, and updates the installation in place. Defaults to `false`.",
 			},
 			"allowed_domains": schema.StringAttribute{
 				Computed:            true,
@@ -233,15 +244,18 @@ func (r *OnePasswordVault) fromJson(_ context.Context, diags *diag.Diagnostics, 
 		SecretManager:   secretManagerFromJson(jsonv.SecretManager),
 		TokenSecretName: types.StringPointerValue(jsonv.TokenSecretName),
 		SignInAddress:   types.StringPointerValue(jsonv.SignInAddress),
-		AllowedDomains:  types.StringPointerValue(jsonv.AllowedDomains),
-		State:           types.StringPointerValue(jsonv.State),
+		// P0 reads a vault that has no value as off.
+		OneTimeLinks:   types.BoolValue(jsonv.OneTimeLinks != nil && *jsonv.OneTimeLinks),
+		AllowedDomains: types.StringPointerValue(jsonv.AllowedDomains),
+		State:          types.StringPointerValue(jsonv.State),
 	}
 }
 
 // The body of the PUT that stages the item, and of verify and configure: the
 // connector, the secret manager, the token's secret and the sign-in address, which P0
 // fixes when it creates the item. Sending them on each step has P0 refuse a request that would move any of
-// them, before it calls the connector. P0 reads the allowed domains back from the
+// them, before it calls the connector. It also carries one_time_links, which P0 takes
+// on configure and lets change after. P0 reads the allowed domains back from the
 // connector, and sets the state.
 func (r *OnePasswordVault) toJson(data any) any {
 	datav, ok := data.(*onePasswordVaultModel)
@@ -253,6 +267,7 @@ func (r *OnePasswordVault) toJson(data any) any {
 		Connector:       datav.Connector.ValueStringPointer(),
 		TokenSecretName: datav.TokenSecretName.ValueStringPointer(),
 		SignInAddress:   datav.SignInAddress.ValueStringPointer(),
+		OneTimeLinks:    datav.OneTimeLinks.ValueBoolPointer(),
 	}
 	if datav.SecretManager != nil {
 		json.SecretManager = datav.SecretManager.toJson()
@@ -293,11 +308,26 @@ func (*OnePasswordVault) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	planUnfinishedInstall(ctx, req, resp, path.Root("allowed_domains"))
 }
 
-// Every configurable attribute requires replacement, so the only update Terraform
-// plans is the one that finishes an install, which verifies and configures the item as
-// Create does. P0 validates the install on verify alone, so there is no shorter way.
+// Applies the plan from the step that P0 has the item at. A vault that P0 has
+// verified, at configure or installed, gets the configure step alone: one_time_links is
+// the only attribute that changes in place, and any other requires replacement, so the
+// vault passed verify with the values it still has. P0 saves nothing when the step
+// fails, so a failed update leaves the item, and the resource's state, as they were.
+// Any other vault, such as a staged one, is verified and configured as Create does,
+// which finishes its install.
 func (r *OnePasswordVault) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &onePasswordVaultApi{}, &onePasswordVaultModel{})
+	var state types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("state"), &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	switch state.ValueString() {
+	case common.StateConfigure, common.StateInstalled:
+		r.installer.UpsertFromConfigure(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &onePasswordVaultApi{}, &onePasswordVaultModel{})
+	default:
+		r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &onePasswordVaultApi{}, &onePasswordVaultModel{})
+	}
 }
 
 func (r *OnePasswordVault) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

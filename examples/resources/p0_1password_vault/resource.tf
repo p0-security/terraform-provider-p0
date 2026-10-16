@@ -131,6 +131,11 @@ resource "p0_1password_vault" "example" {
   token_secret_name = local.p0_1password_vault_engineering.token_secret_name
   sign_in_address   = "acme.1password.com"
 
+  # Each share link opens only once, so the person gets one look at the item
+  # and should copy what they need. Unlike the fields above, this changes in
+  # place, and applies to links made after the change. Off by default.
+  one_time_links = true
+
   depends_on = [aws_iam_role_policy.p0_1password_vault_engineering_token]
 }
 
