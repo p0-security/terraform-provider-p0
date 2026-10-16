@@ -2,6 +2,7 @@ package installapp
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -20,20 +21,32 @@ import (
 // connector the customer deploys reuse that element as is, so P0 stores their hosting
 // in the same JSON. GitHub Repositories reuses that JSON with an attribute of its own,
 // since it supports only AWS for now.
+//
+// A custom application also offers Azure Container Apps, through the app's
+// `AppConnectorHosting` element. That is p0_app's AppConnectorHostingAttribute. The
+// other integrations keep ConnectorHostingAttribute, without Azure, as their elements
+// do.
 
 // The connector's address, as P0 stores it. The JSON is a discriminated union on
 // "type": the AWS variant carries accountId, the Google Cloud variant carries
-// projectId. On Google Cloud P0 also sets two fields the provider only reads:
+// projectId, and the Azure variant carries directoryId, subscriptionId and
+// resourceGroup. P0 also sets fields the provider only reads: on Google Cloud,
 // connectorServiceAccount, for integrations whose connector must run as that
-// account, and connectorServiceUri, once it has verified the install.
+// account, and on Google Cloud and Azure, connectorServiceUri once it has verified
+// the install. On Azure it also sets connectorClientId, the client ID of the
+// connector's app registration.
 type ConnectorHostingJson struct {
 	Type                    string  `json:"type"`
 	AccountId               *string `json:"accountId,omitempty"`
 	ProjectId               *string `json:"projectId,omitempty"`
+	DirectoryId             *string `json:"directoryId,omitempty"`
+	SubscriptionId          *string `json:"subscriptionId,omitempty"`
+	ResourceGroup           *string `json:"resourceGroup,omitempty"`
 	ConnectorName           string  `json:"connectorName"`
 	ConnectorRegion         string  `json:"connectorRegion"`
 	ConnectorServiceAccount *string `json:"connectorServiceAccount,omitempty"`
 	ConnectorServiceUri     *string `json:"connectorServiceUri,omitempty"`
+	ConnectorClientId       *string `json:"connectorClientId,omitempty"`
 }
 
 type ConnectorHostingModel struct {
@@ -51,6 +64,15 @@ type ConnectorHostingModel struct {
 type ConnectorHostingWithServiceAccountModel struct {
 	ConnectorHostingModel
 	ConnectorServiceAccount types.String `tfsdk:"connector_service_account"`
+}
+
+// The hosting of a custom application, which may also run on Azure Container Apps.
+type AppConnectorHostingModel struct {
+	ConnectorHostingModel
+	DirectoryId       types.String `tfsdk:"directory_id"`
+	SubscriptionId    types.String `tfsdk:"subscription_id"`
+	ResourceGroup     types.String `tfsdk:"resource_group"`
+	ConnectorClientId types.String `tfsdk:"connector_client_id"`
 }
 
 // ConnectorHostingValidators holds the validators of the connector's address fields.
@@ -99,22 +121,14 @@ func ConnectorHostingAttribute(validators ConnectorHostingValidators) schema.Sin
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"connector_name": schema.StringAttribute{
-				MarkdownDescription: `The name of the Lambda function or Cloud Run service hosting the connector`,
-				Required:            true,
-				Validators:          validators.ConnectorName,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"connector_region": schema.StringAttribute{
-				MarkdownDescription: `The region the connector is deployed in (e.g. ` + "`us-east-1`" + ` on AWS, or ` + "`us-central1`" + ` on Google Cloud)`,
-				Required:            true,
-				Validators:          validators.ConnectorRegion,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
+			"connector_name": requiredAddressAttribute(
+				`The name of the Lambda function or Cloud Run service hosting the connector`,
+				validators.ConnectorName,
+			),
+			"connector_region": requiredAddressAttribute(
+				`The region the connector is deployed in (e.g. `+"`us-east-1`"+` on AWS, or `+"`us-central1`"+` on Google Cloud)`,
+				validators.ConnectorRegion,
+			),
 			"connector_service_uri": schema.StringAttribute{
 				MarkdownDescription: `The connector's invocation URL, resolved by P0 during install. Only populated for ` + "`gcp`" + ` hosting.`,
 				Computed:            true,
@@ -138,6 +152,86 @@ func ConnectorHostingWithServiceAccountAttribute(validators ConnectorHostingVali
 	return hosting
 }
 
+// AppConnectorHostingAttribute returns p0_app's required `hosting` attribute:
+// ConnectorHostingAttribute plus Azure Container Apps, whose address fields are
+// directory_id, subscription_id and resource_group, and whose app registration's
+// client ID P0 reads at install.
+func AppConnectorHostingAttribute(validators ConnectorHostingValidators) schema.SingleNestedAttribute {
+	hosting := ConnectorHostingAttribute(validators)
+	azureOnly := `Required for, and only valid with, ` + "`azure`" + ` hosting.`
+
+	hosting.Attributes["type"] = schema.StringAttribute{
+		MarkdownDescription: `The connector's hosting: ` + "`aws`" + ` (Lambda), ` + "`gcp`" + ` (Cloud Run) or ` + "`azure`" + ` (Container Apps)`,
+		Required:            true,
+		Validators: []validator.String{
+			stringvalidator.OneOf(AwsHosting, GcpHosting, AzureHosting),
+		},
+		PlanModifiers: []planmodifier.String{
+			stringplanmodifier.RequiresReplace(),
+		},
+	}
+	hosting.Attributes["directory_id"] = schema.StringAttribute{
+		MarkdownDescription: `The Microsoft Entra directory (tenant) ID in which the connector's Container App is deployed. P0's Azure integration must be installed for it. ` + azureOnly,
+		Optional:            true,
+		Validators: []validator.String{
+			stringvalidator.RegexMatches(common.UuidRegex, "Azure directory IDs must be UUIDs"),
+		},
+		PlanModifiers: []planmodifier.String{
+			stringplanmodifier.RequiresReplace(),
+		},
+	}
+	hosting.Attributes["subscription_id"] = schema.StringAttribute{
+		MarkdownDescription: `The Azure subscription ID in which the connector's Container App is deployed. ` + azureOnly,
+		Optional:            true,
+		Validators: []validator.String{
+			stringvalidator.RegexMatches(common.UuidRegex, "Azure subscription IDs must be UUIDs"),
+		},
+		PlanModifiers: []planmodifier.String{
+			stringplanmodifier.RequiresReplace(),
+		},
+	}
+	hosting.Attributes["resource_group"] = schema.StringAttribute{
+		MarkdownDescription: `The resource group in which the connector's Container App is deployed. ` + azureOnly,
+		Optional:            true,
+		Validators: []validator.String{
+			stringvalidator.RegexMatches(ResourceGroupRegex, "Must be a valid Azure resource group name"),
+		},
+		PlanModifiers: []planmodifier.String{
+			stringplanmodifier.RequiresReplace(),
+		},
+	}
+	hosting.Attributes["connector_name"] = requiredAddressAttribute(
+		`The name of the Lambda function, Cloud Run service or Container App hosting the connector`,
+		validators.ConnectorName,
+	)
+	hosting.Attributes["connector_region"] = requiredAddressAttribute(
+		`The region the connector is deployed in (e.g. `+"`us-east-1`"+` on AWS, `+"`us-central1`"+` on Google Cloud, or `+"`eastus`"+` on Azure)`,
+		validators.ConnectorRegion,
+	)
+	hosting.Attributes["connector_service_uri"] = schema.StringAttribute{
+		MarkdownDescription: `The connector's invocation URL, resolved by P0 during install. Only populated for ` + "`gcp`" + ` and ` + "`azure`" + ` hosting.`,
+		Computed:            true,
+	}
+	hosting.Attributes["connector_client_id"] = schema.StringAttribute{
+		MarkdownDescription: `The client ID of the connector's app registration, which P0 requests its tokens for. P0 reads it from the Container App during install. Only populated for ` + "`azure`" + ` hosting.`,
+		Computed:            true,
+	}
+	return hosting
+}
+
+// A required address field that only a new install can set. p0_app describes its
+// connector_name and connector_region apart from the shared block, to name Azure.
+func requiredAddressAttribute(description string, validators []validator.String) schema.StringAttribute {
+	return schema.StringAttribute{
+		MarkdownDescription: description,
+		Required:            true,
+		Validators:          validators,
+		PlanModifiers: []planmodifier.String{
+			stringplanmodifier.RequiresReplace(),
+		},
+	}
+}
+
 // ConnectorHostingFromConfig reads the root `hosting` attribute of a configuration, for
 // ValidateConfig. It returns nil when the block is null, or unknown until apply, as
 // when it is set from a module output.
@@ -156,6 +250,16 @@ func ConnectorHostingFromConfig(ctx context.Context, config tfsdk.Config, diags 
 // of a non-nil result.
 func ConnectorHostingWithServiceAccountFromConfig(ctx context.Context, config tfsdk.Config, diags *diag.Diagnostics) *ConnectorHostingWithServiceAccountModel {
 	var hosting ConnectorHostingWithServiceAccountModel
+	if !common.GetKnownObject(ctx, config, path.Root("hosting"), &hosting, diags) {
+		return nil
+	}
+	return &hosting
+}
+
+// AppConnectorHostingFromConfig is ConnectorHostingFromConfig for a `hosting` attribute
+// made by AppConnectorHostingAttribute.
+func AppConnectorHostingFromConfig(ctx context.Context, config tfsdk.Config, diags *diag.Diagnostics) *AppConnectorHostingModel {
+	var hosting AppConnectorHostingModel
 	if !common.GetKnownObject(ctx, config, path.Root("hosting"), &hosting, diags) {
 		return nil
 	}
@@ -208,6 +312,63 @@ func ValidateConnectorHosting(hosting *ConnectorHostingModel, diags *diag.Diagno
 	}
 }
 
+// ValidateAppConnectorHosting is ValidateConnectorHosting for p0_app's hosting, which
+// may also be `azure`. The Azure address fields are required with `azure`, and refused
+// with the other types, as the AWS and Google Cloud ones are.
+func ValidateAppConnectorHosting(hosting *AppConnectorHostingModel, diags *diag.Diagnostics) {
+	if hosting == nil || hosting.Type.IsUnknown() {
+		return
+	}
+	ValidateConnectorHosting(&hosting.ConnectorHostingModel, diags)
+
+	azureFields := []struct {
+		name  string
+		label string
+		value types.String
+	}{
+		{"directory_id", "Azure directory ID", hosting.DirectoryId},
+		{"subscription_id", "Azure subscription ID", hosting.SubscriptionId},
+		{"resource_group", "Azure resource group", hosting.ResourceGroup},
+	}
+
+	if hosting.Type.ValueString() != AzureHosting {
+		for _, field := range azureFields {
+			if IsSet(field.value) {
+				diags.AddAttributeError(
+					path.Root("hosting").AtName(field.name),
+					"Unexpected "+field.label,
+					fmt.Sprintf("'hosting.%s' may only be set when 'hosting.type' is \"azure\".", field.name),
+				)
+			}
+		}
+		return
+	}
+
+	for _, field := range azureFields {
+		if field.value.IsNull() {
+			diags.AddAttributeError(
+				path.Root("hosting").AtName(field.name),
+				"Missing "+field.label,
+				fmt.Sprintf("'hosting.%s' is required when 'hosting.type' is \"azure\".", field.name),
+			)
+		}
+	}
+	if IsSet(hosting.AccountId) {
+		diags.AddAttributeError(
+			path.Root("hosting").AtName("account_id"),
+			"Unexpected AWS account ID",
+			"'hosting.account_id' may only be set when 'hosting.type' is \"aws\".",
+		)
+	}
+	if IsSet(hosting.ProjectId) {
+		diags.AddAttributeError(
+			path.Root("hosting").AtName("project_id"),
+			"Unexpected Google Cloud project",
+			"'hosting.project_id' may only be set when 'hosting.type' is \"gcp\".",
+		)
+	}
+}
+
 // IsSet reports whether an optional value is present and resolved. An unknown value is
 // not null, so checking IsNull alone would reject a field that interpolation has yet
 // to fill in.
@@ -237,6 +398,29 @@ func ConnectorHostingFromJson(json *ConnectorHostingJson) *ConnectorHostingModel
 		ConnectorName:       types.StringValue(json.ConnectorName),
 		ConnectorRegion:     types.StringValue(json.ConnectorRegion),
 		ConnectorServiceUri: types.StringPointerValue(json.ConnectorServiceUri),
+	}
+}
+
+// ToJson returns a custom application's hosting as P0 stores it. As with
+// ConnectorHostingModel's, the fields P0 sets are left out: here connector_client_id
+// as well as connector_service_uri.
+func (m *AppConnectorHostingModel) ToJson() *ConnectorHostingJson {
+	json := m.ConnectorHostingModel.ToJson()
+	json.DirectoryId = m.DirectoryId.ValueStringPointer()
+	json.SubscriptionId = m.SubscriptionId.ValueStringPointer()
+	json.ResourceGroup = m.ResourceGroup.ValueStringPointer()
+	return json
+}
+
+// AppConnectorHostingFromJson reads a custom application's hosting as P0 stores it.
+// The Azure fields are null for the other types.
+func AppConnectorHostingFromJson(json *ConnectorHostingJson) *AppConnectorHostingModel {
+	return &AppConnectorHostingModel{
+		ConnectorHostingModel: *ConnectorHostingFromJson(json),
+		DirectoryId:           types.StringPointerValue(json.DirectoryId),
+		SubscriptionId:        types.StringPointerValue(json.SubscriptionId),
+		ResourceGroup:         types.StringPointerValue(json.ResourceGroup),
+		ConnectorClientId:     types.StringPointerValue(json.ConnectorClientId),
 	}
 }
 

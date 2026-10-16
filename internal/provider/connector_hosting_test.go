@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -210,5 +212,33 @@ func TestAppHostingHasNoServiceAccount(t *testing.T) {
 	}
 	if _, ok := hosting.Attributes["connector_service_account"]; ok {
 		t.Errorf("p0_app's hosting has connector_service_account")
+	}
+}
+
+// Only a custom application can run on Azure: the other integrations that take the
+// shared block reuse the app's `ConnectorHosting` element, which has no `azure`
+// option, so P0 would refuse an Azure install of theirs.
+func TestConnectorHostingHasNoAzure(t *testing.T) {
+	ctx := context.Background()
+	shared := installapp.ConnectorHostingWithServiceAccountAttribute(installapp.ConnectorHostingValidators{})
+	for _, name := range []string{"directory_id", "subscription_id", "resource_group", "connector_client_id"} {
+		if _, ok := shared.Attributes[name]; ok {
+			t.Errorf("the shared hosting block has %s", name)
+		}
+	}
+
+	typeAttribute, ok := shared.Attributes["type"].(schema.StringAttribute)
+	if !ok {
+		t.Fatalf("the shared hosting block's type is not a string attribute")
+	}
+	resp := &validator.StringResponse{}
+	for _, v := range typeAttribute.Validators {
+		v.ValidateString(ctx, validator.StringRequest{
+			Path:        path.Root("hosting").AtName("type"),
+			ConfigValue: types.StringValue(installapp.AzureHosting),
+		}, resp)
+	}
+	if !resp.Diagnostics.HasError() {
+		t.Errorf("the shared hosting block accepts type %q", installapp.AzureHosting)
 	}
 }
