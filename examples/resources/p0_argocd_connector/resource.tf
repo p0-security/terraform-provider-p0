@@ -60,9 +60,10 @@ resource "google_cloud_run_v2_service" "argocd" {
     service_account = google_service_account.argocd.email
 
     containers {
-      # P0's connector image, pinned by its tag and digest. Use the tag and
-      # digest of the release you want to run.
-      image = "docker.io/p0security/p0-connector-argocd-gcloud:sha-1234567@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      # P0's connector image, pinned by its tag and digest: the build the P0 app
+      # pins. Find a newer tag's digest with
+      # `docker buildx imagetools inspect p0security/p0-connector-argocd-gcloud:<tag>`.
+      image = "docker.io/p0security/p0-connector-argocd-gcloud:sha-3d6f1f4@sha256:121fdb925d3c002964f18091e0097f466c174a8004d084f61ec6e3aa73e9cf08"
 
       # The connector accepts calls from this identity alone, and refuses every
       # call while it is unset.

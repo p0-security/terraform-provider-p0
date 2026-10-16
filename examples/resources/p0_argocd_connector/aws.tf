@@ -35,9 +35,10 @@ locals {
     # How many days CloudWatch keeps the connector's logs.
     log_retention_days = 30
     # P0's connector image: its tag on Docker Hub, and the digest that tag must
-    # resolve to. Use the tag and digest of the release you want to run.
-    image_tag    = "sha-1234567"
-    image_digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    # resolve to. This is the build the P0 app pins; find a newer tag's digest
+    # with `docker buildx imagetools inspect p0security/p0-connector-argocd:<tag>`.
+    image_tag    = "sha-3d6f1f4"
+    image_digest = "sha256:eaff6da56766fd6f54a23dbfb7e00cdc1abe6dfda5f01e9d142bcf9fcc287112"
   }
 }
 
