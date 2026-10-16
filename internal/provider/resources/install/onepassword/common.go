@@ -18,17 +18,17 @@ const OnePasswordKey = "1password"
 // P0's rules for the two items' IDs
 // (packages/integrations/one-password/shared/src/components.ts in the app).
 
-// A connector's ID names its Terraform resources, and each vault picks its
+// A connector's ID names its Terraform resources, and each account picks its
 // connector by it: lowercase letters, digits and hyphens, starting and ending with a
 // letter or digit, at most 63 characters (CONNECTOR_ID_PATTERN).
 var ConnectorIdRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
 const ConnectorIdMaxLength = 63
 
-// 1Password's form for a vault's ID: 26 lowercase letters and digits, the base32 form
-// 1Password gives every vault (ONEPASSWORD_VAULT_ID_PATTERN). The connector refuses any
-// other ID.
-var VaultIdRegex = regexp.MustCompile(`^[a-z0-9]{26}$`)
+// An account's sign-in address, which is its item's ID: a lowercase host in one of
+// 1Password's regions, such as acme.1password.com, acme.1password.ca or
+// acme.1password.eu.
+var SignInAddressRegex = regexp.MustCompile(`^([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)+1password\.(com|ca|eu)$`)
 
 // P0's rules for where the connector runs and where the token's secret is, and its
 // messages for a value that breaks one
@@ -56,7 +56,7 @@ func gcpProjectRules(p place) []rule {
 }
 
 // The checks on a connector's ID, where it is an item's own ID and where an
-// vault names its connector by it. The message is P0's (INVALID_CONNECTOR_ID),
+// account names its connector by it. The message is P0's (INVALID_CONNECTOR_ID),
 // without its full stop: the framework's validator ends the sentence with the value.
 func connectorIdValidators() []validator.String {
 	return []validator.String{

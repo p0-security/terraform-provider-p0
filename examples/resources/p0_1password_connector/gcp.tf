@@ -3,16 +3,16 @@
 #
 # Full chain: p0_gcp (P0's service account) -> p0_1password_connector_staged ->
 # the connector's Cloud Run service -> p0_1password_connector ->
-# p0_1password_vault.
+# p0_1password_account.
 #
 # Requires these APIs to be enabled in project my-project-id:
 #   - iam.googleapis.com
 #   - run.googleapis.com
 #   - secretmanager.googleapis.com
 #
-# One connector serves every 1Password vault that names it in P0. Each
-# vault's own Terraform lets this connector read that vault's
-# service account token (see gcp.tf in the p0_1password_vault example). This
+# One connector serves every 1Password account that names it in P0. Each
+# account's own Terraform lets this connector read that account's
+# service account token (see gcp.tf in the p0_1password_account example). This
 # configuration grants it no secret.
 
 resource "p0_gcp" "gcp_example" {
@@ -33,7 +33,7 @@ locals {
     # everyone who may be sent a share link, such as "^(acme\\.com|acme\\.io)$"
     # for two domains. The connector won't start without a pattern. P0 can't
     # change it, and shows the one deployed as allowed_domains on each
-    # p0_1password_vault.
+    # p0_1password_account.
     domain_allow_pattern = "^example\\.com$"
     # P0's connector image: the digest of its tag on Docker Hub. This is a
     # placeholder, for an image that doesn't exist. Use the pinned value in the
@@ -58,8 +58,8 @@ resource "p0_1password_connector_staged" "gcp_example" {
 }
 
 # The connector's service account, which P0 names after the connector and
-# expects by exactly that name. Each vault's Terraform lets it read that
-# vault's service account token.
+# expects by exactly that name. Each account's Terraform lets it read that
+# account's service account token.
 resource "google_service_account" "p0_1password_connector_gcp" {
   project      = local.p0_1password_connector_gcp.project_id
   account_id   = p0_1password_connector_staged.gcp_example.connector_identity.service_account_id

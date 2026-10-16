@@ -20,7 +20,7 @@ import (
 
 const (
 	onePasswordConnector = "prod"
-	onePasswordVaultId   = "3fz7kq2xmw4vjn6rbt5hlpd8yc"
+	onePasswordAccountId = "acme.1password.com"
 	onePasswordDomains   = `^example\.com$`
 )
 
@@ -91,23 +91,22 @@ resource "p0_1password_connector" "example" {
 `
 }
 
-// A connector and a vault whose items it shares, as a customer's Terraform installs them.
+// A connector and a 1Password account whose items it shares, as a customer's Terraform installs them.
 func onePasswordConfig(f *onePasswordFake, cloud onePasswordCloud) string {
 	return onePasswordConfigWith(f, cloud, "")
 }
 
-// onePasswordConfig, with extra lines in the vault's block.
+// onePasswordConfig, with extra lines in the account's block.
 func onePasswordConfigWith(f *onePasswordFake, cloud onePasswordCloud, extra string) string {
 	return onePasswordConnectorConfig(f, cloud.hosting) + fmt.Sprintf(`
-resource "p0_1password_vault" "example" {
+resource "p0_1password_account" "example" {
   id        = %q
   connector = p0_1password_connector.example.id
 
   secret_manager = %s
   token_secret_name = %q
-  sign_in_address   = "acme.1password.com"
 %s}
-`, onePasswordVaultId, cloud.secretManager, cloud.secret, extra)
+`, onePasswordAccountId, cloud.secretManager, cloud.secret, extra)
 }
 
 // An in-memory stand-in for P0's install API for 1Password, behaving as P0's
@@ -116,13 +115,13 @@ resource "p0_1password_vault" "example" {
 //   - PUT, verify and configure deep-merge the request body over the stored item, and
 //     advance its state (stage -> configure -> installed)
 //   - a PUT of an item that exists is refused, so an item can only be staged once
-//   - a vault can only be staged for a connector that is installed
+//   - an account can only be staged for a connector that is installed
 //   - verifying a connector on Cloud Run resolves its URL
-//   - verifying a vault reads the allowed domains back from its connector
+//   - verifying an account reads the allowed domains back from its connector
 //   - a connector's metadata names the identity it runs as
 //   - unknown items are 404, and DELETE answers 204 with no body
 //
-// With failVerify set, verifying a vault fails as it does when the connector
+// With failVerify set, verifying an account fails as it does when the connector
 // can't read the token's secret.
 type onePasswordFake struct {
 	server *httptest.Server
@@ -133,7 +132,7 @@ type onePasswordFake struct {
 	failVerify bool
 }
 
-// A 1Password item: a connector or a vault, by its ID.
+// A 1Password item: a connector or an account, by its ID.
 type onePasswordItemKey struct {
 	component, id string
 }
@@ -232,12 +231,12 @@ func (f *onePasswordFake) refuse(key onePasswordItemKey, nextState string, previ
 	switch {
 	case nextState == "stage" && previous != nil:
 		return http.StatusConflict, fmt.Sprintf("The %s %s is already added. To change it, remove %s and add it again.", key.component, key.id, key.id)
-	case key.component == "vault" && nextState == "stage":
+	case key.component == "account" && nextState == "stage":
 		connector, _ := body["connector"].(string)
 		if f.items[onePasswordItemKey{"connector", connector}]["state"] != "installed" {
-			return http.StatusBadRequest, "Pick the connector that shares this vault's items. Install a 1Password connector first if there's none."
+			return http.StatusBadRequest, "Pick the connector that shares this account's items. Install a 1Password connector first if there's none."
 		}
-	case key.component == "vault" && nextState == "configure" && f.failVerify:
+	case key.component == "account" && nextState == "configure" && f.failVerify:
 		return http.StatusUnprocessableEntity, "The connector isn't allowed to read the secret."
 	}
 	return 0, ""
@@ -253,7 +252,7 @@ func normalizeOnePasswordItem(key onePasswordItemKey, item map[string]any) {
 		if hosting, ok := item["hosting"].(map[string]any); ok && hosting["type"] == "gcp" {
 			hosting["connectorServiceUri"] = fmt.Sprintf("https://%s-abc123-uw.a.run.app", hosting["connectorName"])
 		}
-	case "vault":
+	case "account":
 		item["allowedDomains"] = onePasswordDomains
 	}
 }
@@ -340,8 +339,8 @@ func (f *onePasswordFake) connector() map[string]any {
 	return f.item("connector", onePasswordConnector)
 }
 
-func (f *onePasswordFake) vault() map[string]any {
-	return f.item("vault", onePasswordVaultId)
+func (f *onePasswordFake) account() map[string]any {
+	return f.item("account", onePasswordAccountId)
 }
 
 func checkOnePasswordDestroyed(f *onePasswordFake) func(*terraform.State) error {
@@ -349,8 +348,8 @@ func checkOnePasswordDestroyed(f *onePasswordFake) func(*terraform.State) error 
 		if item := f.connector(); item != nil {
 			return fmt.Errorf("the connector was not removed from P0: %v", item)
 		}
-		if item := f.vault(); item != nil {
-			return fmt.Errorf("the vault was not removed from P0: %v", item)
+		if item := f.account(); item != nil {
+			return fmt.Errorf("the account was not removed from P0: %v", item)
 		}
 		return nil
 	}
@@ -386,14 +385,14 @@ func TestOnePasswordOnGoogleCloud(t *testing.T) {
 						"p0_1password_connector.example", "connector_identity.service_account_email",
 						"p0-1password-prod@acme-prod.iam.gserviceaccount.com",
 					),
-					resource.TestCheckResourceAttr("p0_1password_vault.example", "state", "installed"),
-					resource.TestCheckResourceAttr("p0_1password_vault.example", "allowed_domains", onePasswordDomains),
+					resource.TestCheckResourceAttr("p0_1password_account.example", "state", "installed"),
+					resource.TestCheckResourceAttr("p0_1password_account.example", "allowed_domains", onePasswordDomains),
 					func(*terraform.State) error {
-						item := f.vault()
+						item := f.account()
 						secretManager, _ := item["secretManager"].(map[string]any)
 						if item["connector"] != onePasswordConnector || item["tokenSecretName"] != onePasswordGcp.secret ||
-							item["signInAddress"] != "acme.1password.com" || secretManager["type"] != "gcp-sm" || secretManager["install"] != "acme-secrets" || len(secretManager) != 2 {
-							return fmt.Errorf("P0 item does not hold the configured vault: %v", item)
+							secretManager["type"] != "gcp-sm" || secretManager["install"] != "acme-secrets" || len(secretManager) != 2 {
+							return fmt.Errorf("P0 item does not hold the configured account: %v", item)
 						}
 						return nil
 					},
@@ -414,9 +413,9 @@ func TestOnePasswordOnGoogleCloud(t *testing.T) {
 				ImportStateVerify: true,
 			},
 			{
-				ResourceName:      "p0_1password_vault.example",
+				ResourceName:      "p0_1password_account.example",
 				ImportState:       true,
-				ImportStateId:     onePasswordVaultId,
+				ImportStateId:     onePasswordAccountId,
 				ImportStateVerify: true,
 			},
 		},
@@ -445,26 +444,29 @@ func TestOnePasswordOnAws(t *testing.T) {
 					resource.TestCheckResourceAttr("p0_1password_connector.example", "state", "installed"),
 					resource.TestCheckResourceAttr("p0_1password_connector.example", "hosting.account_id", "123456789012"),
 					resource.TestCheckNoResourceAttr("p0_1password_connector.example", "hosting.connector_service_uri"),
-					resource.TestCheckResourceAttr("p0_1password_vault.example", "state", "installed"),
-					resource.TestCheckResourceAttr("p0_1password_vault.example", "secret_manager.secrets_region", "us-west-2"),
-					resource.TestCheckResourceAttr("p0_1password_vault.example", "allowed_domains", onePasswordDomains),
-					// One-time links are off unless the configuration turns them on.
-					resource.TestCheckResourceAttr("p0_1password_vault.example", "one_time_links", "false"),
+					resource.TestCheckResourceAttr("p0_1password_account.example", "state", "installed"),
+					resource.TestCheckResourceAttr("p0_1password_account.example", "secret_manager.secrets_region", "us-west-2"),
+					resource.TestCheckResourceAttr("p0_1password_account.example", "allowed_domains", onePasswordDomains),
+					// One-time links are off, and the request limit is one per item, unless the
+					// configuration says otherwise.
+					resource.TestCheckResourceAttr("p0_1password_account.example", "one_time_links", "false"),
+					resource.TestCheckResourceAttr("p0_1password_account.example", "request_limit", "item"),
 					func(*terraform.State) error {
-						item := f.vault()
+						item := f.account()
 						secretManager, _ := item["secretManager"].(map[string]any)
-						if item["tokenSecretName"] != onePasswordAws.secret || item["oneTimeLinks"] != false || secretManager["type"] != "aws-sm" ||
+						requestLimit, _ := item["requestLimit"].(map[string]any)
+						if item["tokenSecretName"] != onePasswordAws.secret || item["oneTimeLinks"] != false || requestLimit["type"] != "item" || secretManager["type"] != "aws-sm" ||
 							secretManager["install"] != "123456789012" || secretManager["secretsRegion"] != "us-west-2" {
-							return fmt.Errorf("P0 item does not hold the configured vault: %v", item)
+							return fmt.Errorf("P0 item does not hold the configured account: %v", item)
 						}
 						return nil
 					},
 				),
 			},
 			{
-				ResourceName:      "p0_1password_vault.example",
+				ResourceName:      "p0_1password_account.example",
 				ImportState:       true,
-				ImportStateId:     onePasswordVaultId,
+				ImportStateId:     onePasswordAccountId,
 				ImportStateVerify: true,
 			},
 		},
@@ -561,7 +563,7 @@ func TestOnePasswordUnfinishedInstallConverges(t *testing.T) {
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction("p0_1password_connector_staged.example", plancheck.ResourceActionNoop),
 						plancheck.ExpectResourceAction("p0_1password_connector.example", plancheck.ResourceActionUpdate),
-						plancheck.ExpectResourceAction("p0_1password_vault.example", plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction("p0_1password_account.example", plancheck.ResourceActionNoop),
 					},
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -570,16 +572,16 @@ func TestOnePasswordUnfinishedInstallConverges(t *testing.T) {
 				),
 			},
 			{
-				PreConfig: func() { restage("vault", onePasswordVaultId) },
+				PreConfig: func() { restage("account", onePasswordAccountId) },
 				Config:    onePasswordConfig(f, onePasswordGcp),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_1password_vault.example", plancheck.ResourceActionUpdate),
+						plancheck.ExpectResourceAction("p0_1password_account.example", plancheck.ResourceActionUpdate),
 					},
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("p0_1password_vault.example", "state", "installed"),
-					resource.TestCheckResourceAttr("p0_1password_vault.example", "allowed_domains", onePasswordDomains),
+					resource.TestCheckResourceAttr("p0_1password_account.example", "state", "installed"),
+					resource.TestCheckResourceAttr("p0_1password_account.example", "allowed_domains", onePasswordDomains),
 				),
 			},
 		},
@@ -587,16 +589,16 @@ func TestOnePasswordUnfinishedInstallConverges(t *testing.T) {
 }
 
 // One-time links can be on from the start, and change in place after: the update
-// configures the vault without verifying it again, so it doesn't call the connector,
+// configures the account without verifying it again, so it doesn't call the connector,
 // whose check fails throughout. A change made in P0 shows as drift.
-func TestOnePasswordVaultOneTimeLinks(t *testing.T) {
+func TestOnePasswordAccountOneTimeLinks(t *testing.T) {
 	f := newOnePasswordFake(t)
 	oneTimeLinks := func(want bool) resource.TestCheckFunc {
 		return resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr("p0_1password_vault.example", "one_time_links", fmt.Sprint(want)),
-			resource.TestCheckResourceAttr("p0_1password_vault.example", "state", "installed"),
+			resource.TestCheckResourceAttr("p0_1password_account.example", "one_time_links", fmt.Sprint(want)),
+			resource.TestCheckResourceAttr("p0_1password_account.example", "state", "installed"),
 			func(*terraform.State) error {
-				if item := f.vault(); item["oneTimeLinks"] != want {
+				if item := f.account(); item["oneTimeLinks"] != want {
 					return fmt.Errorf("P0 item oneTimeLinks = %v; want %v", item["oneTimeLinks"], want)
 				}
 				return nil
@@ -605,7 +607,7 @@ func TestOnePasswordVaultOneTimeLinks(t *testing.T) {
 	}
 	inPlace := resource.ConfigPlanChecks{
 		PreApply: []plancheck.PlanCheck{
-			plancheck.ExpectResourceAction("p0_1password_vault.example", plancheck.ResourceActionUpdate),
+			plancheck.ExpectResourceAction("p0_1password_account.example", plancheck.ResourceActionUpdate),
 		},
 	}
 
@@ -629,7 +631,7 @@ func TestOnePasswordVaultOneTimeLinks(t *testing.T) {
 			},
 			{
 				PreConfig: func() {
-					f.update("vault", onePasswordVaultId, func(item map[string]any) { item["oneTimeLinks"] = true })
+					f.update("account", onePasswordAccountId, func(item map[string]any) { item["oneTimeLinks"] = true })
 				},
 				Config:           onePasswordConfig(f, onePasswordAws),
 				ConfigPlanChecks: inPlace,
@@ -642,10 +644,61 @@ func TestOnePasswordVaultOneTimeLinks(t *testing.T) {
 	})
 }
 
-// A vault whose install check fails is left staged in P0 and tainted in
+// The request limit can be set from the start, and change in place after, as one-time
+// links do: the update configures the account without calling the connector, whose
+// check fails throughout. Leaving it out of the configuration sets it back to one per
+// item.
+func TestOnePasswordAccountRequestLimit(t *testing.T) {
+	f := newOnePasswordFake(t)
+	requestLimit := func(want string) resource.TestCheckFunc {
+		return resource.ComposeAggregateTestCheckFunc(
+			resource.TestCheckResourceAttr("p0_1password_account.example", "request_limit", want),
+			resource.TestCheckResourceAttr("p0_1password_account.example", "state", "installed"),
+			func(*terraform.State) error {
+				limit, _ := f.account()["requestLimit"].(map[string]any)
+				if limit["type"] != want || len(limit) != 1 {
+					return fmt.Errorf("P0 item requestLimit = %v; want {type: %s}", limit, want)
+				}
+				return nil
+			},
+		)
+	}
+	inPlace := resource.ConfigPlanChecks{
+		PreApply: []plancheck.PlanCheck{
+			plancheck.ExpectResourceAction("p0_1password_account.example", plancheck.ResourceActionUpdate),
+		},
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkOnePasswordDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: onePasswordConfigWith(f, onePasswordAws, "  request_limit = \"user\"\n"),
+				Check:  requestLimit("user"),
+			},
+			{
+				PreConfig:        func() { f.failVerify = true },
+				Config:           onePasswordConfigWith(f, onePasswordAws, "  request_limit = \"vault\"\n"),
+				ConfigPlanChecks: inPlace,
+				Check:            requestLimit("vault"),
+			},
+			{
+				Config:           onePasswordConfig(f, onePasswordAws),
+				ConfigPlanChecks: inPlace,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					requestLimit("item"),
+					func(*terraform.State) error { f.failVerify = false; return nil },
+				),
+			},
+		},
+	})
+}
+
+// An account whose install check fails is left staged in P0 and tainted in
 // Terraform. P0 refuses to stage it again, so the next apply replaces it: it removes
 // the item, then stages and installs it.
-func TestOnePasswordVaultFailedCheckIsReplaced(t *testing.T) {
+func TestOnePasswordAccountFailedCheckIsReplaced(t *testing.T) {
 	f := newOnePasswordFake(t)
 	f.failVerify = true
 
@@ -654,11 +707,11 @@ func TestOnePasswordVaultFailedCheckIsReplaced(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      onePasswordConfig(f, onePasswordAws),
-				ExpectError: regexp.MustCompile(`(?s)1Password vault install check failed.*isn't allowed to read the\s+secret`),
+				ExpectError: regexp.MustCompile(`(?s)1Password account install check failed.*isn't allowed to read the\s+secret`),
 			},
 			{
 				PreConfig: func() {
-					if item := f.vault(); item == nil || item["state"] != "stage" {
+					if item := f.account(); item == nil || item["state"] != "stage" {
 						t.Errorf("P0 item after the failed check = %v; want it staged", item)
 					}
 					f.failVerify = false
@@ -666,52 +719,51 @@ func TestOnePasswordVaultFailedCheckIsReplaced(t *testing.T) {
 				Config: onePasswordConfig(f, onePasswordAws),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_1password_vault.example", plancheck.ResourceActionReplace),
+						plancheck.ExpectResourceAction("p0_1password_account.example", plancheck.ResourceActionReplace),
 					},
 				},
-				Check: resource.TestCheckResourceAttr("p0_1password_vault.example", "state", "installed"),
+				Check: resource.TestCheckResourceAttr("p0_1password_account.example", "state", "installed"),
 			},
 		},
 	})
 }
 
-// P0 adds a vault only for a connector that is installed. Naming one that is
-// only staged fails the apply with P0's message and saves nothing, so the vault
+// P0 adds an account only for a connector that is installed. Naming one that is
+// only staged fails the apply with P0's message and saves nothing, so the account
 // is created once its connector is installed.
-func TestOnePasswordVaultNeedsAnInstalledConnector(t *testing.T) {
+func TestOnePasswordAccountNeedsAnInstalledConnector(t *testing.T) {
 	f := newOnePasswordFake(t)
-	vault := fmt.Sprintf(`
-resource "p0_1password_vault" "example" {
+	account := fmt.Sprintf(`
+resource "p0_1password_account" "example" {
   id        = %q
   connector = p0_1password_connector_staged.example.id
 
   secret_manager = %s
   token_secret_name = %q
-  sign_in_address   = "acme.1password.com"
 }
-`, onePasswordVaultId, onePasswordAws.secretManager, onePasswordAws.secret)
+`, onePasswordAccountId, onePasswordAws.secretManager, onePasswordAws.secret)
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             checkOnePasswordDestroyed(f),
 		Steps: []resource.TestStep{
 			{
-				Config:      onePasswordStagedConfig(f, onePasswordAws.hosting) + vault,
-				ExpectError: regexp.MustCompile(`(?s)Could not stage vault component.*Pick the connector`),
+				Config:      onePasswordStagedConfig(f, onePasswordAws.hosting) + account,
+				ExpectError: regexp.MustCompile(`(?s)Could not stage account component.*Pick the connector`),
 			},
 			{
 				PreConfig: func() {
-					if item := f.vault(); item != nil {
-						t.Errorf("P0 item after the refused vault = %v; want none", item)
+					if item := f.account(); item != nil {
+						t.Errorf("P0 item after the refused account = %v; want none", item)
 					}
 				},
 				Config: onePasswordConfig(f, onePasswordAws),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_1password_vault.example", plancheck.ResourceActionCreate),
+						plancheck.ExpectResourceAction("p0_1password_account.example", plancheck.ResourceActionCreate),
 					},
 				},
-				Check: resource.TestCheckResourceAttr("p0_1password_vault.example", "state", "installed"),
+				Check: resource.TestCheckResourceAttr("p0_1password_account.example", "state", "installed"),
 			},
 		},
 	})
@@ -749,16 +801,25 @@ func TestOnePasswordValidation(t *testing.T) {
     connector_region = %q
   }`, fields["account_id"], fields["connector_name"], fields["connector_region"])
 	}
-	vault := func(id, secretManager, secret string) string {
+	account := func(id, secretManager, secret string) string {
 		return fmt.Sprintf(`
-resource "p0_1password_vault" "example" {
+resource "p0_1password_account" "example" {
   id                = %q
   connector         = "prod"
   secret_manager = %s
   token_secret_name = %q
-  sign_in_address   = "acme.1password.com"
 }
 `, id, secretManager, secret)
+	}
+	accountWith := func(id, extra string) string {
+		return fmt.Sprintf(`
+resource "p0_1password_account" "example" {
+  id                = %q
+  connector         = "prod"
+  secret_manager = %s
+  token_secret_name = %q
+%s}
+`, id, onePasswordAws.secretManager, onePasswordAws.secret, extra)
 	}
 	staged := func(id, hosting string) string {
 		return fmt.Sprintf(`
@@ -773,6 +834,7 @@ resource "p0_1password_connector_staged" "example" {
 		name, config, error string
 	}{
 		{"connector id with capitals", staged("Prod", onePasswordAws.hosting), "lowercase letters"},
+		{"unknown request limit", accountWith(onePasswordAccountId, "  request_limit = \"account\"\n"), "value must be one of"},
 		{"connector name ECR wouldn't take", staged("prod", awsHosting("connector_name", "p0--1password")), "Use 2 to 64 characters"},
 		{"GovCloud connector", staged("prod", awsHosting("connector_region", "us-gov-west-1")), "P0's 1Password integration supports only"},
 		{
@@ -795,14 +857,15 @@ resource "p0_1password_connector_staged" "example" {
   }`),
 			"Missing AWS account ID",
 		},
-		{"vault ID with capitals", vault("3FZ7KQ2XMW4VJN6RBT5HLPD8YC", onePasswordAws.secretManager, onePasswordAws.secret), "as 1Password shows it"},
-		{"vault name in place of its ID", vault("Engineering", onePasswordAws.secretManager, onePasswordAws.secret), "26 lowercase letters"},
-		{"secret ARN", vault(onePasswordVaultId, onePasswordAws.secretManager, "arn:aws:secretsmanager:us-west-2:123456789012:secret:token"), "doesn't look like a secret name"},
-		{"AWS secret name in Google Secret Manager", vault(onePasswordVaultId, onePasswordGcp.secretManager, onePasswordAws.secret), "doesn't look like a secret name"},
-		{"service account token in place of its secret's name", vault(onePasswordVaultId, onePasswordAws.secretManager, "ops_eyJzaWduSW5BZGRyZXNzIjoiYWNtZS4xcGFzc3dvcmQuY29tIn0"), "That's a 1Password service account token"},
+		{"sign-in address with capitals", account("Acme.1password.com", onePasswordAws.secretManager, onePasswordAws.secret), "sign-in address"},
+		{"sign-in address as a URL", account("https://acme.1password.com", onePasswordAws.secretManager, onePasswordAws.secret), "sign-in address"},
+		{"vault ID in place of the sign-in address", account("3fz7kq2xmw4vjn6rbt5hlpd8yc", onePasswordAws.secretManager, onePasswordAws.secret), "sign-in address"},
+		{"secret ARN", account(onePasswordAccountId, onePasswordAws.secretManager, "arn:aws:secretsmanager:us-west-2:123456789012:secret:token"), "doesn't look like a secret name"},
+		{"AWS secret name in Google Secret Manager", account(onePasswordAccountId, onePasswordGcp.secretManager, onePasswordAws.secret), "doesn't look like a secret name"},
+		{"service account token in place of its secret's name", account(onePasswordAccountId, onePasswordAws.secretManager, "ops_eyJzaWduSW5BZGRyZXNzIjoiYWNtZS4xcGFzc3dvcmQuY29tIn0"), "That's a 1Password service account token"},
 		{
 			"region on a Google secret manager",
-			vault(onePasswordVaultId, `{
+			account(onePasswordAccountId, `{
     type           = "gcp-sm"
     project_id     = "acme-secrets"
     secrets_region = "us-west-2"
@@ -828,7 +891,7 @@ resource "p0_1password_connector_staged" "example" {
 
 // The variables that name what TestAcc1Password installs: a 1Password connector
 // already deployed on AWS Lambda where they say, running as the role P0 names after
-// it, and a vault whose service account token is in a secret that the connector's role
+// it, and an account whose service account token is in a secret that the connector's role
 // can read, in the connector's account. P0 validates both through the connector, so
 // they must be real.
 func onePasswordAccEnv(install *onePasswordAccInstall) map[string]*string {
@@ -836,7 +899,6 @@ func onePasswordAccEnv(install *onePasswordAccInstall) map[string]*string {
 		"P0_1PASSWORD_AWS_ACCOUNT_ID":    &install.accountId,
 		"P0_1PASSWORD_CONNECTOR_NAME":    &install.connectorName,
 		"P0_1PASSWORD_CONNECTOR_REGION":  &install.connectorRegion,
-		"P0_1PASSWORD_VAULT_ID":          &install.vaultId,
 		"P0_1PASSWORD_TOKEN_SECRET_NAME": &install.tokenSecretName,
 		"P0_1PASSWORD_SECRETS_REGION":    &install.secretsRegion,
 		"P0_1PASSWORD_SIGN_IN_ADDRESS":   &install.signInAddress,
@@ -845,9 +907,9 @@ func onePasswordAccEnv(install *onePasswordAccInstall) map[string]*string {
 }
 
 type onePasswordAccInstall struct {
-	accountId, connectorName, connectorRegion              string
-	vaultId, tokenSecretName, secretsRegion, signInAddress string
-	connectorId                                            string
+	accountId, connectorName, connectorRegion     string
+	signInAddress, tokenSecretName, secretsRegion string
+	connectorId                                   string
 }
 
 // TestAcc1Password installs into the P0 organization P0_ORG, served at P0_HOST (the
@@ -924,7 +986,7 @@ resource "p0_1password_connector" "test" {
   hosting = p0_1password_connector_staged.test.hosting
 }
 
-resource "p0_1password_vault" "test" {
+resource "p0_1password_account" "test" {
   id        = %q
   connector = p0_1password_connector.test.id
   secret_manager = {
@@ -933,11 +995,10 @@ resource "p0_1password_vault" "test" {
     secrets_region = %q
   }
   token_secret_name = %q
-  sign_in_address   = %q
 }
 `, os.Getenv(onePasswordAccOrgEnv), onePasswordAccHost(),
 		install.connectorId, install.accountId, install.connectorName, install.connectorRegion,
-		install.vaultId, install.accountId, install.secretsRegion, install.tokenSecretName, install.signInAddress)
+		install.signInAddress, install.accountId, install.secretsRegion, install.tokenSecretName)
 }
 
 // Checks that P0 no longer has the item behind any destroyed 1Password resource.
@@ -945,7 +1006,7 @@ func checkOnePasswordAccDestroyed(client *internal.P0ProviderData) resource.Test
 	components := map[string]string{
 		"p0_1password_connector_staged": "connector",
 		"p0_1password_connector":        "connector",
-		"p0_1password_vault":            "vault",
+		"p0_1password_account":          "account",
 	}
 	return func(state *terraform.State) error {
 		for _, rs := range state.RootModule().Resources {
@@ -966,8 +1027,8 @@ func checkOnePasswordAccDestroyed(client *internal.P0ProviderData) resource.Test
 	}
 }
 
-// TestAcc1Password installs a connector and a vault in a P0 organization (see
-// testAcc1PasswordPreCheck), checks that a second plan is empty, imports the vault,
+// TestAcc1Password installs a connector and an account in a P0 organization (see
+// testAcc1PasswordPreCheck), checks that a second plan is empty, imports the account,
 // and destroys both. The organization must run a P0 version with the 1Password
 // integration.
 func TestAcc1Password(t *testing.T) {
@@ -980,12 +1041,12 @@ func TestAcc1Password(t *testing.T) {
 				Config: onePasswordAccConfig(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("p0_1password_connector.test", "state", "installed"),
-					resource.TestCheckResourceAttr("p0_1password_vault.test", "state", "installed"),
-					resource.TestCheckResourceAttrSet("p0_1password_vault.test", "allowed_domains"),
+					resource.TestCheckResourceAttr("p0_1password_account.test", "state", "installed"),
+					resource.TestCheckResourceAttrSet("p0_1password_account.test", "allowed_domains"),
 				),
 			},
 			{
-				ResourceName:      "p0_1password_vault.test",
+				ResourceName:      "p0_1password_account.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},

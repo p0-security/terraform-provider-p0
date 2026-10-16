@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// The identity a connector runs as, which each vault lets read its service account token:
+// The identity a connector runs as, which each account lets read its service account token:
 // an IAM role on AWS, or a service account on Google Cloud, named after the connector
 // in the connector's own account or project. P0 doesn't look it up. It names it
 // (`toConnectorIdentity` in packages/integrations/one-password/shared/src/identity.ts in the
@@ -51,7 +51,7 @@ func connectorIdentityAttribute() schema.SingleNestedAttribute {
 	return schema.SingleNestedAttribute{
 		Computed: true,
 		MarkdownDescription: `The identity the connector must run as: an IAM role on AWS, or a service account on Google Cloud, named after the connector. ` +
-			`P0 doesn't look the identity up, so deploy the connector with exactly this one. Each vault that names the connector lets this identity read its service account token.`,
+			`P0 doesn't look the identity up, so deploy the connector with exactly this one. Each account that names the connector lets this identity read its service account token.`,
 		Attributes: map[string]schema.Attribute{
 			"type": schema.StringAttribute{
 				Computed:            true,

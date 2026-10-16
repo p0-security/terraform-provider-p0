@@ -15,7 +15,7 @@ import (
 	"github.com/p0-security/terraform-provider-p0/internal/common"
 )
 
-// The `secret manager` attribute is the vault's `secret manager` install element
+// The `secret manager` attribute is the account's `secret manager` install element
 // (`OnePasswordTokenVault` in packages/integrations/one-password/shared/src/components.ts in the
 // app): the P0 secret manager installation that holds the service account token's
 // secret, in the customer's own AWS Secrets Manager or Google Secret Manager. P0 stores
@@ -92,7 +92,7 @@ func secretManagerAttribute(description string, secret string) schema.SingleNest
 	}
 }
 
-// Reads the root `secret manager` attribute of a vault's configuration, for
+// Reads the root `secret manager` attribute of an account's configuration, for
 // ValidateConfig. It returns nil when the block is null, or unknown until apply.
 func secretManagerFromConfig(ctx context.Context, config tfsdk.Config, diags *diag.Diagnostics) *secretManagerModel {
 	var secretManager secretManagerModel

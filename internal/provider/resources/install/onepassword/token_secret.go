@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// Where a vault's service account token is, in the customer's own secret manager: P0's
+// Where an account's service account token is, in the customer's own secret manager: P0's
 // rules for the secret manager's fields and for the secret's name, as it checks them
 // when it creates the item (`validateTokenSecret` in
 // packages/integrations/one-password/backend/src/install/validation.ts in the app). P0
@@ -31,7 +31,7 @@ var (
 const (
 	invalidSecretName  = "That doesn't look like a secret name. Enter the name of the secret that holds the service account token, not its ARN, its full resource name or the token itself."
 	pastedToken        = "That's a 1Password service account token, not the name of its secret. Enter the name of the secret that holds the token. P0 never needs the token itself, so revoke it and create a new one if it was shared anywhere else."
-	missingSecretName  = "Enter the name of the secret that holds, or will hold, the vault's service account token."
+	missingSecretName  = "Enter the name of the secret that holds, or will hold, the account's service account token."
 	suffixedSecretName = "Secrets Manager can't find a secret by its name when the name ends in a hyphen and six characters, like -AbCdEf. Use a secret whose name doesn't end that way."
 )
 

@@ -55,7 +55,7 @@ For the full install steps, see [1Password](https://docs.p0.dev/integrations/res
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `A name you choose for the connector, such as ` + "`prod`" + `. Each vault picks its connector by it. Use lowercase letters, digits and hyphens only, starting and ending with a letter or digit, up to 63 characters.`,
+				MarkdownDescription: `A name you choose for the connector, such as ` + "`prod`" + `. Each account picks its connector by it. Use lowercase letters, digits and hyphens only, starting and ending with a letter or digit, up to 63 characters.`,
 				Validators:          connectorIdValidators(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),

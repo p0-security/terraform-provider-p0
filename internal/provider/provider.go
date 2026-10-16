@@ -235,7 +235,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installdocker.NewDockerOrganization,
 		installonepassword.NewOnePasswordConnectorStaged,
 		installonepassword.NewOnePasswordConnector,
-		installonepassword.NewOnePasswordVault,
+		installonepassword.NewOnePasswordAccount,
 		installharbor.NewHarborConnectorStaged,
 		installharbor.NewHarborConnector,
 		installharbor.NewHarborInstance,

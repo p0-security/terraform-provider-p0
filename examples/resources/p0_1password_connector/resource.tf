@@ -1,6 +1,6 @@
 # Installs P0's 1Password connector prod on AWS Lambda. Full chain:
 # p0_aws_iam_write (see its example) -> p0_1password_connector_staged -> the
-# connector's Lambda function -> p0_1password_connector -> p0_1password_vault.
+# connector's Lambda function -> p0_1password_connector -> p0_1password_account.
 #
 # This example hosts the connector on AWS Lambda. For Google Cloud Run, see
 # gcp.tf in this directory.
@@ -14,9 +14,9 @@
 # repository, which Lambda requires. Run terraform where Docker and the AWS CLI
 # are installed and the AWS CLI is signed in to account 123456789012.
 #
-# One connector serves every 1Password vault that names it in P0. Each
-# vault's own Terraform lets this connector read that vault's
-# service account token (see the p0_1password_vault example). This configuration
+# One connector serves every 1Password account that names it in P0. Each
+# account's own Terraform lets this connector read that account's
+# service account token (see the p0_1password_account example). This configuration
 # grants it no secret.
 
 terraform {
@@ -52,7 +52,7 @@ locals {
     # everyone who may be sent a share link, such as "^(acme\\.com|acme\\.io)$"
     # for two domains. The connector won't start without a pattern. P0 can't
     # change it, and shows the one deployed as allowed_domains on each
-    # p0_1password_vault.
+    # p0_1password_account.
     domain_allow_pattern = "^example\\.com$"
     # How many days CloudWatch keeps the connector's logs.
     log_retention_days = 30
@@ -156,8 +156,8 @@ data "aws_ecr_image" "p0_1password_connector_prod" {
 }
 
 # The connector's role, which P0 names after the connector and expects by
-# exactly that name. Each vault's Terraform adds a policy to it that
-# lets the connector read that vault's service account token.
+# exactly that name. Each account's Terraform adds a policy to it that
+# lets the connector read that account's service account token.
 resource "aws_iam_role" "p0_1password_connector_prod" {
   provider = aws.p0_1password_connector_prod
 

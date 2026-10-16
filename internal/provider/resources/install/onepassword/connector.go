@@ -93,13 +93,13 @@ func (*OnePasswordConnector) Schema(_ context.Context, _ resource.SchemaRequest,
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A 1Password connector installation.
 
-The connector is how P0 shares items from your 1Password vaults. You deploy it in your own AWS account or Google Cloud project, and only it reads a vault's service account token. It shares items only with the email domains its deployment allows, in its ` + "`DOMAIN_ALLOW_PATTERN`" + `. One connector can serve many vaults: register each with a ` + "`p0_1password_vault`" + ` resource that names this connector.
+The connector is how P0 shares items from your 1Password accounts. You deploy it in your own AWS account or Google Cloud project, and only it reads an account's service account token. It shares items only with the email domains its deployment allows, in its ` + "`DOMAIN_ALLOW_PATTERN`" + `. One connector can serve many 1Password accounts: register each with a ` + "`p0_1password_account`" + ` resource that names this connector.
 
 **Important:** Before creating this resource you must stage the installation with ` + "`p0_1password_connector_staged`" + ` and deploy the connector. Creating this resource has P0 check that it can invoke the connector, and on Google Cloud that it can read the Cloud Run service's URL. If the check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the first check is denied access, apply again.
 
-Where a connector runs can't change once it is added, so changing ` + "`id`" + ` or ` + "`hosting`" + ` replaces the connector, and the vaults that name it must let the new connector's identity read their service account tokens. A connector that P0 hasn't finished installing, such as one imported before its check passed, plans an update, and applying it finishes the install.
+Where a connector runs can't change once it is added, so changing ` + "`id`" + ` or ` + "`hosting`" + ` replaces the connector, and the accounts that name it must let the new connector's identity read their service account tokens. A connector that P0 hasn't finished installing, such as one imported before its check passed, plans an update, and applying it finishes the install.
 
-Destroying this resource returns the connector to its staged state, which ` + "`p0_1password_connector_staged`" + ` still owns. P0 can't share items through a connector that isn't installed, so destroy the vaults that name a connector before the connector.
+Destroying this resource returns the connector to its staged state, which ` + "`p0_1password_connector_staged`" + ` still owns. P0 can't share items through a connector that isn't installed, so destroy the accounts that name a connector before the connector.
 
 **Prerequisites:**
 

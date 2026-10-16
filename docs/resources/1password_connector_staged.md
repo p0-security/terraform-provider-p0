@@ -49,11 +49,11 @@ resource "p0_1password_connector_staged" "example" {
 ### Required
 
 - `hosting` (Attributes) Where the connector runs. The connector's Terraform deploys it there, and P0 invokes it there. (see [below for nested schema](#nestedatt--hosting))
-- `id` (String) A name you choose for the connector, such as `prod`. Each vault picks its connector by it. Use lowercase letters, digits and hyphens only, starting and ending with a letter or digit, up to 63 characters.
+- `id` (String) A name you choose for the connector, such as `prod`. Each account picks its connector by it. Use lowercase letters, digits and hyphens only, starting and ending with a letter or digit, up to 63 characters.
 
 ### Read-Only
 
-- `connector_identity` (Attributes) The identity the connector must run as: an IAM role on AWS, or a service account on Google Cloud, named after the connector. P0 doesn't look the identity up, so deploy the connector with exactly this one. Each vault that names the connector lets this identity read its service account token. (see [below for nested schema](#nestedatt--connector_identity))
+- `connector_identity` (Attributes) The identity the connector must run as: an IAM role on AWS, or a service account on Google Cloud, named after the connector. P0 doesn't look the identity up, so deploy the connector with exactly this one. Each account that names the connector lets this identity read its service account token. (see [below for nested schema](#nestedatt--connector_identity))
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured

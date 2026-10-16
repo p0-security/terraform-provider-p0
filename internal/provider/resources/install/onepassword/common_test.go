@@ -235,7 +235,7 @@ func TestSchemasAndModels(t *testing.T) {
 	}{
 		"connector staged": {resource: NewOnePasswordConnectorStaged(), model: &onePasswordConnectorStagedModel{}},
 		"connector":        {resource: NewOnePasswordConnector(), model: &onePasswordConnectorModel{}},
-		"vault":            {resource: NewOnePasswordVault(), model: &onePasswordVaultModel{}},
+		"account":          {resource: NewOnePasswordAccount(), model: &onePasswordAccountModel{}},
 	}
 
 	for name, c := range cases {
@@ -252,7 +252,7 @@ func TestResourceNames(t *testing.T) {
 	cases := map[string]resource.Resource{
 		"p0_1password_connector_staged": NewOnePasswordConnectorStaged(),
 		"p0_1password_connector":        NewOnePasswordConnector(),
-		"p0_1password_vault":            NewOnePasswordVault(),
+		"p0_1password_account":          NewOnePasswordAccount(),
 	}
 
 	for want, r := range cases {
@@ -289,7 +289,7 @@ func TestConnectorIdValidators(t *testing.T) {
 	attributes := map[string]schema.Attribute{
 		"p0_1password_connector_staged.id": schemaOf(t, NewOnePasswordConnectorStaged()).Attributes["id"],
 		"p0_1password_connector.id":        schemaOf(t, NewOnePasswordConnector()).Attributes["id"],
-		"p0_1password_vault.connector":     schemaOf(t, NewOnePasswordVault()).Attributes["connector"],
+		"p0_1password_account.connector":   schemaOf(t, NewOnePasswordAccount()).Attributes["connector"],
 	}
 	for name, attribute := range attributes {
 		for id, want := range cases {
@@ -303,30 +303,43 @@ func TestConnectorIdValidators(t *testing.T) {
 	}
 }
 
-// 1Password's form for a vault's ID, with P0's own cases for it
-// (packages/integrations/one-password/backend/src/install/__tests__/vault.test.ts in
-// the app).
-func TestVaultIdValidator(t *testing.T) {
-	const id = "3fz7kq2xmw4vjn6rbt5hlpd8yc"
+// An account's sign-in address: a lowercase host in one of 1Password's regions.
+func TestSignInAddressValidator(t *testing.T) {
+	const message = "Enter the account's sign-in address, such as acme.1password.com"
 	cases := map[string]bool{
-		id:                                     true,
-		strings.Repeat("0", 26):                true,
-		strings.ToUpper(id):                    false,
-		id[1:]:                                 false,
-		id + "a":                               false,
-		"3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d": false,
-		"Engineering":                          false,
-		id[1:] + "-":                           false,
-		id[1:] + "_":                           false,
-		" " + id[1:]:                           false,
-		"":                                     false,
+		"acme.1password.com":         true,
+		"acme.1password.ca":          true,
+		"acme.1password.eu":          true,
+		"acme-corp.1password.com":    true,
+		"acme.ent.1password.com":     true,
+		"0.1password.com":            true,
+		"Acme.1password.com":         false,
+		"ACME.1PASSWORD.COM":         false,
+		"1password.com":              false,
+		".1password.com":             false,
+		"acme..1password.com":        false,
+		"-acme.1password.com":        false,
+		"acme-.1password.com":        false,
+		"acme.1password.co":          false,
+		"acme.1password.com.evil.io": false,
+		"acme.my1password.com":       false,
+		"acme.1password.com.":        false,
+		"https://acme.1password.com": false,
+		"acme.1password.com/":        false,
+		" acme.1password.com":        false,
+		"acme_corp.1password.com":    false,
+		"3fz7kq2xmw4vjn6rbt5hlpd8yc": false,
+		"":                           false,
 	}
 
-	attribute := schemaOf(t, NewOnePasswordVault()).Attributes["id"]
-	for vault, want := range cases {
-		if got := accepts(t, attribute, vault); got != want {
-			t.Errorf("id accepts %q = %v; want %v", vault, got, want)
+	attribute := schemaOf(t, NewOnePasswordAccount()).Attributes["id"]
+	for address, want := range cases {
+		if got := accepts(t, attribute, address); got != want {
+			t.Errorf("id accepts %q = %v; want %v", address, got, want)
 		}
+	}
+	if got := errorDetails(validateString(t, attribute, "Acme.1password.com")); len(got) != 1 || !strings.Contains(got[0], message) {
+		t.Errorf("id refuses an address with %v; want the sign-in address message", got)
 	}
 }
 
@@ -347,10 +360,10 @@ func TestDescribeCheckError(t *testing.T) {
 			detail:  "P0 rejected the install check for the 1Password connector \"prod\":\n\n" + message,
 		},
 		{
-			kind:    "vault",
-			id:      "3fz7kq2xmw4vjn6rbt5hlpd8yc",
-			summary: "1Password vault install check failed",
-			detail:  "P0 rejected the install check for the 1Password vault \"3fz7kq2xmw4vjn6rbt5hlpd8yc\":\n\n" + message,
+			kind:    "account",
+			id:      "acme.1password.com",
+			summary: "1Password account install check failed",
+			detail:  "P0 rejected the install check for the 1Password account \"acme.1password.com\":\n\n" + message,
 		},
 	}
 
@@ -368,7 +381,7 @@ func TestDescribeCheckError(t *testing.T) {
 // A fake of P0's install API for the 1Password items, which records each request.
 // Like P0, it refuses a PUT of an item that exists, answers 404 for a step on one that
 // doesn't, merges a request over the stored item, resolves a Cloud Run connector's URL
-// and reads a vault's allowed domains when it verifies, and names a
+// and reads an account's allowed domains when it verifies, and names a
 // connector's identity in its metadata. With failVerify, verify answers as P0 does when
 // an install check fails, and saves nothing.
 type fakeItems struct {
@@ -382,7 +395,7 @@ type fakeItems struct {
 const (
 	basePath      = "/integrations/1password/config"
 	connectorPath = basePath + "/connector/prod"
-	vaultPath     = basePath + "/vault/3fz7kq2xmw4vjn6rbt5hlpd8yc"
+	accountPath   = basePath + "/account/acme.1password.com"
 
 	fakeServiceUri     = "https://p0-1password-prod-abc123-uw.a.run.app"
 	fakeAllowedDomains = `^example\.com$`
@@ -416,7 +429,7 @@ func (f *fakeItems) complete(itemPath string, item map[string]any) {
 	if hosting, ok := item["hosting"].(map[string]any); ok && hosting["type"] == "gcp" {
 		hosting["connectorServiceUri"] = fakeServiceUri
 	}
-	if strings.HasPrefix(itemPath, basePath+"/vault/") {
+	if strings.HasPrefix(itemPath, basePath+"/account/") {
 		item["allowedDomains"] = fakeAllowedDomains
 	}
 }
@@ -612,7 +625,7 @@ func TestCreateRefusesAResponseWithoutAnItem(t *testing.T) {
 	}{
 		"connector staged": {resource: &OnePasswordConnectorStaged{}, planned: awsCloud.plannedStaged()},
 		"connector":        {resource: &OnePasswordConnector{}, planned: awsCloud.plannedConnector()},
-		"vault":            {resource: &OnePasswordVault{}, planned: awsVault.planned()},
+		"account":          {resource: &OnePasswordAccount{}, planned: awsAccount.planned()},
 	}
 
 	for name, c := range cases {

@@ -4,10 +4,10 @@ page_title: "p0_1password_connector Resource - p0"
 subcategory: ""
 description: |-
   A 1Password connector installation.
-  The connector is how P0 shares items from your 1Password vaults. You deploy it in your own AWS account or Google Cloud project, and only it reads a vault's service account token. It shares items only with the email domains its deployment allows, in its DOMAIN_ALLOW_PATTERN. One connector can serve many vaults: register each with a p0_1password_vault resource that names this connector.
+  The connector is how P0 shares items from your 1Password accounts. You deploy it in your own AWS account or Google Cloud project, and only it reads an account's service account token. It shares items only with the email domains its deployment allows, in its DOMAIN_ALLOW_PATTERN. One connector can serve many 1Password accounts: register each with a p0_1password_account resource that names this connector.
   Important: Before creating this resource you must stage the installation with p0_1password_connector_staged and deploy the connector. Creating this resource has P0 check that it can invoke the connector, and on Google Cloud that it can read the Cloud Run service's URL. If the check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the first check is denied access, apply again.
-  Where a connector runs can't change once it is added, so changing id or hosting replaces the connector, and the vaults that name it must let the new connector's identity read their service account tokens. A connector that P0 hasn't finished installing, such as one imported before its check passed, plans an update, and applying it finishes the install.
-  Destroying this resource returns the connector to its staged state, which p0_1password_connector_staged still owns. P0 can't share items through a connector that isn't installed, so destroy the vaults that name a connector before the connector.
+  Where a connector runs can't change once it is added, so changing id or hosting replaces the connector, and the accounts that name it must let the new connector's identity read their service account tokens. A connector that P0 hasn't finished installing, such as one imported before its check passed, plans an update, and applying it finishes the install.
+  Destroying this resource returns the connector to its staged state, which p0_1password_connector_staged still owns. P0 can't share items through a connector that isn't installed, so destroy the accounts that name a connector before the connector.
   Prerequisites:
   
   P0's 1Password connector, deployed where hosting says and running as the identity that connector_identity names. Its DOMAIN_ALLOW_PATTERN environment variable is a regular expression that the connector tests against the part of an email after the @, and the connector won't start without it. Nothing anchors the pattern, so write it anchored, such as ^example\.com$. P0's 1Password installer generates Terraform that deploys the connector with its image pinned, as in the example.
@@ -21,13 +21,13 @@ description: |-
 
 A 1Password connector installation.
 
-The connector is how P0 shares items from your 1Password vaults. You deploy it in your own AWS account or Google Cloud project, and only it reads a vault's service account token. It shares items only with the email domains its deployment allows, in its `DOMAIN_ALLOW_PATTERN`. One connector can serve many vaults: register each with a `p0_1password_vault` resource that names this connector.
+The connector is how P0 shares items from your 1Password accounts. You deploy it in your own AWS account or Google Cloud project, and only it reads an account's service account token. It shares items only with the email domains its deployment allows, in its `DOMAIN_ALLOW_PATTERN`. One connector can serve many 1Password accounts: register each with a `p0_1password_account` resource that names this connector.
 
 **Important:** Before creating this resource you must stage the installation with `p0_1password_connector_staged` and deploy the connector. Creating this resource has P0 check that it can invoke the connector, and on Google Cloud that it can read the Cloud Run service's URL. If the check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the first check is denied access, apply again.
 
-Where a connector runs can't change once it is added, so changing `id` or `hosting` replaces the connector, and the vaults that name it must let the new connector's identity read their service account tokens. A connector that P0 hasn't finished installing, such as one imported before its check passed, plans an update, and applying it finishes the install.
+Where a connector runs can't change once it is added, so changing `id` or `hosting` replaces the connector, and the accounts that name it must let the new connector's identity read their service account tokens. A connector that P0 hasn't finished installing, such as one imported before its check passed, plans an update, and applying it finishes the install.
 
-Destroying this resource returns the connector to its staged state, which `p0_1password_connector_staged` still owns. P0 can't share items through a connector that isn't installed, so destroy the vaults that name a connector before the connector.
+Destroying this resource returns the connector to its staged state, which `p0_1password_connector_staged` still owns. P0 can't share items through a connector that isn't installed, so destroy the accounts that name a connector before the connector.
 
 **Prerequisites:**
 
@@ -46,7 +46,7 @@ For the full install steps, see [1Password](https://docs.p0.dev/integrations/res
 ```terraform
 # Installs P0's 1Password connector prod on AWS Lambda. Full chain:
 # p0_aws_iam_write (see its example) -> p0_1password_connector_staged -> the
-# connector's Lambda function -> p0_1password_connector -> p0_1password_vault.
+# connector's Lambda function -> p0_1password_connector -> p0_1password_account.
 #
 # This example hosts the connector on AWS Lambda. For Google Cloud Run, see
 # gcp.tf in this directory.
@@ -60,9 +60,9 @@ For the full install steps, see [1Password](https://docs.p0.dev/integrations/res
 # repository, which Lambda requires. Run terraform where Docker and the AWS CLI
 # are installed and the AWS CLI is signed in to account 123456789012.
 #
-# One connector serves every 1Password vault that names it in P0. Each
-# vault's own Terraform lets this connector read that vault's
-# service account token (see the p0_1password_vault example). This configuration
+# One connector serves every 1Password account that names it in P0. Each
+# account's own Terraform lets this connector read that account's
+# service account token (see the p0_1password_account example). This configuration
 # grants it no secret.
 
 terraform {
@@ -98,7 +98,7 @@ locals {
     # everyone who may be sent a share link, such as "^(acme\\.com|acme\\.io)$"
     # for two domains. The connector won't start without a pattern. P0 can't
     # change it, and shows the one deployed as allowed_domains on each
-    # p0_1password_vault.
+    # p0_1password_account.
     domain_allow_pattern = "^example\\.com$"
     # How many days CloudWatch keeps the connector's logs.
     log_retention_days = 30
@@ -202,8 +202,8 @@ data "aws_ecr_image" "p0_1password_connector_prod" {
 }
 
 # The connector's role, which P0 names after the connector and expects by
-# exactly that name. Each vault's Terraform adds a policy to it that
-# lets the connector read that vault's service account token.
+# exactly that name. Each account's Terraform adds a policy to it that
+# lets the connector read that account's service account token.
 resource "aws_iam_role" "p0_1password_connector_prod" {
   provider = aws.p0_1password_connector_prod
 
@@ -304,7 +304,7 @@ resource "p0_1password_connector" "example" {
 
 ### Read-Only
 
-- `connector_identity` (Attributes) The identity the connector must run as: an IAM role on AWS, or a service account on Google Cloud, named after the connector. P0 doesn't look the identity up, so deploy the connector with exactly this one. Each vault that names the connector lets this identity read its service account token. (see [below for nested schema](#nestedatt--connector_identity))
+- `connector_identity` (Attributes) The identity the connector must run as: an IAM role on AWS, or a service account on Google Cloud, named after the connector. P0 doesn't look the identity up, so deploy the connector with exactly this one. Each account that names the connector lets this identity read its service account token. (see [below for nested schema](#nestedatt--connector_identity))
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured
