@@ -47,6 +47,7 @@ import (
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
+	installonepassword "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/onepassword"
 	installpagerdutyai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/pagerduty-ai"
 	installpostgres "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/postgres"
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
@@ -237,6 +238,9 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installdocker.NewDockerConnectorStaged,
 		installdocker.NewDockerConnector,
 		installdocker.NewDockerOrganization,
+		installonepassword.NewOnePasswordConnectorStaged,
+		installonepassword.NewOnePasswordConnector,
+		installonepassword.NewOnePasswordAccount,
 		installharbor.NewHarborConnectorStaged,
 		installharbor.NewHarborConnector,
 		installharbor.NewHarborInstance,
