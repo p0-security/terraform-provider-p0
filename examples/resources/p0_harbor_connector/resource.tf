@@ -60,9 +60,9 @@ resource "google_cloud_run_v2_service" "harbor" {
     service_account = google_service_account.harbor.email
 
     containers {
-      # P0's connector image, pinned by its tag and digest. Use the tag and
-      # digest of the release you want to run.
-      image = "docker.io/p0security/p0-connector-harbor-gcloud:sha-1234567@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      # P0's connector image, pinned by its tag and digest. To update, take
+      # both from the latest version of this example in the Terraform registry.
+      image = "docker.io/p0security/p0-connector-harbor-gcloud:sha-7663c38@sha256:93328ee49abd6ae9ae76e76d53075456f1be3e6eaf494aeba358a7b2eeab7fd2"
 
       # The connector accepts calls from this identity alone, and refuses every
       # call while it is unset.

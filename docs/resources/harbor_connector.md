@@ -107,9 +107,9 @@ resource "google_cloud_run_v2_service" "harbor" {
     service_account = google_service_account.harbor.email
 
     containers {
-      # P0's connector image, pinned by its tag and digest. Use the tag and
-      # digest of the release you want to run.
-      image = "docker.io/p0security/p0-connector-harbor-gcloud:sha-1234567@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      # P0's connector image, pinned by its tag and digest. To update, take
+      # both from the latest version of this example in the Terraform registry.
+      image = "docker.io/p0security/p0-connector-harbor-gcloud:sha-7663c38@sha256:93328ee49abd6ae9ae76e76d53075456f1be3e6eaf494aeba358a7b2eeab7fd2"
 
       # The connector accepts calls from this identity alone, and refuses every
       # call while it is unset.
@@ -211,9 +211,10 @@ locals {
     # How many days CloudWatch keeps the connector's logs.
     log_retention_days = 30
     # P0's connector image: its tag on Docker Hub, and the digest that tag must
-    # resolve to. Use the tag and digest of the release you want to run.
-    image_tag    = "sha-1234567"
-    image_digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    # resolve to. To update, take both from the latest version of this example
+    # in the Terraform registry: they change together.
+    image_tag    = "sha-7663c38"
+    image_digest = "sha256:109e007f15e268af996ad00e055bac13d4499a14064cfb318b411d2b9655855b"
   }
 }
 
