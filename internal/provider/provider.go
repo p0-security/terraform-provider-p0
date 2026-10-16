@@ -25,6 +25,7 @@ import (
 	installaigateway "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ai_gateway"
 	installapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/app"
 	installargocd "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/argocd"
+	installauth0 "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/auth0"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
 	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
@@ -247,6 +248,9 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installargocd.NewArgocdConnectorStaged,
 		installargocd.NewArgocdConnector,
 		installargocd.NewArgocdInstance,
+		installauth0.NewAuth0ConnectorStaged,
+		installauth0.NewAuth0Connector,
+		installauth0.NewAuth0Tenant,
 		installfiletransfer.NewFileTransferIamWrite,
 		installawssm.NewAwsSmVault,
 		installapp.NewAppIamWrite,

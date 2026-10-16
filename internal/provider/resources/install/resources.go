@@ -21,4 +21,5 @@ const (
 	SharedDrive      = "shared-drive"
 	Organization     = "organization"
 	Account          = "account"
+	Tenant           = "tenant"
 )
