@@ -1,0 +1,22 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.RenderedProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+### Google Cloud
+
+{{ tffile "examples/resources/p0_argocd_instance/resource.tf" }}
+
+### AWS
+
+{{ tffile "examples/resources/p0_argocd_instance/aws.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}
