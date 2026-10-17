@@ -45,6 +45,7 @@ import (
 	installidentityprovider "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/identity-provider"
 	installintegrationitem "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/integration-item"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
+	installlookerai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/looker-ai"
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
 	installonepassword "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/onepassword"
@@ -262,6 +263,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installdatadogai.NewDatadogAiCredential,
 		installpagerdutyai.NewPagerdutyAiCredentialStaged,
 		installpagerdutyai.NewPagerdutyAiCredential,
+		installlookerai.NewLookerAiCredentialStaged,
+		installlookerai.NewLookerAiCredential,
 		installsalesforceai.NewSalesforceAiOrgStaged,
 		installsalesforceai.NewSalesforceAiOrg,
 		installgithubrepositories.NewRepositoryAccess,
