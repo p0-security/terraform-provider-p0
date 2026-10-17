@@ -56,6 +56,7 @@ import (
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
 	installsalesforceai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/salesforce-ai"
 	installservicenowai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/servicenow-ai"
+	installsnowflakeai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/snowflake-ai"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
 	installtableauai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/tableau-ai"
 	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/settings"
@@ -278,6 +279,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installsalesforceai.NewSalesforceAiOrg,
 		installservicenowai.NewServiceNowAiInstanceStaged,
 		installservicenowai.NewServiceNowAiInstance,
+		installsnowflakeai.NewSnowflakeAiCredentialStaged,
+		installsnowflakeai.NewSnowflakeAiCredential,
 		installtableauai.NewTableauAiCredentialStaged,
 		installtableauai.NewTableauAiCredential,
 		installgithubrepositories.NewRepositoryAccess,
