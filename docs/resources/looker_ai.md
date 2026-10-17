@@ -4,9 +4,9 @@ page_title: "p0_looker_ai Resource - p0"
 subcategory: ""
 description: |-
   A Looker installation for agentic access.
-  Installing it allows P0 to grant agents just-in-time access to the LookML models of a Looker (Google Cloud core) instance. Each grant gets a Looker service account of its own, which P0 deletes when the grant ends.
-  Important: Before creating this resource you must stage the installation with p0_looker_ai_staged, deploy the connector's Cloud Run service, and add the Looker Admin key as a version of the Admin key's secret. Creating this resource runs P0's install check, which signs in to the instance with that key through the connector, so the check fails until the version exists.
-  Note: This integration is currently in preview.
+  With it, P0 can grant agents just-in-time access to the LookML models of a Looker (Google Cloud core) instance. Each grant gets its own Looker service account, which P0 deletes when the grant ends.
+  Important: Before you create this resource, stage the installation with p0_looker_ai_staged, deploy the connector's Cloud Run service, and add the Looker Admin key as a version of the Admin key's secret. Creating this resource runs P0's install check. The connector signs in to the instance with that key, so the check fails until the version exists.
+  Note: This integration is in preview.
   For the full install steps, see Looker https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/looker.
 ---
 
@@ -14,25 +14,23 @@ description: |-
 
 A Looker installation for agentic access.
 
-Installing it allows P0 to grant agents just-in-time access to the LookML models of a Looker (Google Cloud core) instance. Each grant gets a Looker service account of its own, which P0 deletes when the grant ends.
+With it, P0 can grant agents just-in-time access to the LookML models of a Looker (Google Cloud core) instance. Each grant gets its own Looker service account, which P0 deletes when the grant ends.
 
-**Important:** Before creating this resource you must stage the installation with `p0_looker_ai_staged`, deploy the connector's Cloud Run service, and add the Looker Admin key as a version of the Admin key's secret. Creating this resource runs P0's install check, which signs in to the instance with that key through the connector, so the check fails until the version exists.
+**Important:** Before you create this resource, stage the installation with `p0_looker_ai_staged`, deploy the connector's Cloud Run service, and add the Looker Admin key as a version of the Admin key's secret. Creating this resource runs P0's install check. The connector signs in to the instance with that key, so the check fails until the version exists.
 
-**Note:** This integration is currently in preview.
+**Note:** This integration is in preview.
 
 For the full install steps, see [Looker](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/looker).
 
 ## Example Usage
 
 ```terraform
-# Installs Looker for agentic access, with P0's Looker connector on Cloud Run
-# and the instance's Admin key in Google Secret Manager.
-# Full chain: p0_gcp -> p0_looker_ai_staged -> Admin key secret -> Admin key
-# version (added outside Terraform) -> Cloud Run connector -> p0_looker_ai.
+# Installs Looker for agentic access. P0's Looker connector runs on Cloud Run,
+# and the instance's Admin key is in Google Secret Manager.
 #
-# Order matters. Creating p0_looker_ai runs P0's install check, which signs in
-# to Looker with the Admin key through the connector. So the key must be in its
-# secret before p0_looker_ai is created. Apply in three steps:
+# Creating p0_looker_ai runs P0's install check, and the connector signs in to
+# Looker with the Admin key for it. So the key must be in its secret before
+# p0_looker_ai is created. Apply in three steps:
 #
 #   1. Create the Admin key's secret:
 #        terraform apply -target=google_secret_manager_secret.admin_key
@@ -63,9 +61,9 @@ resource "google_project_service" "enable_services" {
 }
 
 # Holds the Looker API key of a Looker service account with the Admin role.
-# Only a Looker admin can create that account and its key. The key never goes
-# through Terraform, so it never lands in the Terraform state. Add it as a
-# version of this secret after step 1 above, as JSON:
+# Only a Looker admin can create that account and its key. You add the key
+# outside Terraform, so it never lands in the Terraform state. After step 1
+# above, add it as a version of this secret, as JSON:
 #
 #   printf '{"client_id":"%s","client_secret":"%s"}' "$LOOKER_CLIENT_ID" "$LOOKER_CLIENT_SECRET" \
 #     | gcloud secrets versions add p0_install_looker_acme_admin-key \
@@ -168,9 +166,10 @@ resource "google_project_iam_member" "connector_secret_create" {
   member  = "serviceAccount:${google_service_account.connector.email}"
 }
 
-# The connector writes each grant's key and deletes the secret when the grant
-# ends. secrets.get matches the role P0's in-app install generates. The
-# condition below keeps all three to the Looker grant secrets.
+# The connector writes each grant's key to its secret, and deletes the secret
+# when the grant ends. secrets.get makes the role match the one that P0's
+# in-app install generates. The condition below limits all three permissions
+# to the Looker grant secrets.
 resource "google_project_iam_custom_role" "connector_secret_manage" {
   project = local.project
   role_id = "p0LookerConnectorSecretManage"
@@ -197,9 +196,9 @@ resource "google_project_iam_member" "connector_secret_manage" {
   }
 }
 
-# The connector reads the Admin key on every call. Grant it on this secret
-# alone: P0 names the secret in each call, so any other secret the connector
-# can read is one a call could point it at.
+# The connector reads the Admin key on every call. Grant read on this secret
+# alone. P0 names the secret in each call, so a call could point the connector
+# at any other secret it can read.
 resource "google_secret_manager_secret_iam_member" "admin_key" {
   project   = local.project
   secret_id = google_secret_manager_secret.admin_key.secret_id
@@ -255,7 +254,7 @@ resource "p0_looker_ai" "example" {
 
 ### Optional
 
-- `content_folder_id` (String) The ID of the Looker folder that agents save content to, the last part of its URL (`/folders/<ID>`). An edit grant gets edit access to it, and content saved there outlives the grant. Without a folder, content that an agent saves goes to Trash when its grant ends. Once set, it can be changed to another folder but not removed.
+- `content_folder_id` (String) The ID of the Looker folder that agents save content to, the last part of its URL (`/folders/<ID>`). An edit grant gets edit access to it, and content saved there outlives the grant. Without a folder, content that an agent saves goes to Trash when its grant ends. Once you set it, you can change it to another folder but not remove it.
 
 ### Read-Only
 
