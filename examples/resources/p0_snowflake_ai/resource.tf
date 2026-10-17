@@ -1,0 +1,201 @@
+# Installs Snowflake for agentic access, with P0's Snowflake connector on Cloud
+# Run and the connector user's private key in Google Secret Manager.
+# Full chain: p0_gcp -> p0_snowflake_ai_staged -> Cloud Run connector and private
+# key secret -> Snowflake setup and private key version (both outside
+# Terraform) -> p0_snowflake_ai.
+
+resource "p0_gcp" "example" {
+  organization_id = "123456789012"
+}
+
+locals {
+  project = "my-project-id"
+  # The Snowflake account identifier, in its ORGNAME-ACCOUNTNAME form.
+  account = "MYORG-MYACCOUNT"
+  # P0 writes each "_" of the account identifier as "-" in its secret names.
+  account_secret_segment = replace(local.account, "_", "-")
+  # P0 reads the private key from the secret with this exact ID.
+  private_key_secret_id = "p0_install_snowflake-ai_${local.account_secret_segment}_private-key"
+}
+
+resource "p0_snowflake_ai_staged" "example" {
+  id = local.account
+
+  secret_manager = {
+    type       = "gcp-sm"
+    project_id = local.project
+  }
+
+  depends_on = [p0_gcp.example]
+}
+
+resource "google_project_service" "enable_services" {
+  for_each = toset([
+    "cloudresourcemanager.googleapis.com",
+    "iam.googleapis.com",
+    "run.googleapis.com",
+    "secretmanager.googleapis.com",
+  ])
+  project            = local.project
+  service            = each.key
+  disable_on_destroy = false
+}
+
+resource "google_service_account" "connector" {
+  project      = local.project
+  account_id   = split("@", p0_snowflake_ai_staged.example.secret_manager.connector_service_account)[0]
+  display_name = "P0 Cloud Run Snowflake connector"
+
+  depends_on = [google_project_service.enable_services]
+}
+
+resource "google_cloud_run_v2_service" "connector" {
+  project             = local.project
+  name                = p0_snowflake_ai_staged.example.secret_manager.connector_service_name
+  location            = p0_snowflake_ai_staged.example.secret_manager.connector_region
+  deletion_protection = false
+  # P0 calls the connector from outside GCP; IAM, not origin, gates access.
+  ingress = "INGRESS_TRAFFIC_ALL"
+
+  template {
+    service_account = google_service_account.connector.email
+
+    containers {
+      # TODO(INT-617): placeholder, pin the published image by digest.
+      image = "docker.io/p0security/p0-connector-snowflake-ai-gcloud:latest"
+
+      # The connector also checks this against the caller's OIDC token.
+      env {
+        name  = "INVOKER_SA_EMAIL"
+        value = p0_gcp.example.service_account_email
+      }
+    }
+  }
+
+  depends_on = [google_project_service.enable_services]
+}
+
+resource "google_cloud_run_v2_service_iam_member" "invoke_connector" {
+  project  = local.project
+  location = google_cloud_run_v2_service.connector.location
+  name     = google_cloud_run_v2_service.connector.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${p0_gcp.example.service_account_email}"
+}
+
+# P0 reads the service to get its invocation URL while it installs. The invoker
+# role gives run.routes.invoke only, so it cannot do this read.
+resource "google_cloud_run_v2_service_iam_member" "read_connector" {
+  project  = local.project
+  location = google_cloud_run_v2_service.connector.location
+  name     = google_cloud_run_v2_service.connector.name
+  role     = "roles/run.viewer"
+  member   = "serviceAccount:${p0_gcp.example.service_account_email}"
+}
+
+data "google_project" "this" {
+  project_id = local.project
+}
+
+# The connector keeps each agent's credentials in their own secret. GCP checks
+# secretmanager.secrets.create on the project, so this binding has no condition.
+resource "google_project_iam_custom_role" "connector_secret_create" {
+  project     = local.project
+  role_id     = "p0SnowflakeAiConnectorSecretCreate"
+  title       = "P0 Snowflake connector secret creation"
+  permissions = ["secretmanager.secrets.create"]
+
+  depends_on = [google_project_service.enable_services]
+}
+
+resource "google_project_iam_member" "connector_secret_create" {
+  project = local.project
+  role    = google_project_iam_custom_role.connector_secret_create.name
+  member  = "serviceAccount:${google_service_account.connector.email}"
+}
+
+resource "google_project_iam_custom_role" "connector_secret_manage" {
+  project = local.project
+  role_id = "p0SnowflakeAiConnectorSecretManage"
+  title   = "P0 Snowflake connector access token management"
+  permissions = [
+    "secretmanager.secrets.delete",
+    "secretmanager.secrets.get",
+    "secretmanager.versions.add",
+  ]
+
+  depends_on = [google_project_service.enable_services]
+}
+
+resource "google_project_iam_member" "connector_secret_manage" {
+  project = local.project
+  role    = google_project_iam_custom_role.connector_secret_manage.name
+  member  = "serviceAccount:${google_service_account.connector.email}"
+
+  # P0 names the access token secrets with this prefix. IAM conditions use the
+  # project number, not the project ID.
+  # TODO(INT-612): placeholder, the app's token secret prefix is not landed yet.
+  condition {
+    title      = "P0 Snowflake access token secrets"
+    expression = "resource.name.startsWith('projects/${data.google_project.this.number}/secrets/p0_access-token_snowflake-ai_${local.account_secret_segment}_')"
+  }
+}
+
+# Before creating p0_snowflake_ai, set up P0's connector user, role, warehouse
+# and MCP server in the Snowflake account (see P0's Snowflake install page), and
+# add the connector user's private key, an unencrypted PKCS8 PEM, as a version
+# of this secret. Creating p0_snowflake_ai signs in to Snowflake with that key:
+#
+#   openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -nocrypt -out rsa_key.p8
+#   gcloud secrets versions add p0_install_snowflake-ai_MYORG-MYACCOUNT_private-key \
+#     --project=my-project-id --data-file=rsa_key.p8
+#
+# So apply this file without p0_snowflake_ai first, then add it once the setup
+# and the version are in place.
+resource "google_secret_manager_secret" "private_key" {
+  project   = local.project
+  secret_id = local.private_key_secret_id
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.enable_services]
+}
+
+resource "google_secret_manager_secret_iam_member" "private_key" {
+  project   = local.project
+  secret_id = google_secret_manager_secret.private_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.connector.email}"
+}
+
+# The accessor role gives secretmanager.versions.access only. The connector also
+# reads the secret itself, and the management role above covers the access token
+# secrets alone, so the private key needs its own grant.
+resource "google_secret_manager_secret_iam_member" "private_key_read" {
+  project   = local.project
+  secret_id = google_secret_manager_secret.private_key.secret_id
+  role      = "roles/secretmanager.viewer"
+  member    = "serviceAccount:${google_service_account.connector.email}"
+}
+
+# Completes the install; creating it verifies that the connector is deployed
+# and can sign in to the Snowflake account.
+resource "p0_snowflake_ai" "example" {
+  id = p0_snowflake_ai_staged.example.id
+
+  secret_manager = {
+    type       = p0_snowflake_ai_staged.example.secret_manager.type
+    project_id = p0_snowflake_ai_staged.example.secret_manager.project_id
+  }
+
+  depends_on = [
+    google_cloud_run_v2_service_iam_member.invoke_connector,
+    google_cloud_run_v2_service_iam_member.read_connector,
+    google_project_iam_member.connector_secret_create,
+    google_project_iam_member.connector_secret_manage,
+    google_secret_manager_secret_iam_member.private_key,
+    google_secret_manager_secret_iam_member.private_key_read,
+  ]
+}
