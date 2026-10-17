@@ -19,5 +19,5 @@ resource "p0_looker_ai_staged" "example" {
   depends_on = [p0_gcp.example]
 }
 
-# See the p0_looker_ai example for the next steps (deploying the connector,
-# and adding the Admin key to its secret) that complete the install.
+# The p0_looker_ai example shows the rest of the install: deploying the
+# connector, adding the Admin key to its secret, and creating p0_looker_ai.

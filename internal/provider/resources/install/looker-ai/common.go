@@ -23,14 +23,14 @@ const (
 	secretLabel      = "the Looker instance's Admin key"
 )
 
-// The connector's IAM condition matches the id up to the next `_` in each GCP
-// secret name.
+// The connector's IAM condition matches the grant secrets by a prefix that ends
+// in `_` after the id, so the id can't hold a `_`.
 var itemIdRegex = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 
 // `https://` and a lowercase name under looker.app, and nothing else. The P0 app
 // also accepts uppercase and a trailing slash, but the connector accepts only this
-// form, and sends the Admin key only to such a host. Holding the provider to it
-// means a configured URL never differs from the one the connector is sent.
+// form, and sends the Admin key only to such a host. With the provider held to it,
+// the URL in Terraform is always the one the connector gets.
 var instanceUrlRegex = regexp.MustCompile(`^https://[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.looker\.app$`)
 
 // Google Secret Manager's rule for a secret's ID. It admits no `/`, so a secret's
@@ -48,8 +48,8 @@ func idAttribute(description string) schema.StringAttribute {
 	)
 }
 
-// A grant's Looker service account lives in this instance, so P0 rejects a change
-// to the URL after staging, and a change replaces the install.
+// A grant's Looker service account lives in this instance, so P0 refuses a new URL
+// after staging. A change replaces the install.
 //
 // Adds suffix to the description.
 func instanceUrlAttribute(suffix string) schema.StringAttribute {
@@ -65,8 +65,8 @@ func instanceUrlAttribute(suffix string) schema.StringAttribute {
 	}
 }
 
-// The connector's deployment grants it read on exactly this secret, so P0 rejects a
-// change to it after staging, and a change replaces the install.
+// The connector can read exactly this secret, so P0 refuses another secret after
+// staging. A change replaces the install.
 //
 // Adds suffix to the description.
 func adminKeySecretAttribute(suffix string) schema.StringAttribute {
@@ -83,9 +83,8 @@ func adminKeySecretAttribute(suffix string) schema.StringAttribute {
 }
 
 // P0 runs the install check through the connector, which signs in to the instance
-// with the Admin key, so a failed check usually means a problem in the customer's
-// setup, which P0's message describes. The wording doesn't presume where the problem
-// is, and leaves that to P0's message.
+// with the Admin key. A failed check usually means a problem in the customer's
+// setup. P0's message says where, so this wording doesn't guess.
 func describeCheckError(id string, err error) (string, string) {
 	return "Looker install check failed",
 		fmt.Sprintf("P0 rejected the install check for the Looker instance %q:\n\n%s", id, err)

@@ -51,17 +51,17 @@ func (*LookerAiCredentialStaged) Metadata(_ context.Context, req resource.Metada
 
 func (*LookerAiCredentialStaged) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A staged Looker installation for agentic access. Staging generates the identifiers needed to deploy P0's Looker connector.
+		MarkdownDescription: `A staged Looker installation for agentic access. Staging gives you the names to deploy P0's Looker connector with.
 
-Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the connector's Cloud Run service and grant it read on the Admin key's secret. Once the connector is deployed and the Admin key is in its secret, create a ` + "`p0_looker_ai`" + ` resource with the same ` + "`id`" + ` to complete the installation.
+Deploy the connector's Cloud Run service from the read-only ` + "`secret_manager`" + ` connector attributes, and let it read the Admin key's secret. Once the connector runs and the Admin key is in its secret, create a ` + "`p0_looker_ai`" + ` resource with the same ` + "`id`" + ` to complete the installation.
 
 **Prerequisite:** P0 must be installed on the Google Cloud organization (for example via the ` + "`p0_gcp`" + ` resource).
 
-**Note:** This integration is currently in preview.
+**Note:** This integration is in preview.
 
 For the full install steps, see [Looker](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/looker).`,
 		Attributes: map[string]schema.Attribute{
-			"id":               idAttribute(`An identifier for the Looker instance, made of letters, digits and hyphens. P0 puts it in the name of every secret that it makes.`),
+			"id":               idAttribute(`The name P0 gives the Looker instance, made of letters, digits and hyphens. Agents, policies and the CLI refer to the instance by it, and P0 puts it in the name of every secret it makes.`),
 			"instance_url":     instanceUrlAttribute(""),
 			"admin_key_secret": adminKeySecretAttribute(""),
 			"secret_manager": schema.SingleNestedAttribute{
