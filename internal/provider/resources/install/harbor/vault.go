@@ -21,7 +21,7 @@ import (
 
 // The `vault` attribute is the app's vault-only install element, `newVaultElement` in
 // packages/integrations/vaulted-credential: the secret manager installation in P0
-// that holds the robot account's secret. It names no connector: the instance's
+// that holds the admin credential's secret. It names no connector: the instance's
 // `connector` does. github-repositories' vault block supports only AWS, so Harbor has
 // its own.
 
@@ -95,7 +95,7 @@ func vaultFromJson(json *vaultJson) *vaultModel {
 func vaultAttribute() schema.SingleNestedAttribute {
 	return schema.SingleNestedAttribute{
 		Required: true,
-		MarkdownDescription: `The secret manager that holds the connector robot account's secret, as installed in P0. P0 never reads the secret. The connector does, ` +
+		MarkdownDescription: `The secret manager that holds the admin credential's secret, as installed in P0. P0 never reads the secret. The connector does, ` +
 			`so the secret manager must be in the connector's cloud: AWS Secrets Manager for a connector on AWS Lambda, Google Secret Manager for one on Google Cloud Run.`,
 		Attributes: map[string]schema.Attribute{
 			"type": schema.StringAttribute{
@@ -179,9 +179,9 @@ var (
 )
 
 const (
-	invalidAwsVaultAccount = "Choose the AWS Secrets Manager installation, by its 12-digit AWS account ID, that holds the connector robot account's credentials."
+	invalidAwsVaultAccount = "Choose the AWS Secrets Manager installation, by its 12-digit AWS account ID, that holds the Harbor admin credential."
 	invalidAwsVaultRegion  = "Enter the AWS region the secret is in, such as us-west-2."
-	invalidGcpVaultProject = "Choose the Google Secret Manager installation, by its Google Cloud project ID, that holds the connector robot account's credentials."
+	invalidGcpVaultProject = "Choose the Google Secret Manager installation, by its Google Cloud project ID, that holds the Harbor admin credential."
 )
 
 // A region outside AWS's commercial partition: GovCloud, China, the ISO regions or the
@@ -195,7 +195,7 @@ var awsOtherPartitionRegionRegex = regexp.MustCompile(`^(?:us-gov-|cn-|[a-z]+-is
 const unsupportedAwsPartition = "Harbor supports only AWS commercial regions for now."
 
 var secretsRegionRules = []rule{{
-	summary: "Unsupported AWS region for the robot account's secret",
+	summary: "Unsupported AWS region for the admin credential's secret",
 	message: unsupportedAwsPartition,
 	test:    func(region string) bool { return !awsOtherPartitionRegionRegex.MatchString(region) },
 }}

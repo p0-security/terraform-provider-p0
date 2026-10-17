@@ -242,8 +242,8 @@ func (f *harborFake) refuseInstance(step fakeStep, items map[fakeItemKey]map[str
 		vaultType, _ := vault["type"].(string)
 		if harborVaultCloud[vaultType] != hosting["type"] {
 			return http.StatusBadRequest, map[any]string{
-				"aws": "The instance's connector runs on AWS, so the robot account's secret has to be in AWS Secrets Manager.",
-				"gcp": "The instance's connector runs on Google Cloud, so the robot account's secret has to be in Google Secret Manager.",
+				"aws": "The instance's connector runs on AWS, so the admin credential's secret has to be in AWS Secrets Manager.",
+				"gcp": "The instance's connector runs on Google Cloud, so the admin credential's secret has to be in Google Secret Manager.",
 			}[hosting["type"]]
 		}
 		name, _ := step.body["secretName"].(string)

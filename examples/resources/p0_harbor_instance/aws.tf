@@ -1,24 +1,24 @@
 # The AWS variant of the p0_harbor_instance example in this directory: a Harbor
-# instance that P0's Harbor connector on AWS Lambda reaches, with the robot
-# account's secret in AWS Secrets Manager.
+# instance that P0's Harbor connector on AWS Lambda reaches, with its admin
+# credential's secret in AWS Secrets Manager.
 #
 # Builds on aws.tf in the p0_harbor_connector example, which deploys and
 # installs the connector, and on the p0_aws_secrets_manager example, which
 # installs AWS Secrets Manager in P0 for the secret's account.
 #
-# Before you apply this, create the connector's robot account in Harbor, as
-# this resource's page describes, and store the file Harbor exports for it as
-# the secret harbor/prod/robot. To store it, with the AWS CLI signed in to the
-# secret's account:
+# Before you apply this, set up the Harbor admin account the connector signs in
+# as, as this resource's page describes, and store its OIDC credential as the
+# secret harbor/prod/admin: JSON with issuer, clientId, clientSecret and
+# refreshToken. To store it, with the AWS CLI signed in to the secret's account:
 #
-#   aws secretsmanager create-secret --name harbor/prod/robot \
-#     --secret-string 'file://robot$p0-connector.json' --region us-east-1
+#   aws secretsmanager create-secret --name harbor/prod/admin \
+#     --secret-string file://harbor-admin.json --region us-east-1
 
 locals {
   harbor_instance_aws = {
     url            = "https://harbor.example.com"
     secrets_region = "us-east-1"
-    secret_name    = "harbor/prod/robot"
+    secret_name    = "harbor/prod/admin"
     # The ARN of the customer-managed KMS key that encrypts the secret, or null
     # if the secret uses the default aws/secretsmanager key. A secret in an
     # account other than the connector's needs a customer-managed key.
@@ -30,8 +30,8 @@ data "aws_partition" "harbor" {
   provider = aws.harbor
 }
 
-# The connector reads the robot account's secret, and no other.
-resource "aws_iam_role_policy" "harbor_robot_secret" {
+# The connector reads the admin credential's secret, and no other.
+resource "aws_iam_role_policy" "harbor_admin_secret" {
   provider = aws.harbor
 
   name = "p0-harbor-prod-aws-read"
@@ -84,5 +84,5 @@ resource "p0_harbor_instance" "aws_example" {
   }
   secret_name = local.harbor_instance_aws.secret_name
 
-  depends_on = [aws_iam_role_policy.harbor_robot_secret]
+  depends_on = [aws_iam_role_policy.harbor_admin_secret]
 }

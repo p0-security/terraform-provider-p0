@@ -24,6 +24,7 @@ import (
 	accesspolicy "github.com/p0-security/terraform-provider-p0/internal/provider/resources/access_policy"
 	installaigateway "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ai_gateway"
 	installapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/app"
+	installargocd "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/argocd"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
 	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
@@ -47,9 +48,11 @@ import (
 	installlookerai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/looker-ai"
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
+	installonepassword "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/onepassword"
 	installpagerdutyai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/pagerduty-ai"
 	installpostgres "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/postgres"
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
+	installsalesforceai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/salesforce-ai"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
 	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/settings"
 )
@@ -166,6 +169,9 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		UserAgent:      fmt.Sprintf("terraform-provider-p0/%s Terraform/%s", p.version, req.TerraformVersion),
 		Client:         http.DefaultClient,
 		BaseUrl:        fmt.Sprintf("%s/o/%s", p0_host, model.Org.ValueString()),
+		// Each resource gets its own copy of data; they share this throttle,
+		// so a 429 on any of them pauses them all.
+		Throttle: internal.NewThrottle(),
 	}
 	resp.DataSourceData = data
 	resp.ResourceData = data
@@ -233,9 +239,15 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installdocker.NewDockerConnectorStaged,
 		installdocker.NewDockerConnector,
 		installdocker.NewDockerOrganization,
+		installonepassword.NewOnePasswordConnectorStaged,
+		installonepassword.NewOnePasswordConnector,
+		installonepassword.NewOnePasswordAccount,
 		installharbor.NewHarborConnectorStaged,
 		installharbor.NewHarborConnector,
 		installharbor.NewHarborInstance,
+		installargocd.NewArgocdConnectorStaged,
+		installargocd.NewArgocdConnector,
+		installargocd.NewArgocdInstance,
 		installfiletransfer.NewFileTransferIamWrite,
 		installawssm.NewAwsSmVault,
 		installapp.NewAppIamWrite,
@@ -253,6 +265,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installpagerdutyai.NewPagerdutyAiCredential,
 		installlookerai.NewLookerAiCredentialStaged,
 		installlookerai.NewLookerAiCredential,
+		installsalesforceai.NewSalesforceAiOrgStaged,
+		installsalesforceai.NewSalesforceAiOrg,
 		installgithubrepositories.NewRepositoryAccess,
 		installdatabricks.NewConnectorStaged,
 		installdatabricks.NewConnector,

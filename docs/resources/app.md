@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   A custom application installation (preview).
   Registers a connector you built with @p0security/connector-sdk https://github.com/p0-security/connector and
-  deployed into your own AWS or Google Cloud account, so that access to your application can be requested through P0.
+  deployed into your own AWS, Google Cloud or Azure account, so that access to your application can be requested through P0.
   Deploy the connector and grant P0 permission to invoke it before applying this resource. Creating it verifies that
   P0 can reach the connector, and fails if it cannot.
   Prerequisites:
@@ -15,6 +15,8 @@ description: |-
   For Google Cloud Run hosting, p0_gcp must be installed. Grant its service account
   roles/run.invoker on the connector's service, and pass the same address to the connector as its
   INVOKER_SA_EMAIL environment variable.
+  For Azure Container Apps hosting, p0_azure and p0_azure_app must be installed for the
+  connector's directory. Azure hosting is not available to every organization yet.
   For the full install steps, see Deploying a connector with Terraform https://docs.p0.dev/integrations/resource-integrations/custom-application/deploying-a-connector-with-terraform.
 ---
 
@@ -23,7 +25,7 @@ description: |-
 A custom application installation (preview).
 
 Registers a connector you built with [`@p0security/connector-sdk`](https://github.com/p0-security/connector) and
-deployed into your own AWS or Google Cloud account, so that access to your application can be requested through P0.
+deployed into your own AWS, Google Cloud or Azure account, so that access to your application can be requested through P0.
 
 Deploy the connector and grant P0 permission to invoke it before applying this resource. Creating it verifies that
 P0 can reach the connector, and fails if it cannot.
@@ -36,6 +38,9 @@ P0 can reach the connector, and fails if it cannot.
 - For Google Cloud Run hosting, `p0_gcp` must be installed. Grant its service account
   `roles/run.invoker` on the connector's service, and pass the same address to the connector as its
   `INVOKER_SA_EMAIL` environment variable.
+
+- For Azure Container Apps hosting, `p0_azure` and `p0_azure_app` must be installed for the
+  connector's directory. Azure hosting is not available to every organization yet.
 
 For the full install steps, see [Deploying a connector with Terraform](https://docs.p0.dev/integrations/resource-integrations/custom-application/deploying-a-connector-with-terraform).
 
@@ -184,15 +189,19 @@ resource "p0_app" "example" {
 
 Required:
 
-- `connector_name` (String) The name of the Lambda function or Cloud Run service hosting the connector
-- `connector_region` (String) The region the connector is deployed in (e.g. `us-east-1` on AWS, or `us-central1` on Google Cloud)
-- `type` (String) The connector's hosting: either `aws` (Lambda) or `gcp` (Cloud Run)
+- `connector_name` (String) The name of the Lambda function, Cloud Run service or Container App hosting the connector
+- `connector_region` (String) The region the connector is deployed in (e.g. `us-east-1` on AWS, `us-central1` on Google Cloud, or `eastus` on Azure)
+- `type` (String) The connector's hosting: `aws` (Lambda), `gcp` (Cloud Run) or `azure` (Container Apps)
 
 Optional:
 
 - `account_id` (String) The AWS account ID in which the connector's Lambda function is deployed. Required for, and only valid with, `aws` hosting.
+- `directory_id` (String) The Microsoft Entra directory (tenant) ID in which the connector's Container App is deployed. P0's Azure integration must be installed for it. Required for, and only valid with, `azure` hosting.
 - `project_id` (String) The Google Cloud project ID in which the connector's Cloud Run service is deployed. Required for, and only valid with, `gcp` hosting.
+- `resource_group` (String) The resource group in which the connector's Container App is deployed. Required for, and only valid with, `azure` hosting.
+- `subscription_id` (String) The Azure subscription ID in which the connector's Container App is deployed. Required for, and only valid with, `azure` hosting.
 
 Read-Only:
 
-- `connector_service_uri` (String) The connector's invocation URL, resolved by P0 during install. Only populated for `gcp` hosting.
+- `connector_client_id` (String) The client ID of the connector's app registration, which P0 requests its tokens for. P0 reads it from the Container App during install. Only populated for `azure` hosting.
+- `connector_service_uri` (String) The connector's invocation URL, resolved by P0 during install. Only populated for `gcp` and `azure` hosting.

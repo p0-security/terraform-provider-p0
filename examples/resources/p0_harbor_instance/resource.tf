@@ -1,5 +1,5 @@
 # Adds a Harbor instance that P0's Harbor connector on Google Cloud Run reaches,
-# with the robot account's secret in Google Secret Manager. For a connector on
+# with its admin credential's secret in Google Secret Manager. For a connector on
 # AWS Lambda, see aws.tf in this directory.
 #
 # Builds on the p0_harbor_connector example, which deploys and installs the
@@ -7,14 +7,15 @@
 # secret's project: this provider has no resource for it, so install it in the
 # P0 app.
 #
-# Before you apply this, create the connector's robot account in Harbor, as this
-# resource's page describes, and store the file Harbor exports for it as the
-# secret harbor-prod-robot. The example doesn't create the secret, which keeps
-# the robot account's credentials out of Terraform's state. To store it, with
-# gcloud signed in to the secret's project:
+# Before you apply this, set up the Harbor admin account the connector signs in
+# as, as this resource's page describes, and store its OIDC credential as the
+# secret harbor-prod-admin: JSON with issuer, clientId, clientSecret and
+# refreshToken. The example doesn't create the secret, which keeps the
+# credential out of Terraform's state. To store it, with gcloud signed in to the
+# secret's project:
 #
-#   gcloud secrets create harbor-prod-robot --project my-secrets-project \
-#     --data-file 'robot$p0-connector.json'
+#   gcloud secrets create harbor-prod-admin --project my-secrets-project \
+#     --data-file harbor-admin.json
 
 locals {
   harbor_instance = {
@@ -23,11 +24,11 @@ locals {
     # The project that holds the secret, where Google Secret Manager is
     # installed in P0.
     secrets_project_id = "my-secrets-project"
-    secret_name        = "harbor-prod-robot"
+    secret_name        = "harbor-prod-admin"
   }
 }
 
-# The connector reads the robot account's secret, and no other. It reads the
+# The connector reads the admin credential's secret, and no other. It reads the
 # secret's latest version and then that version's metadata, and the accessor
 # role covers only the first.
 resource "google_secret_manager_secret_iam_member" "harbor_accessor" {
