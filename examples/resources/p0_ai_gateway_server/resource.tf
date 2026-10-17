@@ -92,3 +92,15 @@ resource "p0_ai_gateway_server" "custom_example" {
     prompt = "Use these tools to look up example data."
   }
 }
+
+# A predefined server whose credential P0 stores in a secret manager. Install the
+# matching integration (here p0_github_ai) first. Each grant names the secret.
+resource "p0_ai_gateway_server" "github_example" {
+  id         = "github"
+  gateway    = p0_ai_gateway.example.id
+  credential = { type = "vault" }
+  definition = {
+    type = "p0"
+    id   = "github"
+  }
+}

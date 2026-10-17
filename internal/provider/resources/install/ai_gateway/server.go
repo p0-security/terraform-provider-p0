@@ -6,6 +6,7 @@ package installaigateway
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -22,6 +23,11 @@ var _ resource.Resource = &Server{}
 var _ resource.ResourceWithImportState = &Server{}
 var _ resource.ResourceWithConfigure = &Server{}
 var _ resource.ResourceWithMoveState = &Server{}
+
+// serverCredentialTypes lists the credential sources the app's MCP server
+// `credential` select accepts (app's
+// packages/integrations/agentic/shared/src/components.ts, `credentialSource`).
+var serverCredentialTypes = []string{"aws", "gcp", "native", "oauth", "vault", "generic", "impersonation"}
 
 func NewServer() resource.Resource {
 	return &Server{}
@@ -142,11 +148,21 @@ For the full install steps, see [MCP server](https://docs.p0.dev/integrations/re
 				MarkdownDescription: `The MCP server's credential source:
     - 'aws': federate credentials from an installed AWS OIDC identity
     - 'gcp': federate credentials from an installed GCP WIF identity
-    - 'oauth': authenticate end users via an OAuth session`,
+    - 'native': the upstream server accepts the gateway's OAuth tokens
+    - 'oauth': authenticate end users via an OAuth session
+    - 'vault': P0 stores the credential in a secret manager, and each grant names the secret. The predefined
+      PagerDuty ('pagerdutyUs', 'pagerdutyEu'), Datadog ('datadogUs1', 'datadogUs3', 'datadogUs5', 'datadogEu1',
+      'datadogAp1', 'datadogAp2', 'datadogUs1Fed') and GitHub ('github') servers use this type
+    - 'generic': the gateway exchanges its own token (RFC 8693) at the token endpoint the server definition names
+    - 'impersonation': P0 provisions an identity for each grant, and the gateway acts as it. The predefined
+      Google Drive ('googleDrive') server uses this type`,
 				Attributes: map[string]schema.Attribute{
 					"type": schema.StringAttribute{
 						Required:            true,
-						MarkdownDescription: "One of 'aws', 'gcp', or 'oauth'.",
+						MarkdownDescription: "One of 'aws', 'gcp', 'native', 'oauth', 'vault', 'generic', or 'impersonation'.",
+						Validators: []validator.String{
+							stringvalidator.OneOf(serverCredentialTypes...),
+						},
 					},
 					"provider": schema.StringAttribute{
 						Optional: true,
