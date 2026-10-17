@@ -52,6 +52,7 @@ import (
 	installpostgres "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/postgres"
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
 	installsalesforceai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/salesforce-ai"
+	installsnowflakeai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/snowflake-ai"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
 	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/settings"
 )
@@ -264,6 +265,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installpagerdutyai.NewPagerdutyAiCredential,
 		installsalesforceai.NewSalesforceAiOrgStaged,
 		installsalesforceai.NewSalesforceAiOrg,
+		installsnowflakeai.NewSnowflakeAiCredentialStaged,
+		installsnowflakeai.NewSnowflakeAiCredential,
 		installgithubrepositories.NewRepositoryAccess,
 		installdatabricks.NewConnectorStaged,
 		installdatabricks.NewConnector,
