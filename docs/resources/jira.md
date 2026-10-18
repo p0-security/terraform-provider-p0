@@ -84,9 +84,10 @@ For the full install steps, see [Jira](https://docs.p0.dev/integrations/resource
 # customer-managed KMS key, which a secret in another account needs, add
 # --kms-key-id with the key's ARN to create-secret.
 #
-# The connector's Terraform is what P0's Jira installer generates for the site,
-# with p0_jira in place of its output. Copy it from the installer, which pins
-# the current connector image.
+# The connector's Terraform follows what P0's Jira installer generates for the
+# site, with p0_jira in place of its output, and names the secret by its account
+# and name where the installer uses a partial ARN. The installer pins the
+# current connector image.
 
 # P0's Jira connector for the site acme.atlassian.net, on AWS Lambda.
 #
