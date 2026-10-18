@@ -1,0 +1,26 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.RenderedProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+### Federated identity, connector on AWS Lambda
+
+{{ tffile "examples/resources/p0_tailscale_tailnet/resource.tf" }}
+
+### Federated identity, connector on Google Cloud Run
+
+{{ tffile "examples/resources/p0_tailscale_tailnet/gcp.tf" }}
+
+### OAuth client
+
+{{ tffile "examples/resources/p0_tailscale_tailnet/oauth-client.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}

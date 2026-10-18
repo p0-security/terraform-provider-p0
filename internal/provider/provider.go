@@ -61,6 +61,7 @@ import (
 	installsnowflakeai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/snowflake-ai"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
 	installtableauai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/tableau-ai"
+	installtailscale "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/tailscale"
 	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/settings"
 )
 
@@ -262,6 +263,10 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installauth0.NewAuth0ConnectorStaged,
 		installauth0.NewAuth0Connector,
 		installauth0.NewAuth0Tenant,
+		installtailscale.NewTailscaleConnectorStaged,
+		installtailscale.NewTailscaleConnector,
+		installtailscale.NewTailscaleTailnet,
+		installtailscale.NewTailscaleDestination,
 		installfiletransfer.NewFileTransferIamWrite,
 		installawssm.NewAwsSmVault,
 		installapp.NewAppIamWrite,
