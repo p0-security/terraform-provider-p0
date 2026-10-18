@@ -1,0 +1,47 @@
+package installlaunchdarkly
+
+import (
+	"regexp"
+
+	installvaultedcredential "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/vaulted-credential"
+)
+
+// P0's rules for the name of the secret that holds the account's access token, and
+// its messages for a name it refuses (packages/integrations/launchdarkly/shared/src/secret-name.ts
+// in the app). The name is a secret's name in the account's vault, never an ARN or a
+// resource name: P0 builds the secret's address from the name and the vault.
+//
+// The app's `tokenSecretName` field checks AWS Secrets Manager's rule, which every
+// Google Secret Manager name fits too, since the field can't see the vault. The
+// account's installer checks the name against the vault's own rule. The provider sees
+// the vault, so it does the same at plan time.
+var (
+	// Neither pattern admits whitespace, a colon, a quote or a wildcard, which keeps
+	// out an ARN and a wildcard.
+	awsSecretNameRegex = regexp.MustCompile(`^[A-Za-z0-9/_+=.@-]{1,512}$`)
+	gcpSecretNameRegex = regexp.MustCompile(`^[A-Za-z0-9_-]{1,255}$`)
+	// The hyphen and six letters or digits that Secrets Manager adds to a secret's
+	// name in its full ARN. It reads a partial ARN that ends this way as a full one,
+	// and finds no secret by it.
+	awsArnSuffixRegex = regexp.MustCompile(`-[A-Za-z0-9]{6}$`)
+)
+
+const (
+	invalidSecretNameSummary = "Invalid access token secret name"
+	invalidSecretName        = "That doesn't look like a secret name. Enter the name of the secret that holds the LaunchDarkly access token, " +
+		"not its ARN or the token itself."
+	suffixedSecretName = "Secrets Manager can't find a secret in another account by its name when the name ends in a hyphen and six characters, like -AbCdEf. " +
+		"Use a secret whose name doesn't end that way, or one in the connector's own account."
+	invalidGcpSecretName = "That isn't a secret's name in Google Secret Manager. Enter the name alone, without its project or a version: " +
+		"letters, digits, underscores and hyphens, up to 255 characters."
+)
+
+// P0's rule for the name of the access token's secret in a vault of vaultType. Its
+// message doesn't repeat the name, which may be the token pasted in its place. A
+// vault whose type isn't known yet takes any name that a vault of some type would.
+func secretNameRule(vaultType string) rule {
+	if vaultType == installvaultedcredential.GcpSecretManager {
+		return rule{summary: invalidSecretNameSummary, message: invalidGcpSecretName, test: gcpSecretNameRegex.MatchString}
+	}
+	return rule{summary: invalidSecretNameSummary, message: invalidSecretName, test: awsSecretNameRegex.MatchString}
+}
