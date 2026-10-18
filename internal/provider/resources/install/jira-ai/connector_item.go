@@ -40,7 +40,7 @@ type connectorApi struct {
 // and refuses a change to either, so each requires replacement.
 func connectorAttributes(idDescription string, hostingDescription string) map[string]schema.Attribute {
 	return map[string]schema.Attribute{
-		"id":      fixedAttribute(idDescription, itemIdValidators()...),
+		"id":      fixedAttribute(idDescription, idValidators(itemIdMaxLength)...),
 		"hosting": hostingAttribute(hostingDescription),
 		"state":   common.StateAttribute,
 	}

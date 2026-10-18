@@ -69,11 +69,11 @@ func (*JiraAiPoolAccount) Metadata(_ context.Context, req resource.MetadataReque
 
 func (*JiraAiPoolAccount) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `An agent account: an Atlassian service account that P0 leases to one agent session at a time on a Jira site. When an agent is granted access to a project, P0 has the site's connector add the account to the project's role, and remove it when the access ends. Add as many as the site should serve sessions at once.
+		MarkdownDescription: `An agent account: an Atlassian service account that P0 leases to one agent session at a time on a Jira site. When an agent is granted access to a project, P0 has the site's connector add the account to the project's role, and remove it when the access ends. Add one for each agent session the site should serve at once.
 
 P0 never holds the account's OAuth client secret. When P0 adds the account it names the secret that holds it, ` + "`secret_name`" + `, in the site's vault. Create that secret and store the client's secret in it, outside Terraform, which keeps it out of Terraform's state. Only the connector reads it, under the grant the site's Terraform gives it.
 
-**Important:** Install the site first, in an earlier apply or in the same one with this resource referring to it, as the example does. Creating this resource has P0 look the account's Atlassian ID up through the site's connector, as the site's admin service account. That also checks the site's admin client. If the check fails, the apply fails with P0's message.
+**Important:** Install the site first, in an earlier apply or in the same one with this resource referring to it, as the example does. Creating this resource makes P0 look up the account's Atlassian ID through the site's connector, as the site's admin service account. That also checks the site's admin client. If the check fails, the apply fails with P0's message.
 
 An agent account's attributes can't change once it is created, so changing any of them replaces the account. To rotate the client's secret, add a new version to the same secret, which needs no change here.
 
@@ -85,11 +85,11 @@ An agent account that already exists in P0, such as one added in the P0 app, isn
 		Attributes: map[string]schema.Attribute{
 			"id": fixedAttribute(
 				"A name you choose for the account, such as `agent-1`. Use "+itemIdRule+".",
-				itemIdValidators()...,
+				idValidators(itemIdMaxLength)...,
 			),
 			"site": fixedAttribute(
 				"The `id` of the `p0_jira_ai_site` this account works on. The site must be installed.",
-				siteIdValidators()...,
+				idValidators(siteIdMaxLength)...,
 			),
 			"email": fixedAttribute(
 				"The service account's email, as Atlassian shows it.",

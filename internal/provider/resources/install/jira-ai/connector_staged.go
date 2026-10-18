@@ -2,6 +2,7 @@ package installjiraai
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -78,9 +79,13 @@ func (r *JiraAiConnectorStaged) Create(ctx context.Context, req resource.CreateR
 	if resp.Diagnostics.HasError() {
 		// P0 may have staged the connector but returned it in a shape this can't use,
 		// such as without its service account. It's in P0 but not in state, so remove it
-		// and let the next apply stage it again. If the removal fails, the next apply
-		// says to import it.
-		_, _ = r.installer.ProviderData.Delete(itemPath(installresources.Connector, id))
+		// and let the next apply stage it again.
+		if _, err := r.installer.ProviderData.Delete(itemPath(installresources.Connector, id)); err != nil {
+			resp.Diagnostics.AddWarning(
+				"Could not remove the staged connector",
+				fmt.Sprintf("P0 may still hold the connector %q in stage. If the next apply says it already exists, import it with `terraform import`. %s", id, err),
+			)
+		}
 	}
 }
 

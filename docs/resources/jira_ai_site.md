@@ -231,7 +231,7 @@ resource "p0_jira_ai_site" "acme" {
 - `admin_client_id` (String) The client ID of the OAuth client of an Atlassian service account that administers the site's projects.
 - `admin_secret_name` (String) The name of the secret, in `vault`, that holds the admin client's secret as its whole value: the name alone, without its project or a version. Up to 255 letters, digits, underscores and hyphens. P0 never reads it. Only your connector does.
 - `connector` (String) The `id` of the `p0_jira_ai_connector` that reaches this site. The connector must be installed.
-- `id` (String) A name you choose for the site, such as `acme`. Agent accounts refer to the site by it, and a P0 access rule's `site` filter matches it. Use lowercase letters, digits and hyphens, starting and ending with a letter or digit, up to 48 characters.
+- `id` (String) A name you choose for the site, such as `acme`. Agent accounts refer to the site by it, and a P0 policy's `site` filter matches it. Use lowercase letters, digits and hyphens, starting and ending with a letter or digit, up to 48 characters.
 - `read_role` (String) The name of the project role P0 adds an agent account to for read access, such as `P0 agent read`. Use a role nothing else relies on.
 - `site_url` (String) The address of your Jira Cloud site, such as `https://acme.atlassian.net`, with no path.
 - `vault` (Attributes) The secret manager that holds the site's secrets: the admin client's secret, and each agent account's client secret. P0 never reads them. Only the connector does, as its service account, so it must be Google Secret Manager. (see [below for nested schema](#nestedatt--vault))

@@ -41,33 +41,31 @@ const (
 	siteIdMaxLength = 48
 )
 
-// The ID rules as the app words them, for the descriptions and the refusals.
+// The ID rule as the app words it, for the descriptions and the refusals.
+func idRule(maxLength int) string {
+	return fmt.Sprintf("lowercase letters, digits and hyphens, starting and ending with a letter or digit, up to %d characters", maxLength)
+}
+
+// Whether an ID follows the rule, up to maxLength characters.
+func isId(maxLength int) func(string) bool {
+	return func(id string) bool {
+		return len(id) <= maxLength && itemIdRegex.MatchString(id)
+	}
+}
+
+func idValidators(maxLength int) []validator.String {
+	return []validator.String{
+		stringvalidator.LengthAtMost(maxLength),
+		stringvalidator.RegexMatches(itemIdRegex, "Use "+idRule(maxLength)),
+	}
+}
+
 var (
-	itemIdRule = fmt.Sprintf("lowercase letters, digits and hyphens, starting and ending with a letter or digit, up to %d characters", itemIdMaxLength)
-	siteIdRule = fmt.Sprintf("lowercase letters, digits and hyphens, starting and ending with a letter or digit, up to %d characters", siteIdMaxLength)
+	itemIdRule = idRule(itemIdMaxLength)
+	siteIdRule = idRule(siteIdMaxLength)
+	isItemId   = isId(itemIdMaxLength)
+	isSiteId   = isId(siteIdMaxLength)
 )
-
-func isItemId(id string) bool {
-	return len(id) <= itemIdMaxLength && itemIdRegex.MatchString(id)
-}
-
-func isSiteId(id string) bool {
-	return len(id) <= siteIdMaxLength && itemIdRegex.MatchString(id)
-}
-
-func itemIdValidators() []validator.String {
-	return []validator.String{
-		stringvalidator.LengthAtMost(itemIdMaxLength),
-		stringvalidator.RegexMatches(itemIdRegex, "Use "+itemIdRule),
-	}
-}
-
-func siteIdValidators() []validator.String {
-	return []validator.String{
-		stringvalidator.LengthAtMost(siteIdMaxLength),
-		stringvalidator.RegexMatches(itemIdRegex, "Use "+siteIdRule),
-	}
-}
 
 // A required string that P0 fixes when it creates the item and refuses to change, so
 // changing it replaces the item.

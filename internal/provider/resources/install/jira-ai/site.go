@@ -111,12 +111,12 @@ A site that already exists in P0, such as one added in the P0 app, isn't created
 ` + betaNote,
 		Attributes: map[string]schema.Attribute{
 			"id": fixedAttribute(
-				"A name you choose for the site, such as `acme`. Agent accounts refer to the site by it, and a P0 access rule's `site` filter matches it. Use "+siteIdRule+".",
-				siteIdValidators()...,
+				"A name you choose for the site, such as `acme`. Agent accounts refer to the site by it, and a P0 policy's `site` filter matches it. Use "+siteIdRule+".",
+				idValidators(siteIdMaxLength)...,
 			),
 			"connector": fixedAttribute(
 				"The `id` of the `p0_jira_ai_connector` that reaches this site. The connector must be installed.",
-				itemIdValidators()...,
+				idValidators(itemIdMaxLength)...,
 			),
 			"site_url": fixedAttribute(
 				"The address of your Jira Cloud site, such as `https://acme.atlassian.net`, with no path.",
