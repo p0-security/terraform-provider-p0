@@ -9,8 +9,8 @@
 # doesn't create the secret, which keeps the client secret out of Terraform's
 # state.
 #
-# Creating p0_jira has the connector read the client secret, so it must be in
-# its secret by then. To store it, with the AWS CLI signed in to the secret's
+# Creating p0_jira has the connector read the client secret, so store the
+# client secret before you apply. To store it, with the AWS CLI signed in to the secret's
 # account:
 #
 #   aws secretsmanager create-secret \

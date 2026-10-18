@@ -7,8 +7,8 @@ description: |-
   Important: Create the service account's OAuth credential and store its client secret before you apply this resource, and deploy the connector first: in an earlier apply, or in the same one with this resource depending on the connector's access grants, as the examples do. Creating this resource has P0 check the site through the connector: that P0 can invoke the connector, that the connector can read the client secret and sign in to the site with it, and that the service account holds the Jira permissions P0 uses. If a check fails, the apply fails with P0's message.
   Changing site, hosting, vault, client_secret_name or domain_pattern replaces the installation. To rotate the client secret, add a new version to the same secret, which needs no change here. Changing client_id updates the installation in place, and P0 checks the site again. If the check fails, the apply fails, and an installed site keeps its current client ID. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
   domain_pattern is also the connector's DOMAIN_PATTERN environment variable, and P0 checks that the two are the same whenever it checks the site. To change the pattern, change both in one apply: the connector is deployed with the new pattern, and the installation is replaced with it.
-  Warning: Replacing or destroying this resource removes the site from P0, and P0 revokes access only on a site it has. Before you change an attribute that replaces the installation, or destroy this resource, revoke the site's open access in P0 or wait for it to expire.
-  P0 checks the site's host, where the connector runs, the vault, the secret's name and the domain pattern when it creates the installation, and so does a plan, which leaves to P0 only whether domain_pattern compiles and can be matched safely. The connector and the secret must be in the same cloud, and on AWS in commercial regions: Jira doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions.
+  Warning: Replacing or destroying this resource removes the site from P0, and P0 can't revoke access on a site it no longer has. Before you change an attribute that replaces the installation, or destroy this resource, revoke the site's open access in P0 or wait for it to expire.
+  P0 checks the site's host, where the connector runs, the vault, the secret's name and the domain pattern when it creates the installation. A plan checks all of them by P0's rules, except whether domain_pattern compiles and is safe to match, which waits for P0 at apply. The connector and the secret must be in the same cloud, and on AWS in commercial regions: Jira doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions.
   Prerequisites:
   
   An Atlassian service account in the organization that owns the site, with access to Jira on the site. Add it to a group that holds the Jira global permissions Administer Jira, to change project roles, and Browse users and groups, to find people by their email. Give it an OAuth 2.0 credential with the scopes manage:jira-configuration, manage:jira-project, read:jira-user and read:jira-work, and store the credential's client secret as a secret in the secret manager that vault names.
@@ -16,7 +16,7 @@ description: |-
   P0's Jira connector, deployed where hosting says, with its DOMAIN_PATTERN environment variable set to domain_pattern. P0's Jira installer generates Terraform that deploys the connector with its image pinned, as in the examples.
   Grant the connector read access to the client secret alone, never through a wildcard that matches other secrets, or at the account or project level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
   For AWS Lambda, the image p0security/p0-connector-jira, running as an IAM role named hosting.connector_name. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. Give the role secretsmanager:GetSecretValue on arn:aws:secretsmanager:<secrets_region>:<account_id>:secret:<client_secret_name>-??????, with the vault's region and account, and kms:Decrypt on the secret's key if a customer-managed KMS key encrypts it. A secret in an account other than the connector's needs a customer-managed key, and the secret's resource policy and the key's policy must allow the connector's role. p0_aws_iam_write must be installed for the account the connector runs in. Grant that installation's role lambda:InvokeFunction on the connector's function.
-  For Google Cloud Run, the image p0security/p0-connector-jira-gcloud, running as hosting.connector_service_account: the service account whose ID is hosting.connector_name, in the connector's project. Give it roles/secretmanager.secretAccessor and roles/secretmanager.viewer on the secret alone. p0_gcp must be installed. Grant its service account roles/run.invoker and roles/run.viewer on the connector's service, and pass the same address to the connector as its INVOKER_SA_EMAIL environment variable.
+  For Google Cloud Run, the image p0security/p0-connector-jira-gcloud, running as hosting.connector_service_account: the service account whose ID is hosting.connector_name, in the connector's project. Give it roles/secretmanager.secretAccessor and roles/secretmanager.viewer on the secret alone. p0_gcp must be installed. Grant its service account roles/run.invoker and roles/run.viewer on the connector's service, and pass that service account's email to the connector as its INVOKER_SA_EMAIL environment variable.
   Note: This integration is in beta.
   For the full install steps, see Jira https://docs.p0.dev/integrations/resource-integrations/jira.
 ---
@@ -33,9 +33,9 @@ Changing `site`, `hosting`, `vault`, `client_secret_name` or `domain_pattern` re
 
 `domain_pattern` is also the connector's `DOMAIN_PATTERN` environment variable, and P0 checks that the two are the same whenever it checks the site. To change the pattern, change both in one apply: the connector is deployed with the new pattern, and the installation is replaced with it.
 
-**Warning:** Replacing or destroying this resource removes the site from P0, and P0 revokes access only on a site it has. Before you change an attribute that replaces the installation, or destroy this resource, revoke the site's open access in P0 or wait for it to expire.
+**Warning:** Replacing or destroying this resource removes the site from P0, and P0 can't revoke access on a site it no longer has. Before you change an attribute that replaces the installation, or destroy this resource, revoke the site's open access in P0 or wait for it to expire.
 
-P0 checks the site's host, where the connector runs, the vault, the secret's name and the domain pattern when it creates the installation, and so does a plan, which leaves to P0 only whether `domain_pattern` compiles and can be matched safely. The connector and the secret must be in the same cloud, and on AWS in commercial regions: Jira doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions.
+P0 checks the site's host, where the connector runs, the vault, the secret's name and the domain pattern when it creates the installation. A plan checks all of them by P0's rules, except whether `domain_pattern` compiles and is safe to match, which waits for P0 at apply. The connector and the secret must be in the same cloud, and on AWS in commercial regions: Jira doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions.
 
 **Prerequisites:**
 
@@ -49,7 +49,7 @@ P0 checks the site's host, where the connector runs, the vault, the secret's nam
 
 - For AWS Lambda, the image `p0security/p0-connector-jira`, running as an IAM role named `hosting.connector_name`. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. Give the role `secretsmanager:GetSecretValue` on `arn:aws:secretsmanager:<secrets_region>:<account_id>:secret:<client_secret_name>-??????`, with the vault's region and account, and `kms:Decrypt` on the secret's key if a customer-managed KMS key encrypts it. A secret in an account other than the connector's needs a customer-managed key, and the secret's resource policy and the key's policy must allow the connector's role. `p0_aws_iam_write` must be installed for the account the connector runs in. Grant that installation's role `lambda:InvokeFunction` on the connector's function.
 
-- For Google Cloud Run, the image `p0security/p0-connector-jira-gcloud`, running as `hosting.connector_service_account`: the service account whose ID is `hosting.connector_name`, in the connector's project. Give it `roles/secretmanager.secretAccessor` and `roles/secretmanager.viewer` on the secret alone. `p0_gcp` must be installed. Grant its service account `roles/run.invoker` and `roles/run.viewer` on the connector's service, and pass the same address to the connector as its `INVOKER_SA_EMAIL` environment variable.
+- For Google Cloud Run, the image `p0security/p0-connector-jira-gcloud`, running as `hosting.connector_service_account`: the service account whose ID is `hosting.connector_name`, in the connector's project. Give it `roles/secretmanager.secretAccessor` and `roles/secretmanager.viewer` on the secret alone. `p0_gcp` must be installed. Grant its service account `roles/run.invoker` and `roles/run.viewer` on the connector's service, and pass that service account's email to the connector as its `INVOKER_SA_EMAIL` environment variable.
 
 **Note:** This integration is in beta.
 
@@ -71,8 +71,8 @@ For the full install steps, see [Jira](https://docs.p0.dev/integrations/resource
 # doesn't create the secret, which keeps the client secret out of Terraform's
 # state.
 #
-# Creating p0_jira has the connector read the client secret, so it must be in
-# its secret by then. To store it, with the AWS CLI signed in to the secret's
+# Creating p0_jira has the connector read the client secret, so store the
+# client secret before you apply. To store it, with the AWS CLI signed in to the secret's
 # account:
 #
 #   aws secretsmanager create-secret \
