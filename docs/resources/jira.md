@@ -72,8 +72,8 @@ For the full install steps, see [Jira](https://docs.p0.dev/integrations/resource
 # state.
 #
 # Creating p0_jira has the connector read the client secret, so store the
-# client secret before you apply. To store it, with the AWS CLI signed in to the secret's
-# account:
+# client secret before you apply. To store it, with the AWS CLI signed in to
+# the secret's account:
 #
 #   aws secretsmanager create-secret \
 #     --name p0/jira/acme \
