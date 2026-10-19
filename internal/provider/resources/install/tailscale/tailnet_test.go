@@ -85,11 +85,11 @@ var gcpOAuthTailnet = tailnetCase{
 var tailnetCases = []tailnetCase{federatedTailnet, awsOAuthTailnet, gcpOAuthTailnet}
 
 // The tailnet at state, with what P0's discovery finds once it has validated the
-// install. Until then, P0 stores both generated fields empty.
+// install. Until then, P0 stores every generated field empty.
 func (c tailnetCase) tailnet(state string) *tailscaleTailnetModel {
-	discovery, suggestedMode := types.StringValue(""), types.StringValue("")
+	discovery, suggestedMode, dnsName := types.StringValue(""), types.StringValue(""), types.StringValue("")
 	if state != common.StateStage {
-		discovery, suggestedMode = types.StringValue(fakeDiscovery), types.StringValue(fakeSuggestedMode)
+		discovery, suggestedMode, dnsName = types.StringValue(fakeDiscovery), types.StringValue(fakeSuggestedMode), types.StringValue(fakeDnsName)
 	}
 	return &tailscaleTailnetModel{
 		Id:            types.StringValue(testTailnet),
@@ -98,6 +98,7 @@ func (c tailnetCase) tailnet(state string) *tailscaleTailnetModel {
 		Mode:          types.StringValue(c.mode),
 		Discovery:     discovery,
 		SuggestedMode: suggestedMode,
+		DnsName:       dnsName,
 		State:         types.StringValue(state),
 	}
 }
@@ -107,17 +108,18 @@ func (c tailnetCase) planned() *tailscaleTailnetModel {
 	planned := c.tailnet(common.StateStage)
 	planned.Discovery = types.StringUnknown()
 	planned.SuggestedMode = types.StringUnknown()
+	planned.DnsName = types.StringUnknown()
 	planned.State = types.StringUnknown()
 	return planned
 }
 
 // The item as P0's API answers at state.
 func (c tailnetCase) response(state string) string {
-	discovery, suggestedMode := "", ""
+	discovery, suggestedMode, dnsName := "", "", ""
 	if state != common.StateStage {
-		discovery, suggestedMode = fakeDiscovery, fakeSuggestedMode
+		discovery, suggestedMode, dnsName = fakeDiscovery, fakeSuggestedMode, fakeDnsName
 	}
-	return c.body[:len(c.body)-1] + `,"discovery":"` + discovery + `","suggestedMode":"` + suggestedMode + `","state":"` + state + `"}`
+	return c.body[:len(c.body)-1] + `,"discovery":"` + discovery + `","suggestedMode":"` + suggestedMode + `","dnsName":"` + dnsName + `","state":"` + state + `"}`
 }
 
 // The PUT that stages the item, and verify and configure, carry the tailnet's
@@ -257,7 +259,7 @@ func TestTailnetSchema(t *testing.T) {
 		t.Errorf("credential = %+v; want a nested attribute without plan modifiers, whose change is refused instead", s.Attributes["credential"])
 	}
 
-	for _, name := range []string{"discovery", "suggested_mode", "state"} {
+	for _, name := range []string{"discovery", "suggested_mode", "dns_name", "state"} {
 		attribute := s.Attributes[name]
 		if !attribute.IsComputed() || attribute.IsOptional() || attribute.IsRequired() {
 			t.Errorf("%s = %+v; want a read-only attribute", name, attribute)
@@ -736,6 +738,7 @@ func changedTailnet(t *testing.T, base tailnetCase, change func(*tailscaleTailne
 	change(planned)
 	planned.Discovery = types.StringUnknown()
 	planned.SuggestedMode = types.StringUnknown()
+	planned.DnsName = types.StringUnknown()
 	planned.State = types.StringUnknown()
 	return planned
 }

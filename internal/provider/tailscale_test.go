@@ -25,6 +25,7 @@ const (
 	tailscaleClientId      = "kAbc1CNTRL"
 	tailscaleDiscovery     = "3 tags, 2 subnet routes, 1 service, 0 app connectors, 1 exit node, 0 P0 postures; 4 groups, 0 of them P0's"
 	tailscaleSuggestedMode = "direct-write"
+	tailscaleDnsName       = "tail1234.ts.net"
 )
 
 // Where a Tailscale connector runs, and a tailnet credential and mode that suit it, as
@@ -330,9 +331,9 @@ func normalizeTailscaleItem(key tailscaleItemKey, item map[string]any) {
 			hosting["connectorServiceUri"] = fmt.Sprintf("https://%s-abc123-uw.a.run.app", hosting["connectorName"])
 		}
 	case "tailnet":
-		item["discovery"], item["suggestedMode"] = "", ""
+		item["discovery"], item["suggestedMode"], item["dnsName"] = "", "", ""
 		if !staged {
-			item["discovery"], item["suggestedMode"] = tailscaleDiscovery, tailscaleSuggestedMode
+			item["discovery"], item["suggestedMode"], item["dnsName"] = tailscaleDiscovery, tailscaleSuggestedMode, tailscaleDnsName
 		}
 	}
 }
@@ -459,6 +460,7 @@ func TestTailscaleOnAws(t *testing.T) {
 					resource.TestCheckNoResourceAttr("p0_tailscale_tailnet.example", "credential.vault"),
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "discovery", tailscaleDiscovery),
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "suggested_mode", tailscaleSuggestedMode),
+					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "dns_name", tailscaleDnsName),
 					resource.TestCheckResourceAttr("p0_tailscale_destination.db", "id", tailscaleTailnet+":prod-db"),
 					resource.TestCheckResourceAttr("p0_tailscale_destination.db", "state", "installed"),
 					resource.TestCheckNoResourceAttr("p0_tailscale_destination.db", "proxy"),
@@ -766,7 +768,7 @@ func TestTailscaleUnfinishedInstallConverges(t *testing.T) {
 	restage := func(component, id string) {
 		f.update(component, id, func(item map[string]any) {
 			item["state"] = "stage"
-			item["discovery"], item["suggestedMode"] = "", ""
+			item["discovery"], item["suggestedMode"], item["dnsName"] = "", "", ""
 		})
 	}
 
