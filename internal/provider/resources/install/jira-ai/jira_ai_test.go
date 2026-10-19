@@ -274,12 +274,9 @@ func TestItemValidators(t *testing.T) {
 			"projects/p/secrets/s": false, "jira.acme": false, "jira acme": false,
 		}},
 		{site.Attributes["admin_client_id"], "admin_client_id", map[string]bool{"abc": true, " abc": false, "abc ": false, " ": false}},
-		{site.Attributes["read_role"], "read_role", map[string]bool{"Viewers": true, "Service Desk Team": true, "Viewers\n": false}},
-		{site.Attributes["write_role"], "write_role", map[string]bool{"Developers": true, "\tDevelopers": false}},
 		{vault["type"], "vault.type", map[string]bool{"gcp-sm": true, "aws-sm": false}},
 		{vault["project_id"], "vault.project_id", map[string]bool{"acme-secrets": true, "123456789012": false}},
 		{pool.Attributes["email"], "email", map[string]bool{"agent@serviceaccount.atlassian.com": true, " agent@x.com": false, "": false}},
-		{pool.Attributes["client_id"], "client_id", map[string]bool{"abc": true, "abc ": false}},
 	}
 	for _, c := range cases {
 		for value, want := range c.values {
@@ -370,8 +367,6 @@ func site() *siteModel {
 		Vault:           &vaultModel{Type: types.StringValue("gcp-sm"), ProjectId: types.StringValue("acme-secrets")},
 		AdminClientId:   types.StringValue("admin-client"),
 		AdminSecretName: types.StringValue("jira-acme-admin"),
-		ReadRole:        types.StringValue("Viewers"),
-		WriteRole:       types.StringValue("Developers"),
 		State:           types.StringValue("installed"),
 	}
 }
@@ -382,7 +377,7 @@ func site() *siteModel {
 func TestSiteJson(t *testing.T) {
 	body := marshal(t, siteToJson(site()))
 	want := `{"connector":"prod","siteUrl":"https://acme.atlassian.net","vault":{"type":"gcp-sm","install":"acme-secrets"},` +
-		`"adminClientId":"admin-client","adminSecretName":"jira-acme-admin","readRole":"Viewers","writeRole":"Developers"}`
+		`"adminClientId":"admin-client","adminSecretName":"jira-acme-admin"}`
 	if body != want {
 		t.Errorf("body = %s; want %s", body, want)
 	}
@@ -426,19 +421,18 @@ func TestPoolAccountJson(t *testing.T) {
 		Id:         types.StringValue("agent-1"),
 		Site:       types.StringValue("acme"),
 		Email:      types.StringValue("agent-1@serviceaccount.atlassian.com"),
-		ClientId:   types.StringValue("agent-client"),
 		AccountId:  types.StringValue("712020:abc"),
-		SecretName: types.StringValue("p0_install_jira-ai_acme_agent-1_oauth-client"),
+		SecretName: types.StringValue("p0_install_jira-ai_acme_agent-1_api-key"),
 		State:      types.StringValue("installed"),
 	}
 	body := marshal(t, poolAccountToJson(model))
-	want := `{"site":"acme","email":"agent-1@serviceaccount.atlassian.com","clientId":"agent-client"}`
+	want := `{"site":"acme","email":"agent-1@serviceaccount.atlassian.com"}`
 	if body != want {
 		t.Errorf("body = %s; want %s", body, want)
 	}
 
 	var api poolAccountApi
-	stored := `{"item":` + strings.TrimSuffix(want, "}") + `,"accountId":"712020:abc","secretName":"p0_install_jira-ai_acme_agent-1_oauth-client","state":"installed"}}`
+	stored := `{"item":` + strings.TrimSuffix(want, "}") + `,"accountId":"712020:abc","secretName":"p0_install_jira-ai_acme_agent-1_api-key","state":"installed"}}`
 	if err := json.Unmarshal([]byte(stored), &api); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}

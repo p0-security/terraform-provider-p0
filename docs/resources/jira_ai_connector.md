@@ -3,7 +3,7 @@ page_title: "p0_jira_ai_connector Resource - p0"
 subcategory: ""
 description: |-
   A Jira connector installation, for Jira agent access.
-  The connector is how P0 reaches your Jira Cloud sites. You deploy it in your own Google Cloud project, and one connector can serve several sites. It reads each site's OAuth client secrets from Google Secret Manager as its own service account, so P0 never holds them. Once it is installed, add each site with p0_jira_ai_site.
+  The connector is how P0 reaches your Jira Cloud sites. You deploy it in your own Google Cloud project, and one connector can serve several sites. It reads each site's admin client secret and agent account API keys from Google Secret Manager as its own service account, so P0 never holds them. Once it is installed, add each site with p0_jira_ai_site.
   Important: Before creating this resource you must stage the installation with p0_jira_ai_connector_staged and deploy the connector. Creating this resource has P0 find the Cloud Run service, check that it runs as hosting.connector_service_account, and check that P0 can invoke it. If the check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the first check is denied access, apply again.
   id and hosting must match the staged resource, and changing either replaces the connector. A connector that P0 hasn't finished installing, such as one imported before its check passed, plans an update, and applying it finishes the install.
   Destroying this resource returns the connector to its staged state, which p0_jira_ai_connector_staged still owns. P0 can't reach a site through a connector that isn't installed, so destroy the sites that name a connector before the connector. Terraform does so in the same apply when the site refers to this resource, as the examples do.
@@ -18,7 +18,7 @@ description: |-
 
 A Jira connector installation, for Jira agent access.
 
-The connector is how P0 reaches your Jira Cloud sites. You deploy it in your own Google Cloud project, and one connector can serve several sites. It reads each site's OAuth client secrets from Google Secret Manager as its own service account, so P0 never holds them. Once it is installed, add each site with `p0_jira_ai_site`.
+The connector is how P0 reaches your Jira Cloud sites. You deploy it in your own Google Cloud project, and one connector can serve several sites. It reads each site's admin client secret and agent account API keys from Google Secret Manager as its own service account, so P0 never holds them. Once it is installed, add each site with `p0_jira_ai_site`.
 
 **Important:** Before creating this resource you must stage the installation with `p0_jira_ai_connector_staged` and deploy the connector. Creating this resource has P0 find the Cloud Run service, check that it runs as `hosting.connector_service_account`, and check that P0 can invoke it. If the check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the first check is denied access, apply again.
 

@@ -34,7 +34,7 @@ locals {
 }
 
 locals {
-  # Each agent account's client secret starts with this, and each request's
+  # Each agent account's API key secret starts with this, and each request's
   # token secret with the other. A site's ID holds no underscore, so the
   # underscore after it ends the prefix: no other site's secrets match.
   p0_jira_ai_site_acme_pool_secret_prefix  = "p0_install_jira-ai_${local.p0_jira_ai_site_acme.id}_"
@@ -66,7 +66,7 @@ resource "google_secret_manager_secret_iam_member" "p0_jira_ai_site_acme_admin_v
   member    = "serviceAccount:${local.p0_jira_ai_site_acme.connector_service_account}"
 }
 
-# The connector reads each agent account's client secret on this site.
+# The connector reads each agent account's API key on this site.
 resource "google_project_iam_member" "p0_jira_ai_site_acme_pool_accessor" {
   project = local.p0_jira_ai_site_acme.vault_project_id
   role    = "roles/secretmanager.secretAccessor"
@@ -140,9 +140,6 @@ resource "p0_jira_ai_site" "acme" {
 
   admin_client_id   = "AbCdEfGhIjKlMnOpQrStUvWxYz012345"
   admin_secret_name = local.p0_jira_ai_site_acme.admin_secret
-  # The project roles P0 adds an agent account to, as your site names them.
-  read_role  = "P0 agent read"
-  write_role = "P0 agent write"
 
   depends_on = [
     google_secret_manager_secret_iam_member.p0_jira_ai_site_acme_admin_accessor,

@@ -13,6 +13,4 @@ resource "p0_jira_ai_site" "example" {
 
   admin_client_id   = "AbCdEfGhIjKlMnOpQrStUvWxYz012345"
   admin_secret_name = "jira-acme-admin-client-secret"
-  read_role         = "P0 agent read"
-  write_role        = "P0 agent write"
 }

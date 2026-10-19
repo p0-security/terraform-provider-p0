@@ -34,7 +34,7 @@ func (*JiraAiConnector) Schema(_ context.Context, _ resource.SchemaRequest, resp
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Jira connector installation, for Jira agent access.
 
-The connector is how P0 reaches your Jira Cloud sites. You deploy it in your own Google Cloud project, and one connector can serve several sites. It reads each site's OAuth client secrets from Google Secret Manager as its own service account, so P0 never holds them. Once it is installed, add each site with ` + "`p0_jira_ai_site`" + `.
+The connector is how P0 reaches your Jira Cloud sites. You deploy it in your own Google Cloud project, and one connector can serve several sites. It reads each site's admin client secret and agent account API keys from Google Secret Manager as its own service account, so P0 never holds them. Once it is installed, add each site with ` + "`p0_jira_ai_site`" + `.
 
 **Important:** Before creating this resource you must stage the installation with ` + "`p0_jira_ai_connector_staged`" + ` and deploy the connector. Creating this resource has P0 find the Cloud Run service, check that it runs as ` + "`hosting.connector_service_account`" + `, and check that P0 can invoke it. If the check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the first check is denied access, apply again.
 

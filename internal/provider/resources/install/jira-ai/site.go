@@ -38,8 +38,6 @@ type siteModel struct {
 	Vault           *vaultModel  `tfsdk:"vault"`
 	AdminClientId   types.String `tfsdk:"admin_client_id"`
 	AdminSecretName types.String `tfsdk:"admin_secret_name"`
-	ReadRole        types.String `tfsdk:"read_role"`
-	WriteRole       types.String `tfsdk:"write_role"`
 	State           types.String `tfsdk:"state"`
 }
 
@@ -51,8 +49,6 @@ type siteJson struct {
 	Vault           *vaultJson `json:"vault,omitempty"`
 	AdminClientId   *string    `json:"adminClientId,omitempty"`
 	AdminSecretName *string    `json:"adminSecretName,omitempty"`
-	ReadRole        *string    `json:"readRole,omitempty"`
-	WriteRole       *string    `json:"writeRole,omitempty"`
 	State           *string    `json:"state,omitempty"`
 }
 
@@ -62,7 +58,7 @@ type siteApi struct {
 
 // The app's rules for a site's fields (site-url.ts, secret-name.ts and
 // backend/src/install/site.ts). The site URL and secret name messages are the app's.
-// The client ID and role messages are the app's with a note about whitespace added,
+// The client ID message is the app's with a note about whitespace added,
 // since the provider also refuses a padded value that P0 would trim. The app matches the
 // site URL in any case.
 var (
@@ -75,7 +71,6 @@ const (
 	invalidGcpSecretName = "That isn't a secret's name in Google Secret Manager. Enter the name alone, without its project or a version: " +
 		"letters, digits, underscores and hyphens, up to 255 characters"
 	invalidAdminClientId = "Enter the admin OAuth client's ID, with no whitespace around it"
-	invalidRole          = "Enter the name of a project role, as your Jira site names it, with no whitespace around it"
 )
 
 func NewJiraAiSite() resource.Resource {
@@ -90,7 +85,7 @@ func (*JiraAiSite) Schema(_ context.Context, _ resource.SchemaRequest, resp *res
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Jira Cloud site whose projects P0 can give agents access to.
 
-P0 reaches the site through a Jira connector, which you install with ` + "`p0_jira_ai_connector`" + `. The connector manages project roles as an Atlassian service account that administers the site's projects, with that account's OAuth client. The client's secret stays in your own Google Secret Manager: P0 never reads it, and only the connector does. When an agent is granted access to a project, P0 has the connector add one of the site's agent accounts (` + "`p0_jira_ai_pool_account`" + `) to the project role ` + "`read_role`" + ` or ` + "`write_role`" + ` names, and remove it when the access ends.
+P0 reaches the site through a Jira connector, which you install with ` + "`p0_jira_ai_connector`" + `. The connector manages project roles as an Atlassian service account that administers the site's projects, with that account's OAuth client. The client's secret stays in your own Google Secret Manager: P0 never reads it, and only the connector does. When an agent is granted access to a project, P0 has the connector add one of the site's agent accounts (` + "`p0_jira_ai_pool_account`" + `) to a project role, and remove it when the access ends. In a company-managed space that is one of P0's own site roles, ` + "`P0 agent: read`" + ` or ` + "`P0 agent: write`" + `, which the connector creates on first use and grants in the space's permission scheme. In a team-managed space it is the space's own role that the request names.
 
 **Important:** Install the connector first: P0 adds a site only for a connector that is installed. Creating this resource has P0 look up the site's cloud ID from Atlassian, then check through the connector that the admin service account signs in and holds Administer Jira.
 
@@ -132,14 +127,6 @@ A site that already exists in P0, such as one added in the P0 app, isn't created
 				"The name of the secret, in `vault`, that holds the admin client's secret as its whole value: the name alone, without its project or a version. "+
 					"Up to 255 letters, digits, underscores and hyphens. P0 never reads it. Only your connector does.",
 				stringvalidator.RegexMatches(gcpSecretNameRegex, invalidGcpSecretName),
-			),
-			"read_role": fixedAttribute(
-				"The name of the project role P0 adds an agent account to for read access, such as `P0 agent read`. Use a role nothing else relies on.",
-				trimmedValidator(invalidRole),
-			),
-			"write_role": fixedAttribute(
-				"The name of the project role P0 adds an agent account to for write access, such as `P0 agent write`. Use a role nothing else relies on.",
-				trimmedValidator(invalidRole),
 			),
 			"state": common.StateAttribute,
 		},
@@ -216,8 +203,6 @@ func siteFromJson(_ context.Context, diags *diag.Diagnostics, id string, json an
 		Vault:           vault,
 		AdminClientId:   types.StringPointerValue(jsonv.AdminClientId),
 		AdminSecretName: types.StringPointerValue(jsonv.AdminSecretName),
-		ReadRole:        types.StringPointerValue(jsonv.ReadRole),
-		WriteRole:       types.StringPointerValue(jsonv.WriteRole),
 		State:           types.StringPointerValue(jsonv.State),
 	}
 }
@@ -237,8 +222,6 @@ func siteToJson(data any) any {
 		SiteUrl:         datav.SiteUrl.ValueStringPointer(),
 		AdminClientId:   datav.AdminClientId.ValueStringPointer(),
 		AdminSecretName: datav.AdminSecretName.ValueStringPointer(),
-		ReadRole:        datav.ReadRole.ValueStringPointer(),
-		WriteRole:       datav.WriteRole.ValueStringPointer(),
 	}
 	if datav.Vault != nil {
 		json.Vault = datav.Vault.toJson()

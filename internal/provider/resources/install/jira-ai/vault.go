@@ -54,7 +54,7 @@ const invalidVaultProject = "Choose the Google Secret Manager installation, by i
 func vaultAttribute() schema.SingleNestedAttribute {
 	return schema.SingleNestedAttribute{
 		Required: true,
-		MarkdownDescription: "The secret manager that holds the site's secrets: the admin client's secret, and each agent account's client secret. " +
+		MarkdownDescription: "The secret manager that holds the site's secrets: the admin client's secret, and each agent account's API key. " +
 			"P0 never reads them. Only the connector does, as its service account, so it must be Google Secret Manager.",
 		Attributes: map[string]schema.Attribute{
 			"type": fixedAttribute(

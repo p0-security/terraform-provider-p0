@@ -25,7 +25,7 @@ const (
 	jiraAiCloudId        = "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"
 	jiraAiPoolAccount    = "agent-1"
 	jiraAiAccountId      = "712020:0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"
-	jiraAiSecretName     = "p0_install_jira-ai_acme_agent-1_oauth-client"
+	jiraAiSecretName     = "p0_install_jira-ai_acme_agent-1_api-key"
 )
 
 // Where a Jira connector runs, as a customer's Terraform sets it, in a region.
@@ -75,18 +75,15 @@ resource "p0_jira_ai_site" "example" {
 
   admin_client_id   = "admin-client"
   admin_secret_name = "jira-acme-admin"
-  read_role         = "Viewers"
-  write_role        = "Developers"
 }
 `, jiraAiSite, connector)
 }
 
 const jiraAiPoolAccountBlock = `
 resource "p0_jira_ai_pool_account" "example" {
-  id        = "agent-1"
-  site      = p0_jira_ai_site.example.id
-  email     = "agent-1@serviceaccount.atlassian.com"
-  client_id = "agent-client"
+  id    = "agent-1"
+  site  = p0_jira_ai_site.example.id
+  email = "agent-1@serviceaccount.atlassian.com"
 }
 `
 
@@ -189,7 +186,7 @@ func newJiraAiFake(t *testing.T) *jiraAiFake {
 		case "site":
 			item["cloudId"] = jiraAiCloudId
 		case "pool-account":
-			item["secretName"] = fmt.Sprintf("p0_install_jira-ai_%s_%s_oauth-client", item["site"], key.id)
+			item["secretName"] = fmt.Sprintf("p0_install_jira-ai_%s_%s_api-key", item["site"], key.id)
 			if item["state"] != "stage" {
 				item["accountId"] = jiraAiAccountId
 			}
@@ -262,12 +259,12 @@ func TestJiraAiFullChain(t *testing.T) {
 						site := f.jiraItem("site", jiraAiSite)
 						vault, _ := site["vault"].(map[string]any)
 						if site["connector"] != jiraAiConnector || site["siteUrl"] != "https://acme.atlassian.net" || site["adminClientId"] != "admin-client" ||
-							site["adminSecretName"] != "jira-acme-admin" || site["readRole"] != "Viewers" || site["writeRole"] != "Developers" ||
+							site["adminSecretName"] != "jira-acme-admin" ||
 							vault["type"] != "gcp-sm" || vault["install"] != "acme-secrets" || len(vault) != 2 {
 							return fmt.Errorf("P0 site does not hold the configured site: %v", site)
 						}
 						account := f.jiraItem("pool-account", jiraAiPoolAccount)
-						if account["site"] != jiraAiSite || account["email"] != "agent-1@serviceaccount.atlassian.com" || account["clientId"] != "agent-client" {
+						if account["site"] != jiraAiSite || account["email"] != "agent-1@serviceaccount.atlassian.com" {
 							return fmt.Errorf("P0 agent account does not hold the configured account: %v", account)
 						}
 						return nil
@@ -633,7 +630,7 @@ resource "p0_jira_ai_connector_staged" "example" {
 	site := func(field, value string) string {
 		fields := map[string]string{
 			"id": jiraAiSite, "connector": "prod", "site_url": "https://acme.atlassian.net", "vault_type": "gcp-sm", "project_id": "acme-secrets",
-			"admin_client_id": "admin-client", "admin_secret_name": "jira-acme-admin", "read_role": "Viewers", "write_role": "Developers",
+			"admin_client_id": "admin-client", "admin_secret_name": "jira-acme-admin",
 		}
 		fields[field] = value
 		return fmt.Sprintf(`
@@ -647,23 +644,20 @@ resource "p0_jira_ai_site" "example" {
   }
   admin_client_id   = %q
   admin_secret_name = %q
-  read_role         = %q
-  write_role        = %q
 }
 `, fields["id"], fields["connector"], fields["site_url"], fields["vault_type"], fields["project_id"],
-			fields["admin_client_id"], fields["admin_secret_name"], fields["read_role"], fields["write_role"])
+			fields["admin_client_id"], fields["admin_secret_name"])
 	}
 	pool := func(field, value string) string {
-		fields := map[string]string{"id": jiraAiPoolAccount, "site": jiraAiSite, "email": "agent-1@serviceaccount.atlassian.com", "client_id": "agent-client"}
+		fields := map[string]string{"id": jiraAiPoolAccount, "site": jiraAiSite, "email": "agent-1@serviceaccount.atlassian.com"}
 		fields[field] = value
 		return fmt.Sprintf(`
 resource "p0_jira_ai_pool_account" "example" {
-  id        = %q
-  site      = %q
-  email     = %q
-  client_id = %q
+  id    = %q
+  site  = %q
+  email = %q
 }
-`, fields["id"], fields["site"], fields["email"], fields["client_id"])
+`, fields["id"], fields["site"], fields["email"])
 	}
 
 	for _, tc := range []struct {
@@ -681,10 +675,8 @@ resource "p0_jira_ai_pool_account" "example" {
 		{"vault project number", site("project_id", "123456789012"), "Google Secret Manager installation"},
 		{"secret's resource name", site("admin_secret_name", "projects/acme-secrets/secrets/jira-acme-admin"), "isn't a secret's name"},
 		{"blank admin client", site("admin_client_id", " "), "admin OAuth client's ID"},
-		{"role with whitespace around it", site("read_role", "Viewers "), "project role"},
 		{"agent account site too long", pool("site", strings.Repeat("a", 49)), "at most 48"},
 		{"blank email", pool("email", ""), "service account's email"},
-		{"client id with whitespace around it", pool("client_id", " agent-client"), "OAuth client ID"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newJiraAiFake(t)
@@ -734,17 +726,14 @@ func jiraAiAccEnv(install *jiraAiAccInstall) map[string]*string {
 		"P0_JIRA_AI_VAULT_PROJECT_ID":  &install.vaultProjectId,
 		"P0_JIRA_AI_ADMIN_CLIENT_ID":   &install.adminClientId,
 		"P0_JIRA_AI_ADMIN_SECRET_NAME": &install.adminSecretName,
-		"P0_JIRA_AI_READ_ROLE":         &install.readRole,
-		"P0_JIRA_AI_WRITE_ROLE":        &install.writeRole,
 		"P0_JIRA_AI_AGENT_EMAIL":       &install.agentEmail,
-		"P0_JIRA_AI_AGENT_CLIENT_ID":   &install.agentClientId,
 	}
 }
 
 type jiraAiAccInstall struct {
 	projectId, connectorName, connectorRegion               string
 	siteUrl, vaultProjectId, adminClientId, adminSecretName string
-	readRole, writeRole, agentEmail, agentClientId          string
+	agentEmail                                              string
 }
 
 // TestAccJiraAi installs into the P0 organization P0_ORG, served at P0_HOST (the
@@ -837,20 +826,17 @@ resource "p0_jira_ai_site" "test" {
   }
   admin_client_id   = %q
   admin_secret_name = %q
-  read_role         = %q
-  write_role        = %q
 }
 
 resource "p0_jira_ai_pool_account" "test" {
-  id        = "tf-acc"
-  site      = p0_jira_ai_site.test.id
-  email     = %q
-  client_id = %q
+  id    = "tf-acc"
+  site  = p0_jira_ai_site.test.id
+  email = %q
 }
 `, os.Getenv(jiraAiAccOrgEnv), jiraAiAccHost(),
 		install.projectId, install.connectorName, install.connectorRegion,
-		install.siteUrl, install.vaultProjectId, install.adminClientId, install.adminSecretName, install.readRole, install.writeRole,
-		install.agentEmail, install.agentClientId)
+		install.siteUrl, install.vaultProjectId, install.adminClientId, install.adminSecretName,
+		install.agentEmail)
 }
 
 // Checks that P0 no longer has the item behind any destroyed Jira (AI) resource. The

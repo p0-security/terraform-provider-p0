@@ -31,7 +31,6 @@ type poolAccountModel struct {
 	Id         types.String `tfsdk:"id"`
 	Site       types.String `tfsdk:"site"`
 	Email      types.String `tfsdk:"email"`
-	ClientId   types.String `tfsdk:"client_id"`
 	AccountId  types.String `tfsdk:"account_id"`
 	SecretName types.String `tfsdk:"secret_name"`
 	State      types.String `tfsdk:"state"`
@@ -41,7 +40,6 @@ type poolAccountModel struct {
 type poolAccountJson struct {
 	Site       *string `json:"site,omitempty"`
 	Email      *string `json:"email,omitempty"`
-	ClientId   *string `json:"clientId,omitempty"`
 	AccountId  *string `json:"accountId,omitempty"`
 	SecretName *string `json:"secretName,omitempty"`
 	State      *string `json:"state,omitempty"`
@@ -54,10 +52,7 @@ type poolAccountApi struct {
 // The app's messages for a missing field (backend/src/install/pool-account.ts), with a
 // note about whitespace added, since the provider also refuses a padded value that P0
 // would trim.
-const (
-	invalidEmail    = "Enter the service account's email, as Atlassian shows it, with no whitespace around it"
-	invalidClientId = "Enter the service account's OAuth client ID, with no whitespace around it"
-)
+const invalidEmail = "Enter the service account's email, as Atlassian shows it, with no whitespace around it"
 
 func NewJiraAiPoolAccount() resource.Resource {
 	return &JiraAiPoolAccount{}
@@ -71,15 +66,15 @@ func (*JiraAiPoolAccount) Schema(_ context.Context, _ resource.SchemaRequest, re
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `An agent account: an Atlassian service account that P0 leases to one agent session at a time on a Jira site. When an agent is granted access to a project, P0 has the site's connector add the account to the project's role, and remove it when the access ends. Add one for each agent session the site should serve at once.
 
-P0 never holds the account's OAuth client secret. When P0 adds the account it names the secret that holds it, ` + "`secret_name`" + `, in the site's vault. Create that secret and store the client's secret in it, outside Terraform, which keeps it out of Terraform's state. Only the connector reads it, under the grant the site's Terraform gives it.
+P0 never holds the account's API key. When P0 adds the account it names the secret that holds it, ` + "`secret_name`" + `, in the site's vault. Create that secret and store the key in it, outside Terraform, which keeps it out of Terraform's state. Only the connector reads it, under the grant the site's Terraform gives it.
 
 **Important:** Install the site first, in an earlier apply or in the same one with this resource referring to it, as the example does. Creating this resource makes P0 look up the account's Atlassian ID through the site's connector, as the site's admin service account. That also checks the site's admin client. If the check fails, the apply fails with P0's message.
 
-An agent account's attributes can't change once it is created, so changing any of them replaces the account. To rotate the client's secret, add a new version to the same secret, which needs no change here.
+An agent account's attributes can't change once it is created, so changing any of them replaces the account. To rotate the API key, add a new version to the same secret, which needs no change here.
 
 An agent account that already exists in P0, such as one added in the P0 app, isn't created again: the apply fails, and says to import it with ` + "`terraform import`" + `. An imported account that P0 hasn't finished installing plans an update, and applying it finishes the install.
 
-**Prerequisite:** an Atlassian service account that is a member of the site, with an OAuth client, and no project roles of its own: P0 gives it each role an agent is granted.
+**Prerequisite:** an Atlassian service account that is a member of the site, with an API key, and no project roles of its own: P0 gives it each role an agent is granted.
 
 ` + betaNote,
 		Attributes: map[string]schema.Attribute{
@@ -95,14 +90,10 @@ An agent account that already exists in P0, such as one added in the P0 app, isn
 				"The service account's email, as Atlassian shows it.",
 				trimmedValidator(invalidEmail),
 			),
-			"client_id": fixedAttribute(
-				"The client ID of the service account's OAuth client. Its secret goes in the secret that `secret_name` names.",
-				trimmedValidator(invalidClientId),
-			),
 			"account_id": generatedAttribute("Atlassian's ID for the account, which P0 looks up through the site's connector when it checks the install."),
 			"secret_name": generatedAttribute(
-				"The name of the secret in the site's vault that holds the OAuth client's secret. P0 names it when it adds the account: " +
-					"`p0_install_jira-ai_<site>_<id>_oauth-client`. Create it, and store the client's secret as its whole value.",
+				"The name of the secret in the site's vault that holds the account's API key. P0 names it when it adds the account: " +
+					"`p0_install_jira-ai_<site>_<id>_api-key`. Create it, and store the key as its whole value.",
 			),
 			"state": common.StateAttribute,
 		},
@@ -152,7 +143,6 @@ func poolAccountFromJson(_ context.Context, _ *diag.Diagnostics, id string, json
 		Id:         types.StringValue(id),
 		Site:       types.StringPointerValue(jsonv.Site),
 		Email:      types.StringPointerValue(jsonv.Email),
-		ClientId:   types.StringPointerValue(jsonv.ClientId),
 		AccountId:  types.StringPointerValue(jsonv.AccountId),
 		SecretName: types.StringPointerValue(jsonv.SecretName),
 		State:      types.StringPointerValue(jsonv.State),
@@ -169,9 +159,8 @@ func poolAccountToJson(data any) any {
 	}
 
 	return &poolAccountJson{
-		Site:     datav.Site.ValueStringPointer(),
-		Email:    datav.Email.ValueStringPointer(),
-		ClientId: datav.ClientId.ValueStringPointer(),
+		Site:  datav.Site.ValueStringPointer(),
+		Email: datav.Email.ValueStringPointer(),
 	}
 }
 

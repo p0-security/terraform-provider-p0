@@ -3,7 +3,7 @@ page_title: "p0_jira_ai_site Resource - p0"
 subcategory: ""
 description: |-
   A Jira Cloud site whose projects P0 can give agents access to.
-  P0 reaches the site through a Jira connector, which you install with p0_jira_ai_connector. The connector manages project roles as an Atlassian service account that administers the site's projects, with that account's OAuth client. The client's secret stays in your own Google Secret Manager: P0 never reads it, and only the connector does. When an agent is granted access to a project, P0 has the connector add one of the site's agent accounts (p0_jira_ai_pool_account) to the project role read_role or write_role names, and remove it when the access ends.
+  P0 reaches the site through a Jira connector, which you install with p0_jira_ai_connector. The connector manages project roles as an Atlassian service account that administers the site's projects, with that account's OAuth client. The client's secret stays in your own Google Secret Manager: P0 never reads it, and only the connector does. When an agent is granted access to a project, P0 has the connector add one of the site's agent accounts (p0_jira_ai_pool_account) to a project role, and remove it when the access ends. In a company-managed space that is one of P0's own site roles, P0 agent: read or P0 agent: write, which the connector creates on first use and grants in the space's permission scheme. In a team-managed space it is the space's own role that the request names.
   Important: Install the connector first: P0 adds a site only for a connector that is installed. Creating this resource has P0 look up the site's cloud ID from Atlassian, then check through the connector that the admin service account signs in and holds Administer Jira.
   A site's attributes can't change once it is created, so changing any of them replaces the site. To rotate the admin client's secret, add a new version to the same secret, which needs no change here.
   Warning: Replacing or destroying this resource removes the site from P0. P0 still revokes the site's open access afterwards, through the site's connector, its grants in the vault project and its admin secret, so keep all three in place until that access has ended.
@@ -20,7 +20,7 @@ description: |-
 
 A Jira Cloud site whose projects P0 can give agents access to.
 
-P0 reaches the site through a Jira connector, which you install with `p0_jira_ai_connector`. The connector manages project roles as an Atlassian service account that administers the site's projects, with that account's OAuth client. The client's secret stays in your own Google Secret Manager: P0 never reads it, and only the connector does. When an agent is granted access to a project, P0 has the connector add one of the site's agent accounts (`p0_jira_ai_pool_account`) to the project role `read_role` or `write_role` names, and remove it when the access ends.
+P0 reaches the site through a Jira connector, which you install with `p0_jira_ai_connector`. The connector manages project roles as an Atlassian service account that administers the site's projects, with that account's OAuth client. The client's secret stays in your own Google Secret Manager: P0 never reads it, and only the connector does. When an agent is granted access to a project, P0 has the connector add one of the site's agent accounts (`p0_jira_ai_pool_account`) to a project role, and remove it when the access ends. In a company-managed space that is one of P0's own site roles, `P0 agent: read` or `P0 agent: write`, which the connector creates on first use and grants in the space's permission scheme. In a team-managed space it is the space's own role that the request names.
 
 **Important:** Install the connector first: P0 adds a site only for a connector that is installed. Creating this resource has P0 look up the site's cloud ID from Atlassian, then check through the connector that the admin service account signs in and holds Administer Jira.
 
@@ -58,8 +58,6 @@ resource "p0_jira_ai_site" "example" {
 
   admin_client_id   = "AbCdEfGhIjKlMnOpQrStUvWxYz012345"
   admin_secret_name = "jira-acme-admin-client-secret"
-  read_role         = "P0 agent read"
-  write_role        = "P0 agent write"
 }
 ```
 
@@ -102,7 +100,7 @@ locals {
 }
 
 locals {
-  # Each agent account's client secret starts with this, and each request's
+  # Each agent account's API key secret starts with this, and each request's
   # token secret with the other. A site's ID holds no underscore, so the
   # underscore after it ends the prefix: no other site's secrets match.
   p0_jira_ai_site_acme_pool_secret_prefix  = "p0_install_jira-ai_${local.p0_jira_ai_site_acme.id}_"
@@ -134,7 +132,7 @@ resource "google_secret_manager_secret_iam_member" "p0_jira_ai_site_acme_admin_v
   member    = "serviceAccount:${local.p0_jira_ai_site_acme.connector_service_account}"
 }
 
-# The connector reads each agent account's client secret on this site.
+# The connector reads each agent account's API key on this site.
 resource "google_project_iam_member" "p0_jira_ai_site_acme_pool_accessor" {
   project = local.p0_jira_ai_site_acme.vault_project_id
   role    = "roles/secretmanager.secretAccessor"
@@ -208,9 +206,6 @@ resource "p0_jira_ai_site" "acme" {
 
   admin_client_id   = "AbCdEfGhIjKlMnOpQrStUvWxYz012345"
   admin_secret_name = local.p0_jira_ai_site_acme.admin_secret
-  # The project roles P0 adds an agent account to, as your site names them.
-  read_role  = "P0 agent read"
-  write_role = "P0 agent write"
 
   depends_on = [
     google_secret_manager_secret_iam_member.p0_jira_ai_site_acme_admin_accessor,
@@ -232,10 +227,8 @@ resource "p0_jira_ai_site" "acme" {
 - `admin_secret_name` (String) The name of the secret, in `vault`, that holds the admin client's secret as its whole value: the name alone, without its project or a version. Up to 255 letters, digits, underscores and hyphens. P0 never reads it. Only your connector does.
 - `connector` (String) The `id` of the `p0_jira_ai_connector` that reaches this site. The connector must be installed.
 - `id` (String) A name you choose for the site, such as `acme`. Agent accounts refer to the site by it, and a P0 policy's `site` filter matches it. Use lowercase letters, digits and hyphens, starting and ending with a letter or digit, up to 48 characters.
-- `read_role` (String) The name of the project role P0 adds an agent account to for read access, such as `P0 agent read`. Use a role nothing else relies on.
 - `site_url` (String) The address of your Jira Cloud site, such as `https://acme.atlassian.net`, with no path.
-- `vault` (Attributes) The secret manager that holds the site's secrets: the admin client's secret, and each agent account's client secret. P0 never reads them. Only the connector does, as its service account, so it must be Google Secret Manager. (see [below for nested schema](#nestedatt--vault))
-- `write_role` (String) The name of the project role P0 adds an agent account to for write access, such as `P0 agent write`. Use a role nothing else relies on.
+- `vault` (Attributes) The secret manager that holds the site's secrets: the admin client's secret, and each agent account's API key. P0 never reads them. Only the connector does, as its service account, so it must be Google Secret Manager. (see [below for nested schema](#nestedatt--vault))
 
 ### Read-Only
 
