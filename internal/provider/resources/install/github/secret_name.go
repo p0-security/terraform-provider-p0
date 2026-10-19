@@ -1,11 +1,11 @@
-package installgithubrepositories
+package installgithub
 
 import (
 	"regexp"
 )
 
 // P0's rules for the private key's secret, as it checks them
-// (packages/integrations/github-repositories-shared/src/secret-name.ts in the app): the
+// (packages/integrations/github/shared/src/secret-name.ts in the app): the
 // secret's name alone. P0 has the connector read the partial ARN
 // arn:aws:secretsmanager:<secrets_region>:<vault account>:secret:<name>, which Secrets
 // Manager resolves to the secret of that name.

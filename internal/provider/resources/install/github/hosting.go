@@ -1,4 +1,4 @@
-package installgithubrepositories
+package installgithub
 
 import (
 	"context"
@@ -104,7 +104,7 @@ func hostingFromConfig(ctx context.Context, config tfsdk.Config, diags *diag.Dia
 
 // Where the connector can run and where the key's secret can be: P0's rules for the
 // hosting and vault fields, which it checks when it creates the item
-// (packages/integrations/github-repositories-shared/src/hosting.ts in the app). The
+// (packages/integrations/github/shared/src/hosting.ts in the app). The
 // connector's Terraform can't be deployed with a value that breaks one. The patterns
 // and the messages are P0's.
 
@@ -126,7 +126,7 @@ var (
 // name at 64 characters.
 var connectorNameMaxLength = map[string]int{installapp.AwsHosting: 64}
 
-const UnsupportedAwsPartition = "GitHub Repositories doesn't support AWS GovCloud or China regions yet."
+const UnsupportedAwsPartition = "The GitHub integration doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions. Pick a commercial AWS region, such as us-west-2."
 
 // A rule for a value, and P0's message for a value that breaks it.
 type rule struct {

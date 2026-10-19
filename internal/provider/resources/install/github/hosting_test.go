@@ -1,4 +1,4 @@
-package installgithubrepositories
+package installgithub
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ const (
 	awsRegionRule    = "Enter the AWS region the connector runs in, such as us-west-2."
 	vaultAccountRule = "Enter the 12-digit ID of the AWS account the private key's secret is in."
 	vaultRegionRule  = "Enter the AWS region the private key's secret is in, such as us-west-2."
-	unsupported      = "GitHub Repositories doesn't support AWS GovCloud or China regions yet."
+	unsupported      = "The GitHub integration doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions. Pick a commercial AWS region, such as us-west-2."
 	invalidOrg       = "Enter the organization's GitHub login, as in github.com/<login>"
 	invalidAppId     = "The GitHub App ID is a number. Find it on the app's settings page."
 	// The private key's secret name.
@@ -43,7 +43,7 @@ func errorDetails(diags diag.Diagnostics) []string {
 }
 
 // P0's own cases for its hosting and vault rules
-// (packages/integrations/github-repositories-shared/src/__tests__/hosting.test.ts in the
+// (packages/integrations/github/shared/src/__tests__/hosting.test.ts in the
 // app) for AWS, plus the region edges it settled on, run through ValidateConfig: each refused
 // value gets one error, at its attribute, with P0's message.
 func TestRepositoryAccessValidateConfigHostingAndVault(t *testing.T) {

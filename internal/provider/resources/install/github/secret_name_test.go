@@ -1,4 +1,4 @@
-package installgithubrepositories
+package installgithub
 
 import (
 	"strings"

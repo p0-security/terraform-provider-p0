@@ -38,6 +38,7 @@ import (
 	installgcpcloudsql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloudsql"
 	installgcpserviceaccount "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-service-account"
 	installgcpwif "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-wif"
+	installgithub "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github"
 	installgithubai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-ai"
 	installgithubrepositories "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-repositories"
 	installgoogledriveai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/google-drive-ai"
@@ -265,6 +266,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installsalesforceai.NewSalesforceAiOrgStaged,
 		installsalesforceai.NewSalesforceAiOrg,
 		installgithubrepositories.NewRepositoryAccess,
+		installgithub.NewRepositoryAccess,
 		installdatabricks.NewConnectorStaged,
 		installdatabricks.NewConnector,
 		installdatabricks.NewAccountStaged,

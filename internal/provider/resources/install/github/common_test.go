@@ -1,11 +1,11 @@
-package installgithubrepositories
+package installgithub
 
 import (
 	"strings"
 	"testing"
 )
 
-func TestGithubOrgRegex(t *testing.T) {
+func TestGithubOrgPattern(t *testing.T) {
 	cases := map[string]bool{
 		"my-github-org":         true,
 		"acme":                  true,
@@ -21,13 +21,13 @@ func TestGithubOrgRegex(t *testing.T) {
 	}
 
 	for org, want := range cases {
-		if got := GithubOrgRegex.MatchString(org); got != want {
-			t.Errorf("GithubOrgRegex.MatchString(%q) = %v, want %v", org, got, want)
+		if got := GithubOrgPattern.MatchString(org); got != want {
+			t.Errorf("GithubOrgPattern.MatchString(%q) = %v, want %v", org, got, want)
 		}
 	}
 }
 
-func TestGithubAppIdRegex(t *testing.T) {
+func TestGithubAppIdPattern(t *testing.T) {
 	cases := map[string]bool{
 		"123456":     true,
 		"1":          true,
@@ -41,8 +41,8 @@ func TestGithubAppIdRegex(t *testing.T) {
 	}
 
 	for appId, want := range cases {
-		if got := githubAppIdRegex.MatchString(appId); got != want {
-			t.Errorf("githubAppIdRegex.MatchString(%q) = %v, want %v", appId, got, want)
+		if got := githubAppIdPattern.MatchString(appId); got != want {
+			t.Errorf("githubAppIdPattern.MatchString(%q) = %v, want %v", appId, got, want)
 		}
 	}
 }

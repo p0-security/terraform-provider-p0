@@ -1,4 +1,4 @@
-package installgithubrepositories
+package installgithub
 
 import (
 	"context"
@@ -44,7 +44,7 @@ func awsModel() *repositoryAccessModel {
 		Hosting: &hostingModel{
 			Type:            types.StringValue(installapp.AwsHosting),
 			AccountId:       types.StringValue("123456789012"),
-			ConnectorName:   types.StringValue("p0-github-repositories-connector"),
+			ConnectorName:   types.StringValue("p0-github-connector"),
 			ConnectorRegion: types.StringValue("us-east-1"),
 		},
 		State: types.StringNull(),
@@ -73,13 +73,13 @@ func TestRepositoryAccessStageJson(t *testing.T) {
 			want: `{"appId":"123456",` +
 				`"vault":{"type":"aws-sm","install":"123456789012","secretsRegion":"us-east-1"},` +
 				`"privateKeySecretName":"github/my-github-org/private-key",` +
-				`"hosting":{"type":"aws","accountId":"123456789012","connectorName":"p0-github-repositories-connector","connectorRegion":"us-east-1"}}`,
+				`"hosting":{"type":"aws","accountId":"123456789012","connectorName":"p0-github-connector","connectorRegion":"us-east-1"}}`,
 		},
 	}
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			if got := marshal(t, stageJson(c.model)); got != c.want {
+			if got := marshal(t, toStageJson(c.model)); got != c.want {
 				t.Errorf("PUT body =\n%s\nwant\n%s", got, c.want)
 			}
 		})
@@ -119,7 +119,7 @@ func TestRepositoryAccessFromJson(t *testing.T) {
 			response: `{"appId":"123456",` +
 				`"vault":{"type":"aws-sm","install":"123456789012","secretsRegion":"us-east-1"},` +
 				`"privateKeySecretName":"github/my-github-org/private-key",` +
-				`"hosting":{"type":"aws","accountId":"123456789012","connectorName":"p0-github-repositories-connector","connectorRegion":"us-east-1"},` +
+				`"hosting":{"type":"aws","accountId":"123456789012","connectorName":"p0-github-connector","connectorRegion":"us-east-1"},` +
 				`"state":"installed"}`,
 			state: "installed",
 		},
@@ -182,7 +182,7 @@ func TestRepositoryAccessFromJsonRequiresAws(t *testing.T) {
 			}
 			var diags diag.Diagnostics
 			got := (&RepositoryAccess{}).fromJson(context.Background(), &diags, "my-github-org", &item)
-			if got != nil || len(diags.Errors()) != 1 || diags.Errors()[0].Summary() != "Unsupported GitHub Repositories install" {
+			if got != nil || len(diags.Errors()) != 1 || diags.Errors()[0].Summary() != "Unsupported GitHub install" {
 				t.Errorf("fromJson = %+v, %v; want nil and an unsupported install error", got, diags)
 			}
 		})
@@ -296,7 +296,7 @@ func planChange(t *testing.T, configured *repositoryAccessModel) *tfprotov6.Plan
 
 	server := providerserver.NewProtocol6(&planTestProvider{})()
 	resp, err := server.PlanResourceChange(ctx, &tfprotov6.PlanResourceChangeRequest{
-		TypeName:         "p0_github_repositories",
+		TypeName:         "p0_github",
 		PriorState:       dynamic(at(awsModel(), types.StringValue(common.StateInstalled))),
 		ProposedNewState: dynamic(&proposed),
 		Config:           dynamic(configured),
@@ -552,7 +552,7 @@ func TestRepositoryAccessValidateConfigSecretNameWording(t *testing.T) {
 func TestDescribeCheckError(t *testing.T) {
 	const message = "422 Unprocessable Entity: GitHub App 123456 isn't installed on my-github-org. An owner of my-github-org needs to install it, then retry."
 	summary, detail := describeCheckError("my-github-org", errors.New(message))
-	if summary != "GitHub Repositories install check failed" {
+	if summary != "GitHub install check failed" {
 		t.Errorf("summary = %q", summary)
 	}
 	if want := "P0 rejected the install check for the GitHub organization \"my-github-org\":\n\n" + message; detail != want {
@@ -622,10 +622,10 @@ func (f *fakeSteps) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if step == common.Config && f.failConfigure {
 		w.WriteHeader(http.StatusBadGateway)
-		_, _ = w.Write([]byte(`{"error":"github-repositories is temporarily unavailable; please try again later"}`))
+		_, _ = w.Write([]byte(`{"error":"github is temporarily unavailable; please try again later"}`))
 		return
 	}
-	item := stageJson(f.item)
+	item := toStageJson(f.item)
 	item.AppId = &sent.AppId
 	item.PrivateKeySecretName = &sent.PrivateKeySecretName
 	item.State = &nextState
@@ -679,7 +679,7 @@ func modifyPlan(t *testing.T, prior, planned tftypes.Value) *resource.ModifyPlan
 	return resp
 }
 
-const itemPath = "/integrations/github-repositories/config/repository-access/my-github-org"
+const itemPath = "/integrations/github/config/repository-access/my-github-org"
 
 // An update of an item that P0 has verified, at configure or installed, posts the
 // configure step alone, with the new App, so P0 checks the install once. A staged item
@@ -734,7 +734,7 @@ func TestRepositoryAccessUpdateFailedCheck(t *testing.T) {
 	resp := update(t, configuredResource(t, server), prior, rawOf(t, planned))
 
 	errs := resp.Diagnostics.Errors()
-	if len(errs) != 1 || errs[0].Summary() != "GitHub Repositories install check failed" {
+	if len(errs) != 1 || errs[0].Summary() != "GitHub install check failed" {
 		t.Fatalf("diagnostics = %v; want the failed check", resp.Diagnostics)
 	}
 	want := []string{"POST " + itemPath + `/configure {"appId":"777777","privateKeySecretName":"github/my-github-org/private-key"}`}

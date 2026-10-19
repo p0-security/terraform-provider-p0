@@ -1,4 +1,4 @@
-package installgithubrepositories
+package installgithub
 
 import (
 	"context"
@@ -64,34 +64,34 @@ func NewRepositoryAccess() resource.Resource {
 }
 
 func (*RepositoryAccess) Metadata(_ context.Context, req resource.MetadataRequest, res *resource.MetadataResponse) {
-	res.TypeName = req.ProviderTypeName + "_github_repositories"
+	res.TypeName = req.ProviderTypeName + "_github"
 }
 
 func (*RepositoryAccess) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A GitHub Repositories installation for one GitHub organization.
+		MarkdownDescription: `A GitHub installation for one GitHub organization.
 
-Installing GitHub Repositories lets P0 grant your organization's members just-in-time roles on its repositories. P0 acts through a GitHub App that you create and install on the organization, and through a connector that you deploy in your own AWS account. The App's private key stays in your secret manager, and only the connector reads it. Each organization needs its own App and its own connector.
+Installing GitHub lets P0 grant your organization's members just-in-time roles on its repositories. P0 acts through a GitHub App that you create and install on the organization, and through a connector that you deploy in your own AWS account. The App's private key stays in your secret manager, and only the connector reads it. Each organization needs its own App and its own connector.
 
-GitHub Repositories supports only AWS for now: the connector runs on AWS Lambda, and the App's private key is stored in AWS Secrets Manager.
+GitHub supports only AWS for now: the connector runs on AWS Lambda, and the App's private key is stored in AWS Secrets Manager.
 
 **Important:** Create the App and store its private key before you apply this resource, and deploy the connector first: in an earlier apply, or in the same one with this resource depending on the connector's access grants, as the example does. Creating this resource has P0 check the install through the connector: that P0 can invoke the connector, that the connector can read the private key, and that the App is installed on the organization with the permissions it needs. If a check fails, the apply fails with P0's message.
 
 Changing ` + "`vault`" + `, ` + "`hosting`" + ` or ` + "`private_key_secret_name`" + ` replaces the installation. To rotate the private key, add a new version to the same secret, which needs no change here. Changing ` + "`app_id`" + ` updates the installation in place, and P0 checks the install again. If the check fails, the apply fails, and an installed organization keeps its current App. An installation that P0 hasn't finished, such as one imported before its checks passed, plans an update, and applying it finishes the install.
 
-P0 checks where the connector runs, and the secret's name, when it creates the installation, and so does a plan. ` + "`hosting.connector_name`" + ` has 2 to 64 characters: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. ` + "`private_key_secret_name`" + ` is the secret's name, not its ARN, and can't end in a hyphen and six letters or digits, like ` + "`-AbCdEf`" + `. The connector and the secret must be in commercial AWS regions: GitHub Repositories doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions yet.
+P0 checks where the connector runs, and the secret's name, when it creates the installation, and so does a plan. ` + "`hosting.connector_name`" + ` has 2 to 64 characters: lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. ` + "`private_key_secret_name`" + ` is the secret's name, not its ARN, and can't end in a hyphen and six letters or digits, like ` + "`-AbCdEf`" + `. The connector and the secret must be in commercial AWS regions: the GitHub integration doesn't support AWS GovCloud, China, ISO or European Sovereign Cloud regions.
 
 **Prerequisites:**
 
 - A GitHub App for the organization. Make it private, turn off its webhook, and give it these permissions:
   - Repository: Administration (read and write) and Metadata (read)
-  - Organization: Members (read) and Custom repository roles (read)
+  - Organization: Members (read and write) and Custom repository roles (read)
 
   An owner of the organization installs the App. Generate a private key for it, and store the key as a secret in AWS Secrets Manager, in the account and region that ` + "`vault`" + ` names.
 
   **Warning:** Administration: write lets the App change roles on, and administer, every repository it is installed on. Select only the repositories P0 should manage.
 
-- P0's GitHub Repositories connector on AWS Lambda, from the image ` + "`p0security/p0-connector-github-repositories`" + `. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. P0's GitHub Repositories installer generates Terraform that deploys the connector with its image pinned, as in the example.
+- P0's GitHub connector on AWS Lambda, from the image ` + "`p0security/p0-connector-github`" + `. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. P0's GitHub installer generates Terraform that deploys the connector with its image pinned, as in the example.
 
   Grant the connector's execution role read access to the private key secret alone, never through a wildcard that matches other secrets, or at the account level. P0 names the secret in each call, so any other secret the connector can read is one a call could point it at.
 
@@ -101,7 +101,7 @@ P0 checks where the connector runs, and the secret's name, when it creates the i
 
 **Note:** This integration is in beta.
 
-For the full install steps, see [GitHub Repositories](https://docs.p0.dev/integrations/resource-integrations/github-repositories).`,
+For the full install steps, see [GitHub](https://docs.p0.dev/integrations/resource-integrations/github).`,
 		Attributes: map[string]schema.Attribute{
 			"org": schema.StringAttribute{
 				Required:            true,
@@ -161,12 +161,12 @@ func (*RepositoryAccess) ValidateConfig(ctx context.Context, req resource.Valida
 var appIdRules = []rule{{
 	summary: "Invalid GitHub App ID",
 	message: InvalidAppId,
-	test:    githubAppIdRegex.MatchString,
+	test:    githubAppIdPattern.MatchString,
 }}
 
 // P0 checks the item's ID as it is, without trimming it.
 func validateOrgLogin(org types.String, diags *diag.Diagnostics) {
-	if installapp.IsSet(org) && !GithubOrgRegex.MatchString(org.ValueString()) {
+	if installapp.IsSet(org) && !GithubOrgPattern.MatchString(org.ValueString()) {
 		diags.AddAttributeError(path.Root("org"), "Invalid GitHub organization login", InvalidOrgLogin)
 	}
 }
@@ -201,7 +201,7 @@ func validateField(attribute path.Path, value types.String, rules []rule, diags 
 func (r *RepositoryAccess) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	data := internal.Configure(&req, resp)
 	r.installer = &common.Install{
-		Integration:        GithubRepositoriesKey,
+		Integration:        GithubKey,
 		Component:          installresources.RepositoryAccess,
 		ProviderData:       data,
 		GetId:              r.getId,
@@ -216,7 +216,7 @@ func (r *RepositoryAccess) Configure(ctx context.Context, req resource.Configure
 // problem in the customer's setup, which P0's message describes. The wording doesn't
 // presume where the problem is, and leaves that to P0's message.
 func describeCheckError(org string, err error) (string, string) {
-	return "GitHub Repositories install check failed",
+	return "GitHub install check failed",
 		fmt.Sprintf("P0 rejected the install check for the GitHub organization %q:\n\n%s", org, err)
 }
 
@@ -249,7 +249,7 @@ func (r *RepositoryAccess) fromJson(_ context.Context, diags *diag.Diagnostics, 
 	if jsonv.Vault == nil || jsonv.Hosting == nil {
 		diags.AddError(
 			"Bad API response",
-			fmt.Sprintf("The GitHub Repositories install %s carries no vault or hosting configuration. "+
+			fmt.Sprintf("The GitHub install %s carries no vault or hosting configuration. "+
 				"Configure it in the P0 app, or remove it from Terraform state with `terraform state rm`.", id),
 		)
 		return nil
@@ -259,8 +259,8 @@ func (r *RepositoryAccess) fromJson(_ context.Context, diags *diag.Diagnostics, 
 	// created in the P0 app, can't be read into its schema.
 	if jsonv.Vault.Type != AwsSecretsManager || jsonv.Hosting.Type != installapp.AwsHosting {
 		diags.AddError(
-			"Unsupported GitHub Repositories install",
-			fmt.Sprintf("The GitHub Repositories install %s has a %q vault and %q hosting. "+
+			"Unsupported GitHub install",
+			fmt.Sprintf("The GitHub install %s has a %q vault and %q hosting. "+
 				"This provider supports only %q with %q for now. Manage it in the P0 app, "+
 				"or remove it from Terraform state with `terraform state rm`.",
 				id, jsonv.Vault.Type, jsonv.Hosting.Type, AwsSecretsManager, installapp.AwsHosting),
@@ -294,7 +294,7 @@ func (r *RepositoryAccess) toJson(data any) any {
 // field before it creates the item, so a value it refuses leaves nothing staged, and
 // its error for one doesn't repeat the value, which may be a key pasted in place of
 // the secret's name.
-func stageJson(data *repositoryAccessModel) *repositoryAccessJson {
+func toStageJson(data *repositoryAccessModel) *repositoryAccessJson {
 	json := repositoryAccessJson{
 		AppId:                data.AppId.ValueStringPointer(),
 		PrivateKeySecretName: data.PrivateKeySecretName.ValueStringPointer(),
@@ -317,7 +317,7 @@ func (r *RepositoryAccess) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, stageJson(&data))
+	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, toStageJson(&data))
 	if resp.Diagnostics.HasError() {
 		return
 	}
