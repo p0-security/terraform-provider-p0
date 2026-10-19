@@ -102,8 +102,8 @@ locals {
     # P0's connector image: its tag on Docker Hub, and the digest that tag must
     # resolve to. Use the pinned values in the Terraform that P0's installer
     # shows.
-    image_tag    = "sha-1234567"
-    image_digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    image_tag    = "sha-1fc8f6a"
+    image_digest = "sha256:d34fa18dde0a1635926d6ceb13f3540a2c5af289b747c313bd3c2172c42433ba"
   }
 }
 
