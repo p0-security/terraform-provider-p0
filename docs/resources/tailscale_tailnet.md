@@ -388,6 +388,7 @@ resource "p0_tailscale_tailnet" "oauth_example" {
 ### Read-Only
 
 - `discovery` (String) What P0 found on the tailnet when it last validated it, such as its tags, subnet routes and groups. Direct-write mode adds one group per open grant, and Tailscale's plans cap a tailnet's groups.
+- `dns_name` (String) The tailnet's DNS name, such as `tail1234.ts.net`, as P0 found it when it last validated the tailnet. Requestors and approvers see it next to the Tailnet ID. Empty when the tailnet has no device of its own.
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured

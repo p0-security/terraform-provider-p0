@@ -62,6 +62,7 @@ type tailscaleTailnetModel struct {
 	Mode          types.String     `tfsdk:"mode"`
 	Discovery     types.String     `tfsdk:"discovery"`
 	SuggestedMode types.String     `tfsdk:"suggested_mode"`
+	DnsName       types.String     `tfsdk:"dns_name"`
 	State         types.String     `tfsdk:"state"`
 }
 
@@ -87,6 +88,7 @@ type tailscaleTailnetJson struct {
 	Mode          *selectJson     `json:"mode,omitempty"`
 	Discovery     *string         `json:"discovery,omitempty"`
 	SuggestedMode *string         `json:"suggestedMode,omitempty"`
+	DnsName       *string         `json:"dnsName,omitempty"`
 	State         *string         `json:"state,omitempty"`
 }
 
@@ -204,6 +206,10 @@ For the full install steps, see [Tailscale](https://docs.p0.dev/integrations/res
 			"suggested_mode": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The mode that suits the tailnet's policy file, as P0 found it when it last validated the tailnet: `posture` when \"prevent edits in the admin console\" is on, `direct-write` otherwise.",
+			},
+			"dns_name": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The tailnet's DNS name, such as `tail1234.ts.net`, as P0 found it when it last validated the tailnet. Requestors and approvers see it next to the Tailnet ID. Empty when the tailnet has no device of its own.",
 			},
 			"state": common.StateAttribute,
 		},
@@ -369,6 +375,7 @@ func (r *TailscaleTailnet) fromJson(_ context.Context, diags *diag.Diagnostics, 
 		Mode:          types.StringValue(jsonv.Mode.Type),
 		Discovery:     types.StringPointerValue(jsonv.Discovery),
 		SuggestedMode: types.StringPointerValue(jsonv.SuggestedMode),
+		DnsName:       types.StringPointerValue(jsonv.DnsName),
 		State:         types.StringPointerValue(jsonv.State),
 	}
 }
@@ -508,7 +515,7 @@ func (*TailscaleTailnet) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	if refuseFixedChanges(ctx, req.State, req.Plan, &resp.Diagnostics) || resp.Diagnostics.HasError() {
 		return
 	}
-	planUnfinishedInstall(ctx, req, resp, path.Root("discovery"), path.Root("suggested_mode"))
+	planUnfinishedInstall(ctx, req, resp, path.Root("discovery"), path.Root("suggested_mode"), path.Root("dns_name"))
 }
 
 // Terraform plans an update in two cases. ModifyPlan plans one to finish the install of
