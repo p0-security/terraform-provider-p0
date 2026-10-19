@@ -49,7 +49,7 @@ type poolAccountApi struct {
 	Item *poolAccountJson `json:"item"`
 }
 
-// The app's messages for a missing field (backend/src/install/pool-account.ts), with a
+// The app's message for a missing email (backend/src/install/pool-account.ts), with a
 // note about whitespace added, since the provider also refuses a padded value that P0
 // would trim.
 const invalidEmail = "Enter the service account's email, as Atlassian shows it, with no whitespace around it"
