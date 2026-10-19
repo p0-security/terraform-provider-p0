@@ -1,0 +1,284 @@
+# Installs P0's Entra Agent Identity Creator connector on Azure Container Apps
+# in one apply. Full chain: p0_entra_agent_identity_creator_staged -> the
+# connector's Container App, managed identity and app registration ->
+# p0_entra_agent_identity_creator.
+#
+# Whoever applies this needs two sets of roles. In Microsoft Entra ID:
+# Application Developer (or a directory that lets users register
+# applications) and Privileged Role Administrator. On the subscription:
+# Contributor plus Role Based Access Control Administrator, or Owner.
+
+terraform {
+  required_providers {
+    p0 = {
+      source = "p0-security/p0"
+    }
+    azapi = {
+      source  = "Azure/azapi"
+      version = "~> 2"
+    }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3"
+    }
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4"
+    }
+  }
+}
+
+locals {
+  entra_agent_identity = {
+    directory_id    = "11111111-1111-1111-1111-111111111111"
+    subscription_id = "22222222-2222-2222-2222-222222222222"
+    region          = "eastus"
+    # The Microsoft Graph app roles a per-grant app may hold, separated by
+    # commas. P0 and the connector both refuse any other.
+    app_role_allowlist = "Sites.Selected"
+    # Your P0 gateway's issuer: its domain_hosting.oauth_endpoint, or its url
+    # when that isn't set. Per-grant apps trust only this issuer.
+    agentic_issuer = "https://gateway.example.com"
+    # P0 finds the connector's Container App by this name. Don't change it.
+    connector_name = "p0-entra-agent-identity"
+  }
+}
+
+provider "azurerm" {
+  tenant_id       = local.entra_agent_identity.directory_id
+  subscription_id = local.entra_agent_identity.subscription_id
+  features {}
+}
+
+provider "azuread" {
+  tenant_id = local.entra_agent_identity.directory_id
+}
+
+provider "azapi" {
+  tenant_id       = local.entra_agent_identity.directory_id
+  subscription_id = local.entra_agent_identity.subscription_id
+}
+
+resource "p0_entra_agent_identity_creator_staged" "example" {
+  directory_id       = local.entra_agent_identity.directory_id
+  subscription_id    = local.entra_agent_identity.subscription_id
+  region             = local.entra_agent_identity.region
+  app_role_allowlist = local.entra_agent_identity.app_role_allowlist
+}
+
+resource "azurerm_resource_group" "p0_entra_agent_identity_connector" {
+  name     = local.entra_agent_identity.connector_name
+  location = local.entra_agent_identity.region
+}
+
+resource "azurerm_log_analytics_workspace" "p0_entra_agent_identity_connector" {
+  name                = local.entra_agent_identity.connector_name
+  location            = azurerm_resource_group.p0_entra_agent_identity_connector.location
+  resource_group_name = azurerm_resource_group.p0_entra_agent_identity_connector.name
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+}
+
+# The connectors of Microsoft 365 integrations in this directory are deployed
+# in this environment too.
+resource "azurerm_container_app_environment" "p0_entra_agent_identity_connector" {
+  name                       = local.entra_agent_identity.connector_name
+  location                   = azurerm_resource_group.p0_entra_agent_identity_connector.location
+  resource_group_name        = azurerm_resource_group.p0_entra_agent_identity_connector.name
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.p0_entra_agent_identity_connector.id
+}
+
+# The connector's own identity. It owns every per-grant app it creates, and
+# holds the Microsoft Graph app roles below.
+resource "azurerm_user_assigned_identity" "p0_entra_agent_identity_connector" {
+  name                = local.entra_agent_identity.connector_name
+  location            = azurerm_resource_group.p0_entra_agent_identity_connector.location
+  resource_group_name = azurerm_resource_group.p0_entra_agent_identity_connector.name
+}
+
+data "azuread_service_principal" "p0_entra_agent_identity_msgraph" {
+  client_id = "00000003-0000-0000-c000-000000000000"
+}
+
+# AppRoleAssignment.ReadWrite.All can assign any app role in the directory.
+# The connector assigns only the roles in P0_APP_ROLE_ALLOWLIST, and only to
+# apps it created.
+resource "azuread_app_role_assignment" "p0_entra_agent_identity_connector_graph" {
+  for_each = toset([
+    "Application.Read.All",
+    "Application.ReadWrite.OwnedBy",
+    "AppRoleAssignment.ReadWrite.All",
+  ])
+
+  app_role_id         = data.azuread_service_principal.p0_entra_agent_identity_msgraph.app_role_ids[each.value]
+  principal_object_id = azurerm_user_assigned_identity.p0_entra_agent_identity_connector.principal_id
+  resource_object_id  = data.azuread_service_principal.p0_entra_agent_identity_msgraph.object_id
+}
+
+resource "azurerm_container_app" "p0_entra_agent_identity_connector" {
+  name                         = local.entra_agent_identity.connector_name
+  container_app_environment_id = azurerm_container_app_environment.p0_entra_agent_identity_connector.id
+  resource_group_name          = azurerm_resource_group.p0_entra_agent_identity_connector.name
+  revision_mode                = "Single"
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.p0_entra_agent_identity_connector.id]
+  }
+
+  ingress {
+    external_enabled = true
+    target_port      = 8080
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+
+  template {
+    min_replicas = 1
+    max_replicas = 1
+
+    container {
+      name = "connector"
+      # P0's connector image, pinned by its tag and digest.
+      # TODO(INT-777): the published tag and digest, from the app's
+      # CONNECTOR_IMAGE once INT-771 pins it.
+      image  = "docker.io/p0security/p0-connector-entra-agent-identity-azure:sha-0000000@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      cpu    = 0.25
+      memory = "0.5Gi"
+
+      env {
+        name  = "AZURE_CLIENT_ID"
+        value = azurerm_user_assigned_identity.p0_entra_agent_identity_connector.client_id
+      }
+
+      env {
+        name  = "P0_INVOKER_TENANT_ID"
+        value = local.entra_agent_identity.directory_id
+      }
+
+      env {
+        name  = "P0_INVOKER_CLIENT_ID"
+        value = azuread_application.p0_entra_agent_identity_connector.client_id
+      }
+
+      env {
+        name  = "P0_AGENTIC_ISSUER"
+        value = local.entra_agent_identity.agentic_issuer
+      }
+
+      env {
+        name  = "P0_APP_ROLE_ALLOWLIST"
+        value = local.entra_agent_identity.app_role_allowlist
+      }
+    }
+  }
+}
+
+data "azuread_client_config" "current" {}
+
+# The app registration P0 calls the connector as.
+resource "azuread_application" "p0_entra_agent_identity_connector" {
+  display_name     = "P0 Entra Agent Identity Creator connector"
+  sign_in_audience = "AzureADMyOrg"
+  owners           = [data.azuread_client_config.current.object_id]
+
+  api {
+    requested_access_token_version = 2
+  }
+
+  lifecycle {
+    ignore_changes = [identifier_uris]
+  }
+}
+
+resource "azuread_application_identifier_uri" "p0_entra_agent_identity_connector" {
+  application_id = azuread_application.p0_entra_agent_identity_connector.id
+  identifier_uri = "api://${azuread_application.p0_entra_agent_identity_connector.client_id}"
+}
+
+resource "azuread_service_principal" "p0_entra_agent_identity_connector" {
+  client_id = azuread_application.p0_entra_agent_identity_connector.client_id
+  owners    = [data.azuread_client_config.current.object_id]
+}
+
+# P0 signs in as the app registration with its service account's token
+# instead of a secret.
+resource "azuread_application_federated_identity_credential" "p0_entra_agent_identity_invoker" {
+  application_id = azuread_application.p0_entra_agent_identity_connector.id
+  display_name   = "p0-invoker"
+  issuer         = "https://accounts.google.com"
+  subject        = p0_entra_agent_identity_creator_staged.example.service_account_id
+  audiences      = ["api://AzureADTokenExchange"]
+}
+
+# P0 reads the Container App, as the app registration, to get the connector's
+# URL and identity.
+resource "azurerm_role_assignment" "p0_entra_agent_identity_reader" {
+  scope                = azurerm_container_app.p0_entra_agent_identity_connector.id
+  role_definition_name = "Reader"
+  principal_id         = azuread_service_principal.p0_entra_agent_identity_connector.object_id
+  principal_type       = "ServicePrincipal"
+}
+
+# Easy Auth admits only tokens from this directory for the connector's app
+# registration.
+resource "azapi_resource" "p0_entra_agent_identity_connector_auth" {
+  type      = "Microsoft.App/containerApps/authConfigs@2024-03-01"
+  name      = "current"
+  parent_id = azurerm_container_app.p0_entra_agent_identity_connector.id
+
+  body = {
+    properties = {
+      platform = {
+        enabled = true
+      }
+      globalValidation = {
+        unauthenticatedClientAction = "Return401"
+      }
+      identityProviders = {
+        azureActiveDirectory = {
+          enabled = true
+          registration = {
+            clientId     = azuread_application.p0_entra_agent_identity_connector.client_id
+            openIdIssuer = "https://login.microsoftonline.com/${local.entra_agent_identity.directory_id}/v2.0"
+          }
+          validation = {
+            allowedAudiences = [azuread_application.p0_entra_agent_identity_connector.client_id]
+            defaultAuthorizationPolicy = {
+              allowedApplications = [azuread_application.p0_entra_agent_identity_connector.client_id]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Completes the install. Creating it reads the Container App and checks that P0
+# can reach the connector, which can take a few minutes while the federated
+# identity credential starts working.
+resource "p0_entra_agent_identity_creator" "example" {
+  directory_id        = p0_entra_agent_identity_creator_staged.example.directory_id
+  connector_client_id = azuread_application.p0_entra_agent_identity_connector.client_id
+
+  depends_on = [
+    azuread_application_federated_identity_credential.p0_entra_agent_identity_invoker,
+    azuread_application_identifier_uri.p0_entra_agent_identity_connector,
+    azurerm_role_assignment.p0_entra_agent_identity_reader,
+    azapi_resource.p0_entra_agent_identity_connector_auth,
+    azuread_app_role_assignment.p0_entra_agent_identity_connector_graph,
+  ]
+}
+
+# Microsoft 365 integrations in this directory chain to the install by its
+# directory_id. Their connectors run in its environment and check app
+# ownership against forge_client_id.
+output "entra_agent_identity_environment_id" {
+  value = p0_entra_agent_identity_creator.example.environment_id
+}
+
+output "entra_agent_identity_forge_client_id" {
+  value = p0_entra_agent_identity_creator.example.forge_client_id
+}
