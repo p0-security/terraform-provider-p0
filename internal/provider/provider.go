@@ -54,6 +54,7 @@ import (
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
 	installsalesforceai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/salesforce-ai"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
+	installtailscale "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/tailscale"
 	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/settings"
 )
 
@@ -252,6 +253,10 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installargocd.NewArgocdConnectorStaged,
 		installargocd.NewArgocdConnector,
 		installargocd.NewArgocdInstance,
+		installtailscale.NewTailscaleConnectorStaged,
+		installtailscale.NewTailscaleConnector,
+		installtailscale.NewTailscaleTailnet,
+		installtailscale.NewTailscaleDestination,
 		installfiletransfer.NewFileTransferIamWrite,
 		installawssm.NewAwsSmVault,
 		installapp.NewAppIamWrite,
