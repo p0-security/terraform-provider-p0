@@ -96,12 +96,10 @@ locals {
     # The role P0 assumes in this account, which invokes the connector.
     p0_role_name = "P0RoleIamManager"
     # P0's connector image: its tag on Docker Hub, and the digest that tag must
-    # resolve to. These are placeholders, for an image that doesn't exist. Use
-    # the pinned values in the Terraform that P0's installer shows, or the
-    # image's published tag and digest.
-    # TODO(INT-495): pin the first published p0-connector-github build.
-    image_tag    = "sha-1234567"
-    image_digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    # resolve to. To move to a newer build, use the pinned values in the
+    # Terraform that P0's installer shows.
+    image_tag    = "sha-7815680"
+    image_digest = "sha256:5952bb06e8dfdabc3e24f2f64258ecf4c28acd6cdb99d101f2a8df08bb9488aa"
   }
 }
 
