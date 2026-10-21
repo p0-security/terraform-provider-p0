@@ -328,50 +328,77 @@ func TestDatabricksAiAccountUpdatedOnNewApplicationId(t *testing.T) {
 	})
 }
 
-// P0 checks a new application ID on the configure step alone, which saves
-// nothing when the check fails. So a failed update leaves the account installed
-// with its current ID, which grants and revokes in it keep using, and the next
-// plan shows the update again.
-func TestDatabricksAiAccountKeptWhenNewApplicationIdFails(t *testing.T) {
-	f := newDatabricksAiFake(t)
+// P0 checks a new application ID or owner principal on the configure step
+// alone, which saves nothing when the check fails. So a failed update leaves the
+// account installed with its current value, which grants and revokes in it keep
+// using, and the next plan shows the update again.
+func TestDatabricksAiAccountKeptWhenUpdateFails(t *testing.T) {
 	d := databricksAiTestDefaults
-	changed := d
-	changed.applicationId = databricksAiNewApplicationId
-	// The new service principal can't sign in yet, for example because its
-	// federation policy isn't applied, so P0's check on the configure step fails.
-	var refuseConfigure atomic.Bool
-	f.refuse = func(key fakeItemKey, nextState string) bool {
-		return refuseConfigure.Load() && key.component == "account" && nextState == "installed"
+	cases := []struct {
+		name, attribute, field, current, want string
+		change                                func(*databricksAiTestInstall)
+	}{
+		// The new service principal can't sign in yet, for example because its
+		// federation policy isn't applied.
+		{
+			name:      "ApplicationId",
+			attribute: "application_id",
+			field:     "applicationId",
+			current:   d.applicationId,
+			want:      databricksAiNewApplicationId,
+			change:    func(d *databricksAiTestInstall) { d.applicationId = databricksAiNewApplicationId },
+		},
+		// The new owner principal names no principal in the account, or more
+		// than one.
+		{
+			name:      "OwnerPrincipal",
+			attribute: "owner_principal",
+			field:     "ownerPrincipal",
+			current:   d.ownerPrincipal,
+			want:      "data-owners",
+			change:    func(d *databricksAiTestInstall) { d.ownerPrincipal = "data-owners" },
+		},
 	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newDatabricksAiFake(t)
+			changed := d
+			c.change(&changed)
+			var refuseConfigure atomic.Bool
+			f.refuse = func(key fakeItemKey, nextState string) bool {
+				return refuseConfigure.Load() && key.component == "account" && nextState == "installed"
+			}
 
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             checkDatabricksAiDestroyed(f.client()),
-		Steps: []resource.TestStep{
-			{Config: f.providerConfig() + d.account()},
-			{
-				PreConfig:   func() { refuseConfigure.Store(true) },
-				Config:      f.providerConfig() + changed.account(),
-				ExpectError: regexp.MustCompile(`Databricks \(AI\) install check failed`),
-			},
-			{
-				PreConfig: func() {
-					refuseConfigure.Store(false)
-					if item := f.item("databricks-ai", "account", d.accountId); item["state"] != "installed" || item["applicationId"] != d.applicationId {
-						t.Errorf("after the failed update, P0 has the account %v, want it installed with application ID %s", item, d.applicationId)
-					}
-				},
-				Config: f.providerConfig() + changed.account(),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_databricks_ai_account.test", plancheck.ResourceActionUpdate),
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				CheckDestroy:             checkDatabricksAiDestroyed(f.client()),
+				Steps: []resource.TestStep{
+					{Config: f.providerConfig() + d.account()},
+					{
+						PreConfig:   func() { refuseConfigure.Store(true) },
+						Config:      f.providerConfig() + changed.account(),
+						ExpectError: regexp.MustCompile(`Databricks \(AI\) install check failed`),
+					},
+					{
+						PreConfig: func() {
+							refuseConfigure.Store(false)
+							if item := f.item("databricks-ai", "account", d.accountId); item["state"] != "installed" || item[c.field] != c.current {
+								t.Errorf("after the failed update, P0 has the account %v, want it installed with %s %s", item, c.field, c.current)
+							}
+						},
+						Config: f.providerConfig() + changed.account(),
+						ConfigPlanChecks: resource.ConfigPlanChecks{
+							PreApply: []plancheck.PlanCheck{
+								plancheck.ExpectResourceAction("p0_databricks_ai_account.test", plancheck.ResourceActionUpdate),
+							},
+						},
+						Check: resource.ComposeAggregateTestCheckFunc(
+							resource.TestCheckResourceAttr("p0_databricks_ai_account.test", c.attribute, c.want),
+							resource.TestCheckResourceAttr("p0_databricks_ai_account.test", "state", "installed"),
+						),
 					},
 				},
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("p0_databricks_ai_account.test", "application_id", changed.applicationId),
-					resource.TestCheckResourceAttr("p0_databricks_ai_account.test", "state", "installed"),
-				),
-			},
-		},
-	})
+			})
+		})
+	}
 }

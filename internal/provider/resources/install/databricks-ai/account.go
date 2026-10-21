@@ -44,7 +44,7 @@ func (*Account) Schema(_ context.Context, _ resource.SchemaRequest, resp *resour
 	// a change. The connector checks that the value names one principal.
 	attributes["owner_principal"] = schema.StringAttribute{
 		Required:            true,
-		MarkdownDescription: "Who owns what an agent creates once its access ends: a group's display name, a user's `userName`, or a service principal's application ID. Before P0 deletes an agent's service principal, it hands each table, view, volume and function the agent created to this principal. P0 checks that it names exactly one group, user or service principal in the account. Changing it updates the account in place, and P0 checks the install again.",
+		MarkdownDescription: "Who owns what an agent creates once its access ends: a group's display name, a user's `userName`, or a service principal's application ID. Before P0 deletes an agent's service principal, it hands each table, view, materialized view, volume and function the agent created to this principal. P0 checks that it names exactly one group, user or service principal in the account. Changing it updates the account in place, and P0 checks the install again.",
 		Validators:          []validator.String{noWhitespaceAround()},
 	}
 

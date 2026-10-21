@@ -173,7 +173,7 @@ resource "p0_databricks_ai_account" "example" {
 - `application_id` (String) The application ID of the service principal that the connector signs in to Databricks as, e.g. `databricks_service_principal.application_id`. Changing it updates the account in place, and P0 checks the install again.
 - `connector` (String) The `id` of the `p0_databricks_ai_connector` that reaches this account, which is the ID of the AWS account that the connector runs in
 - `id` (String) The Databricks account ID
-- `owner_principal` (String) Who owns what an agent creates once its access ends: a group's display name, a user's `userName`, or a service principal's application ID. Before P0 deletes an agent's service principal, it hands each table, view, volume and function the agent created to this principal. P0 checks that it names exactly one group, user or service principal in the account. Changing it updates the account in place, and P0 checks the install again.
+- `owner_principal` (String) Who owns what an agent creates once its access ends: a group's display name, a user's `userName`, or a service principal's application ID. Before P0 deletes an agent's service principal, it hands each table, view, materialized view, volume and function the agent created to this principal. P0 checks that it names exactly one group, user or service principal in the account. Changing it updates the account in place, and P0 checks the install again.
 
 ### Read-Only
 
