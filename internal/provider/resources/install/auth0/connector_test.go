@@ -329,7 +329,7 @@ const (
 	gcpNameRule    = "Use 6 to 30 characters for the connector name: lowercase letters, digits and hyphens, starting with a letter and ending with a letter or digit. The connector's service account takes the same name."
 	gcpProjectRule = "Enter the ID of the Google Cloud project the connector runs in."
 	gcpRegionRule  = "Enter the Google Cloud region the connector runs in, such as us-west1."
-	unsupported    = "P0's Auth0 integration supports only AWS's commercial regions for now."
+	unsupported    = "P0's Auth0 integration supports only AWS's commercial regions. Enter a commercial region, such as us-west-2."
 )
 
 var (

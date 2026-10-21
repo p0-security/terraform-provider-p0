@@ -51,7 +51,7 @@ const invalidClientId = "Enter the client ID of the Auth0 machine-to-machine app
 // packages/integrations/auth0/backend/src/install/validation.ts in the app.
 
 // P0's message for a region outside AWS's commercial partition.
-const unsupportedAwsPartition = "P0's Auth0 integration supports only AWS's commercial regions for now."
+const unsupportedAwsPartition = "P0's Auth0 integration supports only AWS's commercial regions. Enter a commercial region, such as us-west-2."
 
 var (
 	connectorPlace = place{what: "the connector", where: "the connector runs in"}
