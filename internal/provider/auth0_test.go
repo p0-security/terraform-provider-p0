@@ -456,6 +456,20 @@ func TestAuth0OnAws(t *testing.T) {
 				),
 			},
 			{
+				ResourceName:      "p0_auth0_connector_staged.example",
+				ImportState:       true,
+				ImportStateId:     auth0Connector,
+				ImportStateVerify: true,
+				// The staged resource's state is from before the connector was installed.
+				ImportStateVerifyIgnore: []string{"state"},
+			},
+			{
+				ResourceName:      "p0_auth0_connector.example",
+				ImportState:       true,
+				ImportStateId:     auth0Connector,
+				ImportStateVerify: true,
+			},
+			{
 				ResourceName:      "p0_auth0_tenant.example",
 				ImportState:       true,
 				ImportStateId:     auth0Tenant,
