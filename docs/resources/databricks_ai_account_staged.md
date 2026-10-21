@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   A staged Databricks (AI) account. P0 manages a Databricks account through a service principal there that the connector exchanges its AWS identity for.
   Staging records the account in P0 and checks its ID and accounts URL before you create the service principal. Then create the service principal and its federation policy, give it the account_admin role, make it metastore admin of every metastore in the account, and create a p0_databricks_ai_account resource with the same id to complete the installation.
-  P0 also grants the service principal MANAGE on system.ai in each metastore, and makes it workspace admin of each workspace an agent lists or requests, and of the lowest-ID workspace when the account is saved. P0 never undoes either.
+  P0 also makes the service principal workspace admin of each workspace an agent lists or requests, and of the lowest-ID workspace when the account is saved. P0 never undoes it.
   Prerequisite: The connector that reaches the account must be installed (see the p0_databricks_ai_connector resource).
   Note: This integration is in beta.
   For the full install steps, see Databricks MCP servers https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/databricks.
@@ -17,7 +17,7 @@ A staged Databricks (AI) account. P0 manages a Databricks account through a serv
 
 Staging records the account in P0 and checks its ID and accounts URL before you create the service principal. Then create the service principal and its federation policy, give it the `account_admin` role, make it metastore admin of every metastore in the account, and create a `p0_databricks_ai_account` resource with the same `id` to complete the installation.
 
-P0 also grants the service principal `MANAGE` on `system.ai` in each metastore, and makes it workspace admin of each workspace an agent lists or requests, and of the lowest-ID workspace when the account is saved. P0 never undoes either.
+P0 also makes the service principal workspace admin of each workspace an agent lists or requests, and of the lowest-ID workspace when the account is saved. P0 never undoes it.
 
 **Prerequisite:** The connector that reaches the account must be installed (see the `p0_databricks_ai_connector` resource).
 

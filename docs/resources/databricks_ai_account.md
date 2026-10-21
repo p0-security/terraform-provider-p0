@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   A Databricks (AI) account installation.
   Important: Before creating this resource you must stage the account with p0_databricks_ai_account_staged, and create a service principal in the account with a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is federation_audience (databricks). The service principal needs the account_admin role, and must be metastore admin of every metastore in the account, for example as a member of each metastore's admin group. Creating them takes a Databricks account admin.
-  P0 also grants the service principal MANAGE on system.ai in each metastore, and makes it workspace admin of each workspace an agent lists or requests, and of the lowest-ID workspace when the account is saved. P0 never undoes either.
+  P0 also makes the service principal workspace admin of each workspace an agent lists or requests, and of the lowest-ID workspace when the account is saved. P0 never undoes it.
   Every apply that creates or changes this resource has P0 check the install: that the connector can sign in as the service principal, that the principal is account admin and metastore admin, and that owner_principal names one principal. If a check fails, the apply fails with P0's message. The same step also checks the account's lowest-ID workspace for the Unity Gateway beta.
   An account that P0 hasn't finished installing, such as one imported before its install check passed, plans an update, and applying it finishes the install.
   Note: This integration is in beta.
@@ -18,7 +18,7 @@ A Databricks (AI) account installation.
 
 **Important:** Before creating this resource you must stage the account with `p0_databricks_ai_account_staged`, and create a service principal in the account with a federation policy that trusts the connector. The policy's issuer is the outbound identity federation issuer URL of the connector's AWS account, its subject is the ARN of the connector's role, and its audience is `federation_audience` (`databricks`). The service principal needs the `account_admin` role, and must be metastore admin of every metastore in the account, for example as a member of each metastore's admin group. Creating them takes a Databricks account admin.
 
-P0 also grants the service principal `MANAGE` on `system.ai` in each metastore, and makes it workspace admin of each workspace an agent lists or requests, and of the lowest-ID workspace when the account is saved. P0 never undoes either.
+P0 also makes the service principal workspace admin of each workspace an agent lists or requests, and of the lowest-ID workspace when the account is saved. P0 never undoes it.
 
 Every apply that creates or changes this resource has P0 check the install: that the connector can sign in as the service principal, that the principal is account admin and metastore admin, and that `owner_principal` names one principal. If a check fails, the apply fails with P0's message. The same step also checks the account's lowest-ID workspace for the Unity Gateway beta.
 
