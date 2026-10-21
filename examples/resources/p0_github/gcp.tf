@@ -49,11 +49,10 @@ locals {
     # P0's service account, which invokes the connector: its Google Cloud
     # integration's.
     p0_service_account_email = p0_gcp.example.service_account_email
-    # P0's connector image (sha-1234567), pinned by its digest. This is a
-    # placeholder, for an image that doesn't exist. Use the pinned image in the
-    # Terraform that P0's installer shows, or the image's published digest.
-    # TODO(INT-495): pin the first published p0-connector-github-gcloud build.
-    image = "docker.io/p0security/p0-connector-github-gcloud@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    # P0's connector image (sha-7815680), pinned by its digest. To move to a
+    # newer build, use the pinned image in the Terraform that P0's installer
+    # shows.
+    image = "docker.io/p0security/p0-connector-github-gcloud@sha256:880533b96898605e816cfc34a4d90d445705e343d94fe3fa1b868da11fb6a75d"
   }
 }
 
