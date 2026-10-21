@@ -119,6 +119,7 @@ Optional:
 - `integration` (String) Required, and may only be used, if 'type' is 'auto' or 'escalation'. Possible values:
 - 'pagerduty': Access is granted if the requestor is on-call in PagerDuty.
 - 'incidentio': Access is granted if the requestor is on-call in incident.io.
+- 'grafana-irm': Access is granted if the requestor is on-call for a Grafana IRM team.
 - `max_duration` (Attributes) Allows policy routing based on how long of a duration was requested as part of an access request. max_duration is the maximum request duration that will match this particular policy approval. When not set, requested duration will not affect policy routing and will follow default behavior. (see [below for nested schema](#nestedatt--approval--max_duration))
 - `options` (Attributes) If present, determines additional trust requirements. (see [below for nested schema](#nestedatt--approval--options))
 - `profile_property` (String) May only be used if 'type' is 'requestor-profile'. This is the profile attribute that contains the manager's email.

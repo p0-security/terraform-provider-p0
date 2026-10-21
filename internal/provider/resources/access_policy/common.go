@@ -385,7 +385,8 @@ func approvalAttribute(version int64) schema.ListNestedAttribute {
 			"integration": schema.StringAttribute{
 				MarkdownDescription: `Required, and may only be used, if 'type' is 'auto' or 'escalation'. Possible values:
 - 'pagerduty': Access is granted if the requestor is on-call in PagerDuty.
-- 'incidentio': Access is granted if the requestor is on-call in incident.io.`,
+- 'incidentio': Access is granted if the requestor is on-call in incident.io.
+- 'grafana-irm': Access is granted if the requestor is on-call for a Grafana IRM team.`,
 				Optional: true,
 			},
 			"options": schema.SingleNestedAttribute{
