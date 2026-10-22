@@ -42,6 +42,7 @@ import (
 	installgithub "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github"
 	installgithubai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-ai"
 	installgithubrepositories "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-repositories"
+	installgitlabai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gitlab-ai"
 	installgoogledriveai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/google-drive-ai"
 	installharbor "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/harbor"
 	installidentityprovider "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/identity-provider"
@@ -271,6 +272,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installgithubai.NewGithubAiCredential,
 		installdatadogai.NewDatadogAiCredentialStaged,
 		installdatadogai.NewDatadogAiCredential,
+		installgitlabai.NewGitlabAiCredentialStaged,
+		installgitlabai.NewGitlabAiCredential,
 		installpagerdutyai.NewPagerdutyAiCredentialStaged,
 		installpagerdutyai.NewPagerdutyAiCredential,
 		installsalesforceai.NewSalesforceAiOrgStaged,
