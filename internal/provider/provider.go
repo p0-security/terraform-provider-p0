@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/p0-security/terraform-provider-p0/internal"
+	installawssqs "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/aws-sqs"
 	installdatadog "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/datadog"
 	installsplunk "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/splunk"
 	accesspolicy "github.com/p0-security/terraform-provider-p0/internal/provider/resources/access_policy"
@@ -266,6 +267,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installapp.NewAppIamWrite,
 		installsplunk.NewAuditLogs,
 		installdatadog.NewAuditLogs,
+		installawssqs.NewAuditLogsStaged,
+		installawssqs.NewAuditLogs,
 		installawsoidc.NewAwsOidcIdentityStaged,
 		installawsoidc.NewAwsOidcIdentity,
 		installgcpwif.NewGcpWifIdentityStaged,
