@@ -158,6 +158,8 @@ Required:
 
 Optional:
 
+- `claims` (String) May only be used if 'type' is 'native'. Claims JSON. Use Liquid syntax to template request
+parameters, for example `{ "scopes": {{ request.permission.role | json }} }`.
 - `grant` (Attributes) Required, and may only be used, if 'type' is 'oauth'. The OAuth grant used to obtain the credential. (see [below for nested schema](#nestedatt--credential--grant))
 - `provider` (String) Required, and may only be used, if 'type' is 'aws' or 'gcp'. The `id` of the installed
 federation-provider identity (a `p0_aws_oidc_identity` or `p0_gcp_wif_identity` resource).
@@ -167,7 +169,11 @@ federation-provider identity (a `p0_aws_oidc_identity` or `p0_gcp_wif_identity` 
 
 Required:
 
-- `type` (String) The OAuth grant type. Currently only 'authorization_code' is supported.
+- `type` (String) The OAuth grant type. Only 'authorization_code' is supported.
+
+Optional:
+
+- `scope` (String) A comma-delimited list of scopes to request.
 
 
 

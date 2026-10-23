@@ -45,12 +45,14 @@ type Server struct {
 // app/shared/src/integrations/resources/agentic/components.ts's
 // `credentialSource` and `serverDefinition` elements exactly.
 type serverCredentialGrantModel struct {
-	Type string `tfsdk:"type" json:"type"`
+	Type  string  `tfsdk:"type" json:"type"`
+	Scope *string `tfsdk:"scope" json:"scope,omitempty"`
 }
 
 type serverCredentialModel struct {
 	Type     string                      `tfsdk:"type" json:"type"`
 	Provider *string                     `tfsdk:"provider" json:"provider,omitempty"`
+	Claims   *string                     `tfsdk:"claims" json:"claims,omitempty"`
 	Grant    *serverCredentialGrantModel `tfsdk:"grant" json:"grant,omitempty"`
 }
 
@@ -169,13 +171,22 @@ For the full install steps, see [MCP server](https://docs.p0.dev/integrations/re
 						MarkdownDescription: `Required, and may only be used, if 'type' is 'aws' or 'gcp'. The ` + "`id`" + ` of the installed
 federation-provider identity (a ` + "`p0_aws_oidc_identity`" + ` or ` + "`p0_gcp_wif_identity`" + ` resource).`,
 					},
+					"claims": schema.StringAttribute{
+						Optional: true,
+						MarkdownDescription: `May only be used if 'type' is 'native'. Claims JSON. Use Liquid syntax to template request
+parameters, for example ` + "`" + `{ "scopes": {{ request.permission.role | json }} }` + "`" + `.`,
+					},
 					"grant": schema.SingleNestedAttribute{
 						Optional:            true,
 						MarkdownDescription: "Required, and may only be used, if 'type' is 'oauth'. The OAuth grant used to obtain the credential.",
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								Required:            true,
-								MarkdownDescription: "The OAuth grant type. Currently only 'authorization_code' is supported.",
+								MarkdownDescription: "The OAuth grant type. Only 'authorization_code' is supported.",
+							},
+							"scope": schema.StringAttribute{
+								Optional:            true,
+								MarkdownDescription: "A comma-delimited list of scopes to request.",
 							},
 						},
 					},
@@ -187,9 +198,10 @@ federation-provider identity (a ` + "`p0_aws_oidc_identity`" + ` or ` + "`p0_gcp
 						"oauth": {"grant"},
 					}),
 					ExclusiveToAttr("type", map[string][]string{
-						"aws":   {"provider"},
-						"gcp":   {"provider"},
-						"oauth": {"grant"},
+						"aws":    {"provider"},
+						"gcp":    {"provider"},
+						"native": {"claims"},
+						"oauth":  {"grant"},
 					}),
 				},
 			},
