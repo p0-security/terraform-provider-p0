@@ -6,7 +6,7 @@ description: |-
   A Tableau site installation for agentic access.
   Installing it allows P0 to grant machines just-in-time access to the projects of a Tableau Cloud site, through an agent user on the site for each machine.
   Important: Before creating this resource you must stage the installation with p0_tableau_ai_staged and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the admin connected app's client ID, secret ID and secret value as a JSON version of the connector's admin connected app secret; the connector cannot grant access until that version exists.
-  Note: This integration is currently in preview.
+  Note: This integration is currently in beta.
 ---
 
 # p0_tableau_ai (Resource)
@@ -17,7 +17,7 @@ Installing it allows P0 to grant machines just-in-time access to the projects of
 
 **Important:** Before creating this resource you must stage the installation with `p0_tableau_ai_staged` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the admin connected app's client ID, secret ID and secret value as a JSON version of the connector's admin connected app secret; the connector cannot grant access until that version exists.
 
-**Note:** This integration is currently in preview.
+**Note:** This integration is currently in beta.
 
 ## Example Usage
 

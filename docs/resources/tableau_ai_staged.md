@@ -6,7 +6,7 @@ description: |-
   A staged Tableau site installation for agentic access. Staging generates the identifiers needed to deploy P0's Tableau connector.
   Use the read-only secret_manager connector attributes to deploy the connector's Cloud Run service and its admin connected app's secret. Once the connector is deployed, create a p0_tableau_ai resource with the same id to complete the installation.
   Prerequisite: P0 must be installed on the Google Cloud organization (for example via the p0_gcp resource).
-  Note: This integration is currently in preview.
+  Note: This integration is currently in beta.
 ---
 
 # p0_tableau_ai_staged (Resource)
@@ -17,7 +17,7 @@ Use the read-only `secret_manager` connector attributes to deploy the connector'
 
 **Prerequisite:** P0 must be installed on the Google Cloud organization (for example via the `p0_gcp` resource).
 
-**Note:** This integration is currently in preview.
+**Note:** This integration is currently in beta.
 
 ## Example Usage
 
