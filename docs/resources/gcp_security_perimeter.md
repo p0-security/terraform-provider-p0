@@ -104,6 +104,11 @@ resource "google_cloud_run_service" "p0_security_perimeter" {
           name  = "GCLOUD_PROJECT"
           value = local.p0_project_id
         }
+        # P0's service account email; current perimeter images reject P0's calls without it, and older images ignore it.
+        env {
+          name  = "INVOKER_SA_EMAIL"
+          value = p0_gcp.example.service_account_email
+        }
       }
       service_account_name = google_service_account.p0_security_perimeter_sa.email
     }
