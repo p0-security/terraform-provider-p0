@@ -31,6 +31,7 @@ import (
 	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
 	installawssm "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-sm"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
+	installclickhouse "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/clickhouse"
 	installdatabricks "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/databricks"
 	installdatadogai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/datadog-ai"
 	installdocker "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/docker"
@@ -245,6 +246,9 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installdocker.NewDockerConnectorStaged,
 		installdocker.NewDockerConnector,
 		installdocker.NewDockerOrganization,
+		installclickhouse.NewClickHouseConnectorStaged,
+		installclickhouse.NewClickHouseConnector,
+		installclickhouse.NewClickHouseOrganization,
 		installonepassword.NewOnePasswordConnectorStaged,
 		installonepassword.NewOnePasswordConnector,
 		installonepassword.NewOnePasswordAccount,
