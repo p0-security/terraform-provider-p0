@@ -52,7 +52,7 @@ Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the 
 
 **Prerequisites:** P0 must be installed on the Google Cloud organization (for example via the ` + "`p0_gcp`" + ` resource), and the instance must have the provisioner and JWT bearer inbound integrations set up.
 
-**Note:** This integration is currently in preview.
+**Note:** This integration is currently in beta.
 
 For the full install steps, see [ServiceNow](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/servicenow).`,
 		Attributes: map[string]schema.Attribute{

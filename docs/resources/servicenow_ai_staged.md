@@ -6,7 +6,7 @@ description: |-
   A staged ServiceNow instance installation for agentic access. Staging generates the identifiers needed to deploy P0's ServiceNow connector.
   Use the read-only secret_manager connector attributes to deploy the connector's Cloud Run service and its install secret. Once the connector is deployed and the install secret holds the client secrets and signing key, create a p0_servicenow_ai resource with the same id to complete the installation.
   Prerequisites: P0 must be installed on the Google Cloud organization (for example via the p0_gcp resource), and the instance must have the provisioner and JWT bearer inbound integrations set up.
-  Note: This integration is currently in preview.
+  Note: This integration is currently in beta.
   For the full install steps, see ServiceNow https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/servicenow.
 ---
 
@@ -18,7 +18,7 @@ Use the read-only `secret_manager` connector attributes to deploy the connector'
 
 **Prerequisites:** P0 must be installed on the Google Cloud organization (for example via the `p0_gcp` resource), and the instance must have the provisioner and JWT bearer inbound integrations set up.
 
-**Note:** This integration is currently in preview.
+**Note:** This integration is currently in beta.
 
 For the full install steps, see [ServiceNow](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/servicenow).
 

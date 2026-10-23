@@ -6,7 +6,7 @@ description: |-
   A ServiceNow instance installation for agentic access.
   Installing it allows P0 to grant agents ServiceNow roles on a machine user for each gateway session.
   Important: Before creating this resource you must stage the installation with p0_servicenow_ai_staged, deploy the connector's Cloud Run service, and add the client secrets and signing key as a version of the connector's install secret. Creating this resource verifies that the connector can sign in to the instance and read its roles.
-  Note: This integration is currently in preview.
+  Note: This integration is currently in beta.
   For the full install steps, see ServiceNow https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/servicenow.
 ---
 
@@ -18,7 +18,7 @@ Installing it allows P0 to grant agents ServiceNow roles on a machine user for e
 
 **Important:** Before creating this resource you must stage the installation with `p0_servicenow_ai_staged`, deploy the connector's Cloud Run service, and add the client secrets and signing key as a version of the connector's install secret. Creating this resource verifies that the connector can sign in to the instance and read its roles.
 
-**Note:** This integration is currently in preview.
+**Note:** This integration is currently in beta.
 
 For the full install steps, see [ServiceNow](https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/servicenow).
 
