@@ -17,20 +17,21 @@ import (
 var _ resource.Resource = &SnowflakeAiCredential{}
 var _ resource.ResourceWithConfigure = &SnowflakeAiCredential{}
 var _ resource.ResourceWithImportState = &SnowflakeAiCredential{}
+var _ resource.ResourceWithValidateConfig = &SnowflakeAiCredential{}
 
 type SnowflakeAiCredential struct {
 	installer *common.Install
 }
 
 type snowflakeAiCredentialModel struct {
-	Id            types.String                                 `tfsdk:"id"`
-	SecretManager *installvaultedcredential.SecretManagerModel `tfsdk:"secret_manager"`
-	State         types.String                                 `tfsdk:"state"`
+	Id            types.String                                        `tfsdk:"id"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsModel `tfsdk:"secret_manager"`
+	State         types.String                                        `tfsdk:"state"`
 }
 
 type snowflakeAiCredentialJson struct {
-	SecretManager *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
-	State         *string                                     `json:"state,omitempty"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsJson `json:"secretManager,omitempty"`
+	State         *string                                            `json:"state,omitempty"`
 }
 
 type snowflakeAiCredentialApi struct {
@@ -51,7 +52,7 @@ func (*SnowflakeAiCredential) Schema(_ context.Context, _ resource.SchemaRequest
 
 Installing it allows P0 to grant machines just-in-time access to a Snowflake account, with a Snowflake user and role that hold only the requested roles or object privileges.
 
-**Important:** Before creating this resource you must stage the installation with ` + "`p0_snowflake_ai_staged`" + `, deploy the connector's Cloud Run service, set up P0's connector user and MCP server in the Snowflake account, and add the connector user's private key as a version of the connector's private key secret. Creating this resource verifies that the connector can sign in to the account with that key.
+**Important:** Before creating this resource you must stage the installation with ` + "`p0_snowflake_ai_staged`" + `, deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud), set up P0's connector user and MCP server in the Snowflake account, and add the connector user's private key as a version of the connector's private key secret. Creating this resource verifies that the connector can sign in to the account with that key.
 
 ` + betaNote,
 		Attributes: map[string]schema.Attribute{
@@ -59,11 +60,15 @@ Installing it allows P0 to grant machines just-in-time access to a Snowflake acc
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's Snowflake connector runs and stores ` + secretLabel,
-				Attributes:          installvaultedcredential.FinalSecretManagerAttributes(secretLabel, " Must match the `p0_snowflake_ai_staged` resource."),
+				Attributes:          installvaultedcredential.FinalSecretManagerWithAwsAttributes(secretLabel, " Must match the `p0_snowflake_ai_staged` resource."),
 			},
 			"state": common.StateAttribute,
 		},
 	}
+}
+
+func (*SnowflakeAiCredential) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	installvaultedcredential.ValidateSecretManagerWithAws(ctx, req.Config, &resp.Diagnostics)
 }
 
 func (r *SnowflakeAiCredential) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -101,11 +106,11 @@ func (r *SnowflakeAiCredential) fromJson(_ context.Context, diags *diag.Diagnost
 	if !ok {
 		return nil
 	}
-	if !installvaultedcredential.RequireSecretManager(diags, integrationLabel, id, jsonv.SecretManager) {
+	if !installvaultedcredential.RequireSecretManagerWithAws(diags, integrationLabel, id, jsonv.SecretManager) {
 		return nil
 	}
 
-	secretManager := installvaultedcredential.SecretManagerFromJson(jsonv.SecretManager)
+	secretManager := installvaultedcredential.SecretManagerWithAwsFromJson(jsonv.SecretManager)
 	return &snowflakeAiCredentialModel{
 		Id:            types.StringValue(id),
 		SecretManager: &secretManager,

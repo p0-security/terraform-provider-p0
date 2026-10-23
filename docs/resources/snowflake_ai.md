@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   A Snowflake installation for agentic access.
   Installing it allows P0 to grant machines just-in-time access to a Snowflake account, with a Snowflake user and role that hold only the requested roles or object privileges.
-  Important: Before creating this resource you must stage the installation with p0_snowflake_ai_staged, deploy the connector's Cloud Run service, set up P0's connector user and MCP server in the Snowflake account, and add the connector user's private key as a version of the connector's private key secret. Creating this resource verifies that the connector can sign in to the account with that key.
+  Important: Before creating this resource you must stage the installation with p0_snowflake_ai_staged, deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud), set up P0's connector user and MCP server in the Snowflake account, and add the connector user's private key as a version of the connector's private key secret. Creating this resource verifies that the connector can sign in to the account with that key.
   Note: This integration is currently in beta.
 ---
 
@@ -15,7 +15,7 @@ A Snowflake installation for agentic access.
 
 Installing it allows P0 to grant machines just-in-time access to a Snowflake account, with a Snowflake user and role that hold only the requested roles or object privileges.
 
-**Important:** Before creating this resource you must stage the installation with `p0_snowflake_ai_staged`, deploy the connector's Cloud Run service, set up P0's connector user and MCP server in the Snowflake account, and add the connector user's private key as a version of the connector's private key secret. Creating this resource verifies that the connector can sign in to the account with that key.
+**Important:** Before creating this resource you must stage the installation with `p0_snowflake_ai_staged`, deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud), set up P0's connector user and MCP server in the Snowflake account, and add the connector user's private key as a version of the connector's private key secret. Creating this resource verifies that the connector can sign in to the account with that key.
 
 **Note:** This integration is currently in beta.
 
@@ -245,12 +245,17 @@ resource "p0_snowflake_ai" "example" {
 
 Required:
 
-- `project_id` (String) The GCP project that hosts the connector's Cloud Run service and the secret that holds the Snowflake connector user's private key. Must match the `p0_snowflake_ai_staged` resource.
-- `type` (String) The secret manager that stores the Snowflake connector user's private key. Only `gcp-sm` (Google Secret Manager) is supported. Must match the `p0_snowflake_ai_staged` resource.
+- `type` (String) The secret manager that stores the Snowflake connector user's private key: `aws-sm` (AWS Secrets Manager, with the connector on AWS Lambda) or `gcp-sm` (Google Secret Manager, with the connector on Google Cloud Run). Must match the `p0_snowflake_ai_staged` resource.
+
+Optional:
+
+- `account_id` (String) The AWS account that hosts the connector's Lambda function and the secret that holds the Snowflake connector user's private key: one of your AWS Secrets Manager installations in P0. Required for, and only valid with, `aws-sm`. Must match the `p0_snowflake_ai_staged` resource.
+- `project_id` (String) The GCP project that hosts the connector's Cloud Run service and the secret that holds the Snowflake connector user's private key. Required for, and only valid with, `gcp-sm`. Must match the `p0_snowflake_ai_staged` resource.
+- `secrets_region` (String) The AWS region that stores the secrets, such as `us-west-2`. Required for, and only valid with, `aws-sm`. Must match the `p0_snowflake_ai_staged` resource.
 
 Read-Only:
 
-- `connector_region` (String) The GCP region in which to deploy the connector's Cloud Run service
-- `connector_service_account` (String) The email of the GCP service account that the connector must run as
-- `connector_service_name` (String) The name to give the connector's Cloud Run service
-- `connector_service_uri` (String) The invocation URL of the connector's Cloud Run service, resolved by P0 during install
+- `connector_region` (String) The region in which to deploy the connector: its Lambda function's on AWS, its Cloud Run service's on Google Cloud
+- `connector_service_account` (String) The email of the GCP service account that the connector must run as. Google Cloud only.
+- `connector_service_name` (String) The name to give the connector's Cloud Run service. Google Cloud only.
+- `connector_service_uri` (String) The invocation URL of the connector's Cloud Run service, resolved by P0 during install. Google Cloud only.
