@@ -6,6 +6,7 @@ package installaigateway
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -23,6 +24,11 @@ var _ resource.ResourceWithImportState = &Server{}
 var _ resource.ResourceWithConfigure = &Server{}
 var _ resource.ResourceWithMoveState = &Server{}
 
+// serverCredentialTypes lists the credential sources the app's MCP server
+// `credential` select accepts (app's
+// packages/integrations/agentic/shared/src/components.ts, `credentialSource`).
+var serverCredentialTypes = []string{"aws", "gcp", "native", "oauth", "vault", "generic", "impersonation"}
+
 func NewServer() resource.Resource {
 	return &Server{}
 }
@@ -39,12 +45,14 @@ type Server struct {
 // app/shared/src/integrations/resources/agentic/components.ts's
 // `credentialSource` and `serverDefinition` elements exactly.
 type serverCredentialGrantModel struct {
-	Type string `tfsdk:"type" json:"type"`
+	Type  string  `tfsdk:"type" json:"type"`
+	Scope *string `tfsdk:"scope" json:"scope,omitempty"`
 }
 
 type serverCredentialModel struct {
 	Type     string                      `tfsdk:"type" json:"type"`
 	Provider *string                     `tfsdk:"provider" json:"provider,omitempty"`
+	Claims   *string                     `tfsdk:"claims" json:"claims,omitempty"`
 	Grant    *serverCredentialGrantModel `tfsdk:"grant" json:"grant,omitempty"`
 }
 
@@ -142,16 +150,31 @@ For the full install steps, see [MCP server](https://docs.p0.dev/integrations/re
 				MarkdownDescription: `The MCP server's credential source:
     - 'aws': federate credentials from an installed AWS OIDC identity
     - 'gcp': federate credentials from an installed GCP WIF identity
-    - 'oauth': authenticate end users via an OAuth session`,
+    - 'native': the upstream server accepts the gateway's OAuth tokens
+    - 'oauth': authenticate end users via an OAuth session
+    - 'vault': P0 stores the credential in a secret manager, and each grant names the secret. The predefined
+      PagerDuty ('pagerdutyUs', 'pagerdutyEu'), Datadog ('datadogUs1', 'datadogUs3', 'datadogUs5', 'datadogEu1',
+      'datadogAp1', 'datadogAp2', 'datadogUs1Fed') and GitHub ('github') servers use this type
+    - 'generic': the gateway exchanges its own token (RFC 8693) at the token endpoint the server definition names
+    - 'impersonation': P0 provisions an identity for each grant, and the gateway acts as it. The predefined
+      Google Drive ('googleDrive') server uses this type`,
 				Attributes: map[string]schema.Attribute{
 					"type": schema.StringAttribute{
 						Required:            true,
-						MarkdownDescription: "One of 'aws', 'gcp', or 'oauth'.",
+						MarkdownDescription: "One of 'aws', 'gcp', 'native', 'oauth', 'vault', 'generic', or 'impersonation'.",
+						Validators: []validator.String{
+							stringvalidator.OneOf(serverCredentialTypes...),
+						},
 					},
 					"provider": schema.StringAttribute{
 						Optional: true,
 						MarkdownDescription: `Required, and may only be used, if 'type' is 'aws' or 'gcp'. The ` + "`id`" + ` of the installed
 federation-provider identity (a ` + "`p0_aws_oidc_identity`" + ` or ` + "`p0_gcp_wif_identity`" + ` resource).`,
+					},
+					"claims": schema.StringAttribute{
+						Optional: true,
+						MarkdownDescription: `May only be used if 'type' is 'native'. Claims JSON. Use Liquid syntax to template request
+parameters, for example ` + "`" + `{ "scopes": {{ request.permission.role | json }} }` + "`" + `.`,
 					},
 					"grant": schema.SingleNestedAttribute{
 						Optional:            true,
@@ -159,7 +182,11 @@ federation-provider identity (a ` + "`p0_aws_oidc_identity`" + ` or ` + "`p0_gcp
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								Required:            true,
-								MarkdownDescription: "The OAuth grant type. Currently only 'authorization_code' is supported.",
+								MarkdownDescription: "The OAuth grant type. Only 'authorization_code' is supported.",
+							},
+							"scope": schema.StringAttribute{
+								Optional:            true,
+								MarkdownDescription: "A comma-delimited list of scopes to request.",
 							},
 						},
 					},
@@ -171,9 +198,10 @@ federation-provider identity (a ` + "`p0_aws_oidc_identity`" + ` or ` + "`p0_gcp
 						"oauth": {"grant"},
 					}),
 					ExclusiveToAttr("type", map[string][]string{
-						"aws":   {"provider"},
-						"gcp":   {"provider"},
-						"oauth": {"grant"},
+						"aws":    {"provider"},
+						"gcp":    {"provider"},
+						"native": {"claims"},
+						"oauth":  {"grant"},
 					}),
 				},
 			},
