@@ -55,14 +55,14 @@ func TestSecretManagerWithAwsFromJson(t *testing.T) {
 	}
 }
 
-// A config whose secret_manager sets only the given fields.
-func secretManagerConfig(t *testing.T, fields map[string]string) tfsdk.Config {
+// A config whose secret_manager, with the given attributes, sets only the given fields.
+func secretManagerConfig(t *testing.T, attributes map[string]schema.Attribute, fields map[string]string) tfsdk.Config {
 	t.Helper()
 	ctx := context.Background()
 	s := schema.Schema{Attributes: map[string]schema.Attribute{
 		"secret_manager": schema.SingleNestedAttribute{
 			Required:   true,
-			Attributes: SecretManagerWithAwsAttributes("the secret", ""),
+			Attributes: attributes,
 		},
 	}}
 	objectType, ok := s.Type().TerraformType(ctx).(tftypes.Object)
@@ -101,12 +101,18 @@ func TestValidateSecretManagerWithAws(t *testing.T) {
 		"aws-sm with project_id": {map[string]string{"type": AwsSecretsManager, "account_id": "123456789012", "secrets_region": "us-west-2", "project_id": "my-project"}, 1},
 		"gcp-sm with aws fields": {map[string]string{"type": GcpSecretManager, "project_id": "my-project", "account_id": "123456789012", "secrets_region": "us-west-2"}, 2},
 	} {
-		t.Run(name, func(t *testing.T) {
-			var diags diag.Diagnostics
-			ValidateSecretManagerWithAws(context.Background(), secretManagerConfig(t, tc.fields), &diags)
-			if got := diags.ErrorsCount(); got != tc.errors {
-				t.Errorf("errors = %d, want %d: %v", got, tc.errors, diags)
-			}
-		})
+		// The final resource's secret_manager also has connector_service_uri.
+		for resource, attributes := range map[string]map[string]schema.Attribute{
+			"staged": SecretManagerWithAwsAttributes("the secret", ""),
+			"final":  FinalSecretManagerWithAwsAttributes("the secret", ""),
+		} {
+			t.Run(resource+": "+name, func(t *testing.T) {
+				var diags diag.Diagnostics
+				ValidateSecretManagerWithAws(context.Background(), secretManagerConfig(t, attributes, tc.fields), &diags)
+				if got := diags.ErrorsCount(); got != tc.errors {
+					t.Errorf("errors = %d, want %d: %v", got, tc.errors, diags)
+				}
+			})
+		}
 	}
 }
