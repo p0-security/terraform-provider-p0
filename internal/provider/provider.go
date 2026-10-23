@@ -32,6 +32,7 @@ import (
 	installawssm "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-sm"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
 	installdatabricks "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/databricks"
+	installdatabricksai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/databricks-ai"
 	installdatadogai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/datadog-ai"
 	installdocker "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/docker"
 	installfiletransfer "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/file_transfer"
@@ -294,6 +295,10 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installdatabricks.NewAccount,
 		installdatabricks.NewWorkspace,
 		installdatabricks.NewCatalog,
+		installdatabricksai.NewConnectorStaged,
+		installdatabricksai.NewConnector,
+		installdatabricksai.NewAccountStaged,
+		installdatabricksai.NewAccount,
 		installaigateway.NewGatewayStaged,
 		installaigateway.NewGateway,
 		installaigateway.NewServer,
