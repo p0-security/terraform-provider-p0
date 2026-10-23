@@ -95,8 +95,8 @@ func (f *lookerFake) stepCount() int {
 	return len(f.steps)
 }
 
-func lookerStagedConfig(f *lookerFake, url string) string {
-	return lookerStagedConfigWith(f, url, lookerAdminSecret)
+func lookerStagedConfig(f *lookerFake) string {
+	return lookerStagedConfigWith(f, lookerUrl, lookerAdminSecret)
 }
 
 func lookerStagedConfigWith(f *lookerFake, url string, secret string) string {
@@ -161,7 +161,7 @@ func TestLookerAi(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Staging alone gets the connector's identifiers, and no invocation URL yet.
 			{
-				Config: lookerStagedConfig(f, lookerUrl),
+				Config: lookerStagedConfig(f),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(lookerStaged, "state", "stage"),
 					resource.TestCheckResourceAttr(lookerStaged, "secret_manager.connector_region", "us-west1"),
@@ -282,7 +282,7 @@ func TestLookerAiRollback(t *testing.T) {
 		Steps: []resource.TestStep{
 			{Config: lookerConfig(f, lookerUrl, "")},
 			{
-				Config: lookerStagedConfig(f, lookerUrl),
+				Config: lookerStagedConfig(f),
 				Check: func(*terraform.State) error {
 					if item := f.credential(); item == nil || item["state"] != "stage" {
 						return fmt.Errorf("P0 item was not returned to stage: %v", item)
@@ -443,7 +443,7 @@ func TestLookerAiMissingSecretManager(t *testing.T) {
 	var secretManager any
 	// The final resource takes literal values and so doesn't depend on the staged
 	// one, so that Terraform refreshes it even when the staged one fails.
-	independent := lookerStagedConfig(f, lookerUrl) + fmt.Sprintf(`
+	independent := lookerStagedConfig(f) + fmt.Sprintf(`
 resource "p0_looker_ai" "example" {
   id               = %q
   instance_url     = %q
@@ -500,7 +500,7 @@ func TestLookerAiSendsConfiguration(t *testing.T) {
 		CheckDestroy:             checkLookerDestroyed(f),
 		Steps: []resource.TestStep{
 			{
-				Config: lookerStagedConfig(f, lookerUrl),
+				Config: lookerStagedConfig(f),
 				Check:  func(*terraform.State) error { staged = f.stepCount(); return nil },
 			},
 			{

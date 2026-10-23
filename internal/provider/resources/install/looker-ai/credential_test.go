@@ -138,7 +138,10 @@ func schemaValue(t *testing.T, r resource.Resource, set map[string]string) (tfty
 
 	var schemaResp resource.SchemaResponse
 	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
-	objectType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	objectType, ok := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	if !ok {
+		t.Fatalf("schema type is %T, not an object", schemaResp.Schema.Type().TerraformType(ctx))
+	}
 	values := make(map[string]tftypes.Value, len(objectType.AttributeTypes))
 	for name, attributeType := range objectType.AttributeTypes {
 		values[name] = tftypes.NewValue(attributeType, nil)
