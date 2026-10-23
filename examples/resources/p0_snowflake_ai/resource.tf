@@ -62,7 +62,7 @@ resource "google_cloud_run_v2_service" "connector" {
 
     containers {
       # Pinned by digest, so a re-pushed tag can't change what runs.
-      image = "docker.io/p0security/p0-connector-snowflake-ai-gcloud:sha-af9d00e@sha256:e276e49e4e908524ba4bb3120afd085039edb0802368abdd2e56b7779f0907f9"
+      image = "docker.io/p0security/p0-connector-snowflake-ai-gcloud:sha-95c8178@sha256:d8435245e9ebf10604c011263752bf6c673d15450c38d0715541b19e5cc9014d"
 
       # The connector also checks this against the caller's OIDC token.
       env {
