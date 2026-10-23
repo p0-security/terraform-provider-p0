@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/p0-security/terraform-provider-p0/internal/common"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
 )
@@ -161,30 +160,46 @@ func FinalSecretManagerWithAwsAttributes(secret string, suffix string) map[strin
 type secretManagerField struct {
 	name  string
 	type_ string
-	value func(*SecretManagerWithAwsStagedModel) types.String
 }
 
 var secretManagerFields = []secretManagerField{
-	{"account_id", AwsSecretsManager, func(m *SecretManagerWithAwsStagedModel) types.String { return m.AccountId }},
-	{"secrets_region", AwsSecretsManager, func(m *SecretManagerWithAwsStagedModel) types.String { return m.SecretsRegion }},
-	{"project_id", GcpSecretManager, func(m *SecretManagerWithAwsStagedModel) types.String { return m.ProjectId }},
+	{"account_id", AwsSecretsManager},
+	{"secrets_region", AwsSecretsManager},
+	{"project_id", GcpSecretManager},
 }
 
 func isSet(value types.String) bool {
 	return !value.IsNull() && !value.IsUnknown()
 }
 
+// The string attribute name of a secret_manager object, or null if it has none.
+func stringAttribute(object types.Object, name string) types.String {
+	if value, ok := object.Attributes()[name].(types.String); ok {
+		return value
+	}
+	return types.StringNull()
+}
+
 // Rejects secret_manager fields that don't match its type: a field the type needs
 // that is missing, or one that only the other type takes. Each field's own validator
 // checks its value. For a resource's ValidateConfig.
+//
+// It reads the fields one by one, not into a model, because the staged and the final
+// resource's secret_manager have different attributes.
 func ValidateSecretManagerWithAws(ctx context.Context, config tfsdk.Config, diags *diag.Diagnostics) {
-	var model SecretManagerWithAwsStagedModel
-	if !common.GetKnownObject(ctx, config, path.Root("secret_manager"), &model, diags) || !isSet(model.Type) {
+	var object types.Object
+	getDiags := config.GetAttribute(ctx, path.Root("secret_manager"), &object)
+	diags.Append(getDiags...)
+	if getDiags.HasError() || object.IsNull() || object.IsUnknown() {
 		return
 	}
-	type_ := model.Type.ValueString()
+	typeValue := stringAttribute(object, "type")
+	if !isSet(typeValue) {
+		return
+	}
+	type_ := typeValue.ValueString()
 	for _, field := range secretManagerFields {
-		value := field.value(&model)
+		value := stringAttribute(object, field.name)
 		switch {
 		case field.type_ == type_ && value.IsNull():
 			diags.AddAttributeError(
