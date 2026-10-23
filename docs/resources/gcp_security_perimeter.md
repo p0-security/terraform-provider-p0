@@ -81,12 +81,14 @@ resource "google_service_account" "p0_security_perimeter_sa" {
   project      = local.project
 }
 
-# P0-proprietary connector image pinned to the staged image_digest; P0 verifies
-# the deployed digest matches exactly at install, so a floating tag like :latest
-# fails. DOMAIN_ALLOW_PATTERN uses the staged allowed_domains so the deployed
-# service enforces exactly the domain pattern P0 records at install (same source
-# as the final install below). GCLOUD_PROJECT points at the P0 production project
-# so the service can authenticate callers from P0.
+# P0-proprietary connector image pinned to the staged image_digest, which is a
+# sha256 digest (pinned with @) for new installs and a tag like sha-d8092dc
+# (pinned with :) for installs staged before digest pinning. P0 checks only the
+# image repository at install. DOMAIN_ALLOW_PATTERN uses the staged
+# allowed_domains so the deployed service enforces exactly the domain pattern P0
+# records at install (same source as the final install below). GCLOUD_PROJECT
+# points at the P0 production project so the service can authenticate callers
+# from P0.
 resource "google_cloud_run_service" "p0_security_perimeter" {
   name     = "p0-security-perimeter-prod"
   project  = local.project
@@ -95,7 +97,7 @@ resource "google_cloud_run_service" "p0_security_perimeter" {
   template {
     spec {
       containers {
-        image = "docker.io/p0security/p0-security-perimeter-gcloud:${p0_gcp_security_perimeter_staged.example.image_digest}"
+        image = "docker.io/p0security/p0-security-perimeter-gcloud${substr(p0_gcp_security_perimeter_staged.example.image_digest, 0, 7) == "sha256:" ? "@" : ":"}${p0_gcp_security_perimeter_staged.example.image_digest}"
         env {
           name  = "DOMAIN_ALLOW_PATTERN"
           value = p0_gcp_security_perimeter_staged.example.allowed_domains
