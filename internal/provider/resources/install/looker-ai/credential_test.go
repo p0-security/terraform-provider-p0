@@ -17,28 +17,10 @@ import (
 // does on plan and apply.
 func decodeNullState(t *testing.T, r resource.Resource, model any) {
 	t.Helper()
-	ctx := context.Background()
 
-	var schemaResp resource.SchemaResponse
-	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
-	if schemaResp.Diagnostics.HasError() {
-		t.Fatalf("schema: %v", schemaResp.Diagnostics)
-	}
-
-	objectType, ok := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
-	if !ok {
-		t.Fatal("schema type is not an object")
-	}
-	values := make(map[string]tftypes.Value, len(objectType.AttributeTypes))
-	for name, attributeType := range objectType.AttributeTypes {
-		values[name] = tftypes.NewValue(attributeType, nil)
-	}
-
-	state := tfsdk.State{
-		Schema: schemaResp.Schema,
-		Raw:    tftypes.NewValue(objectType, values),
-	}
-	if diags := state.Get(ctx, model); diags.HasError() {
+	value, schemaResp := schemaValue(t, r, nil)
+	state := tfsdk.State{Schema: schemaResp.Schema, Raw: value}
+	if diags := state.Get(context.Background(), model); diags.HasError() {
 		t.Fatalf("decode: %v", diags)
 	}
 }
@@ -64,7 +46,8 @@ func TestDescribeCheckError(t *testing.T) {
 	}
 }
 
-// The provider refuses at plan time what the P0 app refuses, with the app's rules.
+// The provider refuses at plan time what P0 would refuse at apply. The instance URL
+// rule is stricter than the app's, as the connector accepts only that form.
 func TestValidators(t *testing.T) {
 	for _, c := range []struct {
 		name  string
@@ -138,6 +121,9 @@ func schemaValue(t *testing.T, r resource.Resource, set map[string]string) (tfty
 
 	var schemaResp resource.SchemaResponse
 	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("schema: %v", schemaResp.Diagnostics)
+	}
 	objectType, ok := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
 	if !ok {
 		t.Fatalf("schema type is %T, not an object", schemaResp.Schema.Type().TerraformType(ctx))

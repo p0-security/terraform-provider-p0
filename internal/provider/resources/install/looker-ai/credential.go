@@ -203,8 +203,23 @@ func (r *LookerAiCredential) Read(ctx context.Context, req resource.ReadRequest,
 	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &lookerAiCredentialApi{}, &lookerAiCredentialModel{})
 }
 
+// Looker's install check runs on configure alone, and verify saves the item first, so
+// an item that P0 has verified gets the configure step alone. A failed check then
+// leaves P0's item and the resource's state as they were. A staged item is verified
+// first, as Create does.
 func (r *LookerAiCredential) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &lookerAiCredentialApi{}, &lookerAiCredentialModel{})
+	var state types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("state"), &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	switch state.ValueString() {
+	case common.StateConfigure, common.StateInstalled:
+		r.installer.UpsertFromConfigure(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &lookerAiCredentialApi{}, &lookerAiCredentialModel{})
+	default:
+		r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &lookerAiCredentialApi{}, &lookerAiCredentialModel{})
+	}
 }
 
 func (r *LookerAiCredential) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

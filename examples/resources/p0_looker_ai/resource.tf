@@ -196,8 +196,8 @@ resource "p0_looker_ai" "example" {
   admin_key_secret = p0_looker_ai_staged.example.admin_key_secret
   # Optional. The Looker folder that agents save content to, from its URL
   # (/folders/<ID>). Without it, content that an agent saves goes to Trash when
-  # its grant ends.
-  content_folder_id = "42"
+  # its grant ends. To set it, uncomment this line and enter your folder's ID.
+  # content_folder_id = "<ID>"
 
   secret_manager = {
     type       = p0_looker_ai_staged.example.secret_manager.type

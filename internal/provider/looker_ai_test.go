@@ -25,7 +25,7 @@ var lookerFixedFields = []string{"instanceUrl", "adminKeySecret"}
 
 type lookerFake struct {
 	*fakeP0
-	// When set, verify fails the install check with this message.
+	// When set, configure fails the install check with this message.
 	failedCheck string
 	// Each write to a Looker install that P0 accepted or refused, in order.
 	steps []fakeStep
@@ -63,7 +63,8 @@ func newLookerFake(t *testing.T) *lookerFake {
 				)
 			}
 		}
-		if step.nextState == "configure" && f.failedCheck != "" {
+		// The app runs Looker's install check on configure, the step to "installed".
+		if step.nextState == "installed" && f.failedCheck != "" {
 			return http.StatusUnprocessableEntity, f.failedCheck
 		}
 		return 0, ""
@@ -528,8 +529,9 @@ func TestLookerAiSendsConfiguration(t *testing.T) {
 	})
 }
 
-// An update runs P0's install check again, so a folder change that fails the check
-// fails the apply and leaves P0's folder as it was.
+// An update runs P0's install check again, on the configure step alone, so a folder
+// change that fails the check fails the apply and leaves the install as it was, in
+// P0 and in the Terraform state.
 func TestLookerAiUpdateChecksAgain(t *testing.T) {
 	f := newLookerFake(t)
 	var installed int
@@ -547,12 +549,29 @@ func TestLookerAiUpdateChecksAgain(t *testing.T) {
 				Config:      lookerConfig(f, lookerUrl, "43"),
 				ExpectError: harborError("Looker install check failed", `Looker instance "acme"`, "Looker has no folder 43."),
 			},
+			// The old folder plans no change, so the Terraform state still holds it too.
+			{
+				PreConfig: func() {
+					if item := f.credential(); item["contentFolderId"] != "42" || item["state"] != "installed" {
+						t.Errorf("the refused update changed the P0 item: %v", item)
+					}
+				},
+				Config: lookerConfig(f, lookerUrl, "42"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(lookerFinal, "content_folder_id", "42"),
+					resource.TestCheckResourceAttr(lookerFinal, "state", "installed"),
+				),
+			},
 			{
 				PreConfig: func() { f.failedCheck = "" },
 				Config:    lookerConfig(f, lookerUrl, "43"),
 				Check: func(*terraform.State) error {
-					// The refused update, then the update that P0 accepted.
-					want := []string{"configure", "configure", "installed"}
+					// The refused update, then the update that P0 accepted, each the
+					// configure step alone.
+					want := []string{"installed", "installed"}
 					if got := f.stepsSince(installed); !slices.Equal(got, want) {
 						return fmt.Errorf("the updates took the steps %v, want %v", got, want)
 					}
