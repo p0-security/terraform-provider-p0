@@ -104,3 +104,17 @@ resource "p0_ai_gateway_server" "github_example" {
     id   = "github"
   }
 }
+
+# A predefined server whose URL takes an instance, here a Databricks workspace's
+# deployment name. Install the matching integration (here p0_databricks_ai_account)
+# first. Changing the instance replaces the server.
+resource "p0_ai_gateway_server" "databricks_example" {
+  id         = "databricks-genie"
+  gateway    = p0_ai_gateway.example.id
+  credential = { type = "generic" }
+  definition = {
+    type     = "p0"
+    id       = "databricksGenie"
+    instance = "dbc-a1b2c3d4-e5f6"
+  }
+}
