@@ -104,10 +104,22 @@ func (r *LookerAiCredential) Configure(ctx context.Context, req resource.Configu
 
 // P0 merges each write over the item it stores, so leaving content_folder_id out
 // keeps the folder that P0 has. Removing it would then fail the apply with an
-// inconsistent result, so the plan refuses it.
+// inconsistent result, so the plan refuses it. A plan that replaces the item
+// creates it anew, so it may drop the folder.
 func (r *LookerAiCredential) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
+	}
+
+	// The framework hands ModifyPlan no RequiresReplace, so compare the fields
+	// that require replacement.
+	for _, field := range []string{"id", "instance_url", "admin_key_secret"} {
+		var prior, planned types.String
+		resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root(field), &prior)...)
+		resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root(field), &planned)...)
+		if resp.Diagnostics.HasError() || !prior.Equal(planned) {
+			return
+		}
 	}
 
 	var prior, planned types.String

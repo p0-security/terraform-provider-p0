@@ -47,7 +47,7 @@ func TestDescribeCheckError(t *testing.T) {
 }
 
 // The provider refuses at plan time what P0 would refuse at apply. The instance URL
-// rule is stricter than the app's, as the connector accepts only that form.
+// rule is stricter than the app's, so the URL in Terraform is the one P0 uses.
 func TestValidators(t *testing.T) {
 	for _, c := range []struct {
 		name  string
@@ -177,6 +177,9 @@ func TestModifyPlanRefusesFolderRemoval(t *testing.T) {
 		{"no folder", noFolder, noFolder},
 		{"new folder", folder, otherFolder},
 		{"first folder", noFolder, folder},
+		{"replaced by id", folder, map[string]string{"id": "other"}},
+		{"replaced by instance", folder, map[string]string{"id": "acme", "instance_url": "https://other.looker.app"}},
+		{"replaced by admin key", folder, map[string]string{"id": "acme", "admin_key_secret": "other"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if resp := modifyPlan(t, c.prior, c.planned); resp.Diagnostics.HasError() {

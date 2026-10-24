@@ -28,9 +28,9 @@ const (
 var itemIdRegex = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 
 // `https://` and a lowercase name under looker.app, and nothing else. The P0 app
-// also accepts uppercase and a trailing slash, but the connector accepts only this
-// form, and sends the Admin key only to such a host. With the provider held to it,
-// the URL in Terraform is always the one the connector gets.
+// also accepts uppercase and a trailing slash, and lowercases the URL and drops the
+// slash before the connector gets it. With the provider held to that form, the URL
+// in Terraform is always the one P0 uses.
 var instanceUrlRegex = regexp.MustCompile(`^https://[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.looker\.app$`)
 
 // Google Secret Manager's rule for a secret's ID. It admits no `/`, so a secret's
