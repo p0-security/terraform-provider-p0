@@ -1,0 +1,20 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.RenderedProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile "examples/resources/p0_jira_ai_site/resource.tf" }}
+
+### Google Cloud
+
+{{ tffile "examples/resources/p0_jira_ai_site/gcp.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}

@@ -19,12 +19,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/p0-security/terraform-provider-p0/internal"
+	installawssqs "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/aws-sqs"
 	installdatadog "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/datadog"
 	installsplunk "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/splunk"
 	accesspolicy "github.com/p0-security/terraform-provider-p0/internal/provider/resources/access_policy"
 	installaigateway "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ai_gateway"
 	installapp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/app"
 	installargocd "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/argocd"
+	installauth0 "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/auth0"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
 	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
@@ -39,12 +41,15 @@ import (
 	installgcpcloudsql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloudsql"
 	installgcpserviceaccount "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-service-account"
 	installgcpwif "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-wif"
+	installgithub "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github"
 	installgithubai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-ai"
 	installgithubrepositories "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-repositories"
+	installgitlabai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gitlab-ai"
 	installgoogledriveai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/google-drive-ai"
 	installharbor "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/harbor"
 	installidentityprovider "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/identity-provider"
 	installintegrationitem "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/integration-item"
+	installjiraai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/jira-ai"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
@@ -53,7 +58,10 @@ import (
 	installpostgres "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/postgres"
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
 	installsalesforceai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/salesforce-ai"
+	installservicenowai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/servicenow-ai"
+	installsnowflakeai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/snowflake-ai"
 	installssh "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/ssh"
+	installtableauai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/tableau-ai"
 	"github.com/p0-security/terraform-provider-p0/internal/provider/resources/settings"
 )
 
@@ -245,14 +253,23 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installharbor.NewHarborConnectorStaged,
 		installharbor.NewHarborConnector,
 		installharbor.NewHarborInstance,
+		installjiraai.NewJiraAiConnectorStaged,
+		installjiraai.NewJiraAiConnector,
+		installjiraai.NewJiraAiSite,
+		installjiraai.NewJiraAiPoolAccount,
 		installargocd.NewArgocdConnectorStaged,
 		installargocd.NewArgocdConnector,
 		installargocd.NewArgocdInstance,
+		installauth0.NewAuth0ConnectorStaged,
+		installauth0.NewAuth0Connector,
+		installauth0.NewAuth0Tenant,
 		installfiletransfer.NewFileTransferIamWrite,
 		installawssm.NewAwsSmVault,
 		installapp.NewAppIamWrite,
 		installsplunk.NewAuditLogs,
 		installdatadog.NewAuditLogs,
+		installawssqs.NewAuditLogsStaged,
+		installawssqs.NewAuditLogs,
 		installawsoidc.NewAwsOidcIdentityStaged,
 		installawsoidc.NewAwsOidcIdentity,
 		installgcpwif.NewGcpWifIdentityStaged,
@@ -261,11 +278,20 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installgithubai.NewGithubAiCredential,
 		installdatadogai.NewDatadogAiCredentialStaged,
 		installdatadogai.NewDatadogAiCredential,
+		installgitlabai.NewGitlabAiCredentialStaged,
+		installgitlabai.NewGitlabAiCredential,
 		installpagerdutyai.NewPagerdutyAiCredentialStaged,
 		installpagerdutyai.NewPagerdutyAiCredential,
 		installsalesforceai.NewSalesforceAiOrgStaged,
 		installsalesforceai.NewSalesforceAiOrg,
+		installservicenowai.NewServiceNowAiInstanceStaged,
+		installservicenowai.NewServiceNowAiInstance,
+		installsnowflakeai.NewSnowflakeAiCredentialStaged,
+		installsnowflakeai.NewSnowflakeAiCredential,
+		installtableauai.NewTableauAiCredentialStaged,
+		installtableauai.NewTableauAiCredential,
 		installgithubrepositories.NewRepositoryAccess,
+		installgithub.NewRepositoryAccess,
 		installdatabricks.NewConnectorStaged,
 		installdatabricks.NewConnector,
 		installdatabricks.NewAccountStaged,

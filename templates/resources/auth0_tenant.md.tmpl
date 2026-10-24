@@ -1,0 +1,22 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.RenderedProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+### AWS
+
+{{ tffile "examples/resources/p0_auth0_tenant/resource.tf" }}
+
+### Google Cloud
+
+{{ tffile "examples/resources/p0_auth0_tenant/gcp.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}

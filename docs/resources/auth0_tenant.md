@@ -1,0 +1,317 @@
+---
+page_title: "p0_auth0_tenant Resource - p0"
+subcategory: ""
+description: |-
+  An Auth0 tenant that P0 can grant roles, permissions and organization memberships in, through one of your Auth0 connectors.
+  The connector acts on the tenant as a machine-to-machine application authorized for the Auth0 Management API. P0 never holds the application's client secret. You store it in your own secret manager, in the connector's cloud, and the connector reads it on every call. This resource tells P0 which connector acts on the tenant, the application's client ID, and where the client secret is.
+  Important: Create the application, store its client secret and let the connector read it before Terraform creates this resource. Do that in an earlier apply, or in the same apply with this resource depending on the connector's read grant, as the example does. Creating this resource has P0 validate the install through the connector: the connector reads the secret, exchanges the client ID and secret for a Management API token, checks that the token carries every scope the connector needs, and reads back its own DOMAIN_ALLOW_PATTERN. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the connector is denied the secret right after you grant it, apply again.
+  P0 fixes the connector, the vault, the client ID and the secret when it adds the tenant, so changing id, connector, vault, client_id or client_secret_name replaces the installation. To rotate the client secret, store the new one as a new version of the same secret, which needs no change here. If the tenant is already added in P0, import it rather than creating it: P0 refuses to add a tenant twice. If P0 hasn't finished installing the tenant, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
+  Prerequisites:
+  
+  An Auth0 connector, installed with p0_auth0_connector. The client secret must be in the connector's cloud: AWS Secrets Manager for a connector on AWS Lambda, or Google Secret Manager for one on Cloud Run. It can be in another account or project.
+  A machine-to-machine application in the tenant, authorized for the Auth0 Management API with these scopes: read:users, read:roles, read:role_members, update:users, create:role_members, delete:role_members, read:resource_servers, read:user_effective_permissions, read:organizations, read:organization_members, read:organization_member_roles, create:organization_members, delete:organization_members, create:organization_member_roles and delete:organization_member_roles. Store its client secret outside Terraform, as the secret's whole value, in the account and region or the project that vault names. Storing it outside Terraform keeps it out of Terraform's state.
+  Read access to that one secret, and no other, for the connector's identity (its connector_identity). P0 names the secret in each call, so a call could point the connector at any other secret it can read.
+  On AWS, give the connector's role secretsmanager:GetSecretValue on arn:aws:secretsmanager:<secrets_region>:<account_id>:secret:<name>-??????. Secrets Manager adds a hyphen and six random characters to the name in a secret's ARN, and ?????? matches those, so the grant covers this one secret. If a customer-managed KMS key encrypts the secret, also give the role kms:Decrypt on that key, with the condition that kms:ViaService is secretsmanager.<secrets_region>.amazonaws.com. A secret outside the connector's account needs a customer-managed key, because no other account can use the default aws/secretsmanager key. In the secret's account, the secret's resource policy and the key's policy must also allow the connector's role.
+  On Google Cloud, give the connector's service account roles/secretmanager.secretAccessor and roles/secretmanager.viewer on the secret itself, not on its project.
+  P0's secret manager integration for where the secret is: AWS Secrets Manager (p0_aws_secrets_manager) for the AWS account, or Google Secret Manager for the Google Cloud project.
+  Note: This integration is currently in beta.
+  For the full install steps, see Auth0 https://docs.p0.dev/integrations/resource-integrations/auth0.
+---
+
+# p0_auth0_tenant (Resource)
+
+An Auth0 tenant that P0 can grant roles, permissions and organization memberships in, through one of your Auth0 connectors.
+
+The connector acts on the tenant as a machine-to-machine application authorized for the Auth0 Management API. P0 never holds the application's client secret. You store it in your own secret manager, in the connector's cloud, and the connector reads it on every call. This resource tells P0 which connector acts on the tenant, the application's client ID, and where the client secret is.
+
+**Important:** Create the application, store its client secret and let the connector read it before Terraform creates this resource. Do that in an earlier apply, or in the same apply with this resource depending on the connector's read grant, as the example does. Creating this resource has P0 validate the install through the connector: the connector reads the secret, exchanges the client ID and secret for a Management API token, checks that the token carries every scope the connector needs, and reads back its own `DOMAIN_ALLOW_PATTERN`. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the connector is denied the secret right after you grant it, apply again.
+
+P0 fixes the connector, the vault, the client ID and the secret when it adds the tenant, so changing `id`, `connector`, `vault`, `client_id` or `client_secret_name` replaces the installation. To rotate the client secret, store the new one as a new version of the same secret, which needs no change here. If the tenant is already added in P0, import it rather than creating it: P0 refuses to add a tenant twice. If P0 hasn't finished installing the tenant, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
+
+**Prerequisites:**
+
+- An Auth0 connector, installed with `p0_auth0_connector`. The client secret must be in the connector's cloud: AWS Secrets Manager for a connector on AWS Lambda, or Google Secret Manager for one on Cloud Run. It can be in another account or project.
+
+- A machine-to-machine application in the tenant, authorized for the Auth0 Management API with these scopes: `read:users`, `read:roles`, `read:role_members`, `update:users`, `create:role_members`, `delete:role_members`, `read:resource_servers`, `read:user_effective_permissions`, `read:organizations`, `read:organization_members`, `read:organization_member_roles`, `create:organization_members`, `delete:organization_members`, `create:organization_member_roles` and `delete:organization_member_roles`. Store its client secret outside Terraform, as the secret's whole value, in the account and region or the project that `vault` names. Storing it outside Terraform keeps it out of Terraform's state.
+
+- Read access to that one secret, and no other, for the connector's identity (its `connector_identity`). P0 names the secret in each call, so a call could point the connector at any other secret it can read.
+
+  On AWS, give the connector's role `secretsmanager:GetSecretValue` on `arn:aws:secretsmanager:<secrets_region>:<account_id>:secret:<name>-??????`. Secrets Manager adds a hyphen and six random characters to the name in a secret's ARN, and `??????` matches those, so the grant covers this one secret. If a customer-managed KMS key encrypts the secret, also give the role `kms:Decrypt` on that key, with the condition that `kms:ViaService` is `secretsmanager.<secrets_region>.amazonaws.com`. A secret outside the connector's account needs a customer-managed key, because no other account can use the default `aws/secretsmanager` key. In the secret's account, the secret's resource policy and the key's policy must also allow the connector's role.
+
+  On Google Cloud, give the connector's service account `roles/secretmanager.secretAccessor` and `roles/secretmanager.viewer` on the secret itself, not on its project.
+
+- P0's secret manager integration for where the secret is: AWS Secrets Manager (`p0_aws_secrets_manager`) for the AWS account, or Google Secret Manager for the Google Cloud project.
+
+**Note:** This integration is currently in beta.
+
+For the full install steps, see [Auth0](https://docs.p0.dev/integrations/resource-integrations/auth0).
+
+## Example Usage
+
+### AWS
+
+```terraform
+# Adds the Auth0 tenant acme.us.auth0.com, whose application's client secret is
+# in AWS Secrets Manager, in the account of the connector on AWS Lambda that the
+# p0_auth0_connector example installs. For a connector on Cloud Run and a
+# client secret in Google Secret Manager, see gcp.tf in this directory.
+#
+# Before you apply this, create the machine-to-machine application and store
+# its client secret as the secret auth0/acme/mgmt. In the Auth0 Dashboard, go to
+# Applications, create a Machine to Machine application, and authorize it for
+# the Auth0 Management API with these scopes:
+#
+#   read:users, read:roles, read:role_members, update:users,
+#   create:role_members, delete:role_members, read:resource_servers,
+#   read:user_effective_permissions, read:organizations,
+#   read:organization_members, read:organization_member_roles,
+#   create:organization_members, delete:organization_members,
+#   create:organization_member_roles, delete:organization_member_roles
+#
+# The application's Settings show its client ID and client secret. The example
+# doesn't create the secret, which keeps the client secret out of Terraform's
+# state.
+#
+# Creating p0_auth0_tenant has the connector read the client secret, so store
+# it in its secret before then, as the secret's whole value. To store it, with the
+# AWS CLI signed in to the secret's account, read the client secret without
+# showing it:
+#
+#   read -rs AUTH0_CLIENT_SECRET
+#
+# Then create the secret:
+#
+#   printf %s "$AUTH0_CLIENT_SECRET" | aws secretsmanager create-secret \
+#     --name auth0/acme/mgmt \
+#     --secret-string file:///dev/stdin --region us-west-2
+#
+# If the secret exists, store the client secret as a new version instead, which
+# is also how to rotate it:
+#
+#   printf %s "$AUTH0_CLIENT_SECRET" | aws secretsmanager put-secret-value \
+#     --secret-id auth0/acme/mgmt \
+#     --secret-string file:///dev/stdin --region us-west-2
+#
+# The grant is what P0's Auth0 installer generates for the tenant, with
+# p0_auth0_tenant after it.
+
+locals {
+  p0_auth0_tenant_acme_us_auth0_com = {
+    # The connector's AWS account, which its role is in.
+    connector_account_id = "123456789012"
+    # The secret that holds acme.us.auth0.com's client secret: its name, and the
+    # account and region it's in. P0 has the connector read the secret by this
+    # name there. A new secret replaces the installation. To rotate the client
+    # secret, add a new version to this secret instead.
+    client_secret_name = "auth0/acme/mgmt"
+    secrets_account_id = "123456789012"
+    secrets_region     = "us-west-2"
+    # The ARN of the KMS key that encrypts the secret, if that's a
+    # customer-managed key. The default aws/secretsmanager key needs nothing
+    # for a secret in the connector's account, but can't be used from another
+    # one. For a secret in another account, set this to its customer-managed
+    # key, and in that account allow the connector's role
+    # secretsmanager:GetSecretValue in the secret's resource policy and
+    # kms:Decrypt through Secrets Manager in the key's policy.
+    kms_key_arn = null
+  }
+}
+
+# IAM is global, so the region only has to be one you use. Add the credential
+# settings your other AWS providers use, such as profile or assume_role, if
+# they have any.
+provider "aws" {
+  alias               = "p0_auth0_tenant_acme_us_auth0_com"
+  region              = local.p0_auth0_tenant_acme_us_auth0_com.secrets_region
+  allowed_account_ids = [local.p0_auth0_tenant_acme_us_auth0_com.connector_account_id]
+}
+
+data "aws_partition" "p0_auth0_tenant_acme_us_auth0_com" {
+  provider = aws.p0_auth0_tenant_acme_us_auth0_com
+}
+
+# The connector reads acme.us.auth0.com's client secret, and no other secret.
+# The policy goes on the connector's role, which P0 names in
+# connector_identity. Each tenant adds a policy of its own to that role, and a
+# role's inline policies share a limit of 10,240 characters: past a few dozen
+# tenants, deploy another connector for the rest.
+resource "aws_iam_role_policy" "p0_auth0_tenant_acme_us_auth0_com_secret" {
+  provider = aws.p0_auth0_tenant_acme_us_auth0_com
+
+  name = "ReadAuth0ClientSecret-acme.us.auth0.com"
+  role = p0_auth0_connector.example.connector_identity.role_name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      [{
+        Sid    = "ReadClientSecret"
+        Effect = "Allow"
+        Action = "secretsmanager:GetSecretValue"
+        # P0 gives the connector the secret's partial ARN: its ARN without the
+        # hyphen and six random characters that end it. "??????" matches
+        # those, so the connector gets this one secret and no other.
+        Resource = join(":", [
+          "arn:aws:secretsmanager",
+          local.p0_auth0_tenant_acme_us_auth0_com.secrets_region,
+          local.p0_auth0_tenant_acme_us_auth0_com.secrets_account_id,
+          "secret",
+          "${local.p0_auth0_tenant_acme_us_auth0_com.client_secret_name}-??????",
+        ])
+      }],
+      local.p0_auth0_tenant_acme_us_auth0_com.kms_key_arn == null ? [] : [{
+        Sid      = "DecryptClientSecret"
+        Effect   = "Allow"
+        Action   = "kms:Decrypt"
+        Resource = local.p0_auth0_tenant_acme_us_auth0_com.kms_key_arn
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "secretsmanager.${local.p0_auth0_tenant_acme_us_auth0_com.secrets_region}.${data.aws_partition.p0_auth0_tenant_acme_us_auth0_com.dns_suffix}"
+          }
+        }
+      }],
+    )
+  })
+
+  # A secret in another account can't use the default aws/secretsmanager key.
+  lifecycle {
+    precondition {
+      condition     = local.p0_auth0_tenant_acme_us_auth0_com.secrets_account_id == local.p0_auth0_tenant_acme_us_auth0_com.connector_account_id || local.p0_auth0_tenant_acme_us_auth0_com.kms_key_arn != null
+      error_message = "The client secret is in another AWS account, so it must be encrypted with a customer-managed KMS key. Set kms_key_arn to that key's ARN, and allow the connector's role in the secret's resource policy and in the key's policy."
+    }
+  }
+}
+
+# Adds the tenant. Creating it has P0 validate the install through the
+# connector, so it waits until the connector can read the client secret. IAM
+# changes can take a few seconds to propagate, so if the connector is denied the
+# secret, apply again.
+resource "p0_auth0_tenant" "example" {
+  id        = "acme.us.auth0.com"
+  connector = p0_auth0_connector.example.id
+
+  vault = {
+    type           = "aws-sm"
+    account_id     = local.p0_auth0_tenant_acme_us_auth0_com.secrets_account_id
+    secrets_region = local.p0_auth0_tenant_acme_us_auth0_com.secrets_region
+  }
+  # The machine-to-machine application's client ID, from its Settings.
+  client_id          = "Q7z1pX9b2kWmN4rT6vY8cE0dFgHjLs3A"
+  client_secret_name = local.p0_auth0_tenant_acme_us_auth0_com.client_secret_name
+
+  depends_on = [aws_iam_role_policy.p0_auth0_tenant_acme_us_auth0_com_secret]
+}
+
+# The email domains the connector acts for, as P0 read them back from it.
+output "auth0_allowed_domains" {
+  value = p0_auth0_tenant.example.allowed_domains
+}
+```
+
+### Google Cloud
+
+```terraform
+# The Google Cloud variant of the p0_auth0_tenant example in this directory: the
+# tenant's connector runs on Cloud Run (see gcp.tf in the p0_auth0_connector
+# example), and its application's client secret is in Google Secret Manager.
+#
+# Before you apply this, create the machine-to-machine application, as the
+# example in resource.tf says, and store its client secret as the secret
+# auth0-acme-eu-mgmt. The example doesn't create the secret, which keeps the
+# client secret out of Terraform's state. To store it, read the client secret
+# without showing it:
+#
+#   read -rs AUTH0_CLIENT_SECRET
+#
+# Then create the secret:
+#
+#   printf %s "$AUTH0_CLIENT_SECRET" | gcloud secrets create auth0-acme-eu-mgmt \
+#     --project my-secrets-project-id --data-file=-
+#
+# If the secret exists, store the client secret as a new version instead, which
+# is also how to rotate it:
+#
+#   printf %s "$AUTH0_CLIENT_SECRET" | gcloud secrets versions add auth0-acme-eu-mgmt \
+#     --project my-secrets-project-id --data-file=-
+
+locals {
+  p0_auth0_tenant_acme_eu_auth0_com = {
+    # The secret that holds acme.eu.auth0.com's client secret, and its project,
+    # which needn't be the connector's. A new secret replaces the installation.
+    # To rotate the client secret, add a new version to this secret instead.
+    client_secret_project = "my-secrets-project-id"
+    client_secret_id      = "auth0-acme-eu-mgmt"
+  }
+}
+
+# The connector reads the client secret's value. Each binding adds one member
+# to the secret's IAM policy, and replaces nothing. Both are on the secret and
+# not on its project, so the connector can read no other secret.
+resource "google_secret_manager_secret_iam_member" "p0_auth0_tenant_acme_eu_auth0_com_accessor" {
+  project   = local.p0_auth0_tenant_acme_eu_auth0_com.client_secret_project
+  secret_id = local.p0_auth0_tenant_acme_eu_auth0_com.client_secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${p0_auth0_connector.gcp_example.connector_identity.service_account_email}"
+}
+
+# The accessor role gives secretmanager.versions.access only. The connector also
+# reads the version it got the value from, which needs
+# secretmanager.versions.get.
+resource "google_secret_manager_secret_iam_member" "p0_auth0_tenant_acme_eu_auth0_com_viewer" {
+  project   = local.p0_auth0_tenant_acme_eu_auth0_com.client_secret_project
+  secret_id = local.p0_auth0_tenant_acme_eu_auth0_com.client_secret_id
+  role      = "roles/secretmanager.viewer"
+  member    = "serviceAccount:${p0_auth0_connector.gcp_example.connector_identity.service_account_email}"
+}
+
+# Adds the tenant. Creating it has P0 validate the install through the
+# connector, so it waits until the connector can read the client secret.
+resource "p0_auth0_tenant" "gcp_example" {
+  id        = "acme.eu.auth0.com"
+  connector = p0_auth0_connector.gcp_example.id
+
+  vault = {
+    type       = "gcp-sm"
+    project_id = local.p0_auth0_tenant_acme_eu_auth0_com.client_secret_project
+  }
+  # The machine-to-machine application's client ID, from its Settings.
+  client_id          = "R8a2qY0c3lXnO5sU7wZ9dF1eGhIkMt4B"
+  client_secret_name = local.p0_auth0_tenant_acme_eu_auth0_com.client_secret_id
+
+  depends_on = [
+    google_secret_manager_secret_iam_member.p0_auth0_tenant_acme_eu_auth0_com_accessor,
+    google_secret_manager_secret_iam_member.p0_auth0_tenant_acme_eu_auth0_com_viewer,
+  ]
+}
+```
+
+<!-- schema generated by tfplugindocs -->
+## Schema
+
+### Required
+
+- `client_id` (String) The client ID of the machine-to-machine application the connector acts as, authorized for the Auth0 Management API, as the application's settings show it. Changing it replaces the installation.
+- `client_secret_name` (String) The name of the secret that holds the application's client secret, such as `auth0/acme/mgmt` in AWS Secrets Manager or `auth0-acme-mgmt` in Google Secret Manager: the name alone, not the secret's ARN or its full resource name. In AWS Secrets Manager the name can't end in a hyphen and six letters or digits, like `-AbCdEf`, because Secrets Manager can't find a secret by such a name. Changing it replaces the installation. To rotate the client secret, store the new one as a new version of the same secret, which needs no change here.
+- `connector` (String) The connector that acts on this tenant: the `id` of a `p0_auth0_connector` resource. Requires that connector to be installed.
+- `id` (String) The tenant's canonical Auth0 domain, such as `acme.us.auth0.com` or `acme.auth0.com`, in lowercase. A custom domain can't be used: the Auth0 Management API only answers on the canonical one.
+- `vault` (Attributes) The secret manager that holds the client secret. Your connector reads the secret, and P0 never does. It must be in the connector's cloud, and can be in another account or project there. (see [below for nested schema](#nestedatt--vault))
+
+### Read-Only
+
+- `allowed_domains` (String) The email domains the connector acts for: the `DOMAIN_ALLOW_PATTERN` it's deployed with, which P0 reads back from the connector when it checks the install. To change it, change the connector's deployment.
+- `state` (String) This item's install progress in the P0 application:
+	- 'stage': The item has been staged for installation
+	- 'configure': The item is available to be added to P0, and may be configured
+	- 'installed': The item is fully installed
+
+<a id="nestedatt--vault"></a>
+### Nested Schema for `vault`
+
+Required:
+
+- `type` (String) The secret manager: either `aws-sm` (AWS Secrets Manager) or `gcp-sm` (Google Secret Manager)
+
+Optional:
+
+- `account_id` (String) The ID of the AWS account that holds the client secret (in the P0 app, one of your AWS Secrets Manager installations). Required for, and only valid with, `aws-sm`.
+- `project_id` (String) The ID of the Google Cloud project that holds the client secret (in the P0 app, one of your Google Secret Manager installations). Required for, and only valid with, `gcp-sm`.
+- `secrets_region` (String) The AWS region the client secret is stored in, such as `us-west-2`. Required for, and only valid with, `aws-sm`.
