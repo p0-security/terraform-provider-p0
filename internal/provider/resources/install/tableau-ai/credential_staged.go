@@ -17,24 +17,25 @@ import (
 var _ resource.Resource = &TableauAiCredentialStaged{}
 var _ resource.ResourceWithConfigure = &TableauAiCredentialStaged{}
 var _ resource.ResourceWithImportState = &TableauAiCredentialStaged{}
+var _ resource.ResourceWithValidateConfig = &TableauAiCredentialStaged{}
 
 type TableauAiCredentialStaged struct {
 	installer *common.Install
 }
 
 type tableauAiCredentialStagedModel struct {
-	Id            types.String                                       `tfsdk:"id"`
-	Server        types.String                                       `tfsdk:"server"`
-	ContentUrl    types.String                                       `tfsdk:"content_url"`
-	SecretManager *installvaultedcredential.SecretManagerStagedModel `tfsdk:"secret_manager"`
-	State         types.String                                       `tfsdk:"state"`
+	Id            types.String                                              `tfsdk:"id"`
+	Server        types.String                                              `tfsdk:"server"`
+	ContentUrl    types.String                                              `tfsdk:"content_url"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsStagedModel `tfsdk:"secret_manager"`
+	State         types.String                                              `tfsdk:"state"`
 }
 
 type tableauAiCredentialStagedJson struct {
-	Server        *string                                     `json:"server,omitempty"`
-	ContentUrl    *string                                     `json:"contentUrl,omitempty"`
-	SecretManager *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
-	State         *string                                     `json:"state,omitempty"`
+	Server        *string                                            `json:"server,omitempty"`
+	ContentUrl    *string                                            `json:"contentUrl,omitempty"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsJson `json:"secretManager,omitempty"`
+	State         *string                                            `json:"state,omitempty"`
 }
 
 type tableauAiCredentialStagedApi struct {
@@ -53,9 +54,9 @@ func (*TableauAiCredentialStaged) Schema(_ context.Context, _ resource.SchemaReq
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A staged Tableau site installation for agentic access. Staging generates the identifiers needed to deploy P0's Tableau connector.
 
-Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the connector's Cloud Run service and its admin connected app's secret. Once the connector is deployed, create a ` + "`p0_tableau_ai`" + ` resource with the same ` + "`id`" + ` to complete the installation.
+Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the connector and its admin connected app's secret: a Lambda function with ` + "`aws-sm`" + `, or a Cloud Run service with ` + "`gcp-sm`" + `. Once the connector is deployed, create a ` + "`p0_tableau_ai`" + ` resource with the same ` + "`id`" + ` to complete the installation.
 
-**Prerequisite:** P0 must be installed on the Google Cloud organization (for example via the ` + "`p0_gcp`" + ` resource).
+**Prerequisite:** P0 must be installed on the AWS account with AWS Secrets Manager, or on the Google Cloud organization (for example via the ` + "`p0_gcp`" + ` resource).
 
 **Note:** This integration is currently in beta.`,
 		Attributes: map[string]schema.Attribute{
@@ -65,11 +66,15 @@ Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the 
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's Tableau connector runs and stores the admin connected app's secret`,
-				Attributes:          installvaultedcredential.SecretManagerAttributes(secretLabel, ""),
+				Attributes:          installvaultedcredential.SecretManagerWithAwsAttributes(secretLabel, ""),
 			},
 			"state": common.StateAttribute,
 		},
 	}
+}
+
+func (*TableauAiCredentialStaged) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	installvaultedcredential.ValidateSecretManagerWithAws(ctx, req.Config, &resp.Diagnostics)
 }
 
 func (r *TableauAiCredentialStaged) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -107,11 +112,11 @@ func (r *TableauAiCredentialStaged) fromJson(_ context.Context, diags *diag.Diag
 	if !ok {
 		return nil
 	}
-	if !installvaultedcredential.RequireSecretManager(diags, integrationLabel, id, jsonv.SecretManager) {
+	if !installvaultedcredential.RequireSecretManagerWithAws(diags, integrationLabel, id, jsonv.SecretManager) {
 		return nil
 	}
 
-	secretManager := installvaultedcredential.SecretManagerStagedFromJson(jsonv.SecretManager)
+	secretManager := installvaultedcredential.SecretManagerWithAwsStagedFromJson(jsonv.SecretManager)
 	return &tableauAiCredentialStagedModel{
 		Id:            types.StringValue(id),
 		Server:        types.StringPointerValue(jsonv.Server),
