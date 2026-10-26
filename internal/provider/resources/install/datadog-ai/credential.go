@@ -17,24 +17,25 @@ import (
 var _ resource.Resource = &DatadogAiCredential{}
 var _ resource.ResourceWithConfigure = &DatadogAiCredential{}
 var _ resource.ResourceWithImportState = &DatadogAiCredential{}
+var _ resource.ResourceWithValidateConfig = &DatadogAiCredential{}
 
 type DatadogAiCredential struct {
 	installer *common.Install
 }
 
 type datadogAiCredentialModel struct {
-	Id               types.String                                 `tfsdk:"id"`
-	Site             types.String                                 `tfsdk:"site"`
-	SecretManager    *installvaultedcredential.SecretManagerModel `tfsdk:"secret_manager"`
-	ServiceAccountId types.String                                 `tfsdk:"service_account_id"`
-	State            types.String                                 `tfsdk:"state"`
+	Id               types.String                                        `tfsdk:"id"`
+	Site             types.String                                        `tfsdk:"site"`
+	SecretManager    *installvaultedcredential.SecretManagerWithAwsModel `tfsdk:"secret_manager"`
+	ServiceAccountId types.String                                        `tfsdk:"service_account_id"`
+	State            types.String                                        `tfsdk:"state"`
 }
 
 type datadogAiCredentialJson struct {
-	Site             *siteJson                                   `json:"site,omitempty"`
-	SecretManager    *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
-	ServiceAccountId *string                                     `json:"serviceAccountId,omitempty"`
-	State            *string                                     `json:"state,omitempty"`
+	Site             *siteJson                                          `json:"site,omitempty"`
+	SecretManager    *installvaultedcredential.SecretManagerWithAwsJson `json:"secretManager,omitempty"`
+	ServiceAccountId *string                                            `json:"serviceAccountId,omitempty"`
+	State            *string                                            `json:"state,omitempty"`
 }
 
 type datadogAiCredentialApi struct {
@@ -55,7 +56,7 @@ func (*DatadogAiCredential) Schema(_ context.Context, _ resource.SchemaRequest, 
 
 Installing it allows P0 to grant machines just-in-time access to a Datadog organization, with a service access token that holds only the requested scopes.
 
-**Important:** Before creating this resource you must stage the installation with ` + "`p0_datadog_ai_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the organization's API key and application key as a version of the connector's admin keys secret; the connector cannot create access tokens until that version exists.
+**Important:** Before creating this resource you must stage the installation with ` + "`p0_datadog_ai_staged`" + ` and deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud). Creating this resource verifies that the connector is deployed. After you create it, add the organization's API key and application key as a version of the connector's admin keys secret; the connector cannot create access tokens until that version exists.
 
 **Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
@@ -64,7 +65,7 @@ Installing it allows P0 to grant machines just-in-time access to a Datadog organ
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's Datadog connector runs and stores the Datadog organization's admin keys`,
-				Attributes:          installvaultedcredential.FinalSecretManagerAttributes(secretLabel, " Must match the `p0_datadog_ai_staged` resource."),
+				Attributes:          installvaultedcredential.FinalSecretManagerWithAwsAttributes(secretLabel, " Must match the `p0_datadog_ai_staged` resource."),
 			},
 			"service_account_id": schema.StringAttribute{
 				Required:            true,
@@ -73,6 +74,10 @@ Installing it allows P0 to grant machines just-in-time access to a Datadog organ
 			"state": common.StateAttribute,
 		},
 	}
+}
+
+func (*DatadogAiCredential) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	installvaultedcredential.ValidateSecretManagerWithAws(ctx, req.Config, &resp.Diagnostics)
 }
 
 func (r *DatadogAiCredential) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -110,11 +115,11 @@ func (r *DatadogAiCredential) fromJson(_ context.Context, diags *diag.Diagnostic
 	if !ok {
 		return nil
 	}
-	if !installvaultedcredential.RequireSecretManager(diags, integrationLabel, id, jsonv.SecretManager) {
+	if !installvaultedcredential.RequireSecretManagerWithAws(diags, integrationLabel, id, jsonv.SecretManager) {
 		return nil
 	}
 
-	secretManager := installvaultedcredential.SecretManagerFromJson(jsonv.SecretManager)
+	secretManager := installvaultedcredential.SecretManagerWithAwsFromJson(jsonv.SecretManager)
 	return &datadogAiCredentialModel{
 		Id:               types.StringValue(id),
 		Site:             siteFromJson(jsonv.Site),
