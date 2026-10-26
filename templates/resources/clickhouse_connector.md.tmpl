@@ -1,0 +1,22 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.RenderedProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+### AWS Lambda
+
+{{ tffile "examples/resources/p0_clickhouse_connector/resource.tf" }}
+
+### Google Cloud Run
+
+{{ tffile "examples/resources/p0_clickhouse_connector/gcp.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}
