@@ -4,8 +4,8 @@ page_title: "p0_servicenow_ai_staged Resource - p0"
 subcategory: ""
 description: |-
   A staged ServiceNow instance installation for agentic access. Staging generates the identifiers needed to deploy P0's ServiceNow connector.
-  Use the read-only secret_manager connector attributes to deploy the connector's Cloud Run service and its install secret. Once the connector is deployed and the install secret holds the client secrets and signing key, create a p0_servicenow_ai resource with the same id to complete the installation.
-  Prerequisites: P0 must be installed on the Google Cloud organization (for example via the p0_gcp resource), and the instance must have the provisioner and JWT bearer inbound integrations set up.
+  Use the read-only secret_manager connector attributes to deploy the connector and its install secret: a Lambda function with aws-sm, or a Cloud Run service with gcp-sm. Once the connector is deployed and the install secret holds the client secrets and signing key, create a p0_servicenow_ai resource with the same id to complete the installation.
+  Prerequisites: P0 must be installed on the AWS account with AWS Secrets Manager, or on the Google Cloud organization (for example via the p0_gcp resource), and the instance must have the provisioner and JWT bearer inbound integrations set up.
   Note: This integration is currently in beta.
   For the full install steps, see ServiceNow https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/servicenow.
 ---
@@ -14,9 +14,9 @@ description: |-
 
 A staged ServiceNow instance installation for agentic access. Staging generates the identifiers needed to deploy P0's ServiceNow connector.
 
-Use the read-only `secret_manager` connector attributes to deploy the connector's Cloud Run service and its install secret. Once the connector is deployed and the install secret holds the client secrets and signing key, create a `p0_servicenow_ai` resource with the same `id` to complete the installation.
+Use the read-only `secret_manager` connector attributes to deploy the connector and its install secret: a Lambda function with `aws-sm`, or a Cloud Run service with `gcp-sm`. Once the connector is deployed and the install secret holds the client secrets and signing key, create a `p0_servicenow_ai` resource with the same `id` to complete the installation.
 
-**Prerequisites:** P0 must be installed on the Google Cloud organization (for example via the `p0_gcp` resource), and the instance must have the provisioner and JWT bearer inbound integrations set up.
+**Prerequisites:** P0 must be installed on the AWS account with AWS Secrets Manager, or on the Google Cloud organization (for example via the `p0_gcp` resource), and the instance must have the provisioner and JWT bearer inbound integrations set up.
 
 **Note:** This integration is currently in beta.
 
@@ -45,6 +45,19 @@ resource "p0_servicenow_ai_staged" "example" {
   depends_on = [p0_gcp.example]
 }
 
+# Or, with the connector on AWS Lambda and its secrets in AWS Secrets Manager.
+# Requires AWS Secrets Manager to already be installed in P0 for the account.
+resource "p0_servicenow_ai_staged" "aws_example" {
+  # The instance name, as in acme.service-now.com
+  id = "acme-dev"
+
+  secret_manager = {
+    type           = "aws-sm"
+    account_id     = "123456789012"
+    secrets_region = "us-west-2"
+  }
+}
+
 # See the p0_servicenow_ai example for the next steps (deploying the connector
 # and its install secret) that complete the install.
 ```
@@ -69,11 +82,16 @@ resource "p0_servicenow_ai_staged" "example" {
 
 Required:
 
-- `project_id` (String) The GCP project that hosts the connector's Cloud Run service and the secret that holds the connector's client secrets and signing key.
-- `type` (String) The secret manager that stores the connector's client secrets and signing key. Only `gcp-sm` (Google Secret Manager) is supported.
+- `type` (String) The secret manager that stores the connector's client secrets and signing key: `aws-sm` (AWS Secrets Manager, with the connector on AWS Lambda) or `gcp-sm` (Google Secret Manager, with the connector on Google Cloud Run).
+
+Optional:
+
+- `account_id` (String) The AWS account that hosts the connector's Lambda function and the secret that holds the connector's client secrets and signing key: one of your AWS Secrets Manager installations in P0. Required for, and only valid with, `aws-sm`.
+- `project_id` (String) The GCP project that hosts the connector's Cloud Run service and the secret that holds the connector's client secrets and signing key. Required for, and only valid with, `gcp-sm`.
+- `secrets_region` (String) The AWS region that stores the secrets, such as `us-west-2`. Required for, and only valid with, `aws-sm`.
 
 Read-Only:
 
-- `connector_region` (String) The GCP region in which to deploy the connector's Cloud Run service
-- `connector_service_account` (String) The email of the GCP service account that the connector must run as
-- `connector_service_name` (String) The name to give the connector's Cloud Run service
+- `connector_region` (String) The region in which to deploy the connector: its Lambda function's on AWS, its Cloud Run service's on Google Cloud
+- `connector_service_account` (String) The email of the GCP service account that the connector must run as. Google Cloud only.
+- `connector_service_name` (String) The name to give the connector's Cloud Run service. Google Cloud only.
