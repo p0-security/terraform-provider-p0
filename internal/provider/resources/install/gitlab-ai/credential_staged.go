@@ -17,20 +17,21 @@ import (
 var _ resource.Resource = &GitlabAiCredentialStaged{}
 var _ resource.ResourceWithConfigure = &GitlabAiCredentialStaged{}
 var _ resource.ResourceWithImportState = &GitlabAiCredentialStaged{}
+var _ resource.ResourceWithValidateConfig = &GitlabAiCredentialStaged{}
 
 type GitlabAiCredentialStaged struct {
 	installer *common.Install
 }
 
 type gitlabAiCredentialStagedModel struct {
-	Id            types.String                                       `tfsdk:"id"`
-	SecretManager *installvaultedcredential.SecretManagerStagedModel `tfsdk:"secret_manager"`
-	State         types.String                                       `tfsdk:"state"`
+	Id            types.String                                              `tfsdk:"id"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsStagedModel `tfsdk:"secret_manager"`
+	State         types.String                                              `tfsdk:"state"`
 }
 
 type gitlabAiCredentialStagedJson struct {
-	SecretManager *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
-	State         *string                                     `json:"state,omitempty"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsJson `json:"secretManager,omitempty"`
+	State         *string                                            `json:"state,omitempty"`
 }
 
 type gitlabAiCredentialStagedApi struct {
@@ -49,9 +50,9 @@ func (*GitlabAiCredentialStaged) Schema(_ context.Context, _ resource.SchemaRequ
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A staged GitLab installation for agentic access. Staging generates the identifiers needed to deploy P0's GitLab connector.
 
-Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the connector's Cloud Run service and its admin token secret. Once the connector is deployed, create a ` + "`p0_gitlab_ai`" + ` resource with the same ` + "`id`" + ` to complete the installation.
+Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the connector and its admin token secret: a Lambda function with ` + "`aws-sm`" + `, or a Cloud Run service with ` + "`gcp-sm`" + `. Once the connector is deployed, create a ` + "`p0_gitlab_ai`" + ` resource with the same ` + "`id`" + ` to complete the installation.
 
-**Prerequisite:** P0 must be installed on the Google Cloud organization (for example via the ` + "`p0_gcp`" + ` resource).
+**Prerequisite:** P0 must be installed on the AWS account with AWS Secrets Manager, or on the Google Cloud organization (for example via the ` + "`p0_gcp`" + ` resource).
 
 **Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
@@ -59,11 +60,15 @@ Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the 
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's GitLab connector runs and stores the GitLab group's admin token`,
-				Attributes:          installvaultedcredential.SecretManagerAttributes(secretLabel, ""),
+				Attributes:          installvaultedcredential.SecretManagerWithAwsAttributes(secretLabel, ""),
 			},
 			"state": common.StateAttribute,
 		},
 	}
+}
+
+func (*GitlabAiCredentialStaged) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	installvaultedcredential.ValidateSecretManagerWithAws(ctx, req.Config, &resp.Diagnostics)
 }
 
 func (r *GitlabAiCredentialStaged) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -101,11 +106,11 @@ func (r *GitlabAiCredentialStaged) fromJson(_ context.Context, diags *diag.Diagn
 	if !ok {
 		return nil
 	}
-	if !installvaultedcredential.RequireSecretManager(diags, integrationLabel, id, jsonv.SecretManager) {
+	if !installvaultedcredential.RequireSecretManagerWithAws(diags, integrationLabel, id, jsonv.SecretManager) {
 		return nil
 	}
 
-	secretManager := installvaultedcredential.SecretManagerStagedFromJson(jsonv.SecretManager)
+	secretManager := installvaultedcredential.SecretManagerWithAwsStagedFromJson(jsonv.SecretManager)
 	return &gitlabAiCredentialStagedModel{
 		Id:            types.StringValue(id),
 		SecretManager: &secretManager,

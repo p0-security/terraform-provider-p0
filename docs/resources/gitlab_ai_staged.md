@@ -4,8 +4,8 @@ page_title: "p0_gitlab_ai_staged Resource - p0"
 subcategory: ""
 description: |-
   A staged GitLab installation for agentic access. Staging generates the identifiers needed to deploy P0's GitLab connector.
-  Use the read-only secret_manager connector attributes to deploy the connector's Cloud Run service and its admin token secret. Once the connector is deployed, create a p0_gitlab_ai resource with the same id to complete the installation.
-  Prerequisite: P0 must be installed on the Google Cloud organization (for example via the p0_gcp resource).
+  Use the read-only secret_manager connector attributes to deploy the connector and its admin token secret: a Lambda function with aws-sm, or a Cloud Run service with gcp-sm. Once the connector is deployed, create a p0_gitlab_ai resource with the same id to complete the installation.
+  Prerequisite: P0 must be installed on the AWS account with AWS Secrets Manager, or on the Google Cloud organization (for example via the p0_gcp resource).
   Note: This integration is currently in preview.
 ---
 
@@ -13,9 +13,9 @@ description: |-
 
 A staged GitLab installation for agentic access. Staging generates the identifiers needed to deploy P0's GitLab connector.
 
-Use the read-only `secret_manager` connector attributes to deploy the connector's Cloud Run service and its admin token secret. Once the connector is deployed, create a `p0_gitlab_ai` resource with the same `id` to complete the installation.
+Use the read-only `secret_manager` connector attributes to deploy the connector and its admin token secret: a Lambda function with `aws-sm`, or a Cloud Run service with `gcp-sm`. Once the connector is deployed, create a `p0_gitlab_ai` resource with the same `id` to complete the installation.
 
-**Prerequisite:** P0 must be installed on the Google Cloud organization (for example via the `p0_gcp` resource).
+**Prerequisite:** P0 must be installed on the AWS account with AWS Secrets Manager, or on the Google Cloud organization (for example via the `p0_gcp` resource).
 
 **Note:** This integration is currently in preview.
 
@@ -38,6 +38,18 @@ resource "p0_gitlab_ai_staged" "example" {
   }
 
   depends_on = [p0_gcp.example]
+}
+
+# Or, with the connector on AWS Lambda and its secrets in AWS Secrets Manager.
+# Requires AWS Secrets Manager to already be installed in P0 for the account.
+resource "p0_gitlab_ai_staged" "aws_example" {
+  id = "my-other-gitlab-group"
+
+  secret_manager = {
+    type           = "aws-sm"
+    account_id     = "123456789012"
+    secrets_region = "us-west-2"
+  }
 }
 
 # See the p0_gitlab_ai example for the next steps (deploying the connector and
@@ -64,11 +76,16 @@ resource "p0_gitlab_ai_staged" "example" {
 
 Required:
 
-- `project_id` (String) The GCP project that hosts the connector's Cloud Run service and the secret that holds the GitLab group's admin token.
-- `type` (String) The secret manager that stores the GitLab group's admin token. Only `gcp-sm` (Google Secret Manager) is supported.
+- `type` (String) The secret manager that stores the GitLab group's admin token: `aws-sm` (AWS Secrets Manager, with the connector on AWS Lambda) or `gcp-sm` (Google Secret Manager, with the connector on Google Cloud Run).
+
+Optional:
+
+- `account_id` (String) The AWS account that hosts the connector's Lambda function and the secret that holds the GitLab group's admin token: one of your AWS Secrets Manager installations in P0. Required for, and only valid with, `aws-sm`.
+- `project_id` (String) The GCP project that hosts the connector's Cloud Run service and the secret that holds the GitLab group's admin token. Required for, and only valid with, `gcp-sm`.
+- `secrets_region` (String) The AWS region that stores the secrets, such as `us-west-2`. Required for, and only valid with, `aws-sm`.
 
 Read-Only:
 
-- `connector_region` (String) The GCP region in which to deploy the connector's Cloud Run service
-- `connector_service_account` (String) The email of the GCP service account that the connector must run as
-- `connector_service_name` (String) The name to give the connector's Cloud Run service
+- `connector_region` (String) The region in which to deploy the connector: its Lambda function's on AWS, its Cloud Run service's on Google Cloud
+- `connector_service_account` (String) The email of the GCP service account that the connector must run as. Google Cloud only.
+- `connector_service_name` (String) The name to give the connector's Cloud Run service. Google Cloud only.
