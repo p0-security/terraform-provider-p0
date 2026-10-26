@@ -17,24 +17,25 @@ import (
 var _ resource.Resource = &PagerdutyAiCredentialStaged{}
 var _ resource.ResourceWithConfigure = &PagerdutyAiCredentialStaged{}
 var _ resource.ResourceWithImportState = &PagerdutyAiCredentialStaged{}
+var _ resource.ResourceWithValidateConfig = &PagerdutyAiCredentialStaged{}
 
 type PagerdutyAiCredentialStaged struct {
 	installer *common.Install
 }
 
 type pagerdutyAiCredentialStagedModel struct {
-	Id            types.String                                       `tfsdk:"id"`
-	Region        types.String                                       `tfsdk:"region"`
-	Subdomain     types.String                                       `tfsdk:"subdomain"`
-	SecretManager *installvaultedcredential.SecretManagerStagedModel `tfsdk:"secret_manager"`
-	State         types.String                                       `tfsdk:"state"`
+	Id            types.String                                              `tfsdk:"id"`
+	Region        types.String                                              `tfsdk:"region"`
+	Subdomain     types.String                                              `tfsdk:"subdomain"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsStagedModel `tfsdk:"secret_manager"`
+	State         types.String                                              `tfsdk:"state"`
 }
 
 type pagerdutyAiCredentialStagedJson struct {
-	Region        *regionJson                                 `json:"region,omitempty"`
-	Subdomain     *string                                     `json:"subdomain,omitempty"`
-	SecretManager *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
-	State         *string                                     `json:"state,omitempty"`
+	Region        *regionJson                                        `json:"region,omitempty"`
+	Subdomain     *string                                            `json:"subdomain,omitempty"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsJson `json:"secretManager,omitempty"`
+	State         *string                                            `json:"state,omitempty"`
 }
 
 type pagerdutyAiCredentialStagedApi struct {
@@ -53,9 +54,9 @@ func (*PagerdutyAiCredentialStaged) Schema(_ context.Context, _ resource.SchemaR
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A staged PagerDuty installation for agentic access. Staging generates the identifiers needed to deploy P0's PagerDuty connector.
 
-Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the connector's Cloud Run service and its client secret's secret. Once the connector is deployed, create a ` + "`p0_pagerduty_ai`" + ` resource with the same ` + "`id`" + ` to complete the installation.
+Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the connector and its client secret's secret: a Lambda function with ` + "`aws-sm`" + `, or a Cloud Run service with ` + "`gcp-sm`" + `. Once the connector is deployed, create a ` + "`p0_pagerduty_ai`" + ` resource with the same ` + "`id`" + ` to complete the installation.
 
-**Prerequisite:** P0 must be installed on the Google Cloud organization (for example via the ` + "`p0_gcp`" + ` resource).
+**Prerequisite:** P0 must be installed on the AWS account with AWS Secrets Manager, or on the Google Cloud organization (for example via the ` + "`p0_gcp`" + ` resource).
 
 **Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
@@ -65,11 +66,15 @@ Use the read-only ` + "`secret_manager`" + ` connector attributes to deploy the 
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's PagerDuty connector runs and stores the PagerDuty app's client secret`,
-				Attributes:          installvaultedcredential.SecretManagerAttributes(secretLabel, ""),
+				Attributes:          installvaultedcredential.SecretManagerWithAwsAttributes(secretLabel, ""),
 			},
 			"state": common.StateAttribute,
 		},
 	}
+}
+
+func (*PagerdutyAiCredentialStaged) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	installvaultedcredential.ValidateSecretManagerWithAws(ctx, req.Config, &resp.Diagnostics)
 }
 
 func (r *PagerdutyAiCredentialStaged) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -107,11 +112,11 @@ func (r *PagerdutyAiCredentialStaged) fromJson(_ context.Context, diags *diag.Di
 	if !ok {
 		return nil
 	}
-	if !installvaultedcredential.RequireSecretManager(diags, integrationLabel, id, jsonv.SecretManager) {
+	if !installvaultedcredential.RequireSecretManagerWithAws(diags, integrationLabel, id, jsonv.SecretManager) {
 		return nil
 	}
 
-	secretManager := installvaultedcredential.SecretManagerStagedFromJson(jsonv.SecretManager)
+	secretManager := installvaultedcredential.SecretManagerWithAwsStagedFromJson(jsonv.SecretManager)
 	return &pagerdutyAiCredentialStagedModel{
 		Id:            types.StringValue(id),
 		Region:        regionFromJson(jsonv.Region),
