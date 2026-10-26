@@ -17,22 +17,23 @@ import (
 var _ resource.Resource = &GitlabAiCredential{}
 var _ resource.ResourceWithConfigure = &GitlabAiCredential{}
 var _ resource.ResourceWithImportState = &GitlabAiCredential{}
+var _ resource.ResourceWithValidateConfig = &GitlabAiCredential{}
 
 type GitlabAiCredential struct {
 	installer *common.Install
 }
 
 type gitlabAiCredentialModel struct {
-	Id            types.String                                 `tfsdk:"id"`
-	SecretManager *installvaultedcredential.SecretManagerModel `tfsdk:"secret_manager"`
-	GroupId       types.String                                 `tfsdk:"group_id"`
-	State         types.String                                 `tfsdk:"state"`
+	Id            types.String                                        `tfsdk:"id"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsModel `tfsdk:"secret_manager"`
+	GroupId       types.String                                        `tfsdk:"group_id"`
+	State         types.String                                        `tfsdk:"state"`
 }
 
 type gitlabAiCredentialJson struct {
-	SecretManager *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
-	GroupId       *string                                     `json:"groupId,omitempty"`
-	State         *string                                     `json:"state,omitempty"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsJson `json:"secretManager,omitempty"`
+	GroupId       *string                                            `json:"groupId,omitempty"`
+	State         *string                                            `json:"state,omitempty"`
 }
 
 type gitlabAiCredentialApi struct {
@@ -53,7 +54,7 @@ func (*GitlabAiCredential) Schema(_ context.Context, _ resource.SchemaRequest, r
 
 Installing it allows P0 to grant machines just-in-time access to projects in a GitLab.com top-level group. Each grant gets its own GitLab service account, a member of the requested projects with the requested role, and a token for the GitLab MCP server.
 
-**Important:** Before creating this resource you must stage the installation with ` + "`p0_gitlab_ai_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the admin service account's token as a version of the connector's admin token secret; the connector cannot grant access until that version exists.
+**Important:** Before creating this resource you must stage the installation with ` + "`p0_gitlab_ai_staged`" + ` and deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud). Creating this resource verifies that the connector is deployed. After you create it, add the admin service account's token as a version of the connector's admin token secret; the connector cannot grant access until that version exists.
 
 **Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
@@ -61,7 +62,7 @@ Installing it allows P0 to grant machines just-in-time access to projects in a G
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's GitLab connector runs and stores the GitLab group's admin token`,
-				Attributes:          installvaultedcredential.FinalSecretManagerAttributes(secretLabel, " Must match the `p0_gitlab_ai_staged` resource."),
+				Attributes:          installvaultedcredential.FinalSecretManagerWithAwsAttributes(secretLabel, " Must match the `p0_gitlab_ai_staged` resource."),
 			},
 			"group_id": schema.StringAttribute{
 				Required:            true,
@@ -70,6 +71,10 @@ Installing it allows P0 to grant machines just-in-time access to projects in a G
 			"state": common.StateAttribute,
 		},
 	}
+}
+
+func (*GitlabAiCredential) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	installvaultedcredential.ValidateSecretManagerWithAws(ctx, req.Config, &resp.Diagnostics)
 }
 
 func (r *GitlabAiCredential) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -107,11 +112,11 @@ func (r *GitlabAiCredential) fromJson(_ context.Context, diags *diag.Diagnostics
 	if !ok {
 		return nil
 	}
-	if !installvaultedcredential.RequireSecretManager(diags, integrationLabel, id, jsonv.SecretManager) {
+	if !installvaultedcredential.RequireSecretManagerWithAws(diags, integrationLabel, id, jsonv.SecretManager) {
 		return nil
 	}
 
-	secretManager := installvaultedcredential.SecretManagerFromJson(jsonv.SecretManager)
+	secretManager := installvaultedcredential.SecretManagerWithAwsFromJson(jsonv.SecretManager)
 	return &gitlabAiCredentialModel{
 		Id:            types.StringValue(id),
 		SecretManager: &secretManager,

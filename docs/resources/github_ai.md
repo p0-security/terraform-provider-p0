@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   A GitHub App installation.
   Installing the GitHub App allows P0 to grant machines just-in-time, scoped access to your GitHub organization's repositories.
-  Important: Before creating this resource you must stage the installation with p0_github_ai_staged and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the GitHub App's private key as a version of the connector's private key secret; the connector cannot mint access tokens until that version exists.
+  Important: Before creating this resource you must stage the installation with p0_github_ai_staged and deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud). Creating this resource verifies that the connector is deployed. After you create it, add the GitHub App's private key as a version of the connector's private key secret; the connector cannot mint access tokens until that version exists.
   Note: This integration is currently in preview.
 ---
 
@@ -15,7 +15,7 @@ A GitHub App installation.
 
 Installing the GitHub App allows P0 to grant machines just-in-time, scoped access to your GitHub organization's repositories.
 
-**Important:** Before creating this resource you must stage the installation with `p0_github_ai_staged` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the GitHub App's private key as a version of the connector's private key secret; the connector cannot mint access tokens until that version exists.
+**Important:** Before creating this resource you must stage the installation with `p0_github_ai_staged` and deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud). Creating this resource verifies that the connector is deployed. After you create it, add the GitHub App's private key as a version of the connector's private key secret; the connector cannot mint access tokens until that version exists.
 
 **Note:** This integration is currently in preview.
 
@@ -232,12 +232,17 @@ resource "p0_github_ai" "example" {
 
 Required:
 
-- `project_id` (String) The GCP project that hosts the connector's Cloud Run service and the secret that holds the GitHub App's private key. Must match the `p0_github_ai_staged` resource.
-- `type` (String) The secret manager that stores the GitHub App's private key. Only `gcp-sm` (Google Secret Manager) is supported. Must match the `p0_github_ai_staged` resource.
+- `type` (String) The secret manager that stores the GitHub App's private key: `aws-sm` (AWS Secrets Manager, with the connector on AWS Lambda) or `gcp-sm` (Google Secret Manager, with the connector on Google Cloud Run). Must match the `p0_github_ai_staged` resource.
+
+Optional:
+
+- `account_id` (String) The AWS account that hosts the connector's Lambda function and the secret that holds the GitHub App's private key: one of your AWS Secrets Manager installations in P0. Required for, and only valid with, `aws-sm`. Must match the `p0_github_ai_staged` resource.
+- `project_id` (String) The GCP project that hosts the connector's Cloud Run service and the secret that holds the GitHub App's private key. Required for, and only valid with, `gcp-sm`. Must match the `p0_github_ai_staged` resource.
+- `secrets_region` (String) The AWS region that stores the secrets, such as `us-west-2`. Required for, and only valid with, `aws-sm`. Must match the `p0_github_ai_staged` resource.
 
 Read-Only:
 
-- `connector_region` (String) The GCP region in which to deploy the connector's Cloud Run service
-- `connector_service_account` (String) The email of the GCP service account that the connector must run as
-- `connector_service_name` (String) The name to give the connector's Cloud Run service
-- `connector_service_uri` (String) The invocation URL of the connector's Cloud Run service, resolved by P0 during install
+- `connector_region` (String) The region in which to deploy the connector: its Lambda function's on AWS, its Cloud Run service's on Google Cloud
+- `connector_service_account` (String) The email of the GCP service account that the connector must run as. Google Cloud only.
+- `connector_service_name` (String) The name to give the connector's Cloud Run service. Google Cloud only.
+- `connector_service_uri` (String) The invocation URL of the connector's Cloud Run service, resolved by P0 during install. Google Cloud only.

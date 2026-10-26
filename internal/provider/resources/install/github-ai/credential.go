@@ -17,22 +17,23 @@ import (
 var _ resource.Resource = &GithubAiCredential{}
 var _ resource.ResourceWithConfigure = &GithubAiCredential{}
 var _ resource.ResourceWithImportState = &GithubAiCredential{}
+var _ resource.ResourceWithValidateConfig = &GithubAiCredential{}
 
 type GithubAiCredential struct {
 	installer *common.Install
 }
 
 type githubAiCredentialModel struct {
-	Id            types.String                                 `tfsdk:"id"`
-	SecretManager *installvaultedcredential.SecretManagerModel `tfsdk:"secret_manager"`
-	AppId         types.String                                 `tfsdk:"app_id"`
-	State         types.String                                 `tfsdk:"state"`
+	Id            types.String                                        `tfsdk:"id"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsModel `tfsdk:"secret_manager"`
+	AppId         types.String                                        `tfsdk:"app_id"`
+	State         types.String                                        `tfsdk:"state"`
 }
 
 type githubAiCredentialJson struct {
-	SecretManager *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
-	AppId         *string                                     `json:"appId,omitempty"`
-	State         *string                                     `json:"state,omitempty"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsJson `json:"secretManager,omitempty"`
+	AppId         *string                                            `json:"appId,omitempty"`
+	State         *string                                            `json:"state,omitempty"`
 }
 
 type githubAiCredentialApi struct {
@@ -53,7 +54,7 @@ func (*GithubAiCredential) Schema(_ context.Context, _ resource.SchemaRequest, r
 
 Installing the GitHub App allows P0 to grant machines just-in-time, scoped access to your GitHub organization's repositories.
 
-**Important:** Before creating this resource you must stage the installation with ` + "`p0_github_ai_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the GitHub App's private key as a version of the connector's private key secret; the connector cannot mint access tokens until that version exists.
+**Important:** Before creating this resource you must stage the installation with ` + "`p0_github_ai_staged`" + ` and deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud). Creating this resource verifies that the connector is deployed. After you create it, add the GitHub App's private key as a version of the connector's private key secret; the connector cannot mint access tokens until that version exists.
 
 **Note:** This integration is currently in preview.`,
 		Attributes: map[string]schema.Attribute{
@@ -61,7 +62,7 @@ Installing the GitHub App allows P0 to grant machines just-in-time, scoped acces
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's GitHub connector runs and stores the GitHub App's private key`,
-				Attributes:          installvaultedcredential.FinalSecretManagerAttributes(secretLabel, " Must match the `p0_github_ai_staged` resource."),
+				Attributes:          installvaultedcredential.FinalSecretManagerWithAwsAttributes(secretLabel, " Must match the `p0_github_ai_staged` resource."),
 			},
 			"app_id": schema.StringAttribute{
 				Required:            true,
@@ -70,6 +71,10 @@ Installing the GitHub App allows P0 to grant machines just-in-time, scoped acces
 			"state": common.StateAttribute,
 		},
 	}
+}
+
+func (*GithubAiCredential) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	installvaultedcredential.ValidateSecretManagerWithAws(ctx, req.Config, &resp.Diagnostics)
 }
 
 func (r *GithubAiCredential) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -107,11 +112,11 @@ func (r *GithubAiCredential) fromJson(_ context.Context, diags *diag.Diagnostics
 	if !ok {
 		return nil
 	}
-	if !installvaultedcredential.RequireSecretManager(diags, integrationLabel, id, jsonv.SecretManager) {
+	if !installvaultedcredential.RequireSecretManagerWithAws(diags, integrationLabel, id, jsonv.SecretManager) {
 		return nil
 	}
 
-	secretManager := installvaultedcredential.SecretManagerFromJson(jsonv.SecretManager)
+	secretManager := installvaultedcredential.SecretManagerWithAwsFromJson(jsonv.SecretManager)
 	return &githubAiCredentialModel{
 		Id:            types.StringValue(id),
 		SecretManager: &secretManager,

@@ -16,26 +16,27 @@ import (
 var _ resource.Resource = &ServiceNowAiInstance{}
 var _ resource.ResourceWithConfigure = &ServiceNowAiInstance{}
 var _ resource.ResourceWithImportState = &ServiceNowAiInstance{}
+var _ resource.ResourceWithValidateConfig = &ServiceNowAiInstance{}
 
 type ServiceNowAiInstance struct {
 	installer *common.Install
 }
 
 type serviceNowAiInstanceModel struct {
-	Id                  types.String                                 `tfsdk:"id"`
-	SecretManager       *installvaultedcredential.SecretManagerModel `tfsdk:"secret_manager"`
-	ProvisionerClientId types.String                                 `tfsdk:"provisioner_client_id"`
-	JwtClientId         types.String                                 `tfsdk:"jwt_client_id"`
-	KeyId               types.String                                 `tfsdk:"key_id"`
-	State               types.String                                 `tfsdk:"state"`
+	Id                  types.String                                        `tfsdk:"id"`
+	SecretManager       *installvaultedcredential.SecretManagerWithAwsModel `tfsdk:"secret_manager"`
+	ProvisionerClientId types.String                                        `tfsdk:"provisioner_client_id"`
+	JwtClientId         types.String                                        `tfsdk:"jwt_client_id"`
+	KeyId               types.String                                        `tfsdk:"key_id"`
+	State               types.String                                        `tfsdk:"state"`
 }
 
 type serviceNowAiInstanceJson struct {
-	SecretManager       *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
-	ProvisionerClientId *string                                     `json:"provisionerClientId,omitempty"`
-	JwtClientId         *string                                     `json:"jwtClientId,omitempty"`
-	KeyId               *string                                     `json:"keyId,omitempty"`
-	State               *string                                     `json:"state,omitempty"`
+	SecretManager       *installvaultedcredential.SecretManagerWithAwsJson `json:"secretManager,omitempty"`
+	ProvisionerClientId *string                                            `json:"provisionerClientId,omitempty"`
+	JwtClientId         *string                                            `json:"jwtClientId,omitempty"`
+	KeyId               *string                                            `json:"keyId,omitempty"`
+	State               *string                                            `json:"state,omitempty"`
 }
 
 type serviceNowAiInstanceApi struct {
@@ -56,7 +57,7 @@ func (*ServiceNowAiInstance) Schema(_ context.Context, _ resource.SchemaRequest,
 
 Installing it allows P0 to grant agents ServiceNow roles on a machine user for each gateway session.
 
-**Important:** Before creating this resource you must stage the installation with ` + "`p0_servicenow_ai_staged`" + `, deploy the connector's Cloud Run service, and add the client secrets and signing key as a version of the connector's install secret. Creating this resource verifies that the connector can sign in to the instance and read its roles.
+**Important:** Before creating this resource you must stage the installation with ` + "`p0_servicenow_ai_staged`" + `, deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud), and add the client secrets and signing key as a version of the connector's install secret. Creating this resource verifies that the connector can sign in to the instance and read its roles.
 
 **Note:** This integration is currently in beta.
 
@@ -66,7 +67,7 @@ For the full install steps, see [ServiceNow](https://docs.p0.dev/integrations/re
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's ServiceNow connector runs and stores its client secrets, signing key, and session tokens`,
-				Attributes:          installvaultedcredential.FinalSecretManagerAttributes(secretLabel, " Must match the `p0_servicenow_ai_staged` resource."),
+				Attributes:          installvaultedcredential.FinalSecretManagerWithAwsAttributes(secretLabel, " Must match the `p0_servicenow_ai_staged` resource."),
 			},
 			"provisioner_client_id": schema.StringAttribute{
 				Required:            true,
@@ -83,6 +84,10 @@ For the full install steps, see [ServiceNow](https://docs.p0.dev/integrations/re
 			"state": common.StateAttribute,
 		},
 	}
+}
+
+func (*ServiceNowAiInstance) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	installvaultedcredential.ValidateSecretManagerWithAws(ctx, req.Config, &resp.Diagnostics)
 }
 
 func (r *ServiceNowAiInstance) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -120,11 +125,11 @@ func (r *ServiceNowAiInstance) fromJson(_ context.Context, diags *diag.Diagnosti
 	if !ok {
 		return nil
 	}
-	if !installvaultedcredential.RequireSecretManager(diags, integrationLabel, id, jsonv.SecretManager) {
+	if !installvaultedcredential.RequireSecretManagerWithAws(diags, integrationLabel, id, jsonv.SecretManager) {
 		return nil
 	}
 
-	secretManager := installvaultedcredential.SecretManagerFromJson(jsonv.SecretManager)
+	secretManager := installvaultedcredential.SecretManagerWithAwsFromJson(jsonv.SecretManager)
 	return &serviceNowAiInstanceModel{
 		Id:                  types.StringValue(id),
 		SecretManager:       &secretManager,
