@@ -70,11 +70,12 @@ type serverDefinitionHostingModel struct {
 }
 
 type serverDefinitionModel struct {
-	Type    string                        `tfsdk:"type" json:"type"`
-	Id      *string                       `tfsdk:"id" json:"id,omitempty"`
-	Hosting *serverDefinitionHostingModel `tfsdk:"hosting" json:"hosting,omitempty"`
-	LogoUrl *string                       `tfsdk:"logo_url" json:"logoUrl,omitempty"`
-	Prompt  *string                       `tfsdk:"prompt" json:"prompt,omitempty"`
+	Type     string                        `tfsdk:"type" json:"type"`
+	Id       *string                       `tfsdk:"id" json:"id,omitempty"`
+	Instance *string                       `tfsdk:"instance" json:"instance,omitempty"`
+	Hosting  *serverDefinitionHostingModel `tfsdk:"hosting" json:"hosting,omitempty"`
+	LogoUrl  *string                       `tfsdk:"logo_url" json:"logoUrl,omitempty"`
+	Prompt   *string                       `tfsdk:"prompt" json:"prompt,omitempty"`
 }
 
 type serverModel struct {
@@ -100,8 +101,13 @@ type serverApi struct {
 // `gatewaySelect` element); resending it from the later verify/configure
 // calls (see toJson) is rejected by the backend with "can only be altered on
 // initial installation".
+//
+// The definition's `instance` is "step: new" too, so P0 must receive it here.
+// Staging sends the definition only when it has an instance, so other servers
+// stage as before.
 type serverStageJson struct {
-	Gateway string `json:"gateway"`
+	Gateway    string                 `json:"gateway"`
+	Definition *serverDefinitionModel `json:"definition,omitempty"`
 }
 
 // serverConfigureJson carries the mutable fields sent by toJson, used for the
@@ -217,6 +223,15 @@ parameters, for example ` + "`" + `{ "scopes": {{ request.permission.role | json
 						Optional:            true,
 						MarkdownDescription: "Required, and may only be used, if 'type' is 'p0'. Pre-defined server identifier.",
 					},
+					"instance": schema.StringAttribute{
+						Optional: true,
+						MarkdownDescription: `May only be used if 'type' is 'p0', and is needed only for a server whose URL takes an
+instance. The value the server puts in its URL, such as a Databricks workspace's deployment name. P0 fixes it when
+the server is added, so changing it replaces the server.`,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.RequiresReplace(),
+						},
+					},
 					"hosting": schema.SingleNestedAttribute{
 						Optional: true,
 						MarkdownDescription: `Required, and may only be used, if 'type' is 'custom'. Whether this server proxies to an
@@ -269,7 +284,7 @@ externally hosted server ('external') or hosts a containerized server ('containe
 						"custom": {"hosting", "prompt"},
 					}),
 					ExclusiveToAttr("type", map[string][]string{
-						"p0":     {"id"},
+						"p0":     {"id", "instance"},
 						"custom": {"hosting", "prompt", "logo_url"},
 					}),
 				},
@@ -343,9 +358,14 @@ func (r *Server) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		return
 	}
 
+	stage := serverStageJson{Gateway: inputData.Gateway}
+	if inputData.Definition != nil && inputData.Definition.Instance != nil {
+		stage.Definition = inputData.Definition
+	}
+
 	var json serverApi
 	var data serverModel
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &serverStageJson{Gateway: inputData.Gateway})
+	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &stage)
 	if resp.Diagnostics.HasError() {
 		return
 	}
