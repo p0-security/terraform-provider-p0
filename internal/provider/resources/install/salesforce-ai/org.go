@@ -16,26 +16,27 @@ import (
 var _ resource.Resource = &SalesforceAiOrg{}
 var _ resource.ResourceWithConfigure = &SalesforceAiOrg{}
 var _ resource.ResourceWithImportState = &SalesforceAiOrg{}
+var _ resource.ResourceWithValidateConfig = &SalesforceAiOrg{}
 
 type SalesforceAiOrg struct {
 	installer *common.Install
 }
 
 type salesforceAiOrgModel struct {
-	Id                     types.String                                 `tfsdk:"id"`
-	FullDomain             types.String                                 `tfsdk:"full_domain"`
-	SecretManager          *installvaultedcredential.SecretManagerModel `tfsdk:"secret_manager"`
-	ProvisionerConsumerKey types.String                                 `tfsdk:"provisioner_consumer_key"`
-	AgentConsumerKey       types.String                                 `tfsdk:"agent_consumer_key"`
-	State                  types.String                                 `tfsdk:"state"`
+	Id                     types.String                                        `tfsdk:"id"`
+	FullDomain             types.String                                        `tfsdk:"full_domain"`
+	SecretManager          *installvaultedcredential.SecretManagerWithAwsModel `tfsdk:"secret_manager"`
+	ProvisionerConsumerKey types.String                                        `tfsdk:"provisioner_consumer_key"`
+	AgentConsumerKey       types.String                                        `tfsdk:"agent_consumer_key"`
+	State                  types.String                                        `tfsdk:"state"`
 }
 
 type salesforceAiOrgJson struct {
-	FullDomain             *string                                     `json:"fullDomain,omitempty"`
-	SecretManager          *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
-	ProvisionerConsumerKey *string                                     `json:"provisionerConsumerKey,omitempty"`
-	AgentConsumerKey       *string                                     `json:"agentClientId,omitempty"`
-	State                  *string                                     `json:"state,omitempty"`
+	FullDomain             *string                                            `json:"fullDomain,omitempty"`
+	SecretManager          *installvaultedcredential.SecretManagerWithAwsJson `json:"secretManager,omitempty"`
+	ProvisionerConsumerKey *string                                            `json:"provisionerConsumerKey,omitempty"`
+	AgentConsumerKey       *string                                            `json:"agentClientId,omitempty"`
+	State                  *string                                            `json:"state,omitempty"`
 }
 
 type salesforceAiOrgApi struct {
@@ -56,7 +57,7 @@ func (*SalesforceAiOrg) Schema(_ context.Context, _ resource.SchemaRequest, resp
 
 Installing it allows P0 to grant agents Salesforce permission sets on an API-only user for each gateway session.
 
-**Important:** Before creating this resource you must stage the installation with ` + "`p0_salesforce_ai_staged`" + `, deploy the connector's Cloud Run service, and add the P0 Provisioner app's consumer secret as a version of the connector's consumer secret secret. Creating this resource verifies that the connector can sign in to the org.
+**Important:** Before creating this resource you must stage the installation with ` + "`p0_salesforce_ai_staged`" + `, deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud), and add the P0 Provisioner app's consumer secret as a version of the connector's consumer secret secret. Creating this resource verifies that the connector can sign in to the org.
 
 **Note:** This integration is currently in preview.
 
@@ -67,7 +68,7 @@ For the full install steps, see [Salesforce](https://docs.p0.dev/integrations/re
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's Salesforce connector runs and stores the P0 Provisioner app's consumer secret`,
-				Attributes:          installvaultedcredential.FinalSecretManagerAttributes(secretLabel, " Must match the `p0_salesforce_ai_staged` resource."),
+				Attributes:          installvaultedcredential.FinalSecretManagerWithAwsAttributes(secretLabel, " Must match the `p0_salesforce_ai_staged` resource."),
 			},
 			"provisioner_consumer_key": schema.StringAttribute{
 				Required:            true,
@@ -80,6 +81,10 @@ For the full install steps, see [Salesforce](https://docs.p0.dev/integrations/re
 			"state": common.StateAttribute,
 		},
 	}
+}
+
+func (*SalesforceAiOrg) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	installvaultedcredential.ValidateSecretManagerWithAws(ctx, req.Config, &resp.Diagnostics)
 }
 
 func (r *SalesforceAiOrg) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -117,11 +122,11 @@ func (r *SalesforceAiOrg) fromJson(_ context.Context, diags *diag.Diagnostics, i
 	if !ok {
 		return nil
 	}
-	if !installvaultedcredential.RequireSecretManager(diags, integrationLabel, id, jsonv.SecretManager) {
+	if !installvaultedcredential.RequireSecretManagerWithAws(diags, integrationLabel, id, jsonv.SecretManager) {
 		return nil
 	}
 
-	secretManager := installvaultedcredential.SecretManagerFromJson(jsonv.SecretManager)
+	secretManager := installvaultedcredential.SecretManagerWithAwsFromJson(jsonv.SecretManager)
 	return &salesforceAiOrgModel{
 		Id:                     types.StringValue(id),
 		FullDomain:             types.StringPointerValue(jsonv.FullDomain),
