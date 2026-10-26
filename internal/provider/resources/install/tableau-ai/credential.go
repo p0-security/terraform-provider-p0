@@ -17,28 +17,29 @@ import (
 var _ resource.Resource = &TableauAiCredential{}
 var _ resource.ResourceWithConfigure = &TableauAiCredential{}
 var _ resource.ResourceWithImportState = &TableauAiCredential{}
+var _ resource.ResourceWithValidateConfig = &TableauAiCredential{}
 
 type TableauAiCredential struct {
 	installer *common.Install
 }
 
 type tableauAiCredentialModel struct {
-	Id            types.String                                 `tfsdk:"id"`
-	Server        types.String                                 `tfsdk:"server"`
-	ContentUrl    types.String                                 `tfsdk:"content_url"`
-	SecretManager *installvaultedcredential.SecretManagerModel `tfsdk:"secret_manager"`
-	AdminUser     types.String                                 `tfsdk:"admin_user"`
-	AgentMailbox  types.String                                 `tfsdk:"agent_mailbox"`
-	State         types.String                                 `tfsdk:"state"`
+	Id            types.String                                        `tfsdk:"id"`
+	Server        types.String                                        `tfsdk:"server"`
+	ContentUrl    types.String                                        `tfsdk:"content_url"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsModel `tfsdk:"secret_manager"`
+	AdminUser     types.String                                        `tfsdk:"admin_user"`
+	AgentMailbox  types.String                                        `tfsdk:"agent_mailbox"`
+	State         types.String                                        `tfsdk:"state"`
 }
 
 type tableauAiCredentialJson struct {
-	Server        *string                                     `json:"server,omitempty"`
-	ContentUrl    *string                                     `json:"contentUrl,omitempty"`
-	SecretManager *installvaultedcredential.SecretManagerJson `json:"secretManager,omitempty"`
-	AdminUser     *string                                     `json:"adminUser,omitempty"`
-	AgentMailbox  *string                                     `json:"agentMailbox,omitempty"`
-	State         *string                                     `json:"state,omitempty"`
+	Server        *string                                            `json:"server,omitempty"`
+	ContentUrl    *string                                            `json:"contentUrl,omitempty"`
+	SecretManager *installvaultedcredential.SecretManagerWithAwsJson `json:"secretManager,omitempty"`
+	AdminUser     *string                                            `json:"adminUser,omitempty"`
+	AgentMailbox  *string                                            `json:"agentMailbox,omitempty"`
+	State         *string                                            `json:"state,omitempty"`
 }
 
 type tableauAiCredentialApi struct {
@@ -59,7 +60,7 @@ func (*TableauAiCredential) Schema(_ context.Context, _ resource.SchemaRequest, 
 
 Installing it allows P0 to grant machines just-in-time access to the projects of a Tableau Cloud site, through an agent user on the site for each machine.
 
-**Important:** Before creating this resource you must stage the installation with ` + "`p0_tableau_ai_staged`" + ` and deploy the connector's Cloud Run service. Creating this resource verifies that the connector is deployed. After you create it, add the admin connected app's client ID, secret ID and secret value as a JSON version of the connector's admin connected app secret; the connector cannot grant access until that version exists.
+**Important:** Before creating this resource you must stage the installation with ` + "`p0_tableau_ai_staged`" + ` and deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud). Creating this resource verifies that the connector is deployed. After you create it, add the admin connected app's client ID, secret ID and secret value as a JSON version of the connector's admin connected app secret; the connector cannot grant access until that version exists.
 
 **Note:** This integration is currently in beta.`,
 		Attributes: map[string]schema.Attribute{
@@ -69,7 +70,7 @@ Installing it allows P0 to grant machines just-in-time access to the projects of
 			"secret_manager": schema.SingleNestedAttribute{
 				Required:            true,
 				MarkdownDescription: `Where P0's Tableau connector runs and stores the admin connected app's secret`,
-				Attributes:          installvaultedcredential.FinalSecretManagerAttributes(secretLabel, " Must match the `p0_tableau_ai_staged` resource."),
+				Attributes:          installvaultedcredential.FinalSecretManagerWithAwsAttributes(secretLabel, " Must match the `p0_tableau_ai_staged` resource."),
 			},
 			"admin_user": schema.StringAttribute{
 				Required:            true,
@@ -82,6 +83,10 @@ Installing it allows P0 to grant machines just-in-time access to the projects of
 			"state": common.StateAttribute,
 		},
 	}
+}
+
+func (*TableauAiCredential) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	installvaultedcredential.ValidateSecretManagerWithAws(ctx, req.Config, &resp.Diagnostics)
 }
 
 func (r *TableauAiCredential) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -119,11 +124,11 @@ func (r *TableauAiCredential) fromJson(_ context.Context, diags *diag.Diagnostic
 	if !ok {
 		return nil
 	}
-	if !installvaultedcredential.RequireSecretManager(diags, integrationLabel, id, jsonv.SecretManager) {
+	if !installvaultedcredential.RequireSecretManagerWithAws(diags, integrationLabel, id, jsonv.SecretManager) {
 		return nil
 	}
 
-	secretManager := installvaultedcredential.SecretManagerFromJson(jsonv.SecretManager)
+	secretManager := installvaultedcredential.SecretManagerWithAwsFromJson(jsonv.SecretManager)
 	return &tableauAiCredentialModel{
 		Id:            types.StringValue(id),
 		Server:        types.StringPointerValue(jsonv.Server),
