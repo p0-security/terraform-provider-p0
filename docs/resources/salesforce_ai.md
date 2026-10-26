@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   A Salesforce org installation for agentic access.
   Installing it allows P0 to grant agents Salesforce permission sets on an API-only user for each gateway session.
-  Important: Before creating this resource you must stage the installation with p0_salesforce_ai_staged, deploy the connector's Cloud Run service, and add the P0 Provisioner app's consumer secret as a version of the connector's consumer secret secret. Creating this resource verifies that the connector can sign in to the org.
+  Important: Before creating this resource you must stage the installation with p0_salesforce_ai_staged, deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud), and add the P0 Provisioner app's consumer secret as a version of the connector's consumer secret secret. Creating this resource verifies that the connector can sign in to the org.
   Note: This integration is currently in preview.
   For the full install steps, see Salesforce https://docs.p0.dev/integrations/resource-integrations/agentic-gateway/mcp-server/salesforce.
 ---
@@ -16,7 +16,7 @@ A Salesforce org installation for agentic access.
 
 Installing it allows P0 to grant agents Salesforce permission sets on an API-only user for each gateway session.
 
-**Important:** Before creating this resource you must stage the installation with `p0_salesforce_ai_staged`, deploy the connector's Cloud Run service, and add the P0 Provisioner app's consumer secret as a version of the connector's consumer secret secret. Creating this resource verifies that the connector can sign in to the org.
+**Important:** Before creating this resource you must stage the installation with `p0_salesforce_ai_staged`, deploy the connector (its Lambda function on AWS, or its Cloud Run service on Google Cloud), and add the P0 Provisioner app's consumer secret as a version of the connector's consumer secret secret. Creating this resource verifies that the connector can sign in to the org.
 
 **Note:** This integration is currently in preview.
 
@@ -203,12 +203,17 @@ resource "p0_salesforce_ai" "example" {
 
 Required:
 
-- `project_id` (String) The GCP project that hosts the connector's Cloud Run service and the secret that holds the P0 Provisioner app's consumer secret. Must match the `p0_salesforce_ai_staged` resource.
-- `type` (String) The secret manager that stores the P0 Provisioner app's consumer secret. Only `gcp-sm` (Google Secret Manager) is supported. Must match the `p0_salesforce_ai_staged` resource.
+- `type` (String) The secret manager that stores the P0 Provisioner app's consumer secret: `aws-sm` (AWS Secrets Manager, with the connector on AWS Lambda) or `gcp-sm` (Google Secret Manager, with the connector on Google Cloud Run). Must match the `p0_salesforce_ai_staged` resource.
+
+Optional:
+
+- `account_id` (String) The AWS account that hosts the connector's Lambda function and the secret that holds the P0 Provisioner app's consumer secret: one of your AWS Secrets Manager installations in P0. Required for, and only valid with, `aws-sm`. Must match the `p0_salesforce_ai_staged` resource.
+- `project_id` (String) The GCP project that hosts the connector's Cloud Run service and the secret that holds the P0 Provisioner app's consumer secret. Required for, and only valid with, `gcp-sm`. Must match the `p0_salesforce_ai_staged` resource.
+- `secrets_region` (String) The AWS region that stores the secrets, such as `us-west-2`. Required for, and only valid with, `aws-sm`. Must match the `p0_salesforce_ai_staged` resource.
 
 Read-Only:
 
-- `connector_region` (String) The GCP region in which to deploy the connector's Cloud Run service
-- `connector_service_account` (String) The email of the GCP service account that the connector must run as
-- `connector_service_name` (String) The name to give the connector's Cloud Run service
-- `connector_service_uri` (String) The invocation URL of the connector's Cloud Run service, resolved by P0 during install
+- `connector_region` (String) The region in which to deploy the connector: its Lambda function's on AWS, its Cloud Run service's on Google Cloud
+- `connector_service_account` (String) The email of the GCP service account that the connector must run as. Google Cloud only.
+- `connector_service_name` (String) The name to give the connector's Cloud Run service. Google Cloud only.
+- `connector_service_uri` (String) The invocation URL of the connector's Cloud Run service, resolved by P0 during install. Google Cloud only.
