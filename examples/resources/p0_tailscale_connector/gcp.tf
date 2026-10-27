@@ -3,7 +3,7 @@
 #
 # Full chain: p0_gcp (P0's service account) -> p0_tailscale_connector_staged ->
 # the connector's Cloud Run service -> p0_tailscale_connector ->
-# p0_tailscale_tailnet -> p0_tailscale_destination.
+# p0_tailscale_tailnet.
 #
 # Enable these APIs in project my-project-id first:
 #   - iam.googleapis.com
