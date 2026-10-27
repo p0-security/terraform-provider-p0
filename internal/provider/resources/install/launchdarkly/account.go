@@ -137,7 +137,7 @@ The email domains that may receive access are set on the connector, as its ` + "
 
 - For ` + "`gcp-sm`" + `, Google Secret Manager installed in P0 for the project that holds the secret. This provider has no resource for it, so install it in the P0 app. Give the connector's service account ` + "`roles/secretmanager.secretAccessor`" + ` and ` + "`roles/secretmanager.viewer`" + ` on the secret alone.
 
-` + betaNote + `
+` + previewNote + `
 
 ` + installDocs,
 		Attributes: map[string]schema.Attribute{

@@ -20,7 +20,7 @@ import (
 
 const LaunchDarklyKey = "launchdarkly"
 
-const betaNote = "**Note:** This integration is currently in beta."
+const previewNote = "**Note:** This integration is currently in preview."
 
 const supportEmail = "support@p0.dev"
 
