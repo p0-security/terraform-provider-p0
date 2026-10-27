@@ -64,8 +64,10 @@ terraform {
       source  = "kreuzwerker/docker"
       version = "~> 3.0"
     }
+    # 0.82.0 added the p0_databricks_ai resources.
     p0 = {
-      source = "p0-security/p0"
+      source  = "p0-security/p0"
+      version = ">= 0.82.0"
     }
   }
 }
@@ -92,11 +94,9 @@ locals {
   # digest. To update, take both from the latest version of this example in
   # the Terraform registry: they change together. Changing them copies the
   # image again and redeploys the Lambda.
-  # TODO(INT-822): the tag and digest the connector's first merge publishes.
-  # Until then the plan fails, because no tag resolves to this digest.
   connector_image_name   = "p0security/p0-connector-databricks-ai"
-  connector_image_tag    = "sha-UNPUBLISHED"
-  connector_image_digest = "sha256:UNPUBLISHED"
+  connector_image_tag    = "sha-551bc5e"
+  connector_image_digest = "sha256:cb07df600ac74e25c939a36b3b0eef57afc674e6d339cf5a216e4c411f57a09b"
 
   tags = {
     ManagedBy  = "Terraform"
