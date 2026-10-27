@@ -130,12 +130,16 @@ func agentFromJson(json *AgentJson) *AgentModel {
 
 // agenticToJson splits the schema's `agent` and `user` into P0's `actor` and
 // `subject`. A `user` of "none" is a headless session: P0 states that as an
-// `agent` subject, with the actor marked as the same principal.
-func agenticToJson(model *RequestorModelV3) (*AgentJson, *SubjectJson) {
+// `agent` subject, with the actor marked as the same principal. A `user` of
+// "agent" is agent-to-agent: `user.agent` is the subject and `agent` the actor.
+func agenticToJson(model *RequestorModelV5) (*AgentJson, *SubjectJson) {
 	agent := agentToJson(model.Agent)
 	if model.User != nil && model.User.Type == "none" {
 		return &AgentJson{Type: "same-as-subject"},
 			&SubjectJson{Type: "agent", Agent: agent}
+	}
+	if model.User != nil && model.User.Type == "agent" {
+		return agent, &SubjectJson{Type: "agent", Agent: agentToJson(model.User.Agent)}
 	}
 	if model.User == nil || model.User.Type == "any" {
 		return agent, &SubjectJson{Type: "any"}
@@ -152,15 +156,18 @@ func agenticToJson(model *RequestorModelV3) (*AgentJson, *SubjectJson) {
 }
 
 // agenticFromJson is the inverse of agenticToJson.
-func agenticFromJson(json RequestorJson) (*AgentModel, *AgenticUserModel) {
+func agenticFromJson(json RequestorJson) (*AgentModel, *AgenticUserModelV5) {
 	if json.Subject != nil && json.Subject.Type == "agent" {
-		return agentFromJson(json.Subject.Agent), &AgenticUserModel{Type: "none"}
+		if json.Actor == nil || json.Actor.Type == "same-as-subject" {
+			return agentFromJson(json.Subject.Agent), &AgenticUserModelV5{Type: "none"}
+		}
+		return agentFromJson(json.Actor), &AgenticUserModelV5{Type: "agent", Agent: agentFromJson(json.Subject.Agent)}
 	}
 	agent := agentFromJson(json.Actor)
 	if json.Subject == nil || json.Subject.Type == "any" || json.Subject.User == nil {
-		return agent, &AgenticUserModel{Type: "any"}
+		return agent, &AgenticUserModelV5{Type: "any"}
 	}
-	return agent, &AgenticUserModel{
+	return agent, &AgenticUserModelV5{
 		Type:   json.Subject.User.Type,
 		Uid:    json.Subject.User.Uid,
 		Groups: json.Subject.User.Groups,
@@ -168,7 +175,7 @@ func agenticFromJson(json RequestorJson) (*AgentModel, *AgenticUserModel) {
 	}
 }
 
-func requestorToJson(model *RequestorModelV3) RequestorJson {
+func requestorToJson(model *RequestorModelV5) RequestorJson {
 	json := RequestorJson{
 		Type:   model.Type,
 		Groups: model.Groups,
@@ -181,8 +188,8 @@ func requestorToJson(model *RequestorModelV3) RequestorJson {
 	return json
 }
 
-func requestorFromJson(json RequestorJson) *RequestorModelV3 {
-	model := &RequestorModelV3{
+func requestorFromJson(json RequestorJson) *RequestorModelV5 {
+	model := &RequestorModelV5{
 		Type:   json.Type,
 		Groups: json.Groups,
 		Uid:    json.Uid,
@@ -203,7 +210,7 @@ func getPath(name string) string {
 	return fmt.Sprintf("policy/name/%s", encodedName)
 }
 
-func toJson(model AccessPolicyModelV4) AccessPolicyJson {
+func toJson(model AccessPolicyModelV5) AccessPolicyJson {
 	return AccessPolicyJson{
 		Name:      model.Name,
 		Disabled:  model.Disabled,
@@ -212,8 +219,8 @@ func toJson(model AccessPolicyModelV4) AccessPolicyJson {
 		Approval:  model.Approval}
 }
 
-func toModel(json AccessPolicyJson) AccessPolicyModelV4 {
-	return AccessPolicyModelV4{
+func toModel(json AccessPolicyJson) AccessPolicyModelV5 {
+	return AccessPolicyModelV5{
 		Name:      json.Name,
 		Disabled:  json.Disabled,
 		Requestor: requestorFromJson(json.Requestor),
@@ -273,7 +280,7 @@ func (policy *AccessPolicy) Create(ctx context.Context, req resource.CreateReque
 	var diag = &resp.Diagnostics
 
 	// Load the plan into the model
-	var model AccessPolicyModelV4
+	var model AccessPolicyModelV5
 	diag.Append(req.Plan.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -304,7 +311,7 @@ func (policy *AccessPolicy) Read(ctx context.Context, req resource.ReadRequest, 
 	var diag = &resp.Diagnostics
 
 	// Load the state into the model
-	var model AccessPolicyModelV4
+	var model AccessPolicyModelV5
 	diag.Append(req.State.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -339,7 +346,7 @@ func (policy *AccessPolicy) Update(ctx context.Context, req resource.UpdateReque
 	var diag = &resp.Diagnostics
 
 	// Load the plan into the model
-	var model AccessPolicyModelV4
+	var model AccessPolicyModelV5
 	diag.Append(req.Plan.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -348,7 +355,7 @@ func (policy *AccessPolicy) Update(ctx context.Context, req resource.UpdateReque
 	tflog.Debug(ctx, fmt.Sprintf("Access policy to update: %+v", model))
 
 	// Read the current access policy from the Terraform state
-	var currentModel AccessPolicyModelV4
+	var currentModel AccessPolicyModelV5
 	diag.Append(req.State.Get(ctx, &currentModel)...)
 	if diag.HasError() {
 		return
@@ -379,7 +386,7 @@ func (policy *AccessPolicy) Delete(ctx context.Context, req resource.DeleteReque
 	var diag = &resp.Diagnostics
 
 	// Load the state into the model
-	var model AccessPolicyModelV4
+	var model AccessPolicyModelV5
 	diag.Append(req.State.Get(ctx, &model)...)
 	if diag.HasError() {
 		return
@@ -563,11 +570,47 @@ func upgradeModelV3(prior AccessPolicyModelV3) AccessPolicyModelV4 {
 	}
 }
 
+// upgradeRequestorV3 is a pure passthrough: agent-to-agent is a new `user`
+// type, so prior requestors need no representation change, and `user.agent`
+// simply comes out unset.
+func upgradeRequestorV3(prior *RequestorModelV3) *RequestorModelV5 {
+	if prior == nil {
+		return nil
+	}
+	requestor := &RequestorModelV5{
+		Type:   prior.Type,
+		Groups: prior.Groups,
+		Uid:    prior.Uid,
+		Effect: prior.Effect,
+		Agent:  prior.Agent,
+	}
+	if prior.User != nil {
+		requestor.User = &AgenticUserModelV5{
+			Type:   prior.User.Type,
+			Uid:    prior.User.Uid,
+			Groups: prior.User.Groups,
+			Effect: prior.User.Effect,
+		}
+	}
+	return requestor
+}
+
+func upgradeModelV4(prior AccessPolicyModelV4) AccessPolicyModelV5 {
+	return AccessPolicyModelV5{
+		Name:      prior.Name,
+		Disabled:  prior.Disabled,
+		Requestor: upgradeRequestorV3(prior.Requestor),
+		Resource:  prior.Resource,
+		Approval:  prior.Approval,
+	}
+}
+
 func (policy *AccessPolicy) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
 	var schemaV0 = newAccessPolicySchema(0)
 	var schemaV1 = newAccessPolicySchema(1)
 	var schemaV2 = newAccessPolicySchema(2)
 	var schemaV3 = newAccessPolicySchema(3)
+	var schemaV4 = newAccessPolicySchema(4)
 	return map[int64]resource.StateUpgrader{
 		0: {
 			PriorSchema: &schemaV0,
@@ -577,7 +620,7 @@ func (policy *AccessPolicy) UpgradeState(ctx context.Context) map[int64]resource
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV3(upgradeModelV2(upgradeModelV1(upgradeModelV0(prior)))))...)
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV4(upgradeModelV3(upgradeModelV2(upgradeModelV1(upgradeModelV0(prior))))))...)
 			},
 		},
 		1: {
@@ -588,7 +631,7 @@ func (policy *AccessPolicy) UpgradeState(ctx context.Context) map[int64]resource
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV3(upgradeModelV2(upgradeModelV1(prior))))...)
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV4(upgradeModelV3(upgradeModelV2(upgradeModelV1(prior)))))...)
 			},
 		},
 		2: {
@@ -599,7 +642,7 @@ func (policy *AccessPolicy) UpgradeState(ctx context.Context) map[int64]resource
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV3(upgradeModelV2(prior)))...)
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV4(upgradeModelV3(upgradeModelV2(prior))))...)
 			},
 		},
 		3: {
@@ -610,7 +653,18 @@ func (policy *AccessPolicy) UpgradeState(ctx context.Context) map[int64]resource
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV3(prior))...)
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV4(upgradeModelV3(prior)))...)
+			},
+		},
+		4: {
+			PriorSchema: &schemaV4,
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				var prior AccessPolicyModelV4
+				resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgradeModelV4(prior))...)
 			},
 		},
 	}
@@ -634,6 +688,7 @@ func (policy *AccessPolicy) MoveState(ctx context.Context) []resource.StateMover
 	var schemaV2 = newAccessPolicySchema(2)
 	var schemaV3 = newAccessPolicySchema(3)
 	var schemaV4 = newAccessPolicySchema(4)
+	var schemaV5 = newAccessPolicySchema(5)
 	return []resource.StateMover{
 		{
 			SourceSchema: &schemaV0,
@@ -646,7 +701,7 @@ func (policy *AccessPolicy) MoveState(ctx context.Context) []resource.StateMover
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV3(upgradeModelV2(upgradeModelV1(upgradeModelV0(prior)))))...)
+				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV4(upgradeModelV3(upgradeModelV2(upgradeModelV1(upgradeModelV0(prior))))))...)
 			},
 		},
 		{
@@ -660,7 +715,7 @@ func (policy *AccessPolicy) MoveState(ctx context.Context) []resource.StateMover
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV3(upgradeModelV2(upgradeModelV1(prior))))...)
+				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV4(upgradeModelV3(upgradeModelV2(upgradeModelV1(prior)))))...)
 			},
 		},
 		{
@@ -674,7 +729,7 @@ func (policy *AccessPolicy) MoveState(ctx context.Context) []resource.StateMover
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV3(upgradeModelV2(prior)))...)
+				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV4(upgradeModelV3(upgradeModelV2(prior))))...)
 			},
 		},
 		{
@@ -688,7 +743,7 @@ func (policy *AccessPolicy) MoveState(ctx context.Context) []resource.StateMover
 				if resp.Diagnostics.HasError() {
 					return
 				}
-				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV3(prior))...)
+				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV4(upgradeModelV3(prior)))...)
 			},
 		},
 		{
@@ -698,6 +753,20 @@ func (policy *AccessPolicy) MoveState(ctx context.Context) []resource.StateMover
 					return
 				}
 				var prior AccessPolicyModelV4
+				resp.Diagnostics.Append(req.SourceState.Get(ctx, &prior)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+				resp.Diagnostics.Append(resp.TargetState.Set(ctx, upgradeModelV4(prior))...)
+			},
+		},
+		{
+			SourceSchema: &schemaV5,
+			StateMover: func(ctx context.Context, req resource.MoveStateRequest, resp *resource.MoveStateResponse) {
+				if !isRoutingRuleMoveRequest(req, 5) || req.SourceState == nil {
+					return
+				}
+				var prior AccessPolicyModelV5
 				resp.Diagnostics.Append(req.SourceState.Get(ctx, &prior)...)
 				if resp.Diagnostics.HasError() {
 					return
