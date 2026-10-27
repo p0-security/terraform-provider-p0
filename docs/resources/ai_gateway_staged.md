@@ -45,7 +45,6 @@ module "ai_gateway_stack" {
   version = "1.3.0"
 
   chart_version = "1.3.0-beta"
-  release_name  = p0_ai_gateway_staged.example.id
   namespace     = "p0-ai-gateway"
 
   values = [
@@ -59,16 +58,22 @@ module "ai_gateway_stack" {
       valkey       = { storageClass = "<encrypted-storage-class>" }
       "ai-gateway" = {
         gateway = {
-          className = p0_ai_gateway_staged.example.id
+          className = "primary"
           host      = "gateway.example.com"
         }
         authServer = {
           oidcClientId = "your-upstream-oidc-client-id"
+          p0Url        = "https://api.p0.app/o/<your-org>"
           gatewayIss   = "https://gateway.example.com"
         }
         accessProxy = {
+          p0Url               = "https://api.p0.app/o/<your-org>"
           gatewayIss          = "https://gateway.example.com"
           manageAllowedEmails = p0_ai_gateway_staged.example.service_account_email
+        }
+        braekhus = {
+          orgSlug   = "<your-org>"
+          gatewayId = "primary"
         }
       }
     }),
