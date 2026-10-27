@@ -20,20 +20,18 @@ import (
 )
 
 const (
-	tailscaleConnector     = "prod"
-	tailscaleTailnet       = "T1234CNTRL"
-	tailscaleClientId      = "kAbc1CNTRL"
-	tailscaleDiscovery     = "3 tags, 2 subnet routes, 1 service, 0 app connectors, 1 exit node, 0 P0 postures; 4 groups, 0 of them P0's"
-	tailscaleSuggestedMode = "direct-write"
-	tailscaleDnsName       = "tail1234.ts.net"
+	tailscaleConnector = "prod"
+	tailscaleTailnet   = "T1234CNTRL"
+	tailscaleClientId  = "kAbc1CNTRL"
+	tailscaleDiscovery = "2 P0 postures"
+	tailscaleDnsName   = "tail1234.ts.net"
 )
 
-// Where a Tailscale connector runs, and a tailnet credential and mode that suit it, as
-// a customer's Terraform sets them.
+// Where a Tailscale connector runs, and a tailnet credential that suits it, as a
+// customer's Terraform sets them.
 type tailscaleCloud struct {
 	hosting    string
 	credential string
-	mode       string
 }
 
 // A connector on AWS Lambda, and a tailnet whose federated identity trusts it.
@@ -48,11 +46,10 @@ var tailscaleAws = tailscaleCloud{
     type      = "federated"
     client_id = "kAbc1CNTRL"
   }`,
-	mode: "direct-write",
 }
 
-// A connector on Cloud Run, and a posture-mode tailnet whose OAuth client's secret is
-// in Google Secret Manager.
+// A connector on Cloud Run, and a tailnet whose OAuth client's secret is in Google
+// Secret Manager.
 var tailscaleGcp = tailscaleCloud{
 	hosting: `{
     type             = "gcp"
@@ -69,7 +66,6 @@ var tailscaleGcp = tailscaleCloud{
     }
     client_secret_name = "tailscale-acme-oauth"
   }`,
-	mode: "posture",
 }
 
 func tailscaleProviderConfig(f *tailscaleFake) string {
@@ -103,21 +99,20 @@ resource "p0_tailscale_connector" "example" {
 }
 
 // A connector and a tailnet it acts on.
-func tailscaleTailnetConfig(f *tailscaleFake, cloud tailscaleCloud, id string, mode string) string {
+func tailscaleTailnetConfig(f *tailscaleFake, cloud tailscaleCloud, id string) string {
 	return tailscaleConnectorConfig(f, cloud.hosting) + fmt.Sprintf(`
 resource "p0_tailscale_tailnet" "example" {
   id         = %q
   connector  = p0_tailscale_connector.example.id
   credential = %s
-  mode       = %q
 }
-`, id, cloud.credential, mode)
+`, id, cloud.credential)
 }
 
-// A connector and a tailnet in the mode that suits the cloud, as a customer's Terraform
-// installs them.
+// A connector and a tailnet with the credential that suits the cloud, as a customer's
+// Terraform installs them.
 func tailscaleConfig(f *tailscaleFake, cloud tailscaleCloud) string {
-	return tailscaleTailnetConfig(f, cloud, tailscaleTailnet, cloud.mode)
+	return tailscaleTailnetConfig(f, cloud, tailscaleTailnet)
 }
 
 // An in-memory stand-in for P0's install API for Tailscale, behaving as P0's Tailscale
@@ -127,7 +122,7 @@ func tailscaleConfig(f *tailscaleFake, cloud tailscaleCloud) string {
 //     advance its state (stage -> configure -> installed)
 //   - a PUT of an item that exists is refused, so an item can only be staged once
 //   - verify and configure refuse a request that changes what P0 fixed when it staged
-//     the item: a tailnet's connector, credential and mode
+//     the item: a tailnet's connector and credential
 //   - a tailnet can only be staged for a connector that is installed
 //   - a tailnet's generated fields are empty at stage, and verifying it stores what
 //     discovery found
@@ -242,7 +237,7 @@ func (f *tailscaleFake) step(nextState string, expectedStates []string) http.Han
 // too, but P0 adds the Cloud Run URL to it, which no request carries, so this fake
 // leaves it out.)
 var tailscaleFixedFields = map[string][]string{
-	"tailnet": {"connector", "credential", "mode"},
+	"tailnet": {"connector", "credential"},
 }
 
 // Refuses a step the way P0's Tailscale installers do: with an HTTP status and P0's
@@ -280,9 +275,9 @@ func normalizeTailscaleItem(key tailscaleItemKey, item map[string]any) {
 			hosting["connectorServiceUri"] = fmt.Sprintf("https://%s-abc123-uw.a.run.app", hosting["connectorName"])
 		}
 	case "tailnet":
-		item["discovery"], item["suggestedMode"], item["dnsName"] = "", "", ""
+		item["discovery"], item["dnsName"] = "", ""
 		if !staged {
-			item["discovery"], item["suggestedMode"], item["dnsName"] = tailscaleDiscovery, tailscaleSuggestedMode, tailscaleDnsName
+			item["discovery"], item["dnsName"] = tailscaleDiscovery, tailscaleDnsName
 		}
 	}
 }
@@ -381,8 +376,8 @@ func checkTailscaleDestroyed(f *tailscaleFake) func(*terraform.State) error {
 	}
 }
 
-// The full chain on AWS, with a federated direct-write tailnet: the connector is staged once and then only verified and configured, since P0 refuses
-// to stage an item twice.
+// The full chain on AWS, with a federated tailnet: the connector is staged once and then
+// only verified and configured, since P0 refuses to stage an item twice.
 func TestTailscaleOnAws(t *testing.T) {
 	f := newTailscaleFake(t)
 
@@ -401,14 +396,12 @@ func TestTailscaleOnAws(t *testing.T) {
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "credential.type", "federated"),
 					resource.TestCheckNoResourceAttr("p0_tailscale_tailnet.example", "credential.vault"),
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "discovery", tailscaleDiscovery),
-					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "suggested_mode", tailscaleSuggestedMode),
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "dns_name", tailscaleDnsName),
 					func(*terraform.State) error {
 						item := f.item("tailnet", tailscaleTailnet)
 						credential, _ := item["credential"].(map[string]any)
-						mode, _ := item["mode"].(map[string]any)
 						if item["connector"] != tailscaleConnector || credential["type"] != "federated" || credential["clientId"] != tailscaleClientId ||
-							len(credential) != 2 || mode["type"] != "direct-write" {
+							len(credential) != 2 {
 							return fmt.Errorf("P0 item does not hold the configured tailnet: %v", item)
 						}
 						return nil
@@ -425,8 +418,8 @@ func TestTailscaleOnAws(t *testing.T) {
 	})
 }
 
-// The full chain on Google Cloud, with a posture-mode tailnet whose OAuth client's
-// secret is in Google Secret Manager.
+// The full chain on Google Cloud, with a tailnet whose OAuth client's secret is in
+// Google Secret Manager.
 func TestTailscaleOnGoogleCloud(t *testing.T) {
 	f := newTailscaleFake(t)
 
@@ -443,7 +436,6 @@ func TestTailscaleOnGoogleCloud(t *testing.T) {
 						"p0-tailscale-prod@acme-prod.iam.gserviceaccount.com",
 					),
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "state", "installed"),
-					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "mode", "posture"),
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "credential.vault.project_id", "acme-secrets"),
 					func(*terraform.State) error {
 						item := f.item("tailnet", tailscaleTailnet)
@@ -467,7 +459,7 @@ func TestTailscaleOnGoogleCloud(t *testing.T) {
 	})
 }
 
-// An installed tailnet's connector, credential and mode can't change: the plan is
+// An installed tailnet's connector and credential can't change: the plan is
 // refused, and P0's item stays as it was. A new credential type with a vault is
 // refused too, though no field of a vault was in state. A new ID is another tailnet,
 // which replaces this one. The unit tests cover each field.
@@ -483,23 +475,19 @@ func TestTailscaleTailnetRefusesAFixedChange(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             checkTailscaleDestroyed(f),
 		Steps: []resource.TestStep{
-			{Config: tailscaleTailnetConfig(f, tailscaleAws, tailscaleTailnet, "direct-write")},
+			{Config: tailscaleTailnetConfig(f, tailscaleAws, tailscaleTailnet)},
 			{
-				Config:      tailscaleTailnetConfig(f, tailscaleAws, tailscaleTailnet, "posture"),
-				ExpectError: regexp.MustCompile(`(?s)A tailnet's mode can't change.*revoke the tailnet's\s+grants`),
-			},
-			{
-				Config:      tailscaleTailnetConfig(f, withCredential(tailscaleGcp.credential), tailscaleTailnet, "direct-write"),
-				ExpectError: regexp.MustCompile(`A tailnet's credential can't change`),
+				Config:      tailscaleTailnetConfig(f, withCredential(tailscaleGcp.credential), tailscaleTailnet),
+				ExpectError: regexp.MustCompile(`(?s)A tailnet's credential can't change.*revoke the tailnet's\s+grants`),
 			},
 			{
 				PreConfig: func() {
-					mode, _ := f.item("tailnet", tailscaleTailnet)["mode"].(map[string]any)
-					if mode["type"] != "direct-write" {
-						t.Errorf("P0 item's mode after the refused plans = %v; want it unchanged", mode)
+					credential, _ := f.item("tailnet", tailscaleTailnet)["credential"].(map[string]any)
+					if credential["type"] != "federated" {
+						t.Errorf("P0 item's credential after the refused plan = %v; want it unchanged", credential)
 					}
 				},
-				Config: tailscaleTailnetConfig(f, tailscaleAws, "T5678CNTRL", "posture"),
+				Config: tailscaleTailnetConfig(f, tailscaleAws, "T5678CNTRL"),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction("p0_tailscale_tailnet.example", plancheck.ResourceActionReplace),
@@ -591,7 +579,7 @@ func TestTailscaleUnfinishedInstallConverges(t *testing.T) {
 	restage := func(component, id string) {
 		f.update(component, id, func(item map[string]any) {
 			item["state"] = "stage"
-			item["discovery"], item["suggestedMode"], item["dnsName"] = "", "", ""
+			item["discovery"], item["dnsName"] = "", ""
 		})
 	}
 
@@ -628,7 +616,7 @@ func TestTailscaleTailnetFailedCheckIsReplaced(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config:      tailscaleTailnetConfig(f, tailscaleAws, tailscaleTailnet, "direct-write"),
+				Config:      tailscaleTailnetConfig(f, tailscaleAws, tailscaleTailnet),
 				ExpectError: regexp.MustCompile(`(?s)Tailscale tailnet install check failed.*couldn't get a\s+Tailscale token`),
 			},
 			{
@@ -638,7 +626,7 @@ func TestTailscaleTailnetFailedCheckIsReplaced(t *testing.T) {
 					}
 					f.failVerify = false
 				},
-				Config: tailscaleTailnetConfig(f, tailscaleAws, tailscaleTailnet, "direct-write"),
+				Config: tailscaleTailnetConfig(f, tailscaleAws, tailscaleTailnet),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction("p0_tailscale_tailnet.example", plancheck.ResourceActionReplace),
@@ -664,9 +652,8 @@ resource "p0_tailscale_tailnet" "duplicate" {
   id         = %q
   connector  = p0_tailscale_connector.example.id
   credential = %s
-  mode       = %q
 }
-`, tailscaleTailnet, tailscaleAws.credential, tailscaleAws.mode),
+`, tailscaleTailnet, tailscaleAws.credential),
 				ExpectError: regexp.MustCompile(`(?s)Could not stage tailnet component.*is already added`),
 			},
 		},
@@ -675,15 +662,14 @@ resource "p0_tailscale_tailnet" "duplicate" {
 
 // The checks that reach Terraform at plan time, before the provider calls P0.
 func TestTailscaleValidation(t *testing.T) {
-	tailnet := func(id, credential, mode string) string {
+	tailnet := func(id, credential string) string {
 		return fmt.Sprintf(`
 resource "p0_tailscale_tailnet" "example" {
   id         = %q
   connector  = "prod"
   credential = %s
-  mode       = %q
 }
-`, id, credential, mode)
+`, id, credential)
 	}
 	staged := func(hosting string) string {
 		return fmt.Sprintf(`
@@ -703,12 +689,11 @@ resource "p0_tailscale_connector_staged" "example" {
     connector_name   = "p0-tailscale-prod"
     connector_region = "us-gov-west-1"
   }`), "P0's Tailscale integration supports only"},
-		{"tailnet's DNS name", tailnet("tail1234.ts.net", tailscaleAws.credential, "direct-write"), `Enter the Tailnet ID`},
-		{"unknown mode", tailnet(tailscaleTailnet, tailscaleAws.credential, "read-only"), `value must be one of`},
+		{"tailnet's DNS name", tailnet("tail1234.ts.net", tailscaleAws.credential), `Enter the Tailnet ID`},
 		{"client ID with a space", tailnet(tailscaleTailnet, `{
     type      = "federated"
     client_id = "abc def"
-  }`, "direct-write"), `Enter\s+the\s+client\s+ID`},
+  }`), `Enter\s+the\s+client\s+ID`},
 		{"federated identity with a vault", tailnet(tailscaleTailnet, `{
     type      = "federated"
     client_id = "kAbc1CNTRL"
@@ -716,7 +701,7 @@ resource "p0_tailscale_connector_staged" "example" {
       type       = "gcp-sm"
       project_id = "acme-secrets"
     }
-  }`, "direct-write"), `may only be set when 'credential.type' is\s+"oauth-client"`},
+  }`), `may only be set when 'credential.type' is\s+"oauth-client"`},
 		{"OAuth client without a secret name", tailnet(tailscaleTailnet, `{
     type      = "oauth-client"
     client_id = "kAbc1CNTRL"
@@ -724,7 +709,7 @@ resource "p0_tailscale_connector_staged" "example" {
       type       = "gcp-sm"
       project_id = "acme-secrets"
     }
-  }`, "direct-write"), `'credential.client_secret_name' is required`},
+  }`), `'credential.client_secret_name' is required`},
 		{"secret ARN", tailnet(tailscaleTailnet, `{
     type      = "oauth-client"
     client_id = "kAbc1CNTRL"
@@ -734,7 +719,7 @@ resource "p0_tailscale_connector_staged" "example" {
       secrets_region = "us-west-2"
     }
     client_secret_name = "arn:aws:secretsmanager:us-west-2:123456789012:secret:tailscale"
-  }`, "direct-write"), "doesn't look like a secret name"},
+  }`), "doesn't look like a secret name"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newTailscaleFake(t)

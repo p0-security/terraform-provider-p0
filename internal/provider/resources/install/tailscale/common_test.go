@@ -407,10 +407,9 @@ const (
 	// The Tailnet ID, which is the tailnet item's ID.
 	testTailnet = "T1234CNTRL"
 
-	fakeServiceUri    = "https://p0-tailscale-prod-abc123-uw.a.run.app"
-	fakeDiscovery     = "3 tags, 2 subnet routes, 1 service, 0 app connectors, 1 exit node, 0 P0 postures; 4 groups, 0 of them P0's"
-	fakeSuggestedMode = "direct-write"
-	fakeDnsName       = "tail1234.ts.net"
+	fakeServiceUri = "https://p0-tailscale-prod-abc123-uw.a.run.app"
+	fakeDiscovery  = "2 P0 postures"
+	fakeDnsName    = "tail1234.ts.net"
 )
 
 func newFakeItems(t *testing.T) (*fakeItems, *httptest.Server) {
@@ -440,7 +439,6 @@ func (f *fakeItems) complete(itemPath string, item map[string]any) {
 	if item["state"] == common.StateStage {
 		if tailnet {
 			item["discovery"] = ""
-			item["suggestedMode"] = ""
 			item["dnsName"] = ""
 		}
 		return
@@ -450,7 +448,6 @@ func (f *fakeItems) complete(itemPath string, item map[string]any) {
 	}
 	if tailnet {
 		item["discovery"] = fakeDiscovery
-		item["suggestedMode"] = fakeSuggestedMode
 		item["dnsName"] = fakeDnsName
 	}
 }

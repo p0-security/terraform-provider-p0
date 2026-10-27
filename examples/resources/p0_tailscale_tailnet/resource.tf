@@ -1,9 +1,11 @@
-# Adds the tailnet T1234CNTRL in direct-write mode, through the connector on AWS
-# Lambda that the p0_tailscale_connector example installs. The connector signs in
-# with a Tailscale federated identity that trusts the connector's role, so no
-# secret is stored anywhere. For a connector on Cloud Run, see the Google Cloud
-# example (gcp.tf). For an OAuth client whose secret is in your secret manager,
-# see the OAuth client example (oauth-client.tf).
+# Adds the tailnet T1234CNTRL through the connector on AWS Lambda that the
+# p0_tailscale_connector example installs. The tailnet needs a Tailscale Premium
+# or Enterprise plan, and a policy file that gates grants on P0 postures, as the
+# Google Cloud example's does. The connector signs in with a Tailscale federated
+# identity that trusts the connector's role, so no secret is stored anywhere. For
+# a connector on Cloud Run, see the Google Cloud example (gcp.tf). For an OAuth
+# client whose secret is in your secret manager, see the OAuth client example
+# (oauth-client.tf).
 #
 # Tailscale's own Terraform provider creates the federated identity, signed in to
 # the same tailnet with a credential of yours that may create trust credentials.
@@ -25,10 +27,10 @@ locals {
     # The Tailnet ID from Tailscale's Settings, General, not the tailnet's DNS
     # name.
     tailnet_id = "T1234CNTRL"
-    # The scopes the connector needs in direct-write mode. A federated identity's
-    # tokens carry all of them.
+    # The scopes the connector needs, which never let it write the policy file.
+    # A federated identity's tokens carry all of them.
     scopes = [
-      "policy_file",
+      "policy_file:read",
       "users:read",
       "devices:core:read",
       "devices:posture_attributes",
@@ -65,9 +67,6 @@ resource "p0_tailscale_tailnet" "example" {
     type      = "federated"
     client_id = tailscale_federated_identity.p0.id
   }
-  # P0 edits the policy file, so nothing else may overwrite it: don't manage it
-  # with tailscale_acl in this mode.
-  mode = "direct-write"
 
   depends_on = [aws_iam_role_policy.p0_tailscale_connector_prod_identity_token]
 }
