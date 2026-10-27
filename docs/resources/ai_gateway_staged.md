@@ -34,22 +34,40 @@ resource "p0_ai_gateway_staged" "example" {
   domain_hosting = {
     url = "https://gateway.example.com"
   }
-  lets_encrypt_email = "admin@example.com"
-  oidc_client_id     = "your-upstream-oidc-client-id"
-  storage_class      = "gp2"
 }
 
 # Your gateway must trust that service account before P0 can finish
-# installing (see the p0_ai_gateway example for the next step). Uses the
-# p0-security/p0-ai-gateway-stack/kubernetes module: https://github.com/p0-security/terraform-kubernetes-p0-ai-gateway-stack
+# installing (see the p0_ai_gateway example for the next step).
+# Uses the p0-security/p0-ai-gateway-stack/kubernetes module:
+# https://github.com/p0-security/terraform-kubernetes-p0-ai-gateway-stack
 module "ai_gateway_stack" {
   source  = "p0-security/p0-ai-gateway-stack/kubernetes"
-  version = "0.3.0"
+  version = "1.3.0"
+
+  chart_version = "1.3.0-beta"
+  release_name  = p0_ai_gateway_staged.example.id
+  namespace     = "p0-ai-gateway"
 
   values = [
     yamlencode({
-      "agentic-gateway" = {
-        agenticGatewayServer = {
+      letsEncrypt = {
+        env   = "prod"
+        email = "admin@example.com"
+      }
+      postgresql   = { storageClass = "gp2" }
+      victorialogs = { storageClass = "gp2" }
+      valkey       = { storageClass = "<encrypted-storage-class>" }
+      "ai-gateway" = {
+        gateway = {
+          className = p0_ai_gateway_staged.example.id
+          host      = "gateway.example.com"
+        }
+        authServer = {
+          oidcClientId = "your-upstream-oidc-client-id"
+          gatewayIss   = "https://gateway.example.com"
+        }
+        accessProxy = {
+          gatewayIss          = "https://gateway.example.com"
           manageAllowedEmails = p0_ai_gateway_staged.example.service_account_email
         }
       }
@@ -65,13 +83,6 @@ module "ai_gateway_stack" {
 
 - `domain_hosting` (Attributes) How this gateway's public hostname and DNS records are managed. (see [below for nested schema](#nestedatt--domain_hosting))
 - `id` (String) A unique identifier for this gateway
-- `lets_encrypt_email` (String) Email address used for the ACME account (renewal notifications, account recovery); not shared publicly.
-- `oidc_client_id` (String) OAuth client ID from your upstream OAuth provider (e.g. Google Cloud Console) that end users authenticate against.
-- `storage_class` (String) The Kubernetes StorageClass your cluster provides for the gateway's bundled PostgreSQL PersistentVolume, e.g. `gp2` (AWS EKS), `standard-rwo` (GKE), or `managed-premium` (AKS).
-
-### Optional
-
-- `kubernetes_namespace` (String) The namespace this gateway is deployed into. Defaults to `p0-agentic-gateway` if left blank.
 
 ### Read-Only
 

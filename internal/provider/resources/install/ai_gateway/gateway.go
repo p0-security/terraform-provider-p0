@@ -55,6 +55,7 @@ type gatewayModel struct {
 	Id                  string       `tfsdk:"id"`
 	DomainHosting       types.Object `tfsdk:"domain_hosting"`
 	LogProjectId        types.String `tfsdk:"log_project_id"`
+	BraekhusPublicJwk   types.String `tfsdk:"braekhus_public_jwk"`
 	ServiceAccountEmail types.String `tfsdk:"service_account_email"`
 }
 
@@ -70,12 +71,9 @@ type gatewayDomainHostingJson struct {
 // duplicated per resource (see gatewayStagedApi in gateway_staged.go).
 type gatewayJson struct {
 	DomainHosting       gatewayDomainHostingJson `json:"domainHosting"`
-	LetsEncryptEmail    string                   `json:"letsEncryptEmail"`
-	OidcClientId        string                   `json:"oidcClientId"`
-	StorageClass        string                   `json:"storageClass"`
-	KubernetesNamespace *string                  `json:"kubernetesNamespace,omitempty"`
 	LogProjectId        *string                  `json:"log-project-id,omitempty"`
 	ServiceAccountEmail *string                  `json:"serviceAccountEmail,omitempty"`
+	BraekhusPublicJwk   *string                  `json:"braekhusPublicJwk,omitempty"`
 	State               string                   `json:"state"`
 }
 
@@ -89,9 +87,10 @@ type gatewayDomainHostingConfigureJson struct {
 }
 
 type gatewayConfigureJson struct {
-	DomainHosting *gatewayDomainHostingConfigureJson `json:"domainHosting,omitempty"`
-	LogProjectId  *string                            `json:"log-project-id,omitempty"`
-	State         string                             `json:"state"`
+	DomainHosting     *gatewayDomainHostingConfigureJson `json:"domainHosting,omitempty"`
+	LogProjectId      *string                            `json:"log-project-id,omitempty"`
+	BraekhusPublicJwk *string                            `json:"braekhusPublicJwk,omitempty"`
+	State             string                             `json:"state"`
 }
 
 // MoveState enables `moved` blocks from this resource's former name,
@@ -148,6 +147,14 @@ if your cloud provider (e.g. AWS) gave you a hostname instead of a static IP.`,
 MCP tool-call and A2A activity. This is the project holding the log bucket, which may not be the same project the
 gateway itself runs in (e.g. if logs are routed to a centralized logging project).`,
 			},
+			"braekhus_public_jwk": schema.StringAttribute{
+				Required: true,
+				MarkdownDescription: `Public key (a JWK, the contents of ` + "`jwk.public.json`" + `) that the gateway's outbound
+management tunnel uses to authenticate to P0. Must be an EC P-384 public key; never supply the private key. With
+the ` + "`ai-gateway-stack`" + ` chart, read it from the running gateway:
+` + "`kubectl -n <namespace> exec deploy/braekhus-client -- cat /p0-files/jwk.public.json`" + `. P0 verifies the
+gateway through that tunnel, so a gateway that is not publicly reachable can still be verified.`,
+			},
 			"service_account_email": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Email address of the service account identity that P0 uses to communicate with your gateway",
@@ -201,6 +208,7 @@ func (r *Gateway) fromJson(ctx context.Context, diags *diag.Diagnostics, id stri
 		Id:                  id,
 		DomainHosting:       domainHosting,
 		LogProjectId:        types.StringPointerValue(json.LogProjectId),
+		BraekhusPublicJwk:   types.StringPointerValue(json.BraekhusPublicJwk),
 		ServiceAccountEmail: types.StringPointerValue(json.ServiceAccountEmail),
 	}
 }
@@ -230,9 +238,10 @@ func (r *Gateway) toJson(data any) any {
 		}
 	}
 	return &gatewayConfigureJson{
-		DomainHosting: domainHosting,
-		LogProjectId:  model.LogProjectId.ValueStringPointer(),
-		State:         common.Config,
+		DomainHosting:     domainHosting,
+		LogProjectId:      model.LogProjectId.ValueStringPointer(),
+		BraekhusPublicJwk: model.BraekhusPublicJwk.ValueStringPointer(),
+		State:             common.Config,
 	}
 }
 
