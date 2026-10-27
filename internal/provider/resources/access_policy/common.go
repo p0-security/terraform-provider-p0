@@ -316,12 +316,12 @@ func agentAttribute(version int64) schema.SingleNestedAttribute {
 // union describing the human (if any) behind an agentic session, used only
 // when `requestor.type` is 'agentic'.
 func agenticUserAttribute(version int64) schema.SingleNestedAttribute {
-	attributes := requestorUnionAttributes(version, `How P0 matches the human user behind the agent:
+	attributes := requestorUnionAttributes(version, `How P0 matches who the agent acts for:
     - 'any': Any user, or no user, will match
     - 'group': Members of a directory group will match
     - 'user': Only match a single user
     - 'none': Only match a headless agent session with no human user
-    - 'agent': Only match an agent acting on behalf of another agent (agent-to-agent). The requestor 'agent' is the acting agent`)
+    - 'agent': Match a session whose subject is an agent matching 'agent' below. The requestor 'agent' is the agent making the request; the two may be the same agent`)
 	// requestorUnionAttributes' descriptions assume this is the top-level
 	// requestor; here it's the human user (if any) behind an agentic session.
 	if groups, ok := attributes["groups"].(schema.ListNestedAttribute); ok {
