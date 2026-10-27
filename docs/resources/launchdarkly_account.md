@@ -2,18 +2,18 @@
 page_title: "p0_launchdarkly_account Resource - p0"
 subcategory: ""
 description: |-
-  A LaunchDarkly account whose existing members P0 can grant base roles, teams, custom roles and role attributes to, through one of your LaunchDarkly connectors. Requests name the account by its id, as in acme-prod/writer.
-  P0 never holds the account's access token. You store it in your own secret manager, in the connector's cloud, and the connector reads it on every call. This resource tells P0 which connector reaches the account, where the account is hosted, its plan, and where the token's secret is.
-  Important: Install the connector first, store the token, and grant the connector's identity read access to the token's secret: in an earlier apply, or in the same one with this resource depending on the grant, as the examples do. Creating this resource has P0 check the account through the connector: the connector reads the secret, signs in to LaunchDarkly with the token, checks the account's plan, and reads its own allowed email domains. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the first check is denied access, apply again.
+  A LaunchDarkly account whose existing members P0 can grant base roles to, through one of your LaunchDarkly connectors. Requests name the account by its id, as in acme-prod/writer.
+  P0 never holds the account's access token. You store it in your own secret manager, in the connector's cloud, and the connector reads it on every call. This resource tells P0 which connector reaches the account, where the account is hosted, and where the token's secret is.
+  Important: Install the connector first, store the token, and grant the connector's identity read access to the token's secret: in an earlier apply, or in the same one with this resource depending on the grant, as the examples do. Creating this resource has P0 check the account through the connector: the connector reads the secret, signs in to LaunchDarkly with the token, and reads its own allowed email domains. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the first check is denied access, apply again.
   P0 can hold each LaunchDarkly account only once. It refuses an account whose token is for a LaunchDarkly account it already has.
-  An account's attributes can't change once it is created. Changing id, connector, instance, plan, vault or token_secret_name replaces the account. To rotate the token, add a new version to the same secret, which needs no change here.
+  An account's attributes can't change once it is created. Changing id, connector, instance, vault or token_secret_name replaces the account. To rotate the token, add a new version to the same secret, which needs no change here.
   Warning: Replacing or destroying this resource removes the account from P0. P0 can't revoke access it granted on an account it no longer has, so that access stays in LaunchDarkly until you remove it there. Before you change an attribute or destroy this resource, revoke the account's open access in P0 or wait for it to expire.
   An account that already exists in P0, such as one added in the P0 app, isn't created again: the apply fails, and says to import it with terraform import. An imported account that P0 hasn't finished installing plans an update, and applying it finishes the install. If that install can't finish, fix what P0's message names and apply again, or start over: terraform apply -replace=<address> deletes the account and creates it again, and terraform state rm <address> stops managing it.
   The email domains that may receive access are set on the connector, as its DOMAIN_ALLOW_PATTERN environment variable, and aren't an attribute of this resource. P0 reads them back as allowed_domains.
   Prerequisites:
   
   A LaunchDarkly connector, installed with p0_launchdarkly_connector.
-  An access token for the account. On Enterprise, a service token with an inline policy that allows what P0 grants. On any other plan, the personal access token of a LaunchDarkly admin with the Admin role: P0 then grants base roles only, and the token stops working when that admin leaves LaunchDarkly.
+  An access token for the account: the personal access token of a LaunchDarkly member with the Admin role. The token stops working when that member leaves LaunchDarkly.
   A secret that holds the token alone, as plain text, in the secret manager that vault names. Store it outside Terraform, which keeps the token out of Terraform's state.
   For aws-sm, p0_aws_secrets_manager installed for the account that holds the secret. Give the connector's role secretsmanager:GetSecretValue on the secret alone, and kms:Decrypt on its key if a customer-managed KMS key encrypts it. A secret in an account other than the connector's needs a customer-managed key, and the secret's resource policy and the key's policy must allow the connector's role.
   For gcp-sm, Google Secret Manager installed in P0 for the project that holds the secret. This provider has no resource for it, so install it in the P0 app. Give the connector's service account roles/secretmanager.secretAccessor and roles/secretmanager.viewer on the secret alone.
@@ -23,15 +23,15 @@ description: |-
 
 # p0_launchdarkly_account (Resource)
 
-A LaunchDarkly account whose existing members P0 can grant base roles, teams, custom roles and role attributes to, through one of your LaunchDarkly connectors. Requests name the account by its `id`, as in `acme-prod/writer`.
+A LaunchDarkly account whose existing members P0 can grant base roles to, through one of your LaunchDarkly connectors. Requests name the account by its `id`, as in `acme-prod/writer`.
 
-P0 never holds the account's access token. You store it in your own secret manager, in the connector's cloud, and the connector reads it on every call. This resource tells P0 which connector reaches the account, where the account is hosted, its plan, and where the token's secret is.
+P0 never holds the account's access token. You store it in your own secret manager, in the connector's cloud, and the connector reads it on every call. This resource tells P0 which connector reaches the account, where the account is hosted, and where the token's secret is.
 
-**Important:** Install the connector first, store the token, and grant the connector's identity read access to the token's secret: in an earlier apply, or in the same one with this resource depending on the grant, as the examples do. Creating this resource has P0 check the account through the connector: the connector reads the secret, signs in to LaunchDarkly with the token, checks the account's plan, and reads its own allowed email domains. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the first check is denied access, apply again.
+**Important:** Install the connector first, store the token, and grant the connector's identity read access to the token's secret: in an earlier apply, or in the same one with this resource depending on the grant, as the examples do. Creating this resource has P0 check the account through the connector: the connector reads the secret, signs in to LaunchDarkly with the token, and reads its own allowed email domains. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the first check is denied access, apply again.
 
 P0 can hold each LaunchDarkly account only once. It refuses an account whose token is for a LaunchDarkly account it already has.
 
-An account's attributes can't change once it is created. Changing `id`, `connector`, `instance`, `plan`, `vault` or `token_secret_name` replaces the account. To rotate the token, add a new version to the same secret, which needs no change here.
+An account's attributes can't change once it is created. Changing `id`, `connector`, `instance`, `vault` or `token_secret_name` replaces the account. To rotate the token, add a new version to the same secret, which needs no change here.
 
 **Warning:** Replacing or destroying this resource removes the account from P0. P0 can't revoke access it granted on an account it no longer has, so that access stays in LaunchDarkly until you remove it there. Before you change an attribute or destroy this resource, revoke the account's open access in P0 or wait for it to expire.
 
@@ -43,7 +43,7 @@ The email domains that may receive access are set on the connector, as its `DOMA
 
 - A LaunchDarkly connector, installed with `p0_launchdarkly_connector`.
 
-- An access token for the account. On Enterprise, a service token with an inline policy that allows what P0 grants. On any other plan, the personal access token of a LaunchDarkly admin with the Admin role: P0 then grants base roles only, and the token stops working when that admin leaves LaunchDarkly.
+- An access token for the account: the personal access token of a LaunchDarkly member with the Admin role. The token stops working when that member leaves LaunchDarkly.
 
 - A secret that holds the token alone, as plain text, in the secret manager that `vault` names. Store it outside Terraform, which keeps the token out of Terraform's state.
 
@@ -70,11 +70,11 @@ For the full install steps, see [Installing LaunchDarkly](https://docs.p0.dev/in
 # P0 app.
 #
 # Before you apply this, create the account's access token, as this resource's
-# page describes: a service token on Enterprise, or an admin's personal token
-# on any other plan. Store it, and nothing else, as the secret
-# launchdarkly-acme-prod-token. The example doesn't create the secret, which
-# keeps the token out of Terraform's state. To store it, with the token alone
-# in token.txt and gcloud signed in to the secret's project:
+# page describes: the personal access token of a member with the Admin role.
+# Store it, and nothing else, as the secret launchdarkly-acme-prod-token. The
+# example doesn't create the secret, which keeps the token out of Terraform's
+# state. To store it, with the token alone in token.txt and gcloud signed in to
+# the secret's project:
 #
 #   gcloud secrets create launchdarkly-acme-prod-token --project my-secrets-project \
 #     --data-file token.txt
@@ -115,8 +115,6 @@ resource "p0_launchdarkly_account" "example" {
   connector = p0_launchdarkly_connector.example.id
   # commercial, eu or federal.
   instance = "commercial"
-  # enterprise, or non-enterprise for any other plan.
-  plan = "enterprise"
 
   vault = {
     type       = "gcp-sm"
@@ -212,7 +210,6 @@ resource "p0_launchdarkly_account" "aws_example" {
   id        = "acme-prod-aws"
   connector = p0_launchdarkly_connector.aws_example.id
   instance  = "commercial"
-  plan      = "enterprise"
 
   vault = {
     type           = "aws-sm"
@@ -233,8 +230,7 @@ resource "p0_launchdarkly_account" "aws_example" {
 - `connector` (String) The `id` of the `p0_launchdarkly_connector` that reaches this account. The connector must be installed, and run in the same cloud as `vault`: on AWS Lambda for `aws-sm`, on Google Cloud Run for `gcp-sm`.
 - `id` (String) A name you choose for the account, such as `acme-prod`, which requests name it by: lowercase letters, digits and hyphens, starting and ending with a letter or digit, up to 63 characters
 - `instance` (String) Where your LaunchDarkly account is hosted: `commercial` (app.launchdarkly.com), `eu` (app.eu.launchdarkly.com) or `federal` (app.launchdarkly.us).
-- `plan` (String) Your LaunchDarkly plan: `enterprise`, or `non-enterprise` for any other plan, such as Developer, Foundation or a legacy plan like Starter. On Enterprise, P0 grants base roles, teams, custom roles and role attributes with a service token. On any other plan, P0 grants base roles only, with an admin's personal token. P0 checks the plan when it validates the account. Changing it replaces the account.
-- `token_secret_name` (String) The name of the secret that holds the account's LaunchDarkly access token, in `vault`: a service token on Enterprise, or an admin's personal token on any other plan. Only your connector reads it, never P0. The name alone, never an ARN or a resource name. For `aws-sm`, up to 512 letters, digits and `/_+=.@-`, and, when the vault's account isn't the connector's, not ending in a hyphen and six letters or digits, like `-AbCdEf`. For `gcp-sm`, up to 255 letters, digits, underscores and hyphens.
+- `token_secret_name` (String) The name of the secret that holds the account's LaunchDarkly access token, in `vault`: the personal access token of a member with the Admin role. Only your connector reads it, never P0. The name alone, never an ARN or a resource name. For `aws-sm`, up to 512 letters, digits and `/_+=.@-`, and, when the vault's account isn't the connector's, not ending in a hyphen and six letters or digits, like `-AbCdEf`. For `gcp-sm`, up to 255 letters, digits, underscores and hyphens.
 - `vault` (Attributes) The secret manager that holds the access token's secret, as installed in P0. Only the connector reads the secret, never P0, so the secret manager must be in the connector's cloud: AWS Secrets Manager for a connector on AWS Lambda, Google Secret Manager for one on Google Cloud Run. (see [below for nested schema](#nestedatt--vault))
 
 ### Read-Only
@@ -245,8 +241,8 @@ resource "p0_launchdarkly_account" "aws_example" {
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured
 	- 'installed': The item is fully installed
-- `token_kind` (String) Whether the access token is a `service` token or a member's `personal` token, which P0 reads through the connector when it validates the account.
-- `token_owner_member_id` (String) The ID of the LaunchDarkly member who owns a personal access token. P0 never grants to this member. Empty for a service token.
+- `token_kind` (String) The kind of the access token, `personal` for a member's personal access token or `service` for a service token, which P0 reads through the connector when it validates the account.
+- `token_owner_member_id` (String) The ID of the LaunchDarkly member who owns the personal access token. P0 never grants to this member.
 
 <a id="nestedatt--vault"></a>
 ### Nested Schema for `vault`

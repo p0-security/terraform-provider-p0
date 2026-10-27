@@ -39,18 +39,17 @@ func TestAccountFromJsonVault(t *testing.T) {
 	}
 }
 
-// The instance and the plan are selects, which P0 stores by their option's type, and
+// The instance is a select, which P0 stores by its option's type, and
 // read back the same way. A select P0 doesn't have reads as null.
 func TestAccountSelects(t *testing.T) {
 	model := &accountModel{
 		Connector:       types.StringValue("prod"),
 		Instance:        types.StringValue("eu"),
-		Plan:            types.StringValue("non-enterprise"),
 		TokenSecretName: types.StringValue("launchdarkly-prod-token"),
 	}
 	json, ok := accountToJson(model).(*accountJson)
-	if !ok || json.Instance == nil || json.Instance.Type != "eu" || json.Plan == nil || json.Plan.Type != "non-enterprise" {
-		t.Fatalf("accountToJson = %#v; want the instance and the plan by their type", json)
+	if !ok || json.Instance == nil || json.Instance.Type != "eu" {
+		t.Fatalf("accountToJson = %#v; want the instance by its type", json)
 	}
 	if json.AccountId != nil || json.TokenKind != nil || json.TokenOwnerMemberId != nil || json.AllowedDomains != nil {
 		t.Errorf("accountToJson = %#v; want none of the fields P0 reads from the connector", json)
@@ -63,9 +62,9 @@ func TestAccountSelects(t *testing.T) {
 		t.Errorf("selectValue of no select = %v; want null", got)
 	}
 
-	unknown, ok := accountToJson(&accountModel{Instance: types.StringUnknown(), Plan: types.StringNull()}).(*accountJson)
-	if !ok || unknown.Instance != nil || unknown.Plan != nil {
-		t.Errorf("accountToJson of an unknown instance and a null plan = %#v; want neither sent", unknown)
+	unknown, ok := accountToJson(&accountModel{Instance: types.StringUnknown()}).(*accountJson)
+	if !ok || unknown.Instance != nil {
+		t.Errorf("accountToJson of an unknown instance = %#v; want none sent", unknown)
 	}
 }
 
@@ -82,7 +81,7 @@ func TestDescribeAccountCheckError(t *testing.T) {
 		},
 		{
 			"a changed field",
-			"422 Unprocessable Entity: 'plan' can only be altered on initial installation. Create a new installation to change this field.",
+			"422 Unprocessable Entity: 'instance' can only be altered on initial installation. Create a new installation to change this field.",
 			"LaunchDarkly account differs from the one in P0",
 		},
 	} {
