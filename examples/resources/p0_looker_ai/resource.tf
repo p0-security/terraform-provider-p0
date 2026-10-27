@@ -12,6 +12,16 @@
 #   3. Create everything else:
 #        terraform apply
 
+terraform {
+  required_providers {
+    # 0.85.0 added the p0_looker_ai resources.
+    p0 = {
+      source  = "p0-security/p0"
+      version = ">= 0.85.0"
+    }
+  }
+}
+
 resource "p0_gcp" "example" {
   organization_id = "123456789012"
 }
