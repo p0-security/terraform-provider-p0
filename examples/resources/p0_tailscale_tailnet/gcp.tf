@@ -52,10 +52,9 @@ resource "tailscale_tailnet_settings" "p0_gcp" {
 }
 
 # The policy file, which tailscale_acl replaces whole on every apply, so keep
-# all of the tailnet's rules here. It defines the P0 posture that the posture
-# destination in the p0_tailscale_destination example names, and gates a grant
-# on it with srcPosture: a device gets the grant while P0 sets
-# custom:p0_prod_db on it.
+# all of the tailnet's rules here. It defines a P0 posture that requestors can
+# ask for, and gates a grant on it with srcPosture: a device gets the grant
+# while P0 sets custom:p0_prod_db on it.
 resource "tailscale_acl" "gitops" {
   provider = tailscale.p0_tailscale_tailnet_t5678cntrl
 
@@ -87,8 +86,7 @@ resource "p0_tailscale_tailnet" "gcp_example" {
     client_id = tailscale_federated_identity.p0_gcp.id
   }
   # The policy file gates grants on P0 postures, and P0 only sets device
-  # attributes. Its destinations are postures (see the p0_tailscale_destination
-  # example).
+  # attributes, so requestors ask for the P0 postures the policy file defines.
   mode = "posture"
 
   depends_on = [tailscale_tailnet_settings.p0_gcp]

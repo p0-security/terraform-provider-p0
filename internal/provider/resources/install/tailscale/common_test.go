@@ -1,8 +1,7 @@
 package installtailscale
 
 // copy of internal/provider/resources/install/auth0/common_test.go @ 663ab81 (INT-590),
-// renamed for Tailscale (INT-686), with the tailnet and the destination in place of the
-// tenant.
+// renamed for Tailscale (INT-686), with the tailnet in place of the tenant.
 
 import (
 	"context"
@@ -240,7 +239,6 @@ func TestSchemasAndModels(t *testing.T) {
 		"connector staged": {resource: NewTailscaleConnectorStaged(), model: &tailscaleConnectorStagedModel{}},
 		"connector":        {resource: NewTailscaleConnector(), model: &tailscaleConnectorModel{}},
 		"tailnet":          {resource: NewTailscaleTailnet(), model: &tailscaleTailnetModel{}},
-		"destination":      {resource: NewTailscaleDestination(), model: &tailscaleDestinationModel{}},
 	}
 
 	for name, c := range cases {
@@ -258,7 +256,6 @@ func TestResourceNames(t *testing.T) {
 		"p0_tailscale_connector_staged": NewTailscaleConnectorStaged(),
 		"p0_tailscale_connector":        NewTailscaleConnector(),
 		"p0_tailscale_tailnet":          NewTailscaleTailnet(),
-		"p0_tailscale_destination":      NewTailscaleDestination(),
 	}
 
 	for want, r := range cases {
@@ -309,8 +306,8 @@ func TestConnectorIdValidators(t *testing.T) {
 	}
 }
 
-// The rule for a Tailnet ID (TAILNET_ID_PATTERN, less a DNS name), wherever a tailnet
-// is named, with the edges of each part of it. A refused ID gets P0's message alone.
+// The rule for a Tailnet ID (TAILNET_ID_PATTERN, less a DNS name), with the edges of
+// each part of it. A refused ID gets P0's message alone.
 func TestTailnetIdValidator(t *testing.T) {
 	cases := map[string]bool{
 		testTailnet:                    true,
@@ -337,8 +334,7 @@ func TestTailnetIdValidator(t *testing.T) {
 	}
 
 	attributes := map[string]schema.Attribute{
-		"p0_tailscale_tailnet.id":          schemaOf(t, NewTailscaleTailnet()).Attributes["id"],
-		"p0_tailscale_destination.tailnet": schemaOf(t, NewTailscaleDestination()).Attributes["tailnet"],
+		"p0_tailscale_tailnet.id": schemaOf(t, NewTailscaleTailnet()).Attributes["id"],
 	}
 	for name, attribute := range attributes {
 		for id, want := range cases {
@@ -350,40 +346,6 @@ func TestTailnetIdValidator(t *testing.T) {
 			"The tailnet's DNS name, such as tail1234.ts.net, can't be used: Tailscale's API doesn't take it."
 		if got := errorDetails(validateString(t, attribute, "tail1234.ts.net")); len(got) != 1 || !strings.HasSuffix(got[0], message) {
 			t.Errorf("%s refuses a DNS name with %v; want P0's message alone", name, got)
-		}
-	}
-}
-
-// A destination's key is the Tailnet ID and the name, split at the last `:`, and only
-// a key whose halves pass their rules parses.
-func TestParseDestinationKey(t *testing.T) {
-	cases := []struct {
-		key           string
-		tailnet, name string
-		ok            bool
-	}{
-		{key: "T1234CNTRL:prod-db", tailnet: "T1234CNTRL", name: "prod-db", ok: true},
-		{key: "alice@gmail.com:db", tailnet: "alice@gmail.com", name: "db", ok: true},
-		{key: "-:web", tailnet: "-", name: "web", ok: true},
-		{key: "T1234CNTRL:a.b_c-d", tailnet: "T1234CNTRL", name: "a.b_c-d", ok: true},
-		{key: "T1234CNTRL"},
-		{key: "T1234CNTRL:"},
-		{key: ":prod-db"},
-		{key: "tail1234.ts.net:prod-db"},
-		{key: "T1234CNTRL:prod:db"},
-		{key: "T1234CNTRL:prod#db"},
-		{key: "T1234CNTRL:prod/db"},
-		{key: "T1234CNTRL:-prod"},
-		{key: "T1234CNTRL:" + strings.Repeat("a", 64)},
-	}
-
-	for _, c := range cases {
-		tailnet, name, ok := parseDestinationKey(c.key)
-		if tailnet != c.tailnet || name != c.name || ok != c.ok {
-			t.Errorf("parseDestinationKey(%q) = %q, %q, %v; want %q, %q, %v", c.key, tailnet, name, ok, c.tailnet, c.name, c.ok)
-		}
-		if ok && destinationKey(tailnet, name) != c.key {
-			t.Errorf("destinationKey(%q, %q) = %q; want %q", tailnet, name, destinationKey(tailnet, name), c.key)
 		}
 	}
 }
@@ -409,12 +371,6 @@ func TestDescribeCheckError(t *testing.T) {
 			id:      testTailnet,
 			summary: "Tailscale tailnet install check failed",
 			detail:  "P0 rejected the install check for the Tailscale tailnet \"T1234CNTRL\":\n\n" + message,
-		},
-		{
-			kind:    "destination",
-			id:      testDestination,
-			summary: "Tailscale destination install check failed",
-			detail:  "P0 rejected the install check for the Tailscale destination \"T1234CNTRL:prod-db\":\n\n" + message,
 		},
 	}
 
@@ -444,14 +400,12 @@ type fakeItems struct {
 }
 
 const (
-	basePath        = "/integrations/tailscale/config"
-	connectorPath   = basePath + "/connector/prod"
-	tailnetPath     = basePath + "/tailnet/" + testTailnet
-	destinationPath = basePath + "/destination/" + testDestination
+	basePath      = "/integrations/tailscale/config"
+	connectorPath = basePath + "/connector/prod"
+	tailnetPath   = basePath + "/tailnet/" + testTailnet
 
-	// The Tailnet ID, which is the tailnet item's ID, and a destination's key on it.
-	testTailnet     = "T1234CNTRL"
-	testDestination = testTailnet + ":prod-db"
+	// The Tailnet ID, which is the tailnet item's ID.
+	testTailnet = "T1234CNTRL"
 
 	fakeServiceUri    = "https://p0-tailscale-prod-abc123-uw.a.run.app"
 	fakeDiscovery     = "3 tags, 2 subnet routes, 1 service, 0 app connectors, 1 exit node, 0 P0 postures; 4 groups, 0 of them P0's"
@@ -693,7 +647,6 @@ func TestCreateRefusesAResponseWithoutAnItem(t *testing.T) {
 		"connector staged": {resource: &TailscaleConnectorStaged{}, planned: awsCloud.plannedStaged()},
 		"connector":        {resource: &TailscaleConnector{}, planned: awsCloud.plannedConnector()},
 		"tailnet":          {resource: &TailscaleTailnet{}, planned: federatedTailnet.planned()},
-		"destination":      {resource: &TailscaleDestination{}, planned: ipDestination.planned()},
 	}
 
 	for name, c := range cases {

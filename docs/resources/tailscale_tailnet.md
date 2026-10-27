@@ -2,11 +2,11 @@
 page_title: "p0_tailscale_tailnet Resource - p0"
 subcategory: ""
 description: |-
-  A tailnet that P0 can grant network access in, through one of your Tailscale connectors. Add what requestors can reach on it with p0_tailscale_destination resources.
+  A tailnet that P0 can grant network access in, through one of your Tailscale connectors. Requestors pick what to reach from what the tailnet has, listed live through the connector, and your access policies decide who can request what.
   The connector acts on the tailnet with a Tailscale credential that P0 never holds:
   federated (the default in P0's installer): a Tailscale federated identity that trusts the connector's own cloud identity, so no secret is stored anywhere. Create it with tailscale_federated_identity, with the connector's cloud as its issuer and the connector's identity as its subject: on AWS, the issuer of AWS outbound identity federation for the connector's account and the connector's role ARN; on Google Cloud, https://accounts.google.com and the connector's service account's unique numeric ID, not its email. Leave its audience unset: P0 uses Tailscale's default, api.tailscale.com/<client ID>. On AWS, the connector's role also needs sts:GetWebIdentityToken for Tailscale's audiences, api.tailscale.com/*, for 300 seconds or less, which the connector's Terraform grants.oauth-client: a Tailscale OAuth client whose secret is in your secret manager, in the connector's cloud. Create the client in Tailscale's admin console and store its secret with your cloud's CLI, as the example does, so the secret never enters Terraform's state. The connector reads the secret itself, so let its identity read that one secret and no other.
   The credential needs these scopes, by mode. Direct write: policy_file, users:read, devices:core:read, devices:posture_attributes, devices:routes:read and services:read. Posture: the same, with policy_file:read in place of policy_file.
-  The mode is how P0 grants access. In direct-write mode P0 edits your policy file: each grant adds a group with the requestor in it, and the grant's entries. In posture mode your policy file gates grants on P0 postures, and P0 only sets device attributes. tailscale_acl overwrites the whole policy file on every apply, which would erase P0's grants in a direct-write tailnet, so manage the policy file with tailscale_acl only in posture mode, with "prevent edits in the admin console" on, which tailscale_tailnet_settings sets as acls_externally_managed_on. A posture destination must then depend on the tailscale_acl that defines its posture.
+  The mode is how P0 grants access. In direct-write mode P0 edits your policy file: each grant adds a group with the requestor in it, and the grant's entries. In posture mode your policy file gates grants on P0 postures, and P0 only sets device attributes. tailscale_acl overwrites the whole policy file on every apply, which would erase P0's grants in a direct-write tailnet, so manage the policy file with tailscale_acl only in posture mode, with "prevent edits in the admin console" on, which tailscale_tailnet_settings sets as acls_externally_managed_on.
   Important: Create the credential, and let the connector use it, before Terraform creates this resource: in an earlier apply, or in the same apply with this resource depending on the grants, as the examples do. Creating this resource has P0 validate the install through the connector: the connector gets a token with the credential, checks its scopes for the mode, checks that the mode suits the policy file, and counts what the tailnet offers. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the connector is denied right after you grant it, apply again.
   P0 fixes a tailnet's connector, credential and mode when it adds the tailnet, and its open grants were made through them. Replacing the tailnet would remove it from P0 without revoking those grants, so Terraform refuses a change to any of them at plan time. To change one, revoke the tailnet's grants, then remove this resource, apply, and add it again. A new id is another tailnet, and replaces this one. Destroying this resource removes the tailnet from P0 and revokes nothing, so revoke its grants first. If the tailnet is already added in P0, import it rather than creating it: P0 refuses to add a tailnet twice. If P0 hasn't finished installing the tailnet, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
   Prerequisites:
@@ -20,7 +20,7 @@ description: |-
 
 # p0_tailscale_tailnet (Resource)
 
-A tailnet that P0 can grant network access in, through one of your Tailscale connectors. Add what requestors can reach on it with `p0_tailscale_destination` resources.
+A tailnet that P0 can grant network access in, through one of your Tailscale connectors. Requestors pick what to reach from what the tailnet has, listed live through the connector, and your access policies decide who can request what.
 
 The connector acts on the tailnet with a Tailscale credential that P0 never holds:
 
@@ -29,7 +29,7 @@ The connector acts on the tailnet with a Tailscale credential that P0 never hold
 
 The credential needs these scopes, by mode. Direct write: `policy_file`, `users:read`, `devices:core:read`, `devices:posture_attributes`, `devices:routes:read` and `services:read`. Posture: the same, with `policy_file:read` in place of `policy_file`.
 
-The mode is how P0 grants access. In `direct-write` mode P0 edits your policy file: each grant adds a group with the requestor in it, and the grant's entries. In `posture` mode your policy file gates grants on P0 postures, and P0 only sets device attributes. `tailscale_acl` overwrites the whole policy file on every apply, which would erase P0's grants in a direct-write tailnet, so manage the policy file with `tailscale_acl` only in posture mode, with "prevent edits in the admin console" on, which `tailscale_tailnet_settings` sets as `acls_externally_managed_on`. A posture destination must then depend on the `tailscale_acl` that defines its posture.
+The mode is how P0 grants access. In `direct-write` mode P0 edits your policy file: each grant adds a group with the requestor in it, and the grant's entries. In `posture` mode your policy file gates grants on P0 postures, and P0 only sets device attributes. `tailscale_acl` overwrites the whole policy file on every apply, which would erase P0's grants in a direct-write tailnet, so manage the policy file with `tailscale_acl` only in posture mode, with "prevent edits in the admin console" on, which `tailscale_tailnet_settings` sets as `acls_externally_managed_on`.
 
 **Important:** Create the credential, and let the connector use it, before Terraform creates this resource: in an earlier apply, or in the same apply with this resource depending on the grants, as the examples do. Creating this resource has P0 validate the install through the connector: the connector gets a token with the credential, checks its scopes for the mode, checks that the mode suits the policy file, and counts what the tailnet offers. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the connector is denied right after you grant it, apply again.
 
@@ -189,10 +189,9 @@ resource "tailscale_tailnet_settings" "p0_gcp" {
 }
 
 # The policy file, which tailscale_acl replaces whole on every apply, so keep
-# all of the tailnet's rules here. It defines the P0 posture that the posture
-# destination in the p0_tailscale_destination example names, and gates a grant
-# on it with srcPosture: a device gets the grant while P0 sets
-# custom:p0_prod_db on it.
+# all of the tailnet's rules here. It defines a P0 posture that requestors can
+# ask for, and gates a grant on it with srcPosture: a device gets the grant
+# while P0 sets custom:p0_prod_db on it.
 resource "tailscale_acl" "gitops" {
   provider = tailscale.p0_tailscale_tailnet_t5678cntrl
 
@@ -224,8 +223,7 @@ resource "p0_tailscale_tailnet" "gcp_example" {
     client_id = tailscale_federated_identity.p0_gcp.id
   }
   # The policy file gates grants on P0 postures, and P0 only sets device
-  # attributes. Its destinations are postures (see the p0_tailscale_destination
-  # example).
+  # attributes, so requestors ask for the P0 postures the policy file defines.
   mode = "posture"
 
   depends_on = [tailscale_tailnet_settings.p0_gcp]

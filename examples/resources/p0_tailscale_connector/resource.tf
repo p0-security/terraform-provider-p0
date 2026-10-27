@@ -1,7 +1,6 @@
 # Installs P0's Tailscale connector prod on AWS Lambda. Full chain:
 # p0_aws_iam_write (see its example) -> p0_tailscale_connector_staged -> the
-# connector's Lambda function -> p0_tailscale_connector -> p0_tailscale_tailnet
-# -> p0_tailscale_destination.
+# connector's Lambda function -> p0_tailscale_connector -> p0_tailscale_tailnet.
 #
 # This example hosts the connector on AWS Lambda. For Google Cloud Run, see the
 # Google Cloud Run example (gcp.tf).

@@ -1,7 +1,7 @@
 package provider
 
 // copy of internal/provider/auth0_test.go @ 663ab81 (INT-590), renamed for Tailscale
-// (INT-686), with the tailnet in place of the tenant, and its destinations.
+// (INT-686), with the tailnet in place of the tenant.
 
 import (
 	"encoding/json"
@@ -114,41 +114,11 @@ resource "p0_tailscale_tailnet" "example" {
 `, id, cloud.credential, mode)
 }
 
-// A connector, a tailnet and the destinations on it, as a customer's Terraform
+// A connector and a tailnet in the mode that suits the cloud, as a customer's Terraform
 // installs them.
-func tailscaleConfig(f *tailscaleFake, cloud tailscaleCloud, destinations string) string {
-	return tailscaleTailnetConfig(f, cloud, tailscaleTailnet, cloud.mode) + destinations
+func tailscaleConfig(f *tailscaleFake, cloud tailscaleCloud) string {
+	return tailscaleTailnetConfig(f, cloud, tailscaleTailnet, cloud.mode)
 }
-
-// Two direct-write destinations: a subnet, and a Kubernetes API that leaves its proxy
-// out.
-const tailscaleDirectWriteDestinations = `
-resource "p0_tailscale_destination" "db" {
-  tailnet = p0_tailscale_tailnet.example.id
-  name    = "prod-db"
-  type    = "ip"
-  target  = "10.0.4.0/24"
-  ports   = "tcp:5432"
-  via     = "tag:prod-router"
-}
-
-resource "p0_tailscale_destination" "k8s" {
-  tailnet = p0_tailscale_tailnet.example.id
-  name    = "prod-k8s"
-  type    = "capability"
-  target  = "tag:k8s-operator"
-  groups  = "system:masters"
-}
-`
-
-const tailscalePostureDestination = `
-resource "p0_tailscale_destination" "db" {
-  tailnet = p0_tailscale_tailnet.example.id
-  name    = "prod-db"
-  type    = "posture"
-  target  = "posture:p0_prod_db"
-}
-`
 
 // An in-memory stand-in for P0's install API for Tailscale, behaving as P0's Tailscale
 // installers do:
@@ -157,14 +127,10 @@ resource "p0_tailscale_destination" "db" {
 //     advance its state (stage -> configure -> installed)
 //   - a PUT of an item that exists is refused, so an item can only be staged once
 //   - verify and configure refuse a request that changes what P0 fixed when it staged
-//     the item: a tailnet's connector, credential and mode, and every field of a
-//     destination
-//   - a tailnet can only be staged for a connector that is installed, and a destination
-//     for a tailnet that is installed
+//     the item: a tailnet's connector, credential and mode
+//   - a tailnet can only be staged for a connector that is installed
 //   - a tailnet's generated fields are empty at stage, and verifying it stores what
 //     discovery found
-//   - a Kubernetes API destination without a proxy gets the default, as the install
-//     framework gives a select element
 //   - verifying a connector on Cloud Run resolves its URL
 //   - a connector's metadata names the identity it runs as
 //   - unknown items are 404, and DELETE answers 204 with no body
@@ -180,7 +146,7 @@ type tailscaleFake struct {
 	failVerify bool
 }
 
-// A Tailscale item: a connector, a tailnet or a destination, by its ID.
+// A Tailscale item: a connector or a tailnet, by its ID.
 type tailscaleItemKey struct {
 	component, id string
 }
@@ -250,7 +216,6 @@ func (f *tailscaleFake) step(nextState string, expectedStates []string) http.Han
 			http.Error(w, `{"error":"Invalid integration state"}`, http.StatusBadRequest)
 			return
 		}
-		normalizeTailscaleRequest(key, body)
 		if status, message := f.refuse(key, nextState, previous, body); status != 0 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(status)
@@ -273,12 +238,11 @@ func (f *tailscaleFake) step(nextState string, expectedStates []string) http.Han
 	}
 }
 
-// The fields P0 fixes when it stages a tailnet's or a destination's item. (A
-// connector's hosting is fixed too, but P0 adds the Cloud Run URL to it, which no
-// request carries, so this fake leaves it out.)
+// The fields P0 fixes when it stages a tailnet's item. (A connector's hosting is fixed
+// too, but P0 adds the Cloud Run URL to it, which no request carries, so this fake
+// leaves it out.)
 var tailscaleFixedFields = map[string][]string{
-	"tailnet":     {"connector", "credential", "mode"},
-	"destination": {"tailnet", "kind"},
+	"tailnet": {"connector", "credential", "mode"},
 }
 
 // Refuses a step the way P0's Tailscale installers do: with an HTTP status and P0's
@@ -301,25 +265,10 @@ func (f *tailscaleFake) refuse(key tailscaleItemKey, nextState string, previous,
 		if f.items[tailscaleItemKey{"connector", connector}]["state"] != "installed" {
 			return http.StatusBadRequest, "Pick the connector that acts on this tailnet. Install a Tailscale connector first if there's none."
 		}
-	case key.component == "destination" && nextState == "stage":
-		tailnet, _ := body["tailnet"].(string)
-		if f.items[tailscaleItemKey{"tailnet", tailnet}]["state"] != "installed" {
-			return http.StatusBadRequest, fmt.Sprintf("Tailnet %s isn't installed. Add the tailnet first, or start the key with the ID of one you've added.", tailnet)
-		}
 	case key.component == "tailnet" && nextState == "configure" && f.failVerify:
 		return http.StatusUnprocessableEntity, "The connector couldn't get a Tailscale token with the credential."
 	}
 	return 0, ""
-}
-
-// Gives a request what the install framework gives it before the installers run: a
-// Kubernetes API destination's proxy defaults to the operator.
-func normalizeTailscaleRequest(key tailscaleItemKey, body map[string]any) {
-	if kind, ok := body["kind"].(map[string]any); ok && key.component == "destination" && kind["type"] == "capability" {
-		if _, ok := kind["proxy"]; !ok {
-			kind["proxy"] = map[string]any{"type": "operator"}
-		}
-	}
 }
 
 // Adds the fields that P0's Tailscale installers assign to an item.
@@ -432,14 +381,7 @@ func checkTailscaleDestroyed(f *tailscaleFake) func(*terraform.State) error {
 	}
 }
 
-// The destination's kind as P0 stores it.
-func (f *tailscaleFake) kind(name string) map[string]any {
-	kind, _ := f.item("destination", tailscaleTailnet+":"+name)["kind"].(map[string]any)
-	return kind
-}
-
-// The full chain on AWS, with a federated tailnet and two direct-write destinations:
-// the connector is staged once and then only verified and configured, since P0 refuses
+// The full chain on AWS, with a federated direct-write tailnet: the connector is staged once and then only verified and configured, since P0 refuses
 // to stage an item twice.
 func TestTailscaleOnAws(t *testing.T) {
 	f := newTailscaleFake(t)
@@ -451,7 +393,7 @@ func TestTailscaleOnAws(t *testing.T) {
 			// The framework re-plans after the step and fails on a non-empty plan, so this
 			// also checks that the fields P0 assigns leave no diff.
 			{
-				Config: tailscaleConfig(f, tailscaleAws, tailscaleDirectWriteDestinations),
+				Config: tailscaleConfig(f, tailscaleAws),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("p0_tailscale_connector_staged.example", "connector_identity.role_arn", "arn:aws:iam::123456789012:role/p0-tailscale-prod"),
 					resource.TestCheckResourceAttr("p0_tailscale_connector.example", "state", "installed"),
@@ -461,10 +403,6 @@ func TestTailscaleOnAws(t *testing.T) {
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "discovery", tailscaleDiscovery),
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "suggested_mode", tailscaleSuggestedMode),
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "dns_name", tailscaleDnsName),
-					resource.TestCheckResourceAttr("p0_tailscale_destination.db", "id", tailscaleTailnet+":prod-db"),
-					resource.TestCheckResourceAttr("p0_tailscale_destination.db", "state", "installed"),
-					resource.TestCheckNoResourceAttr("p0_tailscale_destination.db", "proxy"),
-					resource.TestCheckResourceAttr("p0_tailscale_destination.k8s", "proxy", "operator"),
 					func(*terraform.State) error {
 						item := f.item("tailnet", tailscaleTailnet)
 						credential, _ := item["credential"].(map[string]any)
@@ -472,12 +410,6 @@ func TestTailscaleOnAws(t *testing.T) {
 						if item["connector"] != tailscaleConnector || credential["type"] != "federated" || credential["clientId"] != tailscaleClientId ||
 							len(credential) != 2 || mode["type"] != "direct-write" {
 							return fmt.Errorf("P0 item does not hold the configured tailnet: %v", item)
-						}
-						if db := f.kind("prod-db"); db["type"] != "ip" || db["target"] != "10.0.4.0/24" || db["ports"] != "tcp:5432" || db["via"] != "tag:prod-router" {
-							return fmt.Errorf("P0 item does not hold the configured subnet: %v", db)
-						}
-						if item := f.item("destination", tailscaleTailnet+":prod-db"); item["tailnet"] != tailscaleTailnet {
-							return fmt.Errorf("P0 item does not name its tailnet: %v", item)
 						}
 						return nil
 					},
@@ -487,18 +419,6 @@ func TestTailscaleOnAws(t *testing.T) {
 				ResourceName:      "p0_tailscale_tailnet.example",
 				ImportState:       true,
 				ImportStateId:     tailscaleTailnet,
-				ImportStateVerify: true,
-			},
-			{
-				ResourceName:      "p0_tailscale_destination.db",
-				ImportState:       true,
-				ImportStateId:     tailscaleTailnet + ":prod-db",
-				ImportStateVerify: true,
-			},
-			{
-				ResourceName:      "p0_tailscale_destination.k8s",
-				ImportState:       true,
-				ImportStateId:     tailscaleTailnet + ":prod-k8s",
 				ImportStateVerify: true,
 			},
 		},
@@ -515,7 +435,7 @@ func TestTailscaleOnGoogleCloud(t *testing.T) {
 		CheckDestroy:             checkTailscaleDestroyed(f),
 		Steps: []resource.TestStep{
 			{
-				Config: tailscaleConfig(f, tailscaleGcp, tailscalePostureDestination),
+				Config: tailscaleConfig(f, tailscaleGcp),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("p0_tailscale_connector.example", "hosting.connector_service_uri", "https://p0-tailscale-prod-abc123-uw.a.run.app"),
 					resource.TestCheckResourceAttr(
@@ -525,7 +445,6 @@ func TestTailscaleOnGoogleCloud(t *testing.T) {
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "state", "installed"),
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "mode", "posture"),
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "credential.vault.project_id", "acme-secrets"),
-					resource.TestCheckResourceAttr("p0_tailscale_destination.db", "state", "installed"),
 					func(*terraform.State) error {
 						item := f.item("tailnet", tailscaleTailnet)
 						credential, _ := item["credential"].(map[string]any)
@@ -533,9 +452,6 @@ func TestTailscaleOnGoogleCloud(t *testing.T) {
 						if credential["type"] != "oauth-client" || credential["clientSecretName"] != "tailscale-acme-oauth" ||
 							vault["type"] != "gcp-sm" || vault["install"] != "acme-secrets" || len(vault) != 2 {
 							return fmt.Errorf("P0 item does not hold the configured tailnet: %v", item)
-						}
-						if kind := f.kind("prod-db"); kind["type"] != "posture" || kind["target"] != "posture:p0_prod_db" || len(kind) != 2 {
-							return fmt.Errorf("P0 item does not hold the configured posture: %v", kind)
 						}
 						return nil
 					},
@@ -545,12 +461,6 @@ func TestTailscaleOnGoogleCloud(t *testing.T) {
 				ResourceName:      "p0_tailscale_tailnet.example",
 				ImportState:       true,
 				ImportStateId:     tailscaleTailnet,
-				ImportStateVerify: true,
-			},
-			{
-				ResourceName:      "p0_tailscale_destination.db",
-				ImportState:       true,
-				ImportStateId:     tailscaleTailnet + ":prod-db",
 				ImportStateVerify: true,
 			},
 		},
@@ -604,93 +514,6 @@ func TestTailscaleTailnetRefusesAFixedChange(t *testing.T) {
 					}
 					return nil
 				},
-			},
-		},
-	})
-}
-
-// Every field of a destination is fixed when it's added, so a change replaces it. Taking
-// a Kubernetes API destination's proxy out plans the default, which is a change too.
-func TestTailscaleDestinationChangeReplaces(t *testing.T) {
-	f := newTailscaleFake(t)
-	k8s := func(proxy string) string {
-		return fmt.Sprintf(`
-resource "p0_tailscale_destination" "k8s" {
-  tailnet = p0_tailscale_tailnet.example.id
-  name    = "prod-k8s"
-  type    = "capability"
-  target  = "tag:k8s-api"
-  groups  = "system:masters"
-  %s
-}
-`, proxy)
-	}
-
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             checkTailscaleDestroyed(f),
-		Steps: []resource.TestStep{
-			{Config: tailscaleConfig(f, tailscaleAws, k8s(`proxy = "proxy-group"`))},
-			{
-				Config: tailscaleConfig(f, tailscaleAws, k8s("")),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_tailscale_destination.k8s", plancheck.ResourceActionReplace),
-						plancheck.ExpectResourceAction("p0_tailscale_tailnet.example", plancheck.ResourceActionNoop),
-					},
-				},
-				Check: func(*terraform.State) error {
-					if proxy, _ := f.kind("prod-k8s")["proxy"].(map[string]any); proxy["type"] != "operator" {
-						return fmt.Errorf("P0 item's proxy = %v; want the default", proxy)
-					}
-					return nil
-				},
-			},
-			{
-				Config: tailscaleConfig(f, tailscaleAws, k8s(`proxy = "operator"`)),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_tailscale_destination.k8s", plancheck.ResourceActionNoop),
-					},
-				},
-			},
-		},
-	})
-}
-
-// P0 holds an optional field that an admin typed in and cleared in the installer as "".
-// It reads as null, so a configuration that leaves the field out plans nothing, after a
-// refresh or an import.
-func TestTailscaleDestinationEmptyOptionalFieldReadsAsNull(t *testing.T) {
-	f := newTailscaleFake(t)
-	clearSite := func() {
-		f.update("destination", tailscaleTailnet+":prod-db", func(item map[string]any) {
-			if kind, ok := item["kind"].(map[string]any); ok {
-				kind["siteId"] = ""
-			}
-		})
-	}
-
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             checkTailscaleDestroyed(f),
-		Steps: []resource.TestStep{
-			{Config: tailscaleConfig(f, tailscaleAws, tailscaleDirectWriteDestinations)},
-			{
-				PreConfig: clearSite,
-				Config:    tailscaleConfig(f, tailscaleAws, tailscaleDirectWriteDestinations),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_tailscale_destination.db", plancheck.ResourceActionNoop),
-					},
-				},
-				Check: resource.TestCheckNoResourceAttr("p0_tailscale_destination.db", "site_id"),
-			},
-			{
-				ResourceName:      "p0_tailscale_destination.db",
-				ImportState:       true,
-				ImportStateId:     tailscaleTailnet + ":prod-db",
-				ImportStateVerify: true,
 			},
 		},
 	})
@@ -775,30 +598,20 @@ func TestTailscaleUnfinishedInstallConverges(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			{Config: tailscaleConfig(f, tailscaleAws, tailscaleDirectWriteDestinations)},
+			{Config: tailscaleConfig(f, tailscaleAws)},
 			{
 				PreConfig: func() { restage("tailnet", tailscaleTailnet) },
-				Config:    tailscaleConfig(f, tailscaleAws, tailscaleDirectWriteDestinations),
+				Config:    tailscaleConfig(f, tailscaleAws),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction("p0_tailscale_tailnet.example", plancheck.ResourceActionUpdate),
-						plancheck.ExpectResourceAction("p0_tailscale_destination.db", plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction("p0_tailscale_connector.example", plancheck.ResourceActionNoop),
 					},
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "state", "installed"),
 					resource.TestCheckResourceAttr("p0_tailscale_tailnet.example", "discovery", tailscaleDiscovery),
 				),
-			},
-			{
-				PreConfig: func() { restage("destination", tailscaleTailnet+":prod-k8s") },
-				Config:    tailscaleConfig(f, tailscaleAws, tailscaleDirectWriteDestinations),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_tailscale_destination.k8s", plancheck.ResourceActionUpdate),
-					},
-				},
-				Check: resource.TestCheckResourceAttr("p0_tailscale_destination.k8s", "state", "installed"),
 			},
 		},
 	})
@@ -837,32 +650,6 @@ func TestTailscaleTailnetFailedCheckIsReplaced(t *testing.T) {
 	})
 }
 
-// P0 adds a destination only on a tailnet that is installed. Naming one that isn't
-// fails the apply with P0's message and saves nothing.
-func TestTailscaleDestinationNeedsAnInstalledTailnet(t *testing.T) {
-	f := newTailscaleFake(t)
-
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{
-				Config: tailscaleProviderConfig(f) + `
-resource "p0_tailscale_destination" "db" {
-  tailnet = "T1234CNTRL"
-  name    = "prod-db"
-  type    = "posture"
-  target  = "posture:p0_prod_db"
-}
-`,
-				ExpectError: regexp.MustCompile(`(?s)Could not stage destination component.*Tailnet T1234CNTRL isn't\s+installed`),
-			},
-		},
-	})
-	if item := f.item("destination", tailscaleTailnet+":prod-db"); item != nil {
-		t.Errorf("P0 item after the refused destination = %v; want none", item)
-	}
-}
-
 // An item that is already added in P0 can't be created, only imported.
 func TestTailscaleRefusesAnItemThatExists(t *testing.T) {
 	f := newTailscaleFake(t)
@@ -870,17 +657,17 @@ func TestTailscaleRefusesAnItemThatExists(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			{Config: tailscaleConfig(f, tailscaleAws, tailscalePostureDestination)},
+			{Config: tailscaleConfig(f, tailscaleAws)},
 			{
-				Config: tailscaleConfig(f, tailscaleAws, tailscalePostureDestination) + `
-resource "p0_tailscale_destination" "duplicate" {
-  tailnet = p0_tailscale_tailnet.example.id
-  name    = "prod-db"
-  type    = "posture"
-  target  = "posture:p0_prod_db"
+				Config: tailscaleConfig(f, tailscaleAws) + fmt.Sprintf(`
+resource "p0_tailscale_tailnet" "duplicate" {
+  id         = %q
+  connector  = p0_tailscale_connector.example.id
+  credential = %s
+  mode       = %q
 }
-`,
-				ExpectError: regexp.MustCompile(`(?s)Could not stage destination component.*is already added`),
+`, tailscaleTailnet, tailscaleAws.credential, tailscaleAws.mode),
+				ExpectError: regexp.MustCompile(`(?s)Could not stage tailnet component.*is already added`),
 			},
 		},
 	})
@@ -897,15 +684,6 @@ resource "p0_tailscale_tailnet" "example" {
   mode       = %q
 }
 `, id, credential, mode)
-	}
-	destination := func(fields string) string {
-		return fmt.Sprintf(`
-resource "p0_tailscale_destination" "example" {
-  tailnet = "T1234CNTRL"
-  name    = "prod-db"
-  %s
-}
-`, fields)
 	}
 	staged := func(hosting string) string {
 		return fmt.Sprintf(`
@@ -957,24 +735,6 @@ resource "p0_tailscale_connector_staged" "example" {
     }
     client_secret_name = "arn:aws:secretsmanager:us-west-2:123456789012:secret:tailscale"
   }`, "direct-write"), "doesn't look like a secret name"},
-		{"destination name with a slash", `
-resource "p0_tailscale_destination" "example" {
-  tailnet = "T1234CNTRL"
-  name    = "prod/db"
-  type    = "posture"
-  target  = "posture:p0_prod_db"
-}
-`, `The name takes letters`},
-		{"ip without ports", destination(`type = "ip"
-  target = "10.0.4.0/24"`), `Enter at least one port`},
-		{"ports on ssh", destination(`type = "ssh"
-  target = "tag:prod"
-  ports  = "tcp:22"`), `'ports' may only be set when 'type' is`},
-		{"a tag without tag:", destination(`type = "tag"
-  target = "prod"
-  ports  = "*"`), `The target must be a tag`},
-		{"a posture that isn't P0's", destination(`type = "posture"
-  target = "posture:prod"`), `The target must be a P0 posture`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newTailscaleFake(t)

@@ -271,7 +271,6 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installtailscale.NewTailscaleConnectorStaged,
 		installtailscale.NewTailscaleConnector,
 		installtailscale.NewTailscaleTailnet,
-		installtailscale.NewTailscaleDestination,
 		installfiletransfer.NewFileTransferIamWrite,
 		installawssm.NewAwsSmVault,
 		installapp.NewAppIamWrite,
