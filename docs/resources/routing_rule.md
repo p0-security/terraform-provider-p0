@@ -176,7 +176,7 @@ Optional:
 	 - 'remove': Access rule only applies when a requestor is _not_ a member of any of the specified groups
 - `groups` (Attributes List) Required, and may only be used, if 'type' is 'group'. If the user is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--requestor--groups))
 - `uid` (String) Required, and may only be used, if 'type' is 'user'. This is the user's email address.
-- `user` (Attributes) Required, and may only be used, if the requestor 'type' is 'agentic'. Describes the human user (if any) behind the agent. (see [below for nested schema](#nestedatt--requestor--user))
+- `user` (Attributes) Required, and may only be used, if the requestor 'type' is 'agentic'. Describes the human user (if any) behind the agent, or the agent it acts on behalf of. (see [below for nested schema](#nestedatt--requestor--user))
 
 <a id="nestedatt--requestor--agent"></a>
 ### Nested Schema for `requestor.agent`
@@ -227,19 +227,55 @@ Required:
 
 Required:
 
-- `type` (String) How P0 matches the human user behind the agent:
+- `type` (String) How P0 matches who the agent acts for:
     - 'any': Any user, or no user, will match
     - 'group': Members of a directory group will match
     - 'user': Only match a single user
     - 'none': Only match a headless agent session with no human user
+    - 'agent': Match a session whose subject is an agent matching 'agent' below. The requestor 'agent' is the agent making the request; the two may be the same agent
 
 Optional:
 
+- `agent` (Attributes) Required, and may only be used, if 'type' is 'agent'. Describes the agent that the acting agent works on behalf of. (see [below for nested schema](#nestedatt--requestor--user--agent))
 - `effect` (String) Required, and may only be used, if 'type' is 'group'. The filter effect. May be one of:
     - 'keep': Access rule only applies when the human user behind the agent is a member of any of the specified groups
     - 'remove': Access rule only applies when the human user behind the agent is _not_ a member of any of the specified groups
 - `groups` (Attributes List) Required, and may only be used, if 'type' is 'group'. If the human user behind the agent is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--requestor--user--groups))
 - `uid` (String) Required, and may only be used, if 'type' is 'user'. This is the user's email address.
+
+<a id="nestedatt--requestor--user--agent"></a>
+### Nested Schema for `requestor.user.agent`
+
+Required:
+
+- `type` (String) How P0 matches the agent:
+    - 'any': Any agent will match
+    - 'agent-client': Only agents connecting through a specific gateway client will match ('mcp-client' is a deprecated alias)
+    - 'agent-owner': Only an agent owned by a specific user will match
+    - 'owner-group': Only an agent owned by a member of a directory group will match
+    - 'provider': Only an agent federated by a specific identity provider will match
+
+Optional:
+
+- `client_id` (String) Required, and may only be used, if 'type' is 'agent-client' (or its deprecated alias 'mcp-client'). The gateway client's identifier.
+- `effect` (String) Required, and may only be used, if 'type' is 'owner-group'. The filter effect. May be one of:
+    - 'keep': Access rule only applies when the agent's owner is a member of any of the specified groups
+    - 'remove': Access rule only applies when the agent's owner is _not_ a member of any of the specified groups
+- `groups` (Attributes List) Required, and may only be used, if 'type' is 'owner-group'. If the agent's owner is a member of any of these groups, the rule will match. (see [below for nested schema](#nestedatt--requestor--user--agent--groups))
+- `owner` (String) Required, and may only be used, if 'type' is 'agent-owner'. The agent owner's email address.
+- `provider_id` (String) Required, and may only be used, if 'type' is 'provider'. The identifier of an installed identity-provider integration.
+- `subject_pattern` (String) May only be used if 'type' is 'provider'. An optional regular expression used to further narrow the agent's subject claim.
+
+<a id="nestedatt--requestor--user--agent--groups"></a>
+### Nested Schema for `requestor.user.agent.groups`
+
+Required:
+
+- `directory` (String) One of "azure-ad", "entra-id", "okta", or "workspace".
+- `id` (String) This is the directory's internal group identifier.
+- `label` (String) This is any human-readable name for the directory group specified in the 'id' attribute.
+
+
 
 <a id="nestedatt--requestor--user--groups"></a>
 ### Nested Schema for `requestor.user.groups`

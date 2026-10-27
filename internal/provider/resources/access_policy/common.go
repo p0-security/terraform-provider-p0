@@ -62,6 +62,16 @@ type AgenticUserModel struct {
 	Effect *string        `json:"effect,omitempty" tfsdk:"effect"`
 }
 
+// AgenticUserModelV5 adds `agent`, the agent a request is on behalf of when
+// `type` is "agent" (agent-to-agent).
+type AgenticUserModelV5 struct {
+	Type   string         `tfsdk:"type"`
+	Uid    *string        `tfsdk:"uid"`
+	Groups []GroupModelV1 `tfsdk:"groups"`
+	Effect *string        `tfsdk:"effect"`
+	Agent  *AgentModel    `tfsdk:"agent"`
+}
+
 type RequestorModelV3 struct {
 	Type   string            `json:"type" tfsdk:"type"`
 	Groups []GroupModelV1    `json:"groups,omitempty" tfsdk:"groups"`
@@ -69,6 +79,15 @@ type RequestorModelV3 struct {
 	Effect *string           `json:"effect,omitempty" tfsdk:"effect"`
 	Agent  *AgentModel       `tfsdk:"agent"`
 	User   *AgenticUserModel `json:"user,omitempty" tfsdk:"user"`
+}
+
+type RequestorModelV5 struct {
+	Type   string              `tfsdk:"type"`
+	Groups []GroupModelV1      `tfsdk:"groups"`
+	Uid    *string             `tfsdk:"uid"`
+	Effect *string             `tfsdk:"effect"`
+	Agent  *AgentModel         `tfsdk:"agent"`
+	User   *AgenticUserModelV5 `tfsdk:"user"`
 }
 
 type ResourceFilterModel struct {
@@ -175,7 +194,15 @@ type AccessPolicyModelV4 struct {
 	Approval  []ApprovalModelV3 `json:"approval" tfsdk:"approval"`
 }
 
-const currentSchemaVersion int64 = 4
+type AccessPolicyModelV5 struct {
+	Name      *string           `tfsdk:"name"`
+	Disabled  *bool             `tfsdk:"disabled"`
+	Requestor *RequestorModelV5 `tfsdk:"requestor"`
+	Resource  *ResourceModel    `tfsdk:"resource"`
+	Approval  []ApprovalModelV3 `tfsdk:"approval"`
+}
+
+const currentSchemaVersion int64 = 5
 
 // requestorUnionAttributes builds the `type`/`uid`/`groups`/`effect`
 // attributes shared by the top-level `requestor` object and the `agentic`
@@ -289,11 +316,12 @@ func agentAttribute(version int64) schema.SingleNestedAttribute {
 // union describing the human (if any) behind an agentic session, used only
 // when `requestor.type` is 'agentic'.
 func agenticUserAttribute(version int64) schema.SingleNestedAttribute {
-	attributes := requestorUnionAttributes(version, `How P0 matches the human user behind the agent:
+	attributes := requestorUnionAttributes(version, `How P0 matches who the agent acts for:
     - 'any': Any user, or no user, will match
     - 'group': Members of a directory group will match
     - 'user': Only match a single user
-    - 'none': Only match a headless agent session with no human user`)
+    - 'none': Only match a headless agent session with no human user
+    - 'agent': Match a session whose subject is an agent matching 'agent' below. The requestor 'agent' is the agent making the request; the two may be the same agent`)
 	// requestorUnionAttributes' descriptions assume this is the top-level
 	// requestor; here it's the human user (if any) behind an agentic session.
 	if groups, ok := attributes["groups"].(schema.ListNestedAttribute); ok {
@@ -306,15 +334,27 @@ func agenticUserAttribute(version int64) schema.SingleNestedAttribute {
     - 'remove': Access rule only applies when the human user behind the agent is _not_ a member of any of the specified groups`
 		attributes["effect"] = effect
 	}
+	requirements := map[string][]string{
+		"user":  {"uid"},
+		"group": {"groups", "effect"},
+	}
+	exclusive := map[string][]string{}
+	// Frozen at >= 5 (agent-to-agent shipped in v5)
+	if version >= 5 {
+		agent := agentAttribute(version)
+		agent.MarkdownDescription = `Required, and may only be used, if 'type' is 'agent'. Describes the agent that the acting agent works on behalf of.`
+		attributes["agent"] = agent
+		requirements["agent"] = []string{"agent"}
+		// agenticToJson only forwards `agent` when `type` is "agent".
+		exclusive["agent"] = []string{"agent"}
+	}
 	return schema.SingleNestedAttribute{
 		Optional:            true,
-		MarkdownDescription: `Required, and may only be used, if the requestor 'type' is 'agentic'. Describes the human user (if any) behind the agent.`,
+		MarkdownDescription: `Required, and may only be used, if the requestor 'type' is 'agentic'. Describes the human user (if any) behind the agent, or the agent it acts on behalf of.`,
 		Attributes:          attributes,
 		Validators: []validator.Object{
-			RequiredWhenType(map[string][]string{
-				"user":  {"uid"},
-				"group": {"groups", "effect"},
-			}),
+			RequiredWhenType(requirements),
+			ExclusiveToType(exclusive),
 		},
 	}
 }

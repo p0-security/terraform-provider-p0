@@ -414,6 +414,61 @@ func TestAgentAttributeValidators(t *testing.T) {
 	}
 }
 
+// TestAgenticUserAttributeValidators runs the validators attached to the real
+// `requestor.user` schema (agenticUserAttribute): `agent` is required for the
+// "agent" type and rejected for every other type.
+func TestAgenticUserAttributeValidators(t *testing.T) {
+	set := types.StringValue("x")
+	null := types.StringNull()
+	attrTypes := map[string]attr.Type{
+		"type":   types.StringType,
+		"uid":    types.StringType,
+		"groups": types.StringType,
+		"effect": types.StringType,
+		"agent":  types.StringType, // stand-in; the validators only check null-ness
+	}
+	base := func(overrides map[string]attr.Value) map[string]attr.Value {
+		attrs := map[string]attr.Value{"type": null, "uid": null, "groups": null, "effect": null, "agent": null}
+		for k, v := range overrides {
+			attrs[k] = v
+		}
+		return attrs
+	}
+
+	cases := []struct {
+		name    string
+		attrs   map[string]attr.Value
+		wantErr bool
+	}{
+		{"agent missing agent errors", base(map[string]attr.Value{"type": types.StringValue("agent")}), true},
+		{"agent with agent passes", base(map[string]attr.Value{"type": types.StringValue("agent"), "agent": set}), false},
+		{"none with agent errors", base(map[string]attr.Value{"type": types.StringValue("none"), "agent": set}), true},
+		{"group with agent errors", base(map[string]attr.Value{"type": types.StringValue("group"), "groups": set, "effect": set, "agent": set}), true},
+		{"user without agent passes", base(map[string]attr.Value{"type": types.StringValue("user"), "uid": set}), false},
+	}
+
+	attribute := agenticUserAttribute(currentSchemaVersion)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			object, diags := types.ObjectValue(attrTypes, c.attrs)
+			if diags.HasError() {
+				t.Fatalf("failed to build object: %v", diags)
+			}
+			resp := &validator.ObjectResponse{}
+			for _, v := range attribute.Validators {
+				v.ValidateObject(
+					context.Background(),
+					validator.ObjectRequest{Path: path.Root("requestor").AtName("user"), ConfigValue: object},
+					resp,
+				)
+			}
+			if got := resp.Diagnostics.HasError(); got != c.wantErr {
+				t.Errorf("HasError() = %v; want %v (%v)", got, c.wantErr, resp.Diagnostics)
+			}
+		})
+	}
+}
+
 // TestAgentAttributeDocumentsAgentClient guards the schema documentation the
 // registry docs are generated from: the primary client-scoped value is
 // "agent-client"; "mcp-client" remains only as a deprecated alias.
