@@ -52,8 +52,10 @@ terraform {
       source  = "databricks/databricks"
       version = ">= 1.115.0"
     }
+    # 0.82.0 added the p0_databricks_ai resources.
     p0 = {
-      source = "p0-security/p0"
+      source  = "p0-security/p0"
+      version = ">= 0.82.0"
     }
   }
 }
