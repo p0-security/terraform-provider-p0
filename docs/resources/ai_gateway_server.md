@@ -56,16 +56,14 @@ module "ai_gateway_stack" {
         authServer = {
           oidcClientId = "your-upstream-oidc-client-id"
           p0Url        = "https://api.p0.app/o/<your-org>"
-          gatewayIss   = "https://gateway.example.com"
         }
         accessProxy = {
           p0Url               = "https://api.p0.app/o/<your-org>"
-          gatewayIss          = "https://gateway.example.com"
           manageAllowedEmails = p0_ai_gateway_staged.example.service_account_email
         }
         braekhus = {
           orgSlug   = "<your-org>"
-          gatewayId = "primary"
+          gatewayId = p0_ai_gateway_staged.example.id
         }
       }
     }),
