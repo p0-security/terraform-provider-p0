@@ -81,12 +81,12 @@ resource "google_service_account" "p0_security_perimeter_sa" {
   project      = local.project
 }
 
-# P0-proprietary connector image pinned to the staged image_digest. P0 checks
-# only the image repository at install. DOMAIN_ALLOW_PATTERN uses the staged
-# allowed_domains so the deployed service enforces exactly the domain pattern P0
-# records at install (same source as the final install below). GCLOUD_PROJECT
-# points at the P0 production project so the service can authenticate callers
-# from P0.
+# P0-proprietary connector image pinned to the staged image_digest, which is the
+# image tag and digest; Cloud Run pulls by the digest. P0 checks only the image
+# repository at install. DOMAIN_ALLOW_PATTERN uses the staged allowed_domains so
+# the deployed service enforces exactly the domain pattern P0 records at install
+# (same source as the final install below). GCLOUD_PROJECT points at the P0
+# production project so the service can authenticate callers from P0.
 resource "google_cloud_run_service" "p0_security_perimeter" {
   name     = "p0-security-perimeter-prod"
   project  = local.project
@@ -95,7 +95,7 @@ resource "google_cloud_run_service" "p0_security_perimeter" {
   template {
     spec {
       containers {
-        image = "docker.io/p0security/p0-security-perimeter-gcloud@${p0_gcp_security_perimeter_staged.example.image_digest}"
+        image = "docker.io/p0security/p0-security-perimeter-gcloud:${p0_gcp_security_perimeter_staged.example.image_digest}"
         env {
           name  = "DOMAIN_ALLOW_PATTERN"
           value = p0_gcp_security_perimeter_staged.example.allowed_domains
@@ -215,7 +215,7 @@ resource "p0_gcp_iam_write" "example" {
 
 - `allowed_domains` (String) The list of domains that are allowed to access the Cloud Run service.
 - `cloud_run_url` (String) The URL of the Cloud Run service that will be used to enforce the security perimeter.
-- `image_digest` (String) The hash value of the image that is deployed to the Cloud Run service.
+- `image_digest` (String) The tag and digest of the image that is deployed to the Cloud Run service.
 - `project` (String) The ID of the Google Cloud project to manage with P0
 
 ### Optional

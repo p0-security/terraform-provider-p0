@@ -98,7 +98,7 @@ For the full install steps, see [Security perimeter](https://docs.p0.dev/integra
 			},
 			"image_digest": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: `The hash value of the image that is deployed to the Cloud Run service.`,
+				MarkdownDescription: `The tag and digest of the image that is deployed to the Cloud Run service.`,
 			},
 		},
 	}
