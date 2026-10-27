@@ -108,8 +108,9 @@ data "databricks_group" "metastore_admins" {
 }
 
 resource "databricks_group_member" "p0_metastore_admin" {
-  for_each  = data.databricks_group.metastore_admins
-  group_id  = each.value.id
+  # Only the IDs, so the group's deprecated attributes stay out of the plan.
+  for_each  = { for name, group in data.databricks_group.metastore_admins : name => group.id }
+  group_id  = each.value
   member_id = databricks_service_principal.p0.id
 }
 
