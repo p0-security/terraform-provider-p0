@@ -110,11 +110,7 @@ resource "google_cloud_run_v2_service" "launchdarkly" {
     containers {
       # P0's connector image, pinned by its tag and digest. To update, take
       # both from the latest version of this example in the Terraform registry.
-      #
-      # TODO(INT-741): P0 hasn't published the LaunchDarkly connector image yet,
-      # so this pin is a placeholder that no image matches, and Cloud Run can't
-      # deploy it. Replace it with the published tag and digest.
-      image = "docker.io/p0security/p0-connector-launchdarkly-gcloud:sha-0000000@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      image = "docker.io/p0security/p0-connector-launchdarkly-gcloud:sha-cbc48e5@sha256:601f8ccff902cbd8ef6e2abfa4d2422b727a89a3a07a66913933cc6c9a3d8dc5"
 
       # The connector accepts calls from this identity alone, and refuses every
       # call while it is unset.
@@ -220,12 +216,8 @@ locals {
     # P0's connector image: its tag on Docker Hub, and the digest that tag must
     # resolve to. To update, take both from the latest version of this example
     # in the Terraform registry: they change together.
-    #
-    # TODO(INT-741): P0 hasn't published the LaunchDarkly connector image yet,
-    # so this pin is a placeholder that no image matches, and the plan stops at
-    # the digest check below. Replace it with the published tag and digest.
-    image_tag    = "sha-0000000"
-    image_digest = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    image_tag    = "sha-cbc48e5"
+    image_digest = "sha256:f376631a4c79b2a269a414474241614a6c45b8932353909a6a3ae8518a2638b1"
   }
 }
 
