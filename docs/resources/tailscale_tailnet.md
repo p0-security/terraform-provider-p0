@@ -73,10 +73,12 @@ For the full install steps, see [Tailscale](https://docs.p0.dev/integrations/res
 # example, and uses its required_providers block. If your configuration already
 # has a required_providers block, add these to it:
 #   p0 = {
-#     source = "p0-security/p0"
+#     source  = "p0-security/p0"
+#     version = "~> 0.86"
 #   }
 #   tailscale = {
-#     source = "tailscale/tailscale"
+#     source  = "tailscale/tailscale"
+#     version = "~> 0.29.2"
 #   }
 
 locals {
