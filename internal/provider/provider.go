@@ -63,6 +63,7 @@ import (
 	installpagerdutyai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/pagerduty-ai"
 	installpostgres "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/postgres"
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
+	installredshiftai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/redshift-ai"
 	installsalesforceai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/salesforce-ai"
 	installservicenowai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/servicenow-ai"
 	installsnowflakeai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/snowflake-ai"
@@ -325,6 +326,10 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installdatabricksai.NewConnector,
 		installdatabricksai.NewAccountStaged,
 		installdatabricksai.NewAccount,
+		installredshiftai.NewConnectorStaged,
+		installredshiftai.NewConnector,
+		installredshiftai.NewClusterStaged,
+		installredshiftai.NewCluster,
 		installaigateway.NewGatewayStaged,
 		installaigateway.NewGateway,
 		installaigateway.NewServer,
