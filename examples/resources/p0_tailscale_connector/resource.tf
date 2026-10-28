@@ -24,8 +24,10 @@ terraform {
   required_version = ">= 1.4"
 
   required_providers {
+    # 0.86.0 is the first release whose p0_tailscale_tailnet is posture-only.
     p0 = {
-      source = "p0-security/p0"
+      source  = "p0-security/p0"
+      version = "~> 0.86"
     }
     aws = {
       source = "hashicorp/aws"
@@ -37,7 +39,8 @@ terraform {
     # For the p0_tailscale_tailnet example, which goes in the same
     # configuration.
     tailscale = {
-      source = "tailscale/tailscale"
+      source  = "tailscale/tailscale"
+      version = "~> 0.29.2"
     }
   }
 }
@@ -55,11 +58,10 @@ locals {
     # The role P0 assumes in this account, which invokes the connector.
     p0_role_name = "P0RoleIamManager"
     # P0's connector image: its tag on Docker Hub, and the digest that tag must
-    # resolve to. These are placeholders, for an image that doesn't exist. Use
-    # the pinned values in the Terraform that P0's installer shows, or the
-    # image's published tag and digest.
-    image_tag    = "sha-1234567"
-    image_digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    # resolve to. These pin the first posture-only build. For a later one, use
+    # the pinned values in the Terraform that P0's installer shows.
+    image_tag    = "sha-19655ef"
+    image_digest = "sha256:072afd15933f4650d03f530b955b2bce9218bb38f5d04050ef4fbc5fda7f85a0"
   }
 }
 

@@ -25,10 +25,10 @@ locals {
     project_id       = "my-project-id"
     connector_name   = "p0-tailscale-prod"
     connector_region = "us-west1"
-    # P0's connector image: the digest of its tag on Docker Hub. This is a
-    # placeholder, for an image that doesn't exist. Use the pinned value in the
-    # Terraform that P0's installer shows, or the image's published digest.
-    image_digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    # P0's connector image: the digest of its tag on Docker Hub. This pins the
+    # first posture-only build, sha-19655ef. For a later one, use the pinned
+    # value in the Terraform that P0's installer shows.
+    image_digest = "sha256:6f75ba4338bcc45fced7144fc49c10417d38ae02d02a146b18cd34e107590007"
   }
 }
 
