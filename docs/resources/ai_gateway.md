@@ -108,7 +108,7 @@ resource "p0_ai_gateway" "example" {
 management tunnel uses to authenticate to P0. Must be an EC P-384 public key; never supply the private key. With
 the `ai-gateway-stack` chart, read it from the running braekhus client pod:
 `kubectl exec -it deploy/braekhus-client -n <namespace> -c braekhus -- cat /p0-files/jwk.public.json | jq -Mr`. The braekhus client generates the file
-at startup. P0 verifies the gateway through that tunnel, so a gateway that is not publicly reachable can still be verified.
+at startup. P0 connects to the gateway through that tunnel, which is verified when this resource is created.
 - `id` (String) The `id` of the `p0_ai_gateway_staged` resource being finalized
 
 ### Optional

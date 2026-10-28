@@ -155,7 +155,7 @@ gateway itself runs in (e.g. if logs are routed to a centralized logging project
 management tunnel uses to authenticate to P0. Must be an EC P-384 public key; never supply the private key. With
 the ` + "`ai-gateway-stack`" + ` chart, read it from the running braekhus client pod:
 ` + "`kubectl exec -it deploy/braekhus-client -n <namespace> -c braekhus -- cat /p0-files/jwk.public.json | jq -Mr`" + `. The braekhus client generates the file
-at startup. P0 verifies the gateway through that tunnel, so a gateway that is not publicly reachable can still be verified.`,
+at startup. P0 connects to the gateway through that tunnel, which is verified when this resource is created.`,
 			},
 			"service_account_email": schema.StringAttribute{
 				Computed:            true,
