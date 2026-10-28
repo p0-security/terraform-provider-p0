@@ -38,6 +38,7 @@ import (
 	installdatabricksai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/databricks-ai"
 	installdatadogai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/datadog-ai"
 	installdocker "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/docker"
+	installdynamodbai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/dynamodb-ai"
 	installfiletransfer "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/file_transfer"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
 	installgcpcloudsql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloudsql"
@@ -243,6 +244,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installokta.NewOktaDirectoryListing,
 		installokta.NewOktaGroupAssignment,
 		installrds.NewRdsIamWrite,
+		installdynamodbai.NewDynamoDbAiIamWrite,
 		installgcpcloudsql.NewGcpCloudSqlIamWriteStaged,
 		installgcpcloudsql.NewGcpCloudSqlIamWrite,
 		installgcpserviceaccount.NewGcpServiceAccountIamWriteStaged,
