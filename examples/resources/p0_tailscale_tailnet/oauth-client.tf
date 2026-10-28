@@ -4,10 +4,10 @@
 # AWS Lambda that the p0_tailscale_connector example installs.
 #
 # Before you apply this, create the OAuth client in Tailscale's admin console,
-# under Settings > Trust credentials, with the scopes for the tailnet's mode
-# (see the p0_tailscale_tailnet resource), and store its secret as the secret
-# tailscale/acme/oauth. The example doesn't create the client or the secret,
-# which keeps the client's secret out of Terraform's state.
+# under Settings > Trust credentials, with the scopes the p0_tailscale_tailnet
+# resource lists, and store its secret as the secret tailscale/acme/oauth. The
+# example doesn't create the client or the secret, which keeps the client's
+# secret out of Terraform's state.
 #
 # Creating p0_tailscale_tailnet has the connector read the secret, so store it
 # before then, as the secret's whole value. To store it, with the AWS CLI signed
@@ -132,7 +132,6 @@ resource "p0_tailscale_tailnet" "oauth_example" {
     }
     client_secret_name = local.p0_tailscale_tailnet_t9012cntrl.client_secret_name
   }
-  mode = "direct-write"
 
   depends_on = [aws_iam_role_policy.p0_tailscale_tailnet_t9012cntrl_secret]
 }

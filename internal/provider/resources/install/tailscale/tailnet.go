@@ -24,8 +24,8 @@ import (
 
 // copy of internal/provider/resources/install/auth0/tenant.go @ 663ab81 (INT-590),
 // renamed for Tailscale (INT-686): keyed by the Tailnet ID, with the credential as one
-// attribute, and the mode. Its connector, credential and mode are refused at plan time
-// rather than replaced, as Harbor refuses a new `url`
+// attribute. Its connector and credential are refused at plan time rather than
+// replaced, as Harbor refuses a new `url`
 // (internal/provider/resources/install/harbor/instance.go).
 
 var _ resource.Resource = &TailscaleTailnet{}
@@ -34,20 +34,14 @@ var _ resource.ResourceWithImportState = &TailscaleTailnet{}
 var _ resource.ResourceWithModifyPlan = &TailscaleTailnet{}
 var _ resource.ResourceWithValidateConfig = &TailscaleTailnet{}
 
-// The tailnet's credential types and modes: the options of the app's
-// `TailscaleCredential` and `TailscaleMode` select elements.
+// The tailnet's credential types: the options of the app's `TailscaleCredential`
+// select element.
 const (
 	federatedCredential   = "federated"
 	oauthClientCredential = "oauth-client"
-
-	directWriteMode = "direct-write"
-	postureMode     = "posture"
 )
 
-var (
-	credentialTypes = []string{federatedCredential, oauthClientCredential}
-	modes           = []string{directWriteMode, postureMode}
-)
+var credentialTypes = []string{federatedCredential, oauthClientCredential}
 
 var credentialPath = path.Root("credential")
 
@@ -56,14 +50,12 @@ type TailscaleTailnet struct {
 }
 
 type tailscaleTailnetModel struct {
-	Id            types.String     `tfsdk:"id"`
-	Connector     types.String     `tfsdk:"connector"`
-	Credential    *credentialModel `tfsdk:"credential"`
-	Mode          types.String     `tfsdk:"mode"`
-	Discovery     types.String     `tfsdk:"discovery"`
-	SuggestedMode types.String     `tfsdk:"suggested_mode"`
-	DnsName       types.String     `tfsdk:"dns_name"`
-	State         types.String     `tfsdk:"state"`
+	Id         types.String     `tfsdk:"id"`
+	Connector  types.String     `tfsdk:"connector"`
+	Credential *credentialModel `tfsdk:"credential"`
+	Discovery  types.String     `tfsdk:"discovery"`
+	DnsName    types.String     `tfsdk:"dns_name"`
+	State      types.String     `tfsdk:"state"`
 }
 
 type credentialModel struct {
@@ -83,13 +75,11 @@ type credentialConfigModel struct {
 }
 
 type tailscaleTailnetJson struct {
-	Connector     *string         `json:"connector,omitempty"`
-	Credential    *credentialJson `json:"credential,omitempty"`
-	Mode          *selectJson     `json:"mode,omitempty"`
-	Discovery     *string         `json:"discovery,omitempty"`
-	SuggestedMode *string         `json:"suggestedMode,omitempty"`
-	DnsName       *string         `json:"dnsName,omitempty"`
-	State         *string         `json:"state,omitempty"`
+	Connector  *string         `json:"connector,omitempty"`
+	Credential *credentialJson `json:"credential,omitempty"`
+	Discovery  *string         `json:"discovery,omitempty"`
+	DnsName    *string         `json:"dnsName,omitempty"`
+	State      *string         `json:"state,omitempty"`
 }
 
 // The JSON is a discriminated union on "type": a federated identity carries its client
@@ -99,12 +89,6 @@ type credentialJson struct {
 	ClientId         *string    `json:"clientId,omitempty"`
 	Vault            *vaultJson `json:"vault,omitempty"`
 	ClientSecretName *string    `json:"clientSecretName,omitempty"`
-}
-
-// A select element whose options have no fields, such as the mode: P0 stores the option
-// as its "type".
-type selectJson struct {
-	Type string `json:"type"`
 }
 
 type tailscaleTailnetApi struct {
@@ -121,22 +105,24 @@ func (*TailscaleTailnet) Metadata(_ context.Context, req resource.MetadataReques
 
 func (*TailscaleTailnet) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A tailnet that P0 can grant network access in, through one of your Tailscale connectors. Requestors pick what to reach from what the tailnet has, listed live through the connector, and your access policies decide who can request what.
+		MarkdownDescription: `A tailnet that P0 can grant network access in, through one of your Tailscale connectors. Requestors pick a P0 posture from the ones your policy file defines, listed live through the connector, and your access policies decide who can request what.
+
+P0 grants access by setting a posture attribute, with an expiry, on the requestor's device, and never writes your policy file, so you can manage the policy file as code, for example with ` + "`tailscale_acl`" + `. Your policy file gates grants on P0 postures with ` + "`srcPosture`" + `. Posture attributes need a Tailscale Premium or Enterprise plan.
 
 The connector acts on the tailnet with a Tailscale credential that P0 never holds:
 
 - ` + "`federated`" + ` (the default in P0's installer): a Tailscale federated identity that trusts the connector's own cloud identity, so no secret is stored anywhere. Create it with ` + "`tailscale_federated_identity`" + `, with the connector's cloud as its issuer and the connector's identity as its subject: on AWS, the issuer of AWS outbound identity federation for the connector's account and the connector's role ARN; on Google Cloud, ` + "`https://accounts.google.com`" + ` and the connector's service account's unique numeric ID, not its email. Leave its ` + "`audience`" + ` unset: P0 uses Tailscale's default, ` + "`api.tailscale.com/<client ID>`" + `. On AWS, the connector's role also needs ` + "`sts:GetWebIdentityToken`" + ` for Tailscale's audiences, ` + "`api.tailscale.com/*`" + `, for 300 seconds or less, which the connector's Terraform grants.
 - ` + "`oauth-client`" + `: a Tailscale OAuth client whose secret is in your secret manager, in the connector's cloud. Create the client in Tailscale's admin console and store its secret with your cloud's CLI, as the example does, so the secret never enters Terraform's state. The connector reads the secret itself, so let its identity read that one secret and no other.
 
-The credential needs these scopes, by mode. Direct write: ` + "`policy_file`" + `, ` + "`users:read`" + `, ` + "`devices:core:read`" + `, ` + "`devices:posture_attributes`" + `, ` + "`devices:routes:read`" + ` and ` + "`services:read`" + `. Posture: the same, with ` + "`policy_file:read`" + ` in place of ` + "`policy_file`" + `.
+The credential needs these scopes: ` + "`policy_file:read`" + `, ` + "`users:read`" + `, ` + "`devices:core:read`" + `, ` + "`devices:posture_attributes`" + `, ` + "`devices:routes:read`" + ` and ` + "`services:read`" + `. P0 refuses a credential that also carries ` + "`policy_file`" + ` or ` + "`all`" + `, since it could write the policy file.
 
-The mode is how P0 grants access. In ` + "`direct-write`" + ` mode P0 edits your policy file: each grant adds a group with the requestor in it, and the grant's entries. In ` + "`posture`" + ` mode your policy file gates grants on P0 postures, and P0 only sets device attributes. ` + "`tailscale_acl`" + ` overwrites the whole policy file on every apply, which would erase P0's grants in a direct-write tailnet, so manage the policy file with ` + "`tailscale_acl`" + ` only in posture mode, with "prevent edits in the admin console" on, which ` + "`tailscale_tailnet_settings`" + ` sets as ` + "`acls_externally_managed_on`" + `.
+**Important:** Create the credential, and let the connector use it, before Terraform creates this resource: in an earlier apply, or in the same apply with this resource depending on the grants, as the examples do. Creating this resource has P0 validate the install through the connector: the connector gets a token with the credential, checks its scopes, checks that it can set a posture attribute, which needs a Tailscale Premium or Enterprise plan, and counts the P0 postures the tailnet's policy file defines. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the connector is denied right after you grant it, apply again.
 
-**Important:** Create the credential, and let the connector use it, before Terraform creates this resource: in an earlier apply, or in the same apply with this resource depending on the grants, as the examples do. Creating this resource has P0 validate the install through the connector: the connector gets a token with the credential, checks its scopes for the mode, checks that the mode suits the policy file, and counts what the tailnet offers. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the connector is denied right after you grant it, apply again.
-
-P0 fixes a tailnet's ` + "`connector`" + `, ` + "`credential`" + ` and ` + "`mode`" + ` when it adds the tailnet, and its open grants were made through them. Replacing the tailnet would remove it from P0 without revoking those grants, so Terraform refuses a change to any of them at plan time. To change one, revoke the tailnet's grants, then remove this resource, apply, and add it again. A new ` + "`id`" + ` is another tailnet, and replaces this one. Destroying this resource removes the tailnet from P0 and revokes nothing, so revoke its grants first. If the tailnet is already added in P0, import it rather than creating it: P0 refuses to add a tailnet twice. If P0 hasn't finished installing the tailnet, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
+P0 fixes a tailnet's ` + "`connector`" + ` and ` + "`credential`" + ` when it adds the tailnet, and its open grants were made through them. Replacing the tailnet would remove it from P0 without revoking those grants, so Terraform refuses a change to either at plan time. To change one, revoke the tailnet's grants, then remove this resource, apply, and add it again. A new ` + "`id`" + ` is another tailnet, and replaces this one. Destroying this resource removes the tailnet from P0 and revokes nothing, so revoke its grants first. If the tailnet is already added in P0, import it rather than creating it: P0 refuses to add a tailnet twice. If P0 hasn't finished installing the tailnet, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
 
 **Prerequisites:**
+
+- A Tailscale Premium or Enterprise plan for the tailnet.
 
 - A Tailscale connector, installed with ` + "`p0_tailscale_connector`" + `. An OAuth client's secret must be in the connector's cloud: AWS Secrets Manager for a connector on AWS Lambda, or Google Secret Manager for one on Cloud Run. It can be in another account or project.
 
@@ -191,21 +177,9 @@ For the full install steps, see [Tailscale](https://docs.p0.dev/integrations/res
 					},
 				},
 			},
-			"mode": schema.StringAttribute{
-				Required: true,
-				MarkdownDescription: "How P0 grants access on this tailnet: either `direct-write` (P0 edits your policy file) or `posture` (your policy file gates grants on P0 postures, and P0 only sets device attributes). " +
-					"Use `posture` when \"prevent edits in the admin console\" is on, such as when a GitOps pipeline or `tailscale_acl` owns the policy file. It can't change.",
-				Validators: []validator.String{
-					stringvalidator.OneOf(modes...),
-				},
-			},
 			"discovery": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "What P0 found on the tailnet when it last validated it, such as its tags, subnet routes and groups. Direct-write mode adds one group per open grant, and Tailscale's plans cap a tailnet's groups.",
-			},
-			"suggested_mode": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The mode that suits the tailnet's policy file, as P0 found it when it last validated the tailnet: `posture` when \"prevent edits in the admin console\" is on, `direct-write` otherwise.",
+				MarkdownDescription: "What P0 found on the tailnet when it last validated it, such as its P0 postures.",
 			},
 			"dns_name": schema.StringAttribute{
 				Computed:            true,
@@ -325,27 +299,23 @@ func (r *TailscaleTailnet) fromJson(_ context.Context, diags *diag.Diagnostics, 
 		return nil
 	}
 
-	// credential and mode are Required, so a nil one would surface as Terraform core's
-	// "provider produced inconsistent result after apply", which tells the reader
-	// nothing to do.
-	if jsonv.Credential == nil || jsonv.Mode == nil {
+	// credential is Required, so a nil one would surface as Terraform core's "provider
+	// produced inconsistent result after apply", which tells the reader nothing to do.
+	if jsonv.Credential == nil {
 		diags.AddError(
 			"Bad API response",
-			fmt.Sprintf("The Tailscale tailnet %s carries no credential or no mode. "+
+			fmt.Sprintf("The Tailscale tailnet %s carries no credential. "+
 				"Remove it in the P0 app and add it again, or remove it from Terraform state with `terraform state rm`.", id),
 		)
 		return nil
 	}
 
-	// A credential, a vault or a mode of a kind this provider doesn't know can't be read
-	// into the attributes.
+	// A credential or a vault of a kind this provider doesn't know can't be read into the
+	// attributes.
 	credential := jsonv.Credential
 	switch {
 	case !slices.Contains(credentialTypes, credential.Type):
 		reportUnsupportedTailnet(diags, id, "credential", credential.Type, credentialTypes)
-		return nil
-	case !slices.Contains(modes, jsonv.Mode.Type):
-		reportUnsupportedTailnet(diags, id, "mode", jsonv.Mode.Type, modes)
 		return nil
 	case credential.Type == oauthClientCredential && credential.Vault == nil:
 		diags.AddError(
@@ -369,14 +339,12 @@ func (r *TailscaleTailnet) fromJson(_ context.Context, diags *diag.Diagnostics, 
 	}
 
 	return &tailscaleTailnetModel{
-		Id:            types.StringValue(id),
-		Connector:     types.StringPointerValue(jsonv.Connector),
-		Credential:    model,
-		Mode:          types.StringValue(jsonv.Mode.Type),
-		Discovery:     types.StringPointerValue(jsonv.Discovery),
-		SuggestedMode: types.StringPointerValue(jsonv.SuggestedMode),
-		DnsName:       types.StringPointerValue(jsonv.DnsName),
-		State:         types.StringPointerValue(jsonv.State),
+		Id:         types.StringValue(id),
+		Connector:  types.StringPointerValue(jsonv.Connector),
+		Credential: model,
+		Discovery:  types.StringPointerValue(jsonv.Discovery),
+		DnsName:    types.StringPointerValue(jsonv.DnsName),
+		State:      types.StringPointerValue(jsonv.State),
 	}
 }
 
@@ -390,9 +358,9 @@ func reportUnsupportedTailnet(diags *diag.Diagnostics, id string, what string, g
 }
 
 // The body of the PUT that stages the item, and of verify and configure: the
-// connector, the credential and the mode, which P0 fixes when it creates the item.
-// Sending them on each step has P0 refuse a request that would change any of them,
-// before it calls the connector. P0 fills in what discovery finds, and sets the state.
+// connector and the credential, which P0 fixes when it creates the item. Sending them
+// on each step has P0 refuse a request that would change either, before it calls the
+// connector. P0 fills in what discovery finds, and sets the state.
 func (r *TailscaleTailnet) toJson(data any) any {
 	datav, ok := data.(*tailscaleTailnetModel)
 	if !ok {
@@ -401,7 +369,6 @@ func (r *TailscaleTailnet) toJson(data any) any {
 
 	json := tailscaleTailnetJson{
 		Connector: datav.Connector.ValueStringPointer(),
-		Mode:      &selectJson{Type: datav.Mode.ValueString()},
 	}
 	if credential := datav.Credential; credential != nil {
 		json.Credential = &credentialJson{
@@ -442,7 +409,7 @@ func (r *TailscaleTailnet) Read(ctx context.Context, req resource.ReadRequest, r
 	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &tailscaleTailnetApi{}, &tailscaleTailnetModel{})
 }
 
-// Refuses a new connector, credential or mode for an installed tailnet, and reports
+// Refuses a new connector or credential for an installed tailnet, and reports
 // whether it did. Only an installed tailnet can have open grants. For one imported
 // before it finished installing, P0 refuses the change itself. A value that Terraform
 // doesn't know yet is checked again in Update, when it is. A new ID replaces the
@@ -450,14 +417,14 @@ func (r *TailscaleTailnet) Read(ctx context.Context, req resource.ReadRequest, r
 //
 // Replacing the tailnet under its ID, which is what Terraform would do for a new
 // value, deletes the item and creates one with the same ID. P0 revokes nothing when
-// it deletes the item, so the grants made through the old connector, credential or
-// mode would stay open.
+// it deletes the item, so the grants made through the old connector or credential
+// would stay open.
 //
 // The credential is compared whole, so a vault that goes from set to null is a change
 // too: the framework runs no plan modifier on the fields of a nested attribute whose
 // planned value is null.
 func refuseFixedChanges(ctx context.Context, state tfsdk.State, plan tfsdk.Plan, diags *diag.Diagnostics) bool {
-	var installState, idBefore, idAfter, connectorBefore, connectorAfter, modeBefore, modeAfter types.String
+	var installState, idBefore, idAfter, connectorBefore, connectorAfter types.String
 	var credentialBefore, credentialAfter types.Object
 	diags.Append(state.GetAttribute(ctx, path.Root("state"), &installState)...)
 	diags.Append(state.GetAttribute(ctx, path.Root("id"), &idBefore)...)
@@ -466,8 +433,6 @@ func refuseFixedChanges(ctx context.Context, state tfsdk.State, plan tfsdk.Plan,
 	diags.Append(plan.GetAttribute(ctx, path.Root("connector"), &connectorAfter)...)
 	diags.Append(state.GetAttribute(ctx, credentialPath, &credentialBefore)...)
 	diags.Append(plan.GetAttribute(ctx, credentialPath, &credentialAfter)...)
-	diags.Append(state.GetAttribute(ctx, path.Root("mode"), &modeBefore)...)
-	diags.Append(plan.GetAttribute(ctx, path.Root("mode"), &modeAfter)...)
 	if diags.HasError() || installState.ValueString() != common.StateInstalled || !idBefore.Equal(idAfter) {
 		return false
 	}
@@ -479,7 +444,6 @@ func refuseFixedChanges(ctx context.Context, state tfsdk.State, plan tfsdk.Plan,
 	}{
 		{name: "connector", before: connectorBefore, after: connectorAfter},
 		{name: "credential", before: credentialBefore, after: credentialAfter},
-		{name: "mode", before: modeBefore, after: modeAfter},
 	} {
 		if !changed(ctx, fixed.before, fixed.after) {
 			continue
@@ -515,13 +479,13 @@ func (*TailscaleTailnet) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	if refuseFixedChanges(ctx, req.State, req.Plan, &resp.Diagnostics) || resp.Diagnostics.HasError() {
 		return
 	}
-	planUnfinishedInstall(ctx, req, resp, path.Root("discovery"), path.Root("suggested_mode"), path.Root("dns_name"))
+	planUnfinishedInstall(ctx, req, resp, path.Root("discovery"), path.Root("dns_name"))
 }
 
 // Terraform plans an update in two cases. ModifyPlan plans one to finish the install of
 // an item that isn't installed, which verifies and configures the item as Create does:
 // P0 validates the install on verify alone, so there is no shorter way. And a
-// connector, credential or mode that Terraform only knows at apply time plans one,
+// connector or credential that Terraform only knows at apply time plans one,
 // which is refused here if the value turns out to be a new one.
 func (r *TailscaleTailnet) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if refuseFixedChanges(ctx, req.State, req.Plan, &resp.Diagnostics) || resp.Diagnostics.HasError() {

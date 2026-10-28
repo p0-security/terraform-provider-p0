@@ -95,7 +95,7 @@ func (*TailscaleConnector) Schema(_ context.Context, _ resource.SchemaRequest, r
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Tailscale connector installation.
 
-The connector is how P0 grants network access on your tailnets. You deploy it in your own AWS account or Google Cloud project, where it calls only the Tailscale API, and only it holds a tailnet's Tailscale credential. One connector can serve many tailnets: register each with a ` + "`p0_tailscale_tailnet`" + ` resource that names this connector.
+The connector is how P0 grants network access on your tailnets. You deploy it in your own AWS account or Google Cloud project, where it calls only the Tailscale API, and only it holds a tailnet's Tailscale credential. One connector can serve many tailnets: register each with a ` + "`p0_tailscale_tailnet`" + ` resource that names this connector. P0 grants access by setting posture attributes on devices and never writes your policy file. Posture attributes need a Tailscale Premium or Enterprise plan on each tailnet.
 
 **Important:** Before you create this resource, stage the installation with ` + "`p0_tailscale_connector_staged`" + ` and deploy the connector. Creating this resource has P0 check that it can invoke the connector, and on Google Cloud that it can read the Cloud Run service's URL. If the check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the first check is denied access, apply again.
 

@@ -44,7 +44,7 @@ func (*TailscaleConnectorStaged) Metadata(_ context.Context, req resource.Metada
 
 func (*TailscaleConnectorStaged) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A staged Tailscale connector installation. Staging tells P0 where the connector will run, and names the identity it must run as.
+		MarkdownDescription: `A staged Tailscale connector installation. Staging tells P0 where the connector will run, and names the identity it must run as. P0 grants access by setting posture attributes on devices and never writes your policy file. Posture attributes need a Tailscale Premium or Enterprise plan on each tailnet.
 
 Use ` + "`hosting`" + ` and the read-only ` + "`connector_identity`" + ` to deploy P0's Tailscale connector: a Lambda function and its IAM role on AWS, or a Cloud Run service and its service account on Google Cloud. Once the connector is deployed, create a ` + "`p0_tailscale_connector`" + ` resource with the same ` + "`id`" + ` and ` + "`hosting`" + ` to complete the installation.
 

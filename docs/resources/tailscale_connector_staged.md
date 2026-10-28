@@ -3,7 +3,7 @@
 page_title: "p0_tailscale_connector_staged Resource - p0"
 subcategory: ""
 description: |-
-  A staged Tailscale connector installation. Staging tells P0 where the connector will run, and names the identity it must run as.
+  A staged Tailscale connector installation. Staging tells P0 where the connector will run, and names the identity it must run as. P0 grants access by setting posture attributes on devices and never writes your policy file. Posture attributes need a Tailscale Premium or Enterprise plan on each tailnet.
   Use hosting and the read-only connector_identity to deploy P0's Tailscale connector: a Lambda function and its IAM role on AWS, or a Cloud Run service and its service account on Google Cloud. Once the connector is deployed, create a p0_tailscale_connector resource with the same id and hosting to complete the installation.
   P0 fixes where a connector runs when it adds the connector, so changing id or hosting replaces it. Replacing it revokes nothing, so change hosting only when none of the connector's tailnets has active grants. If the connector is already added in P0, import it rather than creating it: P0 refuses to add a connector twice.
   Prerequisite: P0 invokes the connector as its own identity in your cloud. For AWS Lambda, install p0_aws_iam_write for the account the connector runs in. For Google Cloud Run, install p0_gcp.
@@ -13,7 +13,7 @@ description: |-
 
 # p0_tailscale_connector_staged (Resource)
 
-A staged Tailscale connector installation. Staging tells P0 where the connector will run, and names the identity it must run as.
+A staged Tailscale connector installation. Staging tells P0 where the connector will run, and names the identity it must run as. P0 grants access by setting posture attributes on devices and never writes your policy file. Posture attributes need a Tailscale Premium or Enterprise plan on each tailnet.
 
 Use `hosting` and the read-only `connector_identity` to deploy P0's Tailscale connector: a Lambda function and its IAM role on AWS, or a Cloud Run service and its service account on Google Cloud. Once the connector is deployed, create a `p0_tailscale_connector` resource with the same `id` and `hosting` to complete the installation.
 

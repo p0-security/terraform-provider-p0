@@ -2,15 +2,16 @@
 page_title: "p0_tailscale_tailnet Resource - p0"
 subcategory: ""
 description: |-
-  A tailnet that P0 can grant network access in, through one of your Tailscale connectors. Requestors pick what to reach from what the tailnet has, listed live through the connector, and your access policies decide who can request what.
+  A tailnet that P0 can grant network access in, through one of your Tailscale connectors. Requestors pick a P0 posture from the ones your policy file defines, listed live through the connector, and your access policies decide who can request what.
+  P0 grants access by setting a posture attribute, with an expiry, on the requestor's device, and never writes your policy file, so you can manage the policy file as code, for example with tailscale_acl. Your policy file gates grants on P0 postures with srcPosture. Posture attributes need a Tailscale Premium or Enterprise plan.
   The connector acts on the tailnet with a Tailscale credential that P0 never holds:
   federated (the default in P0's installer): a Tailscale federated identity that trusts the connector's own cloud identity, so no secret is stored anywhere. Create it with tailscale_federated_identity, with the connector's cloud as its issuer and the connector's identity as its subject: on AWS, the issuer of AWS outbound identity federation for the connector's account and the connector's role ARN; on Google Cloud, https://accounts.google.com and the connector's service account's unique numeric ID, not its email. Leave its audience unset: P0 uses Tailscale's default, api.tailscale.com/<client ID>. On AWS, the connector's role also needs sts:GetWebIdentityToken for Tailscale's audiences, api.tailscale.com/*, for 300 seconds or less, which the connector's Terraform grants.oauth-client: a Tailscale OAuth client whose secret is in your secret manager, in the connector's cloud. Create the client in Tailscale's admin console and store its secret with your cloud's CLI, as the example does, so the secret never enters Terraform's state. The connector reads the secret itself, so let its identity read that one secret and no other.
-  The credential needs these scopes, by mode. Direct write: policy_file, users:read, devices:core:read, devices:posture_attributes, devices:routes:read and services:read. Posture: the same, with policy_file:read in place of policy_file.
-  The mode is how P0 grants access. In direct-write mode P0 edits your policy file: each grant adds a group with the requestor in it, and the grant's entries. In posture mode your policy file gates grants on P0 postures, and P0 only sets device attributes. tailscale_acl overwrites the whole policy file on every apply, which would erase P0's grants in a direct-write tailnet, so manage the policy file with tailscale_acl only in posture mode, with "prevent edits in the admin console" on, which tailscale_tailnet_settings sets as acls_externally_managed_on.
-  Important: Create the credential, and let the connector use it, before Terraform creates this resource: in an earlier apply, or in the same apply with this resource depending on the grants, as the examples do. Creating this resource has P0 validate the install through the connector: the connector gets a token with the credential, checks its scopes for the mode, checks that the mode suits the policy file, and counts what the tailnet offers. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the connector is denied right after you grant it, apply again.
-  P0 fixes a tailnet's connector, credential and mode when it adds the tailnet, and its open grants were made through them. Replacing the tailnet would remove it from P0 without revoking those grants, so Terraform refuses a change to any of them at plan time. To change one, revoke the tailnet's grants, then remove this resource, apply, and add it again. A new id is another tailnet, and replaces this one. Destroying this resource removes the tailnet from P0 and revokes nothing, so revoke its grants first. If the tailnet is already added in P0, import it rather than creating it: P0 refuses to add a tailnet twice. If P0 hasn't finished installing the tailnet, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
+  The credential needs these scopes: policy_file:read, users:read, devices:core:read, devices:posture_attributes, devices:routes:read and services:read. P0 refuses a credential that also carries policy_file or all, since it could write the policy file.
+  Important: Create the credential, and let the connector use it, before Terraform creates this resource: in an earlier apply, or in the same apply with this resource depending on the grants, as the examples do. Creating this resource has P0 validate the install through the connector: the connector gets a token with the credential, checks its scopes, checks that it can set a posture attribute, which needs a Tailscale Premium or Enterprise plan, and counts the P0 postures the tailnet's policy file defines. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the connector is denied right after you grant it, apply again.
+  P0 fixes a tailnet's connector and credential when it adds the tailnet, and its open grants were made through them. Replacing the tailnet would remove it from P0 without revoking those grants, so Terraform refuses a change to either at plan time. To change one, revoke the tailnet's grants, then remove this resource, apply, and add it again. A new id is another tailnet, and replaces this one. Destroying this resource removes the tailnet from P0 and revokes nothing, so revoke its grants first. If the tailnet is already added in P0, import it rather than creating it: P0 refuses to add a tailnet twice. If P0 hasn't finished installing the tailnet, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
   Prerequisites:
   
+  A Tailscale Premium or Enterprise plan for the tailnet.
   A Tailscale connector, installed with p0_tailscale_connector. An OAuth client's secret must be in the connector's cloud: AWS Secrets Manager for a connector on AWS Lambda, or Google Secret Manager for one on Cloud Run. It can be in another account or project.
   For a federated identity on AWS, AWS outbound identity federation turned on for the connector's account.
   For an OAuth client, P0's secret manager integration for where the secret is: AWS Secrets Manager (p0_aws_secrets_manager) for the AWS account, or Google Secret Manager for the Google Cloud project.
@@ -20,22 +21,24 @@ description: |-
 
 # p0_tailscale_tailnet (Resource)
 
-A tailnet that P0 can grant network access in, through one of your Tailscale connectors. Requestors pick what to reach from what the tailnet has, listed live through the connector, and your access policies decide who can request what.
+A tailnet that P0 can grant network access in, through one of your Tailscale connectors. Requestors pick a P0 posture from the ones your policy file defines, listed live through the connector, and your access policies decide who can request what.
+
+P0 grants access by setting a posture attribute, with an expiry, on the requestor's device, and never writes your policy file, so you can manage the policy file as code, for example with `tailscale_acl`. Your policy file gates grants on P0 postures with `srcPosture`. Posture attributes need a Tailscale Premium or Enterprise plan.
 
 The connector acts on the tailnet with a Tailscale credential that P0 never holds:
 
 - `federated` (the default in P0's installer): a Tailscale federated identity that trusts the connector's own cloud identity, so no secret is stored anywhere. Create it with `tailscale_federated_identity`, with the connector's cloud as its issuer and the connector's identity as its subject: on AWS, the issuer of AWS outbound identity federation for the connector's account and the connector's role ARN; on Google Cloud, `https://accounts.google.com` and the connector's service account's unique numeric ID, not its email. Leave its `audience` unset: P0 uses Tailscale's default, `api.tailscale.com/<client ID>`. On AWS, the connector's role also needs `sts:GetWebIdentityToken` for Tailscale's audiences, `api.tailscale.com/*`, for 300 seconds or less, which the connector's Terraform grants.
 - `oauth-client`: a Tailscale OAuth client whose secret is in your secret manager, in the connector's cloud. Create the client in Tailscale's admin console and store its secret with your cloud's CLI, as the example does, so the secret never enters Terraform's state. The connector reads the secret itself, so let its identity read that one secret and no other.
 
-The credential needs these scopes, by mode. Direct write: `policy_file`, `users:read`, `devices:core:read`, `devices:posture_attributes`, `devices:routes:read` and `services:read`. Posture: the same, with `policy_file:read` in place of `policy_file`.
+The credential needs these scopes: `policy_file:read`, `users:read`, `devices:core:read`, `devices:posture_attributes`, `devices:routes:read` and `services:read`. P0 refuses a credential that also carries `policy_file` or `all`, since it could write the policy file.
 
-The mode is how P0 grants access. In `direct-write` mode P0 edits your policy file: each grant adds a group with the requestor in it, and the grant's entries. In `posture` mode your policy file gates grants on P0 postures, and P0 only sets device attributes. `tailscale_acl` overwrites the whole policy file on every apply, which would erase P0's grants in a direct-write tailnet, so manage the policy file with `tailscale_acl` only in posture mode, with "prevent edits in the admin console" on, which `tailscale_tailnet_settings` sets as `acls_externally_managed_on`.
+**Important:** Create the credential, and let the connector use it, before Terraform creates this resource: in an earlier apply, or in the same apply with this resource depending on the grants, as the examples do. Creating this resource has P0 validate the install through the connector: the connector gets a token with the credential, checks its scopes, checks that it can set a posture attribute, which needs a Tailscale Premium or Enterprise plan, and counts the P0 postures the tailnet's policy file defines. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the connector is denied right after you grant it, apply again.
 
-**Important:** Create the credential, and let the connector use it, before Terraform creates this resource: in an earlier apply, or in the same apply with this resource depending on the grants, as the examples do. Creating this resource has P0 validate the install through the connector: the connector gets a token with the credential, checks its scopes for the mode, checks that the mode suits the policy file, and counts what the tailnet offers. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the connector is denied right after you grant it, apply again.
-
-P0 fixes a tailnet's `connector`, `credential` and `mode` when it adds the tailnet, and its open grants were made through them. Replacing the tailnet would remove it from P0 without revoking those grants, so Terraform refuses a change to any of them at plan time. To change one, revoke the tailnet's grants, then remove this resource, apply, and add it again. A new `id` is another tailnet, and replaces this one. Destroying this resource removes the tailnet from P0 and revokes nothing, so revoke its grants first. If the tailnet is already added in P0, import it rather than creating it: P0 refuses to add a tailnet twice. If P0 hasn't finished installing the tailnet, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
+P0 fixes a tailnet's `connector` and `credential` when it adds the tailnet, and its open grants were made through them. Replacing the tailnet would remove it from P0 without revoking those grants, so Terraform refuses a change to either at plan time. To change one, revoke the tailnet's grants, then remove this resource, apply, and add it again. A new `id` is another tailnet, and replaces this one. Destroying this resource removes the tailnet from P0 and revokes nothing, so revoke its grants first. If the tailnet is already added in P0, import it rather than creating it: P0 refuses to add a tailnet twice. If P0 hasn't finished installing the tailnet, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
 
 **Prerequisites:**
+
+- A Tailscale Premium or Enterprise plan for the tailnet.
 
 - A Tailscale connector, installed with `p0_tailscale_connector`. An OAuth client's secret must be in the connector's cloud: AWS Secrets Manager for a connector on AWS Lambda, or Google Secret Manager for one on Cloud Run. It can be in another account or project.
 
@@ -52,12 +55,14 @@ For the full install steps, see [Tailscale](https://docs.p0.dev/integrations/res
 ### Federated identity, connector on AWS Lambda
 
 ```terraform
-# Adds the tailnet T1234CNTRL in direct-write mode, through the connector on AWS
-# Lambda that the p0_tailscale_connector example installs. The connector signs in
-# with a Tailscale federated identity that trusts the connector's role, so no
-# secret is stored anywhere. For a connector on Cloud Run, see the Google Cloud
-# example (gcp.tf). For an OAuth client whose secret is in your secret manager,
-# see the OAuth client example (oauth-client.tf).
+# Adds the tailnet T1234CNTRL through the connector on AWS Lambda that the
+# p0_tailscale_connector example installs. The tailnet needs a Tailscale Premium
+# or Enterprise plan, and a policy file that gates grants on P0 postures, as the
+# Google Cloud example's does. The connector signs in with a Tailscale federated
+# identity that trusts the connector's role, so no secret is stored anywhere. For
+# a connector on Cloud Run, see the Google Cloud example (gcp.tf). For an OAuth
+# client whose secret is in your secret manager, see the OAuth client example
+# (oauth-client.tf).
 #
 # Tailscale's own Terraform provider creates the federated identity, signed in to
 # the same tailnet with a credential of yours that may create trust credentials.
@@ -79,10 +84,10 @@ locals {
     # The Tailnet ID from Tailscale's Settings, General, not the tailnet's DNS
     # name.
     tailnet_id = "T1234CNTRL"
-    # The scopes the connector needs in direct-write mode. A federated identity's
-    # tokens carry all of them.
+    # The scopes the connector needs, which never let it write the policy file.
+    # A federated identity's tokens carry all of them.
     scopes = [
-      "policy_file",
+      "policy_file:read",
       "users:read",
       "devices:core:read",
       "devices:posture_attributes",
@@ -119,9 +124,6 @@ resource "p0_tailscale_tailnet" "example" {
     type      = "federated"
     client_id = tailscale_federated_identity.p0.id
   }
-  # P0 edits the policy file, so nothing else may overwrite it: don't manage it
-  # with tailscale_acl in this mode.
-  mode = "direct-write"
 
   depends_on = [aws_iam_role_policy.p0_tailscale_connector_prod_identity_token]
 }
@@ -137,8 +139,8 @@ output "tailscale_discovery" {
 ```terraform
 # The Google Cloud variant of the p0_tailscale_tailnet example: the tailnet's
 # connector runs on Cloud Run (see the p0_tailscale_connector example's Google
-# Cloud Run variant, gcp.tf), and the tailnet is in posture mode, for a policy
-# file that a GitOps pipeline or tailscale_acl owns.
+# Cloud Run variant, gcp.tf), and tailscale_acl owns the tailnet's policy file,
+# which gates grants on P0 postures.
 #
 # The federated identity trusts the Google ID tokens of the connector's service
 # account. A Google ID token's subject is the service account's unique numeric
@@ -147,8 +149,7 @@ output "tailscale_discovery" {
 locals {
   p0_tailscale_tailnet_t5678cntrl = {
     tailnet_id = "T5678CNTRL"
-    # The scopes the connector needs in posture mode, where it never writes the
-    # policy file.
+    # The scopes the connector needs, which never let it write the policy file.
     scopes = [
       "policy_file:read",
       "users:read",
@@ -179,9 +180,8 @@ resource "tailscale_federated_identity" "p0_gcp" {
   scopes      = local.p0_tailscale_tailnet_t5678cntrl.scopes
 }
 
-# Posture mode is for a policy file that nothing edits in the admin console. This
-# turns on "prevent edits in the admin console", which P0 checks when it
-# validates the tailnet.
+# tailscale_acl owns the policy file, so this turns on "prevent edits in the
+# admin console" to keep edits made there from being lost on the next apply.
 resource "tailscale_tailnet_settings" "p0_gcp" {
   provider = tailscale.p0_tailscale_tailnet_t5678cntrl
 
@@ -222,11 +222,10 @@ resource "p0_tailscale_tailnet" "gcp_example" {
     type      = "federated"
     client_id = tailscale_federated_identity.p0_gcp.id
   }
-  # The policy file gates grants on P0 postures, and P0 only sets device
-  # attributes, so requestors ask for the P0 postures the policy file defines.
-  mode = "posture"
 
-  depends_on = [tailscale_tailnet_settings.p0_gcp]
+  # P0 counts the P0 postures the policy file defines when it validates the
+  # tailnet.
+  depends_on = [tailscale_acl.gitops]
 }
 ```
 
@@ -239,10 +238,10 @@ resource "p0_tailscale_tailnet" "gcp_example" {
 # AWS Lambda that the p0_tailscale_connector example installs.
 #
 # Before you apply this, create the OAuth client in Tailscale's admin console,
-# under Settings > Trust credentials, with the scopes for the tailnet's mode
-# (see the p0_tailscale_tailnet resource), and store its secret as the secret
-# tailscale/acme/oauth. The example doesn't create the client or the secret,
-# which keeps the client's secret out of Terraform's state.
+# under Settings > Trust credentials, with the scopes the p0_tailscale_tailnet
+# resource lists, and store its secret as the secret tailscale/acme/oauth. The
+# example doesn't create the client or the secret, which keeps the client's
+# secret out of Terraform's state.
 #
 # Creating p0_tailscale_tailnet has the connector read the secret, so store it
 # before then, as the secret's whole value. To store it, with the AWS CLI signed
@@ -367,7 +366,6 @@ resource "p0_tailscale_tailnet" "oauth_example" {
     }
     client_secret_name = local.p0_tailscale_tailnet_t9012cntrl.client_secret_name
   }
-  mode = "direct-write"
 
   depends_on = [aws_iam_role_policy.p0_tailscale_tailnet_t9012cntrl_secret]
 }
@@ -381,17 +379,15 @@ resource "p0_tailscale_tailnet" "oauth_example" {
 - `connector` (String) The connector that acts on this tailnet: the `id` of a `p0_tailscale_connector` resource. Requires that connector to be installed. It can't change.
 - `credential` (Attributes) The Tailscale credential the connector uses for this tailnet. P0 never holds a secret for it. It can't change. (see [below for nested schema](#nestedatt--credential))
 - `id` (String) The Tailnet ID from Tailscale's Settings, General, such as `T1234CNTRL`: the `tailnet` your `tailscale` provider is configured with. A tailnet created before October 2025 also answers to its legacy ID, such as `example.com`. The tailnet's DNS name, such as `tail1234.ts.net`, can't be used: Tailscale's API doesn't take it. Changing it replaces the installation, which removes the tailnet from P0 and revokes nothing, so revoke the tailnet's grants first.
-- `mode` (String) How P0 grants access on this tailnet: either `direct-write` (P0 edits your policy file) or `posture` (your policy file gates grants on P0 postures, and P0 only sets device attributes). Use `posture` when "prevent edits in the admin console" is on, such as when a GitOps pipeline or `tailscale_acl` owns the policy file. It can't change.
 
 ### Read-Only
 
-- `discovery` (String) What P0 found on the tailnet when it last validated it, such as its tags, subnet routes and groups. Direct-write mode adds one group per open grant, and Tailscale's plans cap a tailnet's groups.
+- `discovery` (String) What P0 found on the tailnet when it last validated it, such as its P0 postures.
 - `dns_name` (String) The tailnet's DNS name, such as `tail1234.ts.net`, as P0 found it when it last validated the tailnet. Requestors and approvers see it next to the Tailnet ID. Empty when the tailnet has no device of its own.
 - `state` (String) This item's install progress in the P0 application:
 	- 'stage': The item has been staged for installation
 	- 'configure': The item is available to be added to P0, and may be configured
 	- 'installed': The item is fully installed
-- `suggested_mode` (String) The mode that suits the tailnet's policy file, as P0 found it when it last validated the tailnet: `posture` when "prevent edits in the admin console" is on, `direct-write` otherwise.
 
 <a id="nestedatt--credential"></a>
 ### Nested Schema for `credential`

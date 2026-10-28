@@ -1,7 +1,7 @@
 # The Google Cloud variant of the p0_tailscale_tailnet example: the tailnet's
 # connector runs on Cloud Run (see the p0_tailscale_connector example's Google
-# Cloud Run variant, gcp.tf), and the tailnet is in posture mode, for a policy
-# file that a GitOps pipeline or tailscale_acl owns.
+# Cloud Run variant, gcp.tf), and tailscale_acl owns the tailnet's policy file,
+# which gates grants on P0 postures.
 #
 # The federated identity trusts the Google ID tokens of the connector's service
 # account. A Google ID token's subject is the service account's unique numeric
@@ -10,8 +10,7 @@
 locals {
   p0_tailscale_tailnet_t5678cntrl = {
     tailnet_id = "T5678CNTRL"
-    # The scopes the connector needs in posture mode, where it never writes the
-    # policy file.
+    # The scopes the connector needs, which never let it write the policy file.
     scopes = [
       "policy_file:read",
       "users:read",
@@ -42,9 +41,8 @@ resource "tailscale_federated_identity" "p0_gcp" {
   scopes      = local.p0_tailscale_tailnet_t5678cntrl.scopes
 }
 
-# Posture mode is for a policy file that nothing edits in the admin console. This
-# turns on "prevent edits in the admin console", which P0 checks when it
-# validates the tailnet.
+# tailscale_acl owns the policy file, so this turns on "prevent edits in the
+# admin console" to keep edits made there from being lost on the next apply.
 resource "tailscale_tailnet_settings" "p0_gcp" {
   provider = tailscale.p0_tailscale_tailnet_t5678cntrl
 
@@ -85,9 +83,8 @@ resource "p0_tailscale_tailnet" "gcp_example" {
     type      = "federated"
     client_id = tailscale_federated_identity.p0_gcp.id
   }
-  # The policy file gates grants on P0 postures, and P0 only sets device
-  # attributes, so requestors ask for the P0 postures the policy file defines.
-  mode = "posture"
 
-  depends_on = [tailscale_tailnet_settings.p0_gcp]
+  # P0 counts the P0 postures the policy file defines when it validates the
+  # tailnet.
+  depends_on = [tailscale_acl.gitops]
 }

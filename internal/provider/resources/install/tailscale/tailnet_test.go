@@ -1,8 +1,8 @@
 package installtailscale
 
 // copy of internal/provider/resources/install/auth0/tenant_test.go @ 663ab81 (INT-590),
-// renamed for Tailscale (INT-686): the credential's types and the mode in place of the
-// tenant's fields, and a refused change in place of a replacement.
+// renamed for Tailscale (INT-686): the credential's types in place of the tenant's
+// fields, and a refused change in place of a replacement.
 
 import (
 	"context"
@@ -25,9 +25,8 @@ import (
 type tailnetCase struct {
 	name       string
 	credential func() *credentialModel
-	mode       string
-	// The body of every request that carries the tailnet: its connector, its credential
-	// and its mode.
+	// The body of every request that carries the tailnet: its connector and its
+	// credential.
 	body string
 }
 
@@ -42,8 +41,7 @@ var federatedTailnet = tailnetCase{
 			ClientSecretName: types.StringNull(),
 		}
 	},
-	mode: directWriteMode,
-	body: `{"connector":"prod","credential":{"type":"federated","clientId":"` + testClientId + `"},"mode":{"type":"direct-write"}}`,
+	body: `{"connector":"prod","credential":{"type":"federated","clientId":"` + testClientId + `"}}`,
 }
 
 var awsOAuthTailnet = tailnetCase{
@@ -56,12 +54,10 @@ var awsOAuthTailnet = tailnetCase{
 			ClientSecretName: types.StringValue("tailscale/acme/oauth"),
 		}
 	},
-	mode: postureMode,
 	body: `{"connector":"prod",` +
 		`"credential":{"type":"oauth-client","clientId":"` + testClientId + `",` +
 		`"vault":{"type":"aws-sm","install":"123456789012","secretsRegion":"us-west-2"},` +
-		`"clientSecretName":"tailscale/acme/oauth"},` +
-		`"mode":{"type":"posture"}}`,
+		`"clientSecretName":"tailscale/acme/oauth"}}`,
 }
 
 var gcpOAuthTailnet = tailnetCase{
@@ -74,12 +70,10 @@ var gcpOAuthTailnet = tailnetCase{
 			ClientSecretName: types.StringValue("tailscale-acme-oauth"),
 		}
 	},
-	mode: directWriteMode,
 	body: `{"connector":"prod",` +
 		`"credential":{"type":"oauth-client","clientId":"` + testClientId + `",` +
 		`"vault":{"type":"gcp-sm","install":"acme-secrets"},` +
-		`"clientSecretName":"tailscale-acme-oauth"},` +
-		`"mode":{"type":"direct-write"}}`,
+		`"clientSecretName":"tailscale-acme-oauth"}}`,
 }
 
 var tailnetCases = []tailnetCase{federatedTailnet, awsOAuthTailnet, gcpOAuthTailnet}
@@ -87,19 +81,17 @@ var tailnetCases = []tailnetCase{federatedTailnet, awsOAuthTailnet, gcpOAuthTail
 // The tailnet at state, with what P0's discovery finds once it has validated the
 // install. Until then, P0 stores every generated field empty.
 func (c tailnetCase) tailnet(state string) *tailscaleTailnetModel {
-	discovery, suggestedMode, dnsName := types.StringValue(""), types.StringValue(""), types.StringValue("")
+	discovery, dnsName := types.StringValue(""), types.StringValue("")
 	if state != common.StateStage {
-		discovery, suggestedMode, dnsName = types.StringValue(fakeDiscovery), types.StringValue(fakeSuggestedMode), types.StringValue(fakeDnsName)
+		discovery, dnsName = types.StringValue(fakeDiscovery), types.StringValue(fakeDnsName)
 	}
 	return &tailscaleTailnetModel{
-		Id:            types.StringValue(testTailnet),
-		Connector:     types.StringValue("prod"),
-		Credential:    c.credential(),
-		Mode:          types.StringValue(c.mode),
-		Discovery:     discovery,
-		SuggestedMode: suggestedMode,
-		DnsName:       dnsName,
-		State:         types.StringValue(state),
+		Id:         types.StringValue(testTailnet),
+		Connector:  types.StringValue("prod"),
+		Credential: c.credential(),
+		Discovery:  discovery,
+		DnsName:    dnsName,
+		State:      types.StringValue(state),
 	}
 }
 
@@ -107,7 +99,6 @@ func (c tailnetCase) tailnet(state string) *tailscaleTailnetModel {
 func (c tailnetCase) planned() *tailscaleTailnetModel {
 	planned := c.tailnet(common.StateStage)
 	planned.Discovery = types.StringUnknown()
-	planned.SuggestedMode = types.StringUnknown()
 	planned.DnsName = types.StringUnknown()
 	planned.State = types.StringUnknown()
 	return planned
@@ -115,16 +106,16 @@ func (c tailnetCase) planned() *tailscaleTailnetModel {
 
 // The item as P0's API answers at state.
 func (c tailnetCase) response(state string) string {
-	discovery, suggestedMode, dnsName := "", "", ""
+	discovery, dnsName := "", ""
 	if state != common.StateStage {
-		discovery, suggestedMode, dnsName = fakeDiscovery, fakeSuggestedMode, fakeDnsName
+		discovery, dnsName = fakeDiscovery, fakeDnsName
 	}
-	return c.body[:len(c.body)-1] + `,"discovery":"` + discovery + `","suggestedMode":"` + suggestedMode + `","dnsName":"` + dnsName + `","state":"` + state + `"}`
+	return c.body[:len(c.body)-1] + `,"discovery":"` + discovery + `","dnsName":"` + dnsName + `","state":"` + state + `"}`
 }
 
 // The PUT that stages the item, and verify and configure, carry the tailnet's
-// connector, credential and mode, in the field names of the app's install schema: the
-// credential and the mode are select elements, whose option is their "type", and
+// connector and credential, in the field names of the app's install schema: the
+// credential is a select element, whose option is its "type", and
 // `vault` is the shared Vault element, in which "install" names the account or the
 // project. None carries what P0 assigns.
 func TestTailnetRequestJson(t *testing.T) {
@@ -166,14 +157,10 @@ func TestTailnetFromJson(t *testing.T) {
 	}
 }
 
-func TestTailnetFromJsonRequiresCredentialAndMode(t *testing.T) {
+func TestTailnetFromJsonRequiresCredential(t *testing.T) {
 	cases := map[string]tailscaleTailnetJson{
-		"no credential": {Mode: &selectJson{Type: directWriteMode}},
-		"no mode":       {Credential: &credentialJson{Type: federatedCredential}},
-		"an OAuth client without a vault": {
-			Credential: &credentialJson{Type: oauthClientCredential},
-			Mode:       &selectJson{Type: directWriteMode},
-		},
+		"no credential":                   {},
+		"an OAuth client without a vault": {Credential: &credentialJson{Type: oauthClientCredential}},
 	}
 
 	for name, item := range cases {
@@ -187,27 +174,20 @@ func TestTailnetFromJsonRequiresCredentialAndMode(t *testing.T) {
 	}
 }
 
-// A credential, a vault or a mode of a kind this provider doesn't know is refused
-// rather than read into the wrong fields. The error names the tailnet, what it has and
-// what this provider takes.
+// A credential or a vault of a kind this provider doesn't know is refused rather than
+// read into the wrong fields. The error names the tailnet, what it has and what this
+// provider takes.
 func TestTailnetFromJsonRequiresKnownKinds(t *testing.T) {
 	cases := map[string]struct {
 		item tailscaleTailnetJson
 		want string
 	}{
 		"credential": {
-			item: tailscaleTailnetJson{Credential: &credentialJson{Type: "api-key"}, Mode: &selectJson{Type: directWriteMode}},
+			item: tailscaleTailnetJson{Credential: &credentialJson{Type: "api-key"}},
 			want: `The Tailscale tailnet T1234CNTRL has a "api-key" credential. This provider supports only federated and oauth-client.`,
 		},
-		"mode": {
-			item: tailscaleTailnetJson{Credential: &credentialJson{Type: federatedCredential}, Mode: &selectJson{Type: "read-only"}},
-			want: `The Tailscale tailnet T1234CNTRL has a "read-only" mode. This provider supports only direct-write and posture.`,
-		},
 		"vault": {
-			item: tailscaleTailnetJson{
-				Credential: &credentialJson{Type: oauthClientCredential, Vault: &vaultJson{Type: "azure-kv", Install: "acme"}},
-				Mode:       &selectJson{Type: directWriteMode},
-			},
+			item: tailscaleTailnetJson{Credential: &credentialJson{Type: oauthClientCredential, Vault: &vaultJson{Type: "azure-kv", Install: "acme"}}},
 			want: `The Tailscale tailnet T1234CNTRL has a "azure-kv" vault. This provider supports only aws-sm and gcp-sm.`,
 		},
 	}
@@ -226,9 +206,9 @@ func TestTailnetFromJsonRequiresKnownKinds(t *testing.T) {
 	}
 }
 
-// A new ID is another tailnet, so it replaces this one. P0 fixes the connector, the
-// credential and the mode when it adds the tailnet, and ModifyPlan refuses a change to
-// them, so none of them plans a replacement. What P0 assigns is read-only.
+// A new ID is another tailnet, so it replaces this one. P0 fixes the connector and the
+// credential when it adds the tailnet, and ModifyPlan refuses a change to them, so
+// neither plans a replacement. What P0 assigns is read-only.
 func TestTailnetSchema(t *testing.T) {
 	s := schemaOf(t, NewTailscaleTailnet())
 	if !requiresReplace(t, s.Attributes["id"]) {
@@ -242,7 +222,6 @@ func TestTailnetSchema(t *testing.T) {
 	}
 	fixed := map[string]schema.Attribute{
 		"connector":                     s.Attributes["connector"],
-		"mode":                          s.Attributes["mode"],
 		"credential.type":               credential["type"],
 		"credential.client_id":          credential["client_id"],
 		"credential.client_secret_name": credential["client_secret_name"],
@@ -259,7 +238,7 @@ func TestTailnetSchema(t *testing.T) {
 		t.Errorf("credential = %+v; want a nested attribute without plan modifiers, whose change is refused instead", s.Attributes["credential"])
 	}
 
-	for _, name := range []string{"discovery", "suggested_mode", "dns_name", "state"} {
+	for _, name := range []string{"discovery", "dns_name", "state"} {
 		attribute := s.Attributes[name]
 		if !attribute.IsComputed() || attribute.IsOptional() || attribute.IsRequired() {
 			t.Errorf("%s = %+v; want a read-only attribute", name, attribute)
@@ -311,7 +290,7 @@ func oauthCredential(vault func(tftypes.Object) tftypes.Value, clientId, secret 
 func validateTailnet(t *testing.T, credential func(tftypes.Object) tftypes.Value) diag.Diagnostics {
 	t.Helper()
 	blocks := map[string]func(tftypes.Object) tftypes.Value{"credential": credential}
-	values := map[string]tftypes.Value{"id": str(testTailnet), "connector": str("prod"), "mode": str(directWriteMode)}
+	values := map[string]tftypes.Value{"id": str(testTailnet), "connector": str("prod")}
 	return validateConfig(t, &TailscaleTailnet{}, blocks, values)
 }
 
@@ -559,28 +538,12 @@ func TestTailnetValidateConfigClientId(t *testing.T) {
 	}
 }
 
-// The attribute validators take the credential types and modes the app offers.
-func TestTailnetTypeValidators(t *testing.T) {
-	s := schemaOf(t, NewTailscaleTailnet())
-	cases := map[string]struct {
-		attribute schema.Attribute
-		values    map[string]bool
-	}{
-		"credential.type": {
-			attribute: nestedAttributes(t, s, "credential")["type"],
-			values:    map[string]bool{"federated": true, "oauth-client": true, "oauth": false, "": false},
-		},
-		"mode": {
-			attribute: s.Attributes["mode"],
-			values:    map[string]bool{"direct-write": true, "posture": true, "direct_write": false, "": false},
-		},
-	}
-
-	for name, c := range cases {
-		for value, want := range c.values {
-			if got := accepts(t, c.attribute, value); got != want {
-				t.Errorf("%s accepts %q = %v; want %v", name, value, got, want)
-			}
+// The credential type's validator takes the credential types the app offers.
+func TestTailnetCredentialTypeValidator(t *testing.T) {
+	attribute := nestedAttributes(t, schemaOf(t, NewTailscaleTailnet()), "credential")["type"]
+	for value, want := range map[string]bool{"federated": true, "oauth-client": true, "oauth": false, "": false} {
+		if got := accepts(t, attribute, value); got != want {
+			t.Errorf("credential.type accepts %q = %v; want %v", value, got, want)
 		}
 	}
 }
@@ -737,7 +700,6 @@ func changedTailnet(t *testing.T, base tailnetCase, change func(*tailscaleTailne
 	planned := base.tailnet(common.StateInstalled)
 	change(planned)
 	planned.Discovery = types.StringUnknown()
-	planned.SuggestedMode = types.StringUnknown()
 	planned.DnsName = types.StringUnknown()
 	planned.State = types.StringUnknown()
 	return planned
@@ -754,7 +716,7 @@ func withUnknown(t *testing.T, r resource.Resource, model *tailscaleTailnetModel
 	return plan.Raw
 }
 
-// An installed tailnet's connector, credential and mode can't change: replacing the
+// An installed tailnet's connector and credential can't change: replacing the
 // tailnet would remove it without revoking its open grants, so the plan is refused, at
 // the attribute that changed. The credential is compared whole, so a vault that's
 // removed with the type changed is refused too. A tailnet that isn't installed has no
@@ -775,12 +737,6 @@ func TestTailnetModifyPlanRefusesFixedChanges(t *testing.T) {
 			plan:   changedTailnet(t, federatedTailnet, func(m *tailscaleTailnetModel) { m.Connector = types.StringValue("prod-2") }),
 			at:     "connector",
 			reason: "A tailnet's connector can't change",
-		},
-		{
-			name:   "mode",
-			plan:   changedTailnet(t, federatedTailnet, func(m *tailscaleTailnetModel) { m.Mode = types.StringValue(postureMode) }),
-			at:     "mode",
-			reason: "A tailnet's mode can't change",
 		},
 		{
 			name:   "client ID",
@@ -823,20 +779,20 @@ func TestTailnetModifyPlanRefusesFixedChanges(t *testing.T) {
 		}
 	})
 
-	newMode := func(m *tailscaleTailnetModel) { m.Mode = types.StringValue(postureMode) }
+	newConnector := func(m *tailscaleTailnetModel) { m.Connector = types.StringValue("prod-2") }
 	staged := federatedTailnet.tailnet(common.StateStage)
 	allowed := []struct {
 		name  string
 		prior tftypes.Value
 		plan  tftypes.Value
 	}{
-		{name: "a tailnet at stage", prior: rawOf(t, r, staged), plan: rawOf(t, r, changedTailnet(t, federatedTailnet, newMode))},
+		{name: "a tailnet at stage", prior: rawOf(t, r, staged), plan: rawOf(t, r, changedTailnet(t, federatedTailnet, newConnector))},
 		{
 			name:  "a new id",
 			prior: installed,
 			plan: rawOf(t, r, changedTailnet(t, federatedTailnet, func(m *tailscaleTailnetModel) {
 				m.Id = types.StringValue("T5678CNTRL")
-				newMode(m)
+				newConnector(m)
 			})),
 		},
 		{
