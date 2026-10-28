@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/p0-security/terraform-provider-p0/internal"
+	installawss3audit "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/aws-s3-audit"
 	installawssqs "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/aws-sqs"
 	installdatadog "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/datadog"
 	installsplunk "github.com/p0-security/terraform-provider-p0/internal/provider/event_collectors/install/splunk"
@@ -53,6 +54,7 @@ import (
 	installjiraai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/jira-ai"
 	installk8s "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/k8s"
 	installlaunchdarkly "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/launchdarkly"
+	installlookerai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/looker-ai"
 	installmongodbatlasai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mongodb-atlas-ai"
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
@@ -283,6 +285,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installdatadog.NewAuditLogs,
 		installawssqs.NewAuditLogsStaged,
 		installawssqs.NewAuditLogs,
+		installawss3audit.NewAuditLogsStaged,
+		installawss3audit.NewAuditLogs,
 		installawsoidc.NewAwsOidcIdentityStaged,
 		installawsoidc.NewAwsOidcIdentity,
 		installgcpwif.NewGcpWifIdentityStaged,
@@ -305,6 +309,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installsnowflakeai.NewSnowflakeAiCredential,
 		installtableauai.NewTableauAiCredentialStaged,
 		installtableauai.NewTableauAiCredential,
+		installlookerai.NewLookerAiCredentialStaged,
+		installlookerai.NewLookerAiCredential,
 		installgithubrepositories.NewRepositoryAccess,
 		installgithub.NewRepositoryAccess,
 		installdatabricks.NewConnectorStaged,

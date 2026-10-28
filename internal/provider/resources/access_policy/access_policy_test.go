@@ -6,6 +6,7 @@ package accesspolicy
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -159,10 +160,10 @@ func strPtr(s string) *string { return &s }
 // subject. P0 rejects a requestor that keeps them as siblings.
 func TestAgenticRequestorWireShape(t *testing.T) {
 	effect := "keep"
-	model := &RequestorModelV3{
+	model := &RequestorModelV5{
 		Type:  "agentic",
 		Agent: &AgentModel{Type: "any"},
-		User: &AgenticUserModel{
+		User: &AgenticUserModelV5{
 			Type:   "group",
 			Groups: []GroupModelV1{{Directory: strPtr("workspace"), Id: strPtr("123"), Label: strPtr("eng@p0.dev")}},
 			Effect: &effect,
@@ -188,10 +189,10 @@ func TestAgenticRequestorWireShape(t *testing.T) {
 // TestAgenticRequestorHeadless verifies a `user` of "none" becomes an `agent`
 // subject, with the actor marked as the same principal.
 func TestAgenticRequestorHeadless(t *testing.T) {
-	model := &RequestorModelV3{
+	model := &RequestorModelV5{
 		Type:  "agentic",
 		Agent: &AgentModel{Type: "agent-client", ClientId: strPtr("abc")},
-		User:  &AgenticUserModel{Type: "none"},
+		User:  &AgenticUserModelV5{Type: "none"},
 	}
 
 	got := requestorToJson(model)
@@ -207,12 +208,76 @@ func TestAgenticRequestorHeadless(t *testing.T) {
 	}
 }
 
+// TestAgenticRequestorAgentToAgent verifies a `user` of "agent" sends
+// `user.agent` as the subject and the requestor `agent` as the actor.
+func TestAgenticRequestorAgentToAgent(t *testing.T) {
+	model := &RequestorModelV5{
+		Type:  "agentic",
+		Agent: &AgentModel{Type: "agent-client", ClientId: strPtr("orchestrator")},
+		User: &AgenticUserModelV5{
+			Type:  "agent",
+			Agent: &AgentModel{Type: "provider", ProviderId: strPtr("okta-idp")},
+		},
+	}
+
+	got := requestorToJson(model)
+
+	if got.Actor == nil || got.Actor.Type != "agent-client" || got.Actor.ClientId == nil || *got.Actor.ClientId != "orchestrator" {
+		t.Fatalf("Actor = %+v; want the agent-client orchestrator", got.Actor)
+	}
+	if got.Subject == nil || got.Subject.Type != "agent" {
+		t.Fatalf("Subject = %+v; want type %q", got.Subject, "agent")
+	}
+	if got.Subject.Agent == nil || got.Subject.Agent.Type != "provider" || got.Subject.Agent.ProviderId == nil || *got.Subject.Agent.ProviderId != "okta-idp" {
+		t.Fatalf("Subject.Agent = %+v; want the okta-idp provider", got.Subject.Agent)
+	}
+	if got.Subject.User != nil {
+		t.Errorf("Subject.User = %+v; want nil", got.Subject.User)
+	}
+}
+
+// TestAgenticRequestorFromJsonAgentSubject verifies how an `agent` subject read
+// back from P0 maps onto `user`: a "same-as-subject" (or missing) actor is a
+// headless session, and any other actor is agent-to-agent.
+func TestAgenticRequestorFromJsonAgentSubject(t *testing.T) {
+	subject := &SubjectJson{Type: "agent", Agent: &AgentJson{Type: "agent-owner", Owner: strPtr("owner@p0.dev")}}
+	owner := &AgentModel{Type: "agent-owner", Owner: strPtr("owner@p0.dev")}
+	cases := []struct {
+		name      string
+		actor     *AgentJson
+		wantAgent *AgentModel
+		wantUser  *AgenticUserModelV5
+	}{
+		{"same-as-subject", &AgentJson{Type: "same-as-subject"}, owner, &AgenticUserModelV5{Type: "none"}},
+		{"missing actor", nil, owner, &AgenticUserModelV5{Type: "none"}},
+		{"any actor", &AgentJson{Type: "any"}, &AgentModel{Type: "any"}, &AgenticUserModelV5{Type: "agent", Agent: owner}},
+		{
+			"specific actor",
+			&AgentJson{Type: "agent-client", ClientId: strPtr("orchestrator")},
+			&AgentModel{Type: "agent-client", ClientId: strPtr("orchestrator")},
+			&AgenticUserModelV5{Type: "agent", Agent: owner},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := requestorFromJson(RequestorJson{Type: "agentic", Actor: tc.actor, Subject: subject})
+
+			if !reflect.DeepEqual(got.Agent, tc.wantAgent) {
+				t.Errorf("Agent = %+v; want %+v", got.Agent, tc.wantAgent)
+			}
+			if !reflect.DeepEqual(got.User, tc.wantUser) {
+				t.Errorf("User = %+v; want %+v", got.User, tc.wantUser)
+			}
+		})
+	}
+}
+
 // TestAgenticRequestorRoundTrip verifies each `user` variant survives a
 // to-then-from conversion, so a read back from P0 does not show a diff.
 func TestAgenticRequestorRoundTrip(t *testing.T) {
 	effect := "keep"
 	uid := "someone@p0.dev"
-	for _, user := range []*AgenticUserModel{
+	for _, user := range []*AgenticUserModelV5{
 		{Type: "any"},
 		{Type: "none"},
 		{Type: "user", Uid: &uid},
@@ -221,8 +286,9 @@ func TestAgenticRequestorRoundTrip(t *testing.T) {
 			Groups: []GroupModelV1{{Directory: strPtr("okta"), Id: strPtr("1"), Label: strPtr("Admins")}},
 			Effect: &effect,
 		},
+		{Type: "agent", Agent: &AgentModel{Type: "agent-client", ClientId: strPtr("worker")}},
 	} {
-		model := &RequestorModelV3{Type: "agentic", Agent: &AgentModel{Type: "any"}, User: user}
+		model := &RequestorModelV5{Type: "agentic", Agent: &AgentModel{Type: "any"}, User: user}
 
 		got := requestorFromJson(requestorToJson(model))
 
@@ -239,7 +305,7 @@ func TestAgenticRequestorRoundTrip(t *testing.T) {
 // particular carries no agentic fields.
 func TestNonAgenticRequestorHasNoActor(t *testing.T) {
 	effect := "keep"
-	model := &RequestorModelV3{
+	model := &RequestorModelV5{
 		Type:   "group",
 		Groups: []GroupModelV1{{Directory: strPtr("okta"), Id: strPtr("1"), Label: strPtr("Admins")}},
 		Effect: &effect,
@@ -324,6 +390,65 @@ func TestUpgradeV3ToV4Approvals(t *testing.T) {
 
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("V3->current upgrade failed: %v", resp.Diagnostics.Errors())
+	}
+}
+
+// TestUpgradeV4ToV5AgenticUser exercises the V4->V5 upgrader end to end with a
+// non-null agentic requestor, so the decode descends into `user`, and checks
+// the prior `user` passes through with `user.agent` unset.
+func TestUpgradeV4ToV5AgenticUser(t *testing.T) {
+	ctx := context.Background()
+	upgrader := (&AccessPolicy{}).UpgradeState(ctx)[4]
+
+	priorType, ok := upgrader.PriorSchema.Type().TerraformType(ctx).(tftypes.Object)
+	if !ok {
+		t.Fatalf("prior schema type is not an object")
+	}
+	raw := tftypes.NewValue(priorType, map[string]tftypes.Value{
+		"name":      tftypes.NewValue(tftypes.String, "example"),
+		"disabled":  tftypes.NewValue(tftypes.Bool, nil),
+		"requestor": agenticRequestor(t, priorType.AttributeTypes["requestor"]),
+		"resource":  tftypes.NewValue(priorType.AttributeTypes["resource"], nil),
+		"approval":  oneApproval(t, priorType.AttributeTypes["approval"]),
+	})
+
+	req := resource.UpgradeStateRequest{State: &tfsdk.State{Schema: *upgrader.PriorSchema, Raw: raw}}
+	resp := &resource.UpgradeStateResponse{State: tfsdk.State{Schema: newAccessPolicySchema(currentSchemaVersion)}}
+	upgrader.StateUpgrader(ctx, req, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("V4->current upgrade failed: %v", resp.Diagnostics.Errors())
+	}
+	var got AccessPolicyModelV5
+	if diags := resp.State.Get(ctx, &got); diags.HasError() {
+		t.Fatalf("decoding upgraded state failed: %v", diags.Errors())
+	}
+	if got.Requestor == nil || got.Requestor.User == nil || got.Requestor.User.Type != "any" || got.Requestor.User.Agent != nil {
+		t.Errorf("Requestor.User = %+v; want type %q with no agent", got.Requestor.User, "any")
+	}
+}
+
+// TestSchemaV5ExposesUserAgent verifies `requestor.user.agent` exists from
+// schema v5 onward and not before, so v4 state still decodes.
+func TestSchemaV5ExposesUserAgent(t *testing.T) {
+	cases := []struct {
+		version int64
+		want    bool
+	}{{4, false}, {5, true}}
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("v%d", tc.version), func(t *testing.T) {
+			requestor, ok := newAccessPolicySchema(tc.version).Attributes["requestor"].(schema.SingleNestedAttribute)
+			if !ok {
+				t.Fatalf("requestor attribute is not a SingleNestedAttribute")
+			}
+			user, ok := requestor.Attributes["user"].(schema.SingleNestedAttribute)
+			if !ok {
+				t.Fatalf("requestor.user attribute is not a SingleNestedAttribute")
+			}
+			if _, got := user.Attributes["agent"]; got != tc.want {
+				t.Errorf("requestor.user.agent present = %v; want %v", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -416,9 +541,9 @@ func oneApproval(t *testing.T, approvalList tftypes.Type) tftypes.Value {
 func TestApprovalMaxDurationRoundTrip(t *testing.T) {
 	name := "example"
 	maxDuration := duration.Option{Time: 1, Unit: "h"}
-	model := AccessPolicyModelV4{
+	model := AccessPolicyModelV5{
 		Name:      &name,
-		Requestor: &RequestorModelV3{Type: "any"},
+		Requestor: &RequestorModelV5{Type: "any"},
 		Resource:  &ResourceModel{Type: "any"},
 		Approval:  []ApprovalModelV3{{Type: "p0", MaxDuration: &maxDuration}},
 	}

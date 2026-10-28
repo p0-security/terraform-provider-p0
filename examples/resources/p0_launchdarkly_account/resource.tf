@@ -8,11 +8,11 @@
 # P0 app.
 #
 # Before you apply this, create the account's access token, as this resource's
-# page describes: a service token on Enterprise, or an admin's personal token
-# on any other plan. Store it, and nothing else, as the secret
-# launchdarkly-acme-prod-token. The example doesn't create the secret, which
-# keeps the token out of Terraform's state. To store it, with the token alone
-# in token.txt and gcloud signed in to the secret's project:
+# page describes: the personal access token of a member with the Admin role.
+# Store it, and nothing else, as the secret launchdarkly-acme-prod-token. The
+# example doesn't create the secret, which keeps the token out of Terraform's
+# state. To store it, with the token alone in token.txt and gcloud signed in to
+# the secret's project:
 #
 #   gcloud secrets create launchdarkly-acme-prod-token --project my-secrets-project \
 #     --data-file token.txt
@@ -53,8 +53,6 @@ resource "p0_launchdarkly_account" "example" {
   connector = p0_launchdarkly_connector.example.id
   # commercial, eu or federal.
   instance = "commercial"
-  # enterprise, or non-enterprise for any other plan.
-  plan = "enterprise"
 
   vault = {
     type       = "gcp-sm"

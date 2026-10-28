@@ -119,3 +119,30 @@ resource "p0_access_policy" "agentic_federated" {
     }
   }]
 }
+
+# Agentic requestor, agent-to-agent: matches the "orchestrator" gateway client
+# agent acting on behalf of an agent federated by an identity provider.
+resource "p0_access_policy" "agentic_agent_to_agent" {
+  name = "orchestrator-for-federated-agent"
+  requestor = {
+    type = "agentic"
+    agent = {
+      type      = "agent-client"
+      client_id = "orchestrator"
+    }
+    user = {
+      type = "agent"
+      agent = {
+        type        = "provider"
+        provider_id = "okta-idp"
+      }
+    }
+  }
+  resource = {
+    type    = "integration"
+    service = "aws"
+  }
+  approval = [{
+    type = "p0"
+  }]
+}

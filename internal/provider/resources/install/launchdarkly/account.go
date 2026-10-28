@@ -28,8 +28,8 @@ var _ resource.ResourceWithModifyPlan = &LaunchDarklyAccount{}
 var _ resource.ResourceWithValidateConfig = &LaunchDarklyAccount{}
 
 // The LaunchDarkly `account` item: one LaunchDarkly account, the connector that
-// reaches it, where the account is hosted, its plan, and where the connector finds
-// the account's access token (packages/integrations/launchdarkly/shared/src/components.ts
+// reaches it, where the account is hosted, and where the connector finds the
+// account's access token (packages/integrations/launchdarkly/shared/src/components.ts
 // in the app). P0 fixes every field the form asks for when it adds the account, and
 // reads the others from the connector each time it verifies it.
 type LaunchDarklyAccount struct {
@@ -38,18 +38,13 @@ type LaunchDarklyAccount struct {
 
 const invalidAccountId = "Invalid LaunchDarkly account ID"
 
-// The options of the item's `instance` and `plan` selects, which P0 stores by their
-// type.
-var (
-	instances = []string{"commercial", "eu", "federal"}
-	plans     = []string{"enterprise", "non-enterprise"}
-)
+// The options of the item's `instance` select, which P0 stores by their type.
+var instances = []string{"commercial", "eu", "federal"}
 
 type accountModel struct {
 	Id                 types.String `tfsdk:"id"`
 	Connector          types.String `tfsdk:"connector"`
 	Instance           types.String `tfsdk:"instance"`
-	Plan               types.String `tfsdk:"plan"`
 	Vault              *vaultModel  `tfsdk:"vault"`
 	TokenSecretName    types.String `tfsdk:"token_secret_name"`
 	AccountId          types.String `tfsdk:"account_id"`
@@ -68,7 +63,6 @@ type selectJson struct {
 type accountJson struct {
 	Connector          *string     `json:"connector,omitempty"`
 	Instance           *selectJson `json:"instance,omitempty"`
-	Plan               *selectJson `json:"plan,omitempty"`
 	Vault              *vaultJson  `json:"vault,omitempty"`
 	TokenSecretName    *string     `json:"tokenSecretName,omitempty"`
 	AccountId          *string     `json:"accountId,omitempty"`
@@ -115,15 +109,15 @@ func reportedAttribute(description string) schema.StringAttribute {
 
 func (*LaunchDarklyAccount) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A LaunchDarkly account whose existing members P0 can grant base roles, teams, custom roles and role attributes to, through one of your LaunchDarkly connectors. Requests name the account by its ` + "`id`" + `, as in ` + "`acme-prod/writer`" + `.
+		MarkdownDescription: `A LaunchDarkly account whose existing members P0 can grant base roles to, through one of your LaunchDarkly connectors. Requests name the account by its ` + "`id`" + `, as in ` + "`acme-prod/writer`" + `.
 
-P0 never holds the account's access token. You store it in your own secret manager, in the connector's cloud, and the connector reads it on every call. This resource tells P0 which connector reaches the account, where the account is hosted, its plan, and where the token's secret is.
+P0 never holds the account's access token. You store it in your own secret manager, in the connector's cloud, and the connector reads it on every call. This resource tells P0 which connector reaches the account, where the account is hosted, and where the token's secret is.
 
-**Important:** Install the connector first, store the token, and grant the connector's identity read access to the token's secret: in an earlier apply, or in the same one with this resource depending on the grant, as the examples do. Creating this resource has P0 check the account through the connector: the connector reads the secret, signs in to LaunchDarkly with the token, checks the account's plan, and reads its own allowed email domains. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the first check is denied access, apply again.
+**Important:** Install the connector first, store the token, and grant the connector's identity read access to the token's secret: in an earlier apply, or in the same one with this resource depending on the grant, as the examples do. Creating this resource has P0 check the account through the connector: the connector reads the secret, signs in to LaunchDarkly with the token, and reads its own allowed email domains. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to take effect, so if the first check is denied access, apply again.
 
 P0 can hold each LaunchDarkly account only once. It refuses an account whose token is for a LaunchDarkly account it already has.
 
-An account's attributes can't change once it is created. Changing ` + "`id`" + `, ` + "`connector`" + `, ` + "`instance`" + `, ` + "`plan`" + `, ` + "`vault`" + ` or ` + "`token_secret_name`" + ` replaces the account. To rotate the token, add a new version to the same secret, which needs no change here.
+An account's attributes can't change once it is created. Changing ` + "`id`" + `, ` + "`connector`" + `, ` + "`instance`" + `, ` + "`vault`" + ` or ` + "`token_secret_name`" + ` replaces the account. To rotate the token, add a new version to the same secret, which needs no change here.
 
 **Warning:** Replacing or destroying this resource removes the account from P0. P0 can't revoke access it granted on an account it no longer has, so that access stays in LaunchDarkly until you remove it there. Before you change an attribute or destroy this resource, revoke the account's open access in P0 or wait for it to expire.
 
@@ -135,7 +129,7 @@ The email domains that may receive access are set on the connector, as its ` + "
 
 - A LaunchDarkly connector, installed with ` + "`p0_launchdarkly_connector`" + `.
 
-- An access token for the account. On Enterprise, a service token with an inline policy that allows what P0 grants. On any other plan, the personal access token of a LaunchDarkly admin with the Admin role: P0 then grants base roles only, and the token stops working when that admin leaves LaunchDarkly.
+- An access token for the account: the personal access token of a LaunchDarkly member with the Admin role. The token stops working when that member leaves LaunchDarkly.
 
 - A secret that holds the token alone, as plain text, in the secret manager that ` + "`vault`" + ` names. Store it outside Terraform, which keeps the token out of Terraform's state.
 
@@ -143,7 +137,7 @@ The email domains that may receive access are set on the connector, as its ` + "
 
 - For ` + "`gcp-sm`" + `, Google Secret Manager installed in P0 for the project that holds the secret. This provider has no resource for it, so install it in the P0 app. Give the connector's service account ` + "`roles/secretmanager.secretAccessor`" + ` and ` + "`roles/secretmanager.viewer`" + ` on the secret alone.
 
-` + betaNote + `
+` + previewNote + `
 
 ` + installDocs,
 		Attributes: map[string]schema.Attribute{
@@ -154,18 +148,12 @@ The email domains that may receive access are set on the connector, as its ` + "
 				"Where your LaunchDarkly account is hosted: `commercial` (app.launchdarkly.com), `eu` (app.eu.launchdarkly.com) or `federal` (app.launchdarkly.us).",
 				instances,
 			),
-			"plan": selectAttribute(
-				"Your LaunchDarkly plan: `enterprise`, or `non-enterprise` for any other plan, such as Developer, Foundation or a legacy plan like Starter. "+
-					"On Enterprise, P0 grants base roles, teams, custom roles and role attributes with a service token. On any other plan, P0 grants base roles only, with an admin's personal token. "+
-					"P0 checks the plan when it validates the account. Changing it replaces the account.",
-				plans,
-			),
 			"vault": vaultAttribute(),
 			// P0 fixes the token's secret when it creates the item, and refuses a change
 			// to it, so a new secret replaces the account.
 			"token_secret_name": schema.StringAttribute{
 				Required: true,
-				MarkdownDescription: "The name of the secret that holds the account's LaunchDarkly access token, in `vault`: a service token on Enterprise, or an admin's personal token on any other plan. " +
+				MarkdownDescription: "The name of the secret that holds the account's LaunchDarkly access token, in `vault`: the personal access token of a member with the Admin role. " +
 					"Only your connector reads it, never P0. The name alone, never an ARN or a resource name. " +
 					"For `aws-sm`, up to 512 letters, digits and `/_+=.@-`, and, when the vault's account isn't the connector's, not ending in a hyphen and six letters or digits, like `-AbCdEf`. " +
 					"For `gcp-sm`, up to 255 letters, digits, underscores and hyphens.",
@@ -173,10 +161,9 @@ The email domains that may receive access are set on the connector, as its ` + "
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"account_id": reportedAttribute("The ID of the LaunchDarkly account the access token belongs to, which P0 reads through the connector when it validates the account."),
-			"token_kind": reportedAttribute("Whether the access token is a `service` token or a member's `personal` token, which P0 reads through the connector when it validates the account."),
-			"token_owner_member_id": reportedAttribute("The ID of the LaunchDarkly member who owns a personal access token. P0 never grants to this member. " +
-				"Empty for a service token."),
+			"account_id":            reportedAttribute("The ID of the LaunchDarkly account the access token belongs to, which P0 reads through the connector when it validates the account."),
+			"token_kind":            reportedAttribute("The kind of the access token, `personal` for a member's personal access token or `service` for a service token, which P0 reads through the connector when it validates the account."),
+			"token_owner_member_id": reportedAttribute("The ID of the LaunchDarkly member who owns the personal access token. P0 never grants to this member."),
 			"allowed_domains": reportedAttribute("The email domains the connector grants to: the `DOMAIN_ALLOW_PATTERN` it's deployed with, which P0 reads back from the connector when it validates the account. " +
 				"To change it, change the connector's deployment."),
 			"state": common.StateAttribute,
@@ -275,7 +262,7 @@ const startOver = "To start over, `terraform apply -replace=<address>` deletes t
 
 // Describes a verify or configure step that P0 refused. P0 answers alike when its
 // check of the account fails, which usually points at the customer's setup (the
-// connector, the secret, the access token or the plan), and when it refuses the
+// connector, the secret or the access token), and when it refuses the
 // request for another reason, so the summary blames neither and leaves the reason to
 // P0's message. A refusal to change a fixed field is told apart by its text, since no
 // setup causes it: the item P0 holds differs from the configuration.
@@ -349,7 +336,6 @@ func accountFromJson(_ context.Context, diags *diag.Diagnostics, id string, json
 		Id:                 types.StringValue(id),
 		Connector:          types.StringPointerValue(jsonv.Connector),
 		Instance:           selectValue(jsonv.Instance),
-		Plan:               selectValue(jsonv.Plan),
 		Vault:              vault,
 		TokenSecretName:    types.StringPointerValue(jsonv.TokenSecretName),
 		AccountId:          types.StringPointerValue(jsonv.AccountId),
@@ -376,9 +362,6 @@ func accountToJson(data any) any {
 	}
 	if installapp.IsSet(datav.Instance) {
 		json.Instance = &selectJson{Type: datav.Instance.ValueString()}
-	}
-	if installapp.IsSet(datav.Plan) {
-		json.Plan = &selectJson{Type: datav.Plan.ValueString()}
 	}
 	if datav.Vault != nil {
 		json.Vault = datav.Vault.toJson()
@@ -500,7 +483,7 @@ func accountWillBeCreated(state *accountModel, plan *accountModel) bool {
 		return true
 	}
 	for _, pair := range [][2]types.String{
-		{state.Id, plan.Id}, {state.Connector, plan.Connector}, {state.Instance, plan.Instance}, {state.Plan, plan.Plan},
+		{state.Id, plan.Id}, {state.Connector, plan.Connector}, {state.Instance, plan.Instance},
 		{state.TokenSecretName, plan.TokenSecretName},
 		{state.Vault.Type, plan.Vault.Type}, {state.Vault.AccountId, plan.Vault.AccountId}, {state.Vault.SecretsRegion, plan.Vault.SecretsRegion},
 	} {
