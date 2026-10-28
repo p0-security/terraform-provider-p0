@@ -81,13 +81,19 @@ module "ai_gateway_stack" {
 
 # Finalizes the install; depends_on ensures the gateway trusts P0's service
 # account before verification is attempted.
+#
+# Add this resource only after the staged resource and the module are applied
+# and the gateway is running, then apply again. braekhus_public_jwk is read
+# from the running gateway, so Terraform cannot plan this resource, or anything
+# else in the configuration, while the block is present without it.
 resource "p0_ai_gateway" "example" {
   id = p0_ai_gateway_staged.example.id
   domain_hosting = {
     load_balancer_ip = "<your-gateway-loadbalancer-ip>"
   }
   log_project_id = "my-gcp-logging-project"
-  # The contents of /p0-files/jwk.public.json in the braekhus-client pod
+  # The contents of /p0-files/jwk.public.json in the braekhus-client pod, once it is running:
+  #   kubectl exec -it deploy/braekhus-client -n <namespace> -c braekhus -- cat /p0-files/jwk.public.json | jq -Mr
   braekhus_public_jwk = "<public-jwk-json>"
   depends_on          = [module.ai_gateway_stack]
 }
@@ -100,9 +106,9 @@ resource "p0_ai_gateway" "example" {
 
 - `braekhus_public_jwk` (String) Public key (a JWK, the contents of `jwk.public.json`) that the gateway's outbound
 management tunnel uses to authenticate to P0. Must be an EC P-384 public key; never supply the private key. With
-the `ai-gateway-stack` chart, read it from the running gateway:
-`kubectl -n <namespace> exec deploy/braekhus-client -- cat /p0-files/jwk.public.json`. P0 verifies the
-gateway through that tunnel, so a gateway that is not publicly reachable can still be verified.
+the `ai-gateway-stack` chart, read it from the running braekhus client pod:
+`kubectl exec -it deploy/braekhus-client -n <namespace> -c braekhus -- cat /p0-files/jwk.public.json | jq -Mr`. The braekhus client generates the file
+at startup. P0 verifies the gateway through that tunnel, so a gateway that is not publicly reachable can still be verified.
 - `id` (String) The `id` of the `p0_ai_gateway_staged` resource being finalized
 
 ### Optional

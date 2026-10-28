@@ -22,22 +22,63 @@ deleted:
 | ----------------------- | ----------------------------------------------------------- |
 | `lets_encrypt_email`    | `letsEncrypt.email` in the module's `values`                |
 | `oidc_client_id`        | `ai-gateway.authServer.oidcClientId` in the module's `values` |
-| `storage_class`         | `postgresql`, `victorialogs` and `valkey` `.storageClass` in the module's `values` |
+| `storage_class`         | `postgresql` and `victorialogs` `.storageClass` in the module's `values` |
 | `kubernetes_namespace`  | the module's `namespace` input                              |
 
 P0 did not use these values, so deleting them from the configuration changes
 nothing about the gateway's installation in P0.
 
+Do not copy the old `storage_class` into `valkey.storageClass`. Valkey holds
+credentials, so it needs an encrypted storage class, which the old value may
+not be. Choose one for Valkey separately.
+
 ## New required attribute
 
 `p0_ai_gateway` now requires `braekhus_public_jwk`: the gateway's public tunnel
-key, an EC P-384 public JWK. P0 uses it to reach a gateway that has no public
-address. A configuration upgrading to this version must set it, so apply the
-module first and read the key from the running gateway:
+key, an EC P-384 public JWK. P0 uses it to connect to the gateway over the
+braekhus tunnel, so a gateway with no public address can be reached. The key
+exists only after the chart is installed, so the install takes two applies, the
+same as `p0_kubernetes` and its `public_jwk`.
 
-```shell
-kubectl -n <namespace> exec deploy/braekhus-client -- cat /p0-files/jwk.public.json
-```
+The second apply succeeds only if P0 can connect to the running gateway with
+that key. A successful apply therefore confirms the tunnel works. P0 itself
+still accepts a gateway without a key, to support older gateway versions that
+have no tunnel. Those fall back to a direct call to the gateway's address. This
+provider does not offer that path.
+
+### Fresh install
+
+1. Define only `p0_ai_gateway_staged` and the module, with no `p0_ai_gateway`
+   block, then run `terraform apply`. Terraform checks every resource block in
+   the configuration for required arguments, even when you use `-target`, so a
+   `p0_ai_gateway` block without `braekhus_public_jwk` stops the plan.
+
+2. Read the key from the running braekhus client pod. The braekhus client
+   generates the file at startup, so the command works with or without the
+   `ai-gateway-stack` chart:
+
+   ```shell
+   kubectl exec -it deploy/braekhus-client -n <namespace> -c braekhus -- cat /p0-files/jwk.public.json | jq -Mr
+   ```
+
+3. Add the `p0_ai_gateway` block with `braekhus_public_jwk` set to that key,
+   then run `terraform apply` again.
+
+### Upgrading an existing install
+
+Gateways installed from older chart versions have no braekhus client, so there
+is no key to read yet. Upgrade the cluster first, while the provider version
+you already use is still in place. That version does not require the key, so
+`p0_ai_gateway` keeps applying.
+
+1. Upgrade the module to 1.3.0 and `chart_version` to 1.3.0-beta, as described
+   under [Module and chart](#module-and-chart), and run `terraform apply`.
+
+2. Read the key from the braekhus client pod with the command above.
+
+3. Upgrade the provider, delete the removed attributes from
+   `p0_ai_gateway_staged`, set `braekhus_public_jwk` on the existing
+   `p0_ai_gateway`, and run `terraform apply` again.
 
 ## Module and chart
 

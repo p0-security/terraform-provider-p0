@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -237,8 +236,8 @@ func TestMoveStateKeepsV054StagedState(t *testing.T) {
 
 // TestMoveStateDropsRemovedV054StagedAttributes guards the removal of
 // lets_encrypt_email, oidc_client_id, storage_class and kubernetes_namespace. The
-// v0.54.0 state still records them, and the move must drop them without failing
-// instead of rejecting the state as not matching the schema.
+// v0.54.0 state still records them, and the move must succeed and yield state
+// that matches the schema without them.
 func TestMoveStateDropsRemovedV054StagedAttributes(t *testing.T) {
 	ctx := context.Background()
 	removed := []string{"lets_encrypt_email", "oidc_client_id", "storage_class", "kubernetes_namespace"}
@@ -258,11 +257,7 @@ func TestMoveStateDropsRemovedV054StagedAttributes(t *testing.T) {
 	}
 
 	resp := moveState(ctx, t, "p0_agentic_gateway_staged", "p0_ai_gateway_staged", v054GatewayStagedState)
-	state := movedState(ctx, t, target, resp)
-	for _, attr := range removed {
-		var v any
-		if diags := state.GetAttribute(ctx, path.Root(attr), &v); !diags.HasError() {
-			t.Errorf("moved state still has %s", attr)
-		}
-	}
+	// movedState fails the test if the moved state does not decode under the
+	// target schema, which no longer has the removed attributes.
+	movedState(ctx, t, target, resp)
 }

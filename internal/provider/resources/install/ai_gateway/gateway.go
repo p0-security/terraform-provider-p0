@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -148,12 +149,13 @@ MCP tool-call and A2A activity. This is the project holding the log bucket, whic
 gateway itself runs in (e.g. if logs are routed to a centralized logging project).`,
 			},
 			"braekhus_public_jwk": schema.StringAttribute{
-				Required: true,
+				Required:   true,
+				Validators: []validator.String{common.BraekhusPublicJwk()},
 				MarkdownDescription: `Public key (a JWK, the contents of ` + "`jwk.public.json`" + `) that the gateway's outbound
 management tunnel uses to authenticate to P0. Must be an EC P-384 public key; never supply the private key. With
-the ` + "`ai-gateway-stack`" + ` chart, read it from the running gateway:
-` + "`kubectl -n <namespace> exec deploy/braekhus-client -- cat /p0-files/jwk.public.json`" + `. P0 verifies the
-gateway through that tunnel, so a gateway that is not publicly reachable can still be verified.`,
+the ` + "`ai-gateway-stack`" + ` chart, read it from the running braekhus client pod:
+` + "`kubectl exec -it deploy/braekhus-client -n <namespace> -c braekhus -- cat /p0-files/jwk.public.json | jq -Mr`" + `. The braekhus client generates the file
+at startup. P0 verifies the gateway through that tunnel, so a gateway that is not publicly reachable can still be verified.`,
 			},
 			"service_account_email": schema.StringAttribute{
 				Computed:            true,
