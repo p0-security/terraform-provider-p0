@@ -94,7 +94,7 @@ func ldConnectorConfig(f *ldFake, hosting string) string {
 // expression, such as a reference to the connector's resource, and vault an HCL
 // object.
 type ldAccountArgs struct {
-	id, connector, instance, plan, vault, secretName string
+	id, connector, instance, vault, secretName string
 }
 
 func ldGcpVault(project string) string {
@@ -118,7 +118,6 @@ func ldGcpAccount() ldAccountArgs {
 		id:         ldAccount,
 		connector:  "p0_launchdarkly_connector.example.id",
 		instance:   "commercial",
-		plan:       "enterprise",
 		vault:      ldGcpVault(ldSecretsProject),
 		secretName: ldSecret,
 	}
@@ -147,11 +146,10 @@ resource "p0_launchdarkly_account" %q {
   id                = %q
   connector         = %s
   instance          = %q
-  plan              = %q
   vault             = %s
   token_secret_name = %q
 }
-`, name, a.id, a.connector, a.instance, a.plan, a.vault, a.secretName)
+`, name, a.id, a.connector, a.instance, a.vault, a.secretName)
 }
 
 // The connector installed at hosting, and the account it reaches.
@@ -317,7 +315,7 @@ func (f *ldFake) refuseAccount(step fakeStep, items map[fakeItemKey]map[string]a
 		if step.previous != nil {
 			if changedLdAccountField(step.previous, step.body, true) != "" {
 				return http.StatusConflict, fmt.Sprintf("A LaunchDarkly account named %s already exists, and an account can't be changed once it's added. "+
-					"To change its plan or anything else, remove it from P0 and add it again. To add another account, use another name.", id)
+					"To change anything about it, remove it from P0 and add it again. To add another account, use another name.", id)
 			}
 			if step.previous["state"] == "installed" {
 				return http.StatusConflict, fmt.Sprintf("The LaunchDarkly account %s is already installed, and there's nothing to change.", id)
@@ -389,7 +387,7 @@ func changedLdAccountField(item, body map[string]any, whole bool) string {
 			return field
 		}
 	}
-	for _, field := range []string{"instance", "plan", "vault"} {
+	for _, field := range []string{"instance", "vault"} {
 		sent, ok := body[field].(map[string]any)
 		if !ok {
 			if whole {
@@ -817,7 +815,6 @@ func TestLaunchDarklyConnectorValidation(t *testing.T) {
 var ldGcpAccountItem = map[string]any{
 	"connector":       ldConnector,
 	"instance":        map[string]any{"type": "commercial"},
-	"plan":            map[string]any{"type": "enterprise"},
 	"vault":           map[string]any{"type": "gcp-sm", "install": ldSecretsProject},
 	"tokenSecretName": ldSecret,
 }
@@ -839,7 +836,6 @@ func TestLaunchDarklyAccountOnGoogleCloud(t *testing.T) {
 					resource.TestCheckResourceAttr(ldAccountAddress, "state", "installed"),
 					resource.TestCheckResourceAttr(ldAccountAddress, "connector", ldConnector),
 					resource.TestCheckResourceAttr(ldAccountAddress, "instance", "commercial"),
-					resource.TestCheckResourceAttr(ldAccountAddress, "plan", "enterprise"),
 					resource.TestCheckResourceAttr(ldAccountAddress, "vault.type", "gcp-sm"),
 					resource.TestCheckResourceAttr(ldAccountAddress, "vault.project_id", ldSecretsProject),
 					resource.TestCheckNoResourceAttr(ldAccountAddress, "vault.account_id"),
@@ -880,13 +876,13 @@ func TestLaunchDarklyAccountOnGoogleCloud(t *testing.T) {
 }
 
 // The account behind a connector on AWS, with its secret in AWS Secrets Manager, on
-// another plan and instance, with an admin's personal token.
+// another instance, with an admin's personal token.
 func TestLaunchDarklyAccountOnAws(t *testing.T) {
 	f := newLdFake(t)
 	f.report = func(map[string]any) ldReport {
 		return ldReport{accountId: "ld-eu", tokenKind: "personal", tokenOwnerMemberId: "5f0c1a2b3c4d5e6f7a8b9c0d", allowedDomains: ldDomains}
 	}
-	account := ldAwsAccount().with(func(a *ldAccountArgs) { a.instance, a.plan = "eu", "non-enterprise" })
+	account := ldAwsAccount().with(func(a *ldAccountArgs) { a.instance = "eu" })
 	config := ldAccountConfig(f, ldAws, account)
 
 	resource.UnitTest(t, resource.TestCase{
@@ -905,7 +901,6 @@ func TestLaunchDarklyAccountOnAws(t *testing.T) {
 						return f.checkAccount("installed", map[string]any{
 							"connector":       ldConnector,
 							"instance":        map[string]any{"type": "eu"},
-							"plan":            map[string]any{"type": "non-enterprise"},
 							"vault":           map[string]any{"type": "aws-sm", "install": ldSecretsAccount, "secretsRegion": "us-west-2"},
 							"tokenSecretName": "launchdarkly/acme-prod/token",
 						})
@@ -945,7 +940,7 @@ resource "p0_launchdarkly_connector" "second" {
 }
 `
 
-// P0 fixes every field of an account when it adds it, the plan among them. A change
+// P0 fixes every field of an account when it adds it. A change
 // to any replaces the account, and leaves its connector alone.
 func TestLaunchDarklyAccountChangeReplaces(t *testing.T) {
 	gcp, aws := ldGcpAccount(), ldAwsAccount()
@@ -961,7 +956,6 @@ func TestLaunchDarklyAccountChangeReplaces(t *testing.T) {
 		{"id", ldGcp, gcp, gcp.with(func(a *ldAccountArgs) { a.id = "acme-staging" }), "acme-staging", "tokenSecretName", ldSecret},
 		{"connector", ldGcp, gcp, gcp.with(func(a *ldAccountArgs) { a.connector = "p0_launchdarkly_connector.second.id" }), ldAccount, "connector", "prod-2"},
 		{"instance", ldGcp, gcp, gcp.with(func(a *ldAccountArgs) { a.instance = "federal" }), ldAccount, "instance", map[string]any{"type": "federal"}},
-		{"plan", ldGcp, gcp, gcp.with(func(a *ldAccountArgs) { a.plan = "non-enterprise" }), ldAccount, "plan", map[string]any{"type": "non-enterprise"}},
 		{"token secret name", ldGcp, gcp, gcp.with(func(a *ldAccountArgs) { a.secretName = ldSecret + "-2" }), ldAccount, "tokenSecretName", ldSecret + "-2"},
 		{
 			"vault project", ldGcp, gcp, gcp.with(func(a *ldAccountArgs) { a.vault = ldGcpVault("acme-secrets-2") }),
@@ -1040,7 +1034,7 @@ func TestLaunchDarklyAccountChangeReplaces(t *testing.T) {
 // apply replaces it.
 func TestLaunchDarklyAccountFailedCheck(t *testing.T) {
 	f := newLdFake(t)
-	const message = "The LaunchDarkly account acme-prod failed its install check while checking its plan: the token can't read custom roles."
+	const message = "The LaunchDarkly account acme-prod failed its install check while signing in to LaunchDarkly with the access token: LaunchDarkly answered 401."
 	f.failedAccountCheck = message
 
 	resource.UnitTest(t, resource.TestCase{
@@ -1267,7 +1261,7 @@ func TestLaunchDarklyAccountImportFinishesInstall(t *testing.T) {
 	t.Run("differs from the configuration", func(t *testing.T) {
 		f := newLdFake(t)
 		config := providerConfig(f.fakeP0) + account.hcl()
-		other := deepMerge(ldGcpAccountItem, map[string]any{"plan": map[string]any{"type": "non-enterprise"}})
+		other := deepMerge(ldGcpAccountItem, map[string]any{"instance": map[string]any{"type": "eu"}})
 		resource.UnitTest(t, resource.TestCase{
 			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 			CheckDestroy:             destroyed(f),
@@ -1340,7 +1334,6 @@ func TestLaunchDarklyAccountValidation(t *testing.T) {
 		{"id with a slash", base.with(func(a *ldAccountArgs) { a.id = "acme/prod" }), []string{invalidId}},
 		{"connector with a path", base.with(func(a *ldAccountArgs) { a.connector = `"prod/other"` }), []string{"connector", invalidId}},
 		{"instance that isn't one", base.with(func(a *ldAccountArgs) { a.instance = "us" }), []string{`value must be one of: ["commercial" "eu" "federal"]`}},
-		{"plan that isn't one", base.with(func(a *ldAccountArgs) { a.plan = "starter" }), []string{`value must be one of: ["enterprise" "non-enterprise"]`}},
 		{"secret ARN in AWS", aws.with(func(a *ldAccountArgs) {
 			a.secretName = "arn:aws:secretsmanager:us-west-2:210987654321:secret:launchdarkly-token"
 		}), []string{"Invalid access token secret name", invalidAwsName}},

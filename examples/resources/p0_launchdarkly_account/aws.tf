@@ -76,7 +76,6 @@ resource "p0_launchdarkly_account" "aws_example" {
   id        = "acme-prod-aws"
   connector = p0_launchdarkly_connector.aws_example.id
   instance  = "commercial"
-  plan      = "enterprise"
 
   vault = {
     type           = "aws-sm"

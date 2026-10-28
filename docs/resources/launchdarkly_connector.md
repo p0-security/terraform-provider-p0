@@ -12,7 +12,7 @@ description: |-
   P0's LaunchDarkly connector, deployed where hosting says. Set its DOMAIN_ALLOW_PATTERN environment variable to a regular expression that an email's whole domain must match for its member to receive access, such as example[.]com. The pattern is set on the connector alone, and isn't an attribute of this resource: P0 doesn't set it.
   For AWS Lambda, the image p0security/p0-connector-launchdarkly. Lambda runs images only from Amazon ECR, so copy the image from Docker Hub into ECR first. p0_aws_iam_write must be installed for the account the connector runs in. Grant that installation's role lambda:InvokeFunction on the connector's function.
   For Google Cloud Run, the image p0security/p0-connector-launchdarkly-gcloud, running as the staged resource's hosting.connector_service_account. p0_gcp must be installed. Grant its service account roles/run.invoker and roles/run.viewer on the connector's service, and pass the same address to the connector as its INVOKER_SA_EMAIL environment variable.
-  Note: This integration is currently in beta.
+  Note: This integration is currently in preview.
   For the full install steps, see Installing LaunchDarkly https://docs.p0.dev/integrations/resource-integrations/launchdarkly/installation.
 ---
 
@@ -36,7 +36,7 @@ Destroying this resource returns the connector to its staged state, which `p0_la
 
 - For Google Cloud Run, the image `p0security/p0-connector-launchdarkly-gcloud`, running as the staged resource's `hosting.connector_service_account`. `p0_gcp` must be installed. Grant its service account `roles/run.invoker` and `roles/run.viewer` on the connector's service, and pass the same address to the connector as its `INVOKER_SA_EMAIL` environment variable.
 
-**Note:** This integration is currently in beta.
+**Note:** This integration is currently in preview.
 
 For the full install steps, see [Installing LaunchDarkly](https://docs.p0.dev/integrations/resource-integrations/launchdarkly/installation).
 
