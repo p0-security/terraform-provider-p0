@@ -42,10 +42,6 @@ type gatewayDomainHostingStagedModel struct {
 type gatewayStagedModel struct {
 	Id                  string                           `tfsdk:"id"`
 	DomainHosting       *gatewayDomainHostingStagedModel `tfsdk:"domain_hosting"`
-	LetsEncryptEmail    string                           `tfsdk:"lets_encrypt_email"`
-	OidcClientId        string                           `tfsdk:"oidc_client_id"`
-	StorageClass        string                           `tfsdk:"storage_class"`
-	KubernetesNamespace types.String                     `tfsdk:"kubernetes_namespace"`
 	ServiceAccountEmail types.String                     `tfsdk:"service_account_email"`
 }
 
@@ -60,11 +56,7 @@ type gatewayDomainHostingStageJson struct {
 }
 
 type gatewayStageJson struct {
-	DomainHosting       gatewayDomainHostingStageJson `json:"domainHosting"`
-	LetsEncryptEmail    string                        `json:"letsEncryptEmail"`
-	OidcClientId        string                        `json:"oidcClientId"`
-	StorageClass        string                        `json:"storageClass"`
-	KubernetesNamespace *string                       `json:"kubernetesNamespace,omitempty"`
+	DomainHosting gatewayDomainHostingStageJson `json:"domainHosting"`
 }
 
 // gatewayStagedV053Schema is this resource's schema as v0.53.0 released it,
@@ -99,8 +91,7 @@ func (r *GatewayStaged) MoveState(ctx context.Context) []resource.StateMover {
 			if resp.Diagnostics.HasError() || prior.Url.IsNull() {
 				return
 			}
-			// v0.53.0's url now lives under domain_hosting. Newer string attributes
-			// stay "" (Read cannot decode null into them) until Read fetches them.
+			// v0.53.0's url now lives under domain_hosting.
 			resp.Diagnostics.Append(resp.TargetState.Set(ctx, &gatewayStagedModel{
 				Id: prior.Id,
 				DomainHosting: &gatewayDomainHostingStagedModel{
@@ -108,7 +99,6 @@ func (r *GatewayStaged) MoveState(ctx context.Context) []resource.StateMover {
 					Url:           prior.Url.ValueString(),
 					OauthEndpoint: types.StringNull(),
 				},
-				KubernetesNamespace: types.StringNull(),
 				ServiceAccountEmail: prior.ServiceAccountEmail,
 			})...)
 			resp.TargetPrivate = req.SourcePrivate
@@ -166,34 +156,6 @@ For the full install steps, see [Gateway](https://docs.p0.dev/integrations/resou
 					objectplanmodifier.RequiresReplace(),
 				},
 			},
-			"lets_encrypt_email": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "Email address used for the ACME account (renewal notifications, account recovery); not shared publicly.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"oidc_client_id": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "OAuth client ID from your upstream OAuth provider (e.g. Google Cloud Console) that end users authenticate against.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"storage_class": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "The Kubernetes StorageClass your cluster provides for the gateway's bundled PostgreSQL PersistentVolume, e.g. `gp2` (AWS EKS), `standard-rwo` (GKE), or `managed-premium` (AKS).",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"kubernetes_namespace": schema.StringAttribute{
-				Optional:            true,
-				MarkdownDescription: "The namespace this gateway is deployed into. Defaults to `p0-agentic-gateway` if left blank.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
 			"service_account_email": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Email address of the service account identity that P0 uses to communicate with your gateway",
@@ -245,10 +207,6 @@ func (r *GatewayStaged) fromJson(ctx context.Context, diags *diag.Diagnostics, i
 			Url:           json.DomainHosting.Url,
 			OauthEndpoint: types.StringPointerValue(json.DomainHosting.OauthEndpoint),
 		},
-		LetsEncryptEmail:    json.LetsEncryptEmail,
-		OidcClientId:        json.OidcClientId,
-		StorageClass:        json.StorageClass,
-		KubernetesNamespace: types.StringPointerValue(json.KubernetesNamespace),
 		ServiceAccountEmail: types.StringPointerValue(json.ServiceAccountEmail),
 	}
 }
@@ -270,11 +228,7 @@ func (inputData *gatewayStagedModel) stageJson() *gatewayStageJson {
 		domainHosting.OauthEndpoint = oauthEndpoint.ValueStringPointer()
 	}
 	return &gatewayStageJson{
-		DomainHosting:       domainHosting,
-		LetsEncryptEmail:    inputData.LetsEncryptEmail,
-		OidcClientId:        inputData.OidcClientId,
-		StorageClass:        inputData.StorageClass,
-		KubernetesNamespace: inputData.KubernetesNamespace.ValueStringPointer(),
+		DomainHosting: domainHosting,
 	}
 }
 

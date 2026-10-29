@@ -104,6 +104,7 @@ For the full install steps, see [Terraform installation](https://docs.p0.dev/int
 			},
 			"public_jwk": schema.StringAttribute{
 				Required:            true,
+				Validators:          []validator.String{common.BraekhusPublicJwk()},
 				MarkdownDescription: `The public JWK token of the braekhus proxy service`,
 			},
 			"connectivity_type": schema.StringAttribute{

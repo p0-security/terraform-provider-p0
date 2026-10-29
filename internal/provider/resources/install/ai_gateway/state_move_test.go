@@ -2,6 +2,7 @@ package installaigateway
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -206,9 +207,10 @@ func TestMoveStateCarriesStagedUrlIntoDomainHosting(t *testing.T) {
 	}
 }
 
-// TestMoveStateKeepsV054StagedState guards the v0.54.0 path: that state already
-// matches the current schema, and losing any attribute would make an unrefreshed
-// plan propose replacement.
+// TestMoveStateKeepsV054StagedState guards the v0.54.0 path: every attribute
+// that is still in the schema must survive the move, so an unrefreshed plan
+// proposes no replacement. The attributes that were removed are covered by
+// TestMoveStateDropsRemovedV054StagedAttributes.
 func TestMoveStateKeepsV054StagedState(t *testing.T) {
 	ctx := context.Background()
 	resp := moveState(ctx, t, "p0_agentic_gateway_staged", "p0_ai_gateway_staged", v054GatewayStagedState)
@@ -224,12 +226,38 @@ func TestMoveStateKeepsV054StagedState(t *testing.T) {
 	for _, check := range []struct{ attr, got, want string }{
 		{"domain_hosting.url", moved.DomainHosting.Url, "https://gateway.example.com"},
 		{"domain_hosting.oauth_endpoint", moved.DomainHosting.OauthEndpoint.ValueString(), "https://oauth.gateway.example.com"},
-		{"lets_encrypt_email", moved.LetsEncryptEmail, "admin@example.com"},
-		{"oidc_client_id", moved.OidcClientId, "your-upstream-oidc-client-id"},
-		{"storage_class", moved.StorageClass, "gp2"},
+		{"service_account_email", moved.ServiceAccountEmail.ValueString(), "p0@example.iam.gserviceaccount.com"},
 	} {
 		if check.got != check.want {
 			t.Errorf("%s: got %q, want %q", check.attr, check.got, check.want)
 		}
 	}
+}
+
+// TestMoveStateDropsRemovedV054StagedAttributes guards the removal of
+// lets_encrypt_email, oidc_client_id, storage_class and kubernetes_namespace. The
+// v0.54.0 state still records them, and the move must succeed and yield state
+// that matches the schema without them.
+func TestMoveStateDropsRemovedV054StagedAttributes(t *testing.T) {
+	ctx := context.Background()
+	removed := []string{"lets_encrypt_email", "oidc_client_id", "storage_class", "kubernetes_namespace"}
+	for _, attr := range removed {
+		if !strings.Contains(v054GatewayStagedState, `"`+attr+`"`) {
+			t.Fatalf("fixture no longer records %s, so this test proves nothing", attr)
+		}
+	}
+
+	target := NewGatewayStaged()
+	schemaResp := resource.SchemaResponse{}
+	target.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	for _, attr := range removed {
+		if _, ok := schemaResp.Schema.Attributes[attr]; ok {
+			t.Errorf("%s is still in the schema", attr)
+		}
+	}
+
+	resp := moveState(ctx, t, "p0_agentic_gateway_staged", "p0_ai_gateway_staged", v054GatewayStagedState)
+	// movedState fails the test if the moved state does not decode under the
+	// target schema, which no longer has the removed attributes.
+	movedState(ctx, t, target, resp)
 }
