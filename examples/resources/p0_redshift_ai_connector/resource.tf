@@ -1,0 +1,227 @@
+# Installs the Redshift (AI) connector: one Lambda per AWS account, outside any
+# VPC, that P0 invokes to give AI agents access to the Redshift clusters and
+# Serverless workgroups in that account. It holds no secret: it signs in to
+# each cluster with its IAM role. Apply it as an AWS admin of the connector's
+# account.
+#
+# Before you apply this, install P0's AWS IAM management for the connector's
+# AWS account (see p0_aws_iam_write). P0 invokes the connector as that
+# installation's role. Once the connector is installed, add clusters (see
+# p0_redshift_ai_cluster).
+
+terraform {
+  # 1.4 added terraform_data.
+  required_version = ">= 1.4"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.0"
+    }
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0"
+    }
+    # 0.87.0 added the p0_redshift_ai resources.
+    p0 = {
+      source  = "p0-security/p0"
+      version = ">= 0.87.0"
+    }
+  }
+}
+
+locals {
+  account_id = "123456789012"
+  region     = "us-east-1"
+
+  # The connector's name. P0 invokes it by this name, in the account and region
+  # above, so keep it as it is. The connector's Lambda function, role, log group
+  # and ECR repository all take it.
+  connector_name = "p0-connector-redshift-ai-aws"
+
+  # How many days CloudWatch keeps the connector's logs.
+  log_retention_days = 30
+
+  # The role that P0's AWS IAM management assumes in this account, which
+  # invokes the connector.
+  p0_role_name = "P0RoleIamManager"
+
+  # The connector image's version: the sha- tag P0 publishes each release
+  # under, and the digest that tag must resolve to. Docker Hub lets a tag be
+  # pushed again, so the plan fails if the tag no longer resolves to this
+  # digest. To update, take both from the latest version of this example in
+  # the Terraform registry: they change together. Changing them copies the
+  # image again and redeploys the Lambda.
+  connector_image_name   = "p0security/p0-connector-redshift-ai-aws"
+  connector_image_tag    = "sha-2acb601"
+  connector_image_digest = "sha256:47e27d55d18d4fcbd65943b143fe9cb8010a3f505d6afdf90f8dcb4fc71b2163"
+
+  tags = {
+    ManagedBy  = "Terraform"
+    ManagedFor = "P0"
+  }
+}
+
+provider "aws" {
+  region              = local.region
+  allowed_account_ids = [local.account_id]
+}
+
+# Staging records the connector in P0 before the Lambda is deployed.
+resource "p0_redshift_ai_connector_staged" "example" {
+  id     = local.account_id
+  region = local.region
+}
+
+# The connector's execution role. Redshift names the database user it signs in
+# as IAMR:p0-connector-redshift-ai-aws, which each cluster's setup SQL creates.
+# Each cluster's Terraform lets this role into that cluster (see the
+# p0_redshift_ai_cluster example).
+resource "aws_iam_role" "connector" {
+  name = local.connector_name
+  tags = local.tags
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+# The log group Lambda writes the connector's logs to.
+resource "aws_cloudwatch_log_group" "connector" {
+  name              = "/aws/lambda/${local.connector_name}"
+  retention_in_days = local.log_retention_days
+  tags              = local.tags
+}
+
+# The connector writes its own logs, and no others.
+resource "aws_iam_role_policy" "connector_logs" {
+  name = "${local.connector_name}-logs"
+  role = aws_iam_role.connector.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+      Resource = "${aws_cloudwatch_log_group.connector.arn}:*"
+    }]
+  })
+}
+
+data "docker_registry_image" "connector" {
+  name = "${local.connector_image_name}:${local.connector_image_tag}"
+
+  lifecycle {
+    postcondition {
+      condition     = self.sha256_digest == local.connector_image_digest
+      error_message = "The connector image's tag doesn't resolve to the digest pinned here. Take both from the latest p0_redshift_ai_connector example in P0's Terraform registry docs, or contact support@p0.dev."
+    }
+  }
+}
+
+# Lambda only runs images from Amazon ECR, so this copies P0's image into a
+# repository in this account. It needs docker and the AWS CLI, signed in to this
+# account, wherever Terraform runs.
+resource "aws_ecr_repository" "connector" {
+  name = local.connector_name
+  # Tags can't be overwritten, so no one who can push to this repository can
+  # replace the image that administers Redshift as the execution role.
+  image_tag_mutability = "IMMUTABLE"
+  force_delete         = true
+  tags                 = local.tags
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+# Copies the pinned image again whenever its tag or digest changes, tagged
+# with the image's tag and this copy's id. ECR's tags can't be overwritten, so
+# each copy needs a tag of its own: copying the image again, to roll back or
+# after an interrupted apply, pushes a new one.
+resource "terraform_data" "connector_image" {
+  triggers_replace = {
+    digest         = data.docker_registry_image.connector.sha256_digest
+    repository_url = aws_ecr_repository.connector.repository_url
+    tag            = local.connector_image_tag
+  }
+
+  provisioner "local-exec" {
+    # Signs Docker out of ECR at the end, so its login doesn't outlast the copy.
+    # A failed sign-out doesn't fail the copy once the image is pushed.
+    command = <<-EOT
+      set -e
+      trap 'docker logout "$REGISTRY" || true' EXIT
+      aws ecr get-login-password --region "$REGION" |
+        docker login --username AWS --password-stdin "$REGISTRY"
+      docker pull --platform linux/amd64 "$SOURCE"
+      docker tag "$SOURCE" "$TARGET"
+      docker push "$TARGET"
+    EOT
+
+    environment = {
+      REGION   = local.region
+      REGISTRY = split("/", aws_ecr_repository.connector.repository_url)[0]
+      SOURCE   = "${local.connector_image_name}@${local.connector_image_digest}"
+      TARGET   = "${aws_ecr_repository.connector.repository_url}:${local.connector_image_tag}-${self.id}"
+    }
+  }
+}
+
+# Pulling one platform and pushing it can give ECR a different manifest from
+# the one the tag names on Docker Hub, so the digest there can differ from the
+# one pinned above. Lambda needs ECR's.
+data "aws_ecr_image" "connector" {
+  repository_name = aws_ecr_repository.connector.name
+  image_tag       = "${local.connector_image_tag}-${terraform_data.connector_image.id}"
+}
+
+resource "aws_lambda_function" "connector" {
+  # P0 invokes the connector by its name in this account and region, so it must
+  # be deployed exactly there. If your other AWS providers have credential
+  # settings, such as profile or assume_role, add them to the provider above.
+  function_name = local.connector_name
+  role          = aws_iam_role.connector.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.connector.repository_url}@${data.aws_ecr_image.connector.image_digest}"
+  architectures = ["x86_64"]
+  # A revoke reads and changes each database of the cluster in turn. P0 stops
+  # waiting for the connector after 5 minutes, so the timeout stays under that.
+  timeout = 270
+  tags    = local.tags
+
+  # The connector is staged in P0 before it's deployed. Its role can't create
+  # a log group, so its own must exist before it runs.
+  depends_on = [
+    p0_redshift_ai_connector_staged.example,
+    aws_cloudwatch_log_group.connector,
+  ]
+}
+
+# Lets P0 invoke the connector, through the role P0's AWS IAM management
+# assumes in this account.
+resource "aws_iam_role_policy" "p0_invoke_connector" {
+  name = "${local.connector_name}-invoke"
+  role = local.p0_role_name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "lambda:InvokeFunction"
+      Resource = aws_lambda_function.connector.arn
+    }]
+  })
+}
+
+# Completes the install. P0 checks that it can invoke the connector, retrying
+# for about half a minute while a new IAM policy takes effect. If the first
+# apply is denied access, apply again.
+resource "p0_redshift_ai_connector" "example" {
+  id     = p0_redshift_ai_connector_staged.example.id
+  region = p0_redshift_ai_connector_staged.example.region
+
+  depends_on = [aws_iam_role_policy.p0_invoke_connector]
+}
