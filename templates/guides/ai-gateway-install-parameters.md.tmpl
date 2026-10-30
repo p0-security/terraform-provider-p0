@@ -71,7 +71,7 @@ is no key to read yet. Upgrade the cluster first, while the provider version
 you already use is still in place. That version does not require the key, so
 `p0_ai_gateway` keeps applying.
 
-1. Upgrade the module to 1.3.0 and `chart_version` to 1.3.0-beta, as described
+1. Upgrade the module to 1.4.0 and `chart_version` to 1.4.0-beta, as described
    under [Module and chart](#module-and-chart), and run `terraform apply`.
 
 2. Read the key from the braekhus client pod with the command above.
@@ -82,7 +82,7 @@ you already use is still in place. That version does not require the key, so
 
 ## Module and chart
 
-Use module version 1.3.0 or later with chart version 1.3.0-beta or later. The
+Use module version 1.4.0 or later with chart version 1.4.0-beta or later. The
 module requires `chart_version`, and the chart's values key is `ai-gateway`
 (previously `agentic-gateway`), with the component keys `authServer` and
 `accessProxy`. See the module's README for its own upgrade notes.
@@ -90,8 +90,8 @@ module requires `chart_version`, and the chart's values key is `ai-gateway`
 ```terraform
 module "ai_gateway_stack" {
   source        = "p0-security/p0-ai-gateway-stack/kubernetes"
-  version       = "1.3.0"
-  chart_version = "1.3.0-beta"
+  version       = "1.4.0"
+  chart_version = "1.4.0-beta"
   # ...
 }
 ```
