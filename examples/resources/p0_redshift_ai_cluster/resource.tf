@@ -90,13 +90,13 @@ resource "aws_iam_role_policy" "connector_cluster" {
 
 # Before you apply the resource below, have a superuser run this setup SQL in
 # the cluster. It creates the connector's database user, lets it manage users
-# and roles, and gives it the permissions revoke needs to hand over or drop
-# what an agent created:
+# and roles, and gives it the permissions revoke needs to find an agent's
+# grants and to hand over or drop what an agent created:
 #
 #   CREATE USER "IAMR:p0-connector-redshift-ai-aws" PASSWORD DISABLE;
 #   GRANT ROLE "sys:secadmin" TO "IAMR:p0-connector-redshift-ai-aws";
 #   CREATE ROLE p0_connector_admin;
-#   GRANT ALTER TABLE, DROP SCHEMA, DROP FUNCTION, DROP PROCEDURE TO ROLE p0_connector_admin;
+#   GRANT ACCESS SYSTEM TABLE, ALTER TABLE, DROP SCHEMA, DROP FUNCTION, DROP PROCEDURE TO ROLE p0_connector_admin;
 #   GRANT ROLE p0_connector_admin TO "IAMR:p0-connector-redshift-ai-aws";
 
 # Completes the install. P0 checks that the connector can find the cluster and
