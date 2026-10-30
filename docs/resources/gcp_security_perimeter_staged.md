@@ -69,7 +69,7 @@ resource "p0_gcp_security_perimeter_staged" "example" {
 
 - `allowed_domains` (String) The list of domains that are allowed to access the Cloud Run service.
 - `custom_role` (Attributes) Describes the custom role that should be created and assigned to P0's service account (see [below for nested schema](#nestedatt--custom_role))
-- `image_digest` (String) The hash value of the image that is deployed to the Cloud Run service.
+- `image_digest` (String) The tag and digest of the image that is deployed to the Cloud Run service.
 - `project_reader_role` (Attributes) Describes the project reader role that should be created and assigned to P0's service account (see [below for nested schema](#nestedatt--project_reader_role))
 - `required_permissions` (List of String) A list of permissions required by the security perimeter invoker role.
 - `state` (String) This item's install progress in the P0 application:
