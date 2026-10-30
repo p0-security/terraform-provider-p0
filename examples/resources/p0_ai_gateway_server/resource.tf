@@ -11,9 +11,9 @@ resource "p0_ai_gateway_staged" "example" {
 # https://github.com/p0-security/terraform-kubernetes-p0-ai-gateway-stack
 module "ai_gateway_stack" {
   source  = "p0-security/p0-ai-gateway-stack/kubernetes"
-  version = "1.3.0"
+  version = "1.4.0"
 
-  chart_version = "1.3.0-beta"
+  chart_version = "1.4.0-beta"
   namespace     = "p0-ai-gateway"
 
   values = [
@@ -22,9 +22,11 @@ module "ai_gateway_stack" {
         env   = "prod"
         email = "admin@example.com"
       }
-      postgresql   = { storageClass = "gp2" }
-      victorialogs = { storageClass = "gp2" }
-      valkey       = { storageClass = "<encrypted-storage-class>" }
+      # local-path is for non-production only; its data is not durable.
+      # Valkey holds credentials, so production needs an encrypted storage class.
+      postgresql   = { storageClass = "local-path" }
+      victorialogs = { storageClass = "local-path" }
+      valkey       = { storageClass = "local-path" }
       "ai-gateway" = {
         gateway = {
           className = "primary"
