@@ -53,8 +53,8 @@ locals {
   # the Terraform registry: they change together. Changing them copies the
   # image again and redeploys the Lambda.
   connector_image_name   = "p0security/p0-connector-redshift-ai-aws"
-  connector_image_tag    = "sha-2acb601"
-  connector_image_digest = "sha256:47e27d55d18d4fcbd65943b143fe9cb8010a3f505d6afdf90f8dcb4fc71b2163"
+  connector_image_tag    = "sha-fc85477"
+  connector_image_digest = "sha256:b5e6942eced487dfda13d4f59e8e15c32c73acdbc214c2148a02652fb4d15d1f"
 
   tags = {
     ManagedBy  = "Terraform"
