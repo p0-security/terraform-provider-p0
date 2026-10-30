@@ -47,7 +47,7 @@ type replayProtectionModel struct {
 
 type identityProviderModel struct {
 	Id                  string                 `tfsdk:"id"`
-	Issuer              string                 `tfsdk:"issuer"`
+	Issuer              types.String           `tfsdk:"issuer"`
 	AudiencePattern     types.String           `tfsdk:"audience_pattern"`
 	SubjectPattern      types.String           `tfsdk:"subject_pattern"`
 	DynamicRegistration types.Bool             `tfsdk:"dynamic_registration"`
@@ -188,7 +188,7 @@ func (r *IdentityProvider) fromJson(ctx context.Context, diags *diag.Diagnostics
 	}
 	return &identityProviderModel{
 		Id:                  id,
-		Issuer:              json.Issuer,
+		Issuer:              types.StringValue(json.Issuer),
 		AudiencePattern:     types.StringPointerValue(json.AudiencePattern),
 		SubjectPattern:      types.StringPointerValue(json.SubjectPattern),
 		DynamicRegistration: types.BoolPointerValue(json.DynamicRegistration),
@@ -219,9 +219,13 @@ func (r *IdentityProvider) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
+	newData := identityProviderStageJson{
+		Issuer: inputData.Issuer.ValueString(),
+	}
+
 	var json identityProviderApi
 	var data identityProviderModel
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &identityProviderStageJson{Issuer: inputData.Issuer})
+	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &newData)
 	if resp.Diagnostics.HasError() {
 		return
 	}
