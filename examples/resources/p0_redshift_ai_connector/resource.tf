@@ -216,6 +216,28 @@ resource "aws_iam_role_policy" "p0_invoke_connector" {
   })
 }
 
+# Lets P0 make and remove each grant's own IAM role, on the /p0/redshift-ai/
+# path only, through the same role.
+resource "aws_iam_role_policy" "p0_manage_agent_roles" {
+  name = "${local.connector_name}-agent-roles"
+  role = local.p0_role_name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "iam:CreateRole",
+        "iam:TagRole",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:DeleteRole",
+      ]
+      Resource = "arn:aws:iam::${local.account_id}:role/p0/redshift-ai/*"
+    }]
+  })
+}
+
 # Completes the install. P0 checks that it can invoke the connector, retrying
 # for about half a minute while a new IAM policy takes effect. If the first
 # apply is denied access, apply again.
@@ -223,5 +245,8 @@ resource "p0_redshift_ai_connector" "example" {
   id     = p0_redshift_ai_connector_staged.example.id
   region = p0_redshift_ai_connector_staged.example.region
 
-  depends_on = [aws_iam_role_policy.p0_invoke_connector]
+  depends_on = [
+    aws_iam_role_policy.p0_invoke_connector,
+    aws_iam_role_policy.p0_manage_agent_roles,
+  ]
 }
