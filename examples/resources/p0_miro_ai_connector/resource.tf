@@ -63,10 +63,7 @@ resource "google_cloud_run_v2_service" "miro_ai" {
     containers {
       # P0's connector image, pinned by its tag and digest. To update, take
       # both from the latest version of this example in the Terraform registry.
-      # P0 hasn't published the Miro (AI) image yet, so this is a placeholder
-      # until it does: take the image from the connector's Terraform in the P0
-      # app.
-      image = "docker.io/p0security/p0-connector-miro-ai-gcloud:sha-0000000@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      image = "docker.io/p0security/p0-connector-miro-ai-gcloud:sha-7228840@sha256:302594174dd95d46539e2c000dcaadb4322ff940f7db94272631ca1a8c0348a6"
 
       # The connector accepts calls from this identity alone, and refuses every
       # call while it is unset.

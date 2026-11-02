@@ -38,11 +38,9 @@ locals {
     log_retention_days = 30
     # P0's connector image: its tag on Docker Hub, and the digest that tag must
     # resolve to. To update, take both from the latest version of this example
-    # in the Terraform registry: they change together. P0 hasn't published the
-    # Miro (AI) image yet, so these are placeholders until it does: take the tag
-    # and digest from the connector's Terraform in the P0 app.
-    image_tag    = "sha-0000000"
-    image_digest = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    # in the Terraform registry: they change together.
+    image_tag    = "sha-7228840"
+    image_digest = "sha256:40717d1d6f58958efa7d6467e31650f1733a6e0382368f550a911df19a1a07b1"
   }
 }
 
