@@ -6,6 +6,7 @@ package accesspolicy
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -127,4 +128,50 @@ func (v exclusiveToType) ValidateObject(_ context.Context, req validator.ObjectR
 			}
 		}
 	}
+}
+
+// bundlePolicyPrefix is the name prefix of the policy rule each access bundle
+// owns (`bundle:<bundleId>`), written by the P0 app's bundles API.
+const bundlePolicyPrefix = "bundle:"
+
+// notBundlePolicyName rejects policy names that start with `bundle:`. Policy
+// names match case-insensitively, so a policy with that name would overwrite
+// a bundle's rule, and destroying it would delete the rule.
+type notBundlePolicyName struct{}
+
+// NotBundlePolicyName returns a string validator rejecting names reserved for
+// access bundles.
+func NotBundlePolicyName() validator.String {
+	return notBundlePolicyName{}
+}
+
+func (v notBundlePolicyName) Description(_ context.Context) string {
+	return fmt.Sprintf("must not start with %q, which is reserved for access bundles", bundlePolicyPrefix)
+}
+
+func (v notBundlePolicyName) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v notBundlePolicyName) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+
+	name := req.ConfigValue.ValueString()
+	if !strings.HasPrefix(strings.ToLower(name), bundlePolicyPrefix) {
+		return
+	}
+
+	bundleId := name[len(bundlePolicyPrefix):]
+	resp.Diagnostics.AddAttributeError(
+		req.Path,
+		"Reserved policy name",
+		fmt.Sprintf("Policy names starting with %q belong to access bundles; %q is the policy of bundle %q. "+
+			"Manage the bundle with `p0_access_bundle` instead:\n\n"+
+			"1. Replace this resource with a `removed` block so Terraform stops managing it without deleting the rule:\n\n"+
+			"   removed {\n     from = <this resource's address>\n     lifecycle {\n       destroy = false\n     }\n   }\n\n"+
+			"2. Import the bundle as `p0_access_bundle` with the ID %q.",
+			bundlePolicyPrefix, name, bundleId, bundleId),
+	)
 }
