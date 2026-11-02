@@ -32,6 +32,11 @@ type P0ProviderData struct {
 	// at once, and P0 limits requests per IP address, so retrying only the
 	// refused request lets the others keep the limit exhausted.
 	Throttle *Throttle
+	// PolicyWriteLock is shared the same way, and is held around every write
+	// to policy config. P0 keeps all of an org's policies in one document and
+	// gives up on a write after a few contended attempts, so concurrent policy
+	// writes from one apply would otherwise fail.
+	PolicyWriteLock *sync.Mutex
 }
 
 // Throttle holds the time until which requests to P0 should wait after a 429.
