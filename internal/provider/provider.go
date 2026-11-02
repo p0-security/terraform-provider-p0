@@ -89,9 +89,10 @@ type P0Provider struct {
 
 // P0ProviderModel describes the provider data model.
 type P0ProviderModel struct {
-	Host     types.String `tfsdk:"host"`
-	Org      types.String `tfsdk:"org"`
-	ApiToken types.String `tfsdk:"api_token"`
+	Host                   types.String `tfsdk:"host"`
+	Org                    types.String `tfsdk:"org"`
+	ApiToken               types.String `tfsdk:"api_token"`
+	EnablePreviewResources types.Bool   `tfsdk:"enable_preview_resources"`
 }
 
 func (p *P0Provider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -123,6 +124,10 @@ identified in P0 API logs.`,
 				MarkdownDescription: "Your P0 API token. If unset, falls back to the `P0_API_TOKEN` environment variable.",
 				Optional:            true,
 				Sensitive:           true,
+			},
+			"enable_preview_resources": schema.BoolAttribute{
+				MarkdownDescription: "Set to `true` to use preview resources. Defaults to `false`. Preview resources may change their schema in a minor version of this provider, so pin the provider version when you use them.",
+				Optional:            true,
 			},
 		},
 	}
@@ -189,8 +194,9 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		BaseUrl:        fmt.Sprintf("%s/o/%s", p0_host, model.Org.ValueString()),
 		// Each resource gets its own copy of data; they share this throttle,
 		// so a 429 on any of them pauses them all.
-		Throttle:        internal.NewThrottle(),
-		PolicyWriteLock: &sync.Mutex{},
+		Throttle:                internal.NewThrottle(),
+		PolicyWriteLock:         &sync.Mutex{},
+		PreviewResourcesEnabled: model.EnablePreviewResources.ValueBool(),
 	}
 	resp.DataSourceData = data
 	resp.ResourceData = data
