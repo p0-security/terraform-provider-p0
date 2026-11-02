@@ -21,6 +21,7 @@ const (
 	SharedDrive      = "shared-drive"
 	Organization     = "organization"
 	Account          = "account"
+	Team             = "team"
 	Site             = "site"
 	PoolAccount      = "pool-account"
 	Tenant           = "tenant"
