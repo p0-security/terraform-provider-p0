@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
 const bundleAddress = "p0_access_bundle.deploy"
@@ -349,8 +350,8 @@ resource "p0_access_bundle" "deploy" {
 	})
 }
 
-// TestAccessBundleRequiresPreview checks that planning and importing a
-// bundle fail while enable_preview_resources is off.
+// TestAccessBundleRequiresPreview checks that planning a bundle fails while
+// enable_preview_resources is off.
 func TestAccessBundleRequiresPreview(t *testing.T) {
 	f := newFakePolicyP0(t)
 	resource.UnitTest(t, resource.TestCase{
@@ -361,6 +362,20 @@ func TestAccessBundleRequiresPreview(t *testing.T) {
 				PlanOnly:    true,
 				ExpectError: regexp.MustCompile(`p0_access_bundle is a preview resource`),
 			},
+		},
+	})
+}
+
+// TestAccessBundleImportRequiresPreview checks that importing a bundle fails
+// while enable_preview_resources is off. Import blocks need Terraform 1.5.
+func TestAccessBundleImportRequiresPreview(t *testing.T) {
+	f := newFakePolicyP0(t)
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(tfversion.Version1_5_0),
+		},
+		Steps: []resource.TestStep{
 			{
 				Config: strings.Replace(bundleConfig(f, "Deploy", gcloudArgs), "enable_preview_resources = true", "enable_preview_resources = false", 1) + `
 import {
