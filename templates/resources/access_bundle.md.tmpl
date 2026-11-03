@@ -1,0 +1,47 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.RenderedProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+~> **Preview.** Access bundles are generally available in P0, but this resource is in preview. Set `enable_preview_resources = true` in the provider block to use it. Its schema may change in a minor version of this provider, so pin the provider version.
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile "examples/resources/p0_access_bundle/resource.tf" }}
+
+Each item's `args` is the item's arguments as a JSON object, the same arguments a request for that access takes. Write it with `jsonencode`. Key order and whitespace in `args` don't cause a diff.
+
+## Import
+
+Find the bundle's ID in the P0 app: on the **Policies** page, switch to **Access Bundles** and open the bundle. The ID is the last part of the page's URL, after `bundles/edit/`. Then write an `import` block and let Terraform generate the bundle's configuration:
+
+{{ tffile "examples/resources/p0_access_bundle/import.tf" }}
+
+Run `terraform plan -generate-config-out=bundles.tf`, review `bundles.tf`, and apply. A plan after the apply shows no changes.
+
+## The bundle's policy rule
+
+P0 makes a bundle requestable through a policy rule named `bundle:<id>`, which this resource reports as `policy_name`. P0 writes the rule from the bundle's `requestor`, `approval` and `disabled`. When `requestor` is unset, anyone can request the bundle, and when `approval` is unset or empty, a P0 security reviewer must approve the request.
+
+Manage the rule through this resource, not by editing it. If the rule is deleted or changed outside Terraform, for example in the policy editor, the next plan shows an update to this bundle with a warning, and applying it rewrites the rule.
+
+`p0_access_policy` can't manage a rule whose name starts with `bundle:`, because that rule belongs to a bundle: P0 would overwrite the policy's changes the next time the bundle changes, and destroying the policy would delete the rule. If you imported a bundle's rule as `p0_access_policy` before this resource existed, move it over:
+
+1. Replace the `p0_access_policy` resource with a `removed` block, so Terraform forgets it without deleting the rule.
+2. Import the bundle as `p0_access_bundle`, using the ID after `bundle:`.
+
+{{ tffile "examples/resources/p0_access_bundle/migrate.tf" }}
+
+## Editing a bundle in both Terraform and the P0 app
+
+Terraform owns the whole bundle. If someone edits it in the P0 app, the next plan shows the difference, and applying it puts back the Terraform configuration. To keep a change made in the app, copy it into the configuration before the next apply.
+
+If the bundle is deleted in the P0 app, the next plan creates it again, with a new ID.
+
+{{ .SchemaMarkdown | trimspace }}
