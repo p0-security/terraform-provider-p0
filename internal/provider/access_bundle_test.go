@@ -233,7 +233,8 @@ const gcloudArgs = `jsonencode({ project = "prod", name = ["roles/editor"] })`
 // returns them sorted and compact, as encoding/json does.
 const gcloudArgsReordered = `"{ \"name\": [\"roles/editor\"],  \"project\": \"prod\" }"`
 
-func checkBundleRule(f *fakePolicyP0, approvalType string) resource.TestCheckFunc {
+// Checks that the bundle's rule exists and has the bundle's one group approval.
+func checkBundleRule(f *fakePolicyP0) resource.TestCheckFunc {
 	return func(*terraform.State) error {
 		name := "bundle:" + f.bundleId()
 		rule := f.policy(name)
@@ -241,9 +242,11 @@ func checkBundleRule(f *fakePolicyP0, approvalType string) resource.TestCheckFun
 			return fmt.Errorf("P0 has no rule %q", name)
 		}
 		approval, _ := rule["approval"].([]any)
-		first, _ := approval[0].(map[string]any)
-		if len(approval) != 1 || first["type"] != approvalType {
-			return fmt.Errorf("rule %q has approval %v, want one %q approval", name, approval, approvalType)
+		if len(approval) != 1 {
+			return fmt.Errorf("rule %q has approval %v, want the bundle's group approval", name, approval)
+		}
+		if first, _ := approval[0].(map[string]any); first["type"] != "group" {
+			return fmt.Errorf("rule %q has approval %v, want the bundle's group approval", name, approval)
 		}
 		return nil
 	}
@@ -274,7 +277,7 @@ func TestAccessBundleLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttr(bundleAddress, "created_by", "terraform"),
 					resource.TestCheckResourceAttr(bundleAddress, "items.#", "2"),
 					resource.TestCheckResourceAttr(bundleAddress, "items.1.access", "permission-set"),
-					checkBundleRule(f, "group"),
+					checkBundleRule(f),
 				),
 			},
 			{
@@ -386,13 +389,13 @@ func TestAccessBundleDrift(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: config,
-				Check:  checkBundleRule(f, "group"),
+				Check:  checkBundleRule(f),
 			},
 			{
 				PreConfig:        func() { f.updatePolicy("bundle:"+f.bundleId(), nil) },
 				Config:           config,
 				ConfigPlanChecks: expectUpdate,
-				Check:            checkBundleRule(f, "group"),
+				Check:            checkBundleRule(f),
 			},
 			{
 				PreConfig: func() {
@@ -402,7 +405,7 @@ func TestAccessBundleDrift(t *testing.T) {
 				},
 				Config:           config,
 				ConfigPlanChecks: expectUpdate,
-				Check:            checkBundleRule(f, "group"),
+				Check:            checkBundleRule(f),
 			},
 			{
 				PreConfig: func() {
