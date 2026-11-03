@@ -6,10 +6,12 @@ package installidentityprovider
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -43,6 +45,11 @@ type IdentityProvider struct {
 type replayProtectionModel struct {
 	Type         string  `tfsdk:"type" json:"type"`
 	GraceSeconds *string `tfsdk:"grace_seconds" json:"graceSeconds,omitempty"`
+}
+
+var replayProtectionAttrTypes = map[string]attr.Type{
+	"type":          types.StringType,
+	"grace_seconds": types.StringType,
 }
 
 type identityProviderModel struct {
@@ -125,6 +132,14 @@ otherwise, identities must be manually pre-registered`,
 			},
 			"replay_protection": schema.SingleNestedAttribute{
 				Optional: true,
+				// Computed, with a default: P0 stores 'disabled' when this is unset and returns it
+				// on every read, so a config that omits it would otherwise plan a diff after an
+				// import, and fail Terraform's post-apply consistency check on create.
+				Computed: true,
+				Default: objectdefault.StaticValue(types.ObjectValueMust(
+					replayProtectionAttrTypes,
+					map[string]attr.Value{"type": types.StringValue("disabled"), "grace_seconds": types.StringNull()},
+				)),
 				MarkdownDescription: `Whether this provider's tokens may be presented more than once. Defaults to 'disabled' (replay allowed):
     - 'disabled': the token may be presented any number of times
     - 'strict': the token may only be presented once

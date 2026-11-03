@@ -35,8 +35,8 @@ type GcpWifIdentityStaged struct {
 
 type gcpWifIdentityStagedModel struct {
 	Id              string       `tfsdk:"id"`
-	ProjectId       string       `tfsdk:"project_id"`
-	OidcProviderUrl string       `tfsdk:"oidc_provider_url"`
+	ProjectId       types.String `tfsdk:"project_id"`
+	OidcProviderUrl types.String `tfsdk:"oidc_provider_url"`
 	Audience        types.String `tfsdk:"audience"`
 }
 
@@ -130,8 +130,8 @@ func (r *GcpWifIdentityStaged) fromJson(ctx context.Context, diags *diag.Diagnos
 	}
 	return &gcpWifIdentityStagedModel{
 		Id:              id,
-		ProjectId:       json.ProjectId,
-		OidcProviderUrl: json.OidcProviderUrl,
+		ProjectId:       types.StringValue(json.ProjectId),
+		OidcProviderUrl: types.StringValue(json.OidcProviderUrl),
 		Audience:        types.StringPointerValue(json.Audience),
 	}
 }
@@ -146,10 +146,12 @@ func (r *GcpWifIdentityStaged) Create(ctx context.Context, req resource.CreateRe
 	var json gcpWifIdentityStagedApi
 	var data gcpWifIdentityStagedModel
 	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &gcpWifIdentityStageJson{
-		ProjectId:       inputData.ProjectId,
-		OidcProviderUrl: inputData.OidcProviderUrl,
-	})
+	newData := gcpWifIdentityStageJson{
+		ProjectId:       inputData.ProjectId.ValueString(),
+		OidcProviderUrl: inputData.OidcProviderUrl.ValueString(),
+	}
+
+	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &newData)
 }
 
 func (r *GcpWifIdentityStaged) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -168,10 +170,12 @@ func (r *GcpWifIdentityStaged) Update(ctx context.Context, req resource.UpdateRe
 	var json gcpWifIdentityStagedApi
 	var data gcpWifIdentityStagedModel
 	r.installer.EnsureConfig(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &data)
-	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &gcpWifIdentityStageJson{
-		ProjectId:       inputData.ProjectId,
-		OidcProviderUrl: inputData.OidcProviderUrl,
-	})
+	newData := gcpWifIdentityStageJson{
+		ProjectId:       inputData.ProjectId.ValueString(),
+		OidcProviderUrl: inputData.OidcProviderUrl.ValueString(),
+	}
+
+	r.installer.Stage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data, &newData)
 }
 
 func (r *GcpWifIdentityStaged) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
