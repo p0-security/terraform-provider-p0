@@ -497,3 +497,72 @@ func TestAgentAttributeDocumentsAgentClient(t *testing.T) {
 		t.Errorf("`client_id` description does not note the deprecated 'mcp-client' alias:\n%s", clientIdAttr.MarkdownDescription)
 	}
 }
+
+// TestNotBundlePolicyName verifies that names reserved for access bundles are
+// rejected regardless of case, and that other names pass.
+func TestNotBundlePolicyName(t *testing.T) {
+	cases := []struct {
+		name    string
+		value   types.String
+		wantErr bool
+	}{
+		{"bundle prefix errors", types.StringValue("bundle:foo"), true},
+		{"uppercase bundle prefix errors", types.StringValue("BUNDLE:foo"), true},
+		{"mixed case bundle prefix errors", types.StringValue("Bundle:foo"), true},
+		{"ordinary name passes", types.StringValue("prod-admins"), false},
+		{"bundle without colon passes", types.StringValue("bundle-foo"), false},
+		{"bundle prefix later in the name passes", types.StringValue("my-bundle:foo"), false},
+		{"null is skipped", types.StringNull(), false},
+		{"unknown is skipped", types.StringUnknown(), false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			resp := &validator.StringResponse{}
+			NotBundlePolicyName().ValidateString(
+				context.Background(),
+				validator.StringRequest{Path: path.Root("name"), ConfigValue: c.value},
+				resp,
+			)
+			if got := resp.Diagnostics.HasError(); got != c.wantErr {
+				t.Errorf("HasError() = %v; want %v (%v)", got, c.wantErr, resp.Diagnostics)
+			}
+		})
+	}
+}
+
+// TestNotBundlePolicyNameMigrationSteps verifies the error tells the user how
+// to move a bundle's policy to `p0_access_bundle`, using the bundle ID.
+func TestNotBundlePolicyNameMigrationSteps(t *testing.T) {
+	resp := &validator.StringResponse{}
+	NotBundlePolicyName().ValidateString(
+		context.Background(),
+		validator.StringRequest{Path: path.Root("name"), ConfigValue: types.StringValue("BUNDLE:abc123")},
+		resp,
+	)
+
+	if len(resp.Diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d: %v", len(resp.Diagnostics), resp.Diagnostics)
+	}
+	detail := resp.Diagnostics[0].Detail()
+	for _, want := range []string{"removed {", "destroy = false", "p0_access_bundle", `"abc123"`} {
+		if !strings.Contains(detail, want) {
+			t.Errorf("error detail is missing %q:\n%s", want, detail)
+		}
+	}
+}
+
+// TestAccessPolicyNameRejectsBundlePrefix verifies the validator is attached to
+// `name`, which p0_access_policy and p0_routing_rule share.
+func TestAccessPolicyNameRejectsBundlePrefix(t *testing.T) {
+	nameAttr, ok := newAccessPolicySchema(currentSchemaVersion).Attributes["name"].(schema.StringAttribute)
+	if !ok {
+		t.Fatal("`name` is not a string attribute")
+	}
+	for _, v := range nameAttr.Validators {
+		if _, ok := v.(notBundlePolicyName); ok {
+			return
+		}
+	}
+	t.Error("`name` does not have the NotBundlePolicyName validator")
+}
