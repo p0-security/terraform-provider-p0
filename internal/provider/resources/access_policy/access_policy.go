@@ -295,6 +295,8 @@ func (policy *AccessPolicy) Create(ctx context.Context, req resource.CreateReque
 	json := toJson(model)
 
 	// Create the access policy
+	policy.data.PolicyWriteLock.Lock()
+	defer policy.data.PolicyWriteLock.Unlock()
 	var updatedJson AccessPolicyJson
 	_, postErr := policy.data.Post(getPath(*model.Name), &json, &updatedJson)
 	if postErr != nil {
@@ -370,6 +372,8 @@ func (policy *AccessPolicy) Update(ctx context.Context, req resource.UpdateReque
 	json := toJson(model)
 
 	// Update the access policy
+	policy.data.PolicyWriteLock.Lock()
+	defer policy.data.PolicyWriteLock.Unlock()
 	var updatedJson AccessPolicyJson
 	_, postErr := policy.data.Put(getPath(*model.Name), &json, &updatedJson)
 	if postErr != nil {
@@ -397,6 +401,8 @@ func (policy *AccessPolicy) Delete(ctx context.Context, req resource.DeleteReque
 	}
 
 	// Delete the access policy
+	policy.data.PolicyWriteLock.Lock()
+	defer policy.data.PolicyWriteLock.Unlock()
 	_, postErr := policy.data.Delete(getPath(*model.Name))
 	if postErr != nil {
 		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to delete access policy:\n%s", postErr))

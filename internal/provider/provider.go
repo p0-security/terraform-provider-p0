@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -188,7 +189,8 @@ func (p *P0Provider) Configure(ctx context.Context, req provider.ConfigureReques
 		BaseUrl:        fmt.Sprintf("%s/o/%s", p0_host, model.Org.ValueString()),
 		// Each resource gets its own copy of data; they share this throttle,
 		// so a 429 on any of them pauses them all.
-		Throttle: internal.NewThrottle(),
+		Throttle:        internal.NewThrottle(),
+		PolicyWriteLock: &sync.Mutex{},
 	}
 	resp.DataSourceData = data
 	resp.ResourceData = data
