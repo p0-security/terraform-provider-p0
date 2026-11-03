@@ -41,4 +41,5 @@ provider "p0" {
 ### Optional
 
 - `api_token` (String, Sensitive) Your P0 API token. If unset, falls back to the `P0_API_TOKEN` environment variable.
+- `enable_preview_resources` (Boolean) Set to `true` to use preview resources. Defaults to `false`. Preview resources may change their schema in a minor version of this provider, so pin the provider version when you use them.
 - `host` (String) Your P0 application API host (defaults to `https://api.p0.app`)

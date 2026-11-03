@@ -37,6 +37,9 @@ type P0ProviderData struct {
 	// gives up on a write after a few contended attempts, so concurrent policy
 	// writes from one apply would otherwise fail.
 	PolicyWriteLock *sync.Mutex
+	// PreviewResourcesEnabled mirrors the enable_preview_resources provider
+	// attribute. See RequirePreviewResources.
+	PreviewResourcesEnabled bool
 }
 
 // Throttle holds the time until which requests to P0 should wait after a 429.
