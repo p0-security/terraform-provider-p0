@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"reflect"
 	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
@@ -157,6 +158,70 @@ func bundleToModel(bundle AccessBundleJson) AccessBundleModel {
 	return model
 }
 
+// policyDriftKey is the private state key Read sets when the bundle's
+// `bundle:<id>` rule is missing or no longer matches the bundle.
+const policyDriftKey = "policy_drift"
+
+var policyDrifted = []byte(`true`)
+
+// expectedBundlePolicy is the part of the `bundle:<id>` rule that P0's
+// buildBundlePolicy derives from the bundle, with its defaults applied.
+func expectedBundlePolicy(bundle AccessBundleJson) AccessPolicyJson {
+	expected := AccessPolicyJson{
+		Disabled:  bundle.Disabled,
+		Requestor: RequestorJson{Type: "any"},
+		Approval:  []ApprovalModelV3{{Type: "p0"}},
+	}
+	if bundle.Requestor != nil {
+		expected.Requestor = *bundle.Requestor
+	}
+	if bundle.Approval != nil && len(*bundle.Approval) > 0 {
+		expected.Approval = *bundle.Approval
+	}
+	return expected
+}
+
+// withoutNulls returns value as generic JSON with null fields removed. P0
+// drops nulls when it stores a rule, while the bundle keeps them as sent.
+func withoutNulls(value any) any {
+	buf, err := json.Marshal(value)
+	if err != nil {
+		return nil
+	}
+	var generic any
+	if json.Unmarshal(buf, &generic) != nil {
+		return nil
+	}
+	var strip func(any) any
+	strip = func(v any) any {
+		switch typed := v.(type) {
+		case map[string]any:
+			for key, field := range typed {
+				if field == nil {
+					delete(typed, key)
+				} else {
+					typed[key] = strip(field)
+				}
+			}
+		case []any:
+			for i, element := range typed {
+				typed[i] = strip(element)
+			}
+		}
+		return v
+	}
+	return strip(generic)
+}
+
+// bundlePolicyMatches reports whether a rule's requestor, approval and
+// disabled are what P0 would write for the bundle.
+func bundlePolicyMatches(bundle AccessBundleJson, rule AccessPolicyJson) bool {
+	expected := expectedBundlePolicy(bundle)
+	return (expected.Disabled != nil && *expected.Disabled) == (rule.Disabled != nil && *rule.Disabled) &&
+		reflect.DeepEqual(withoutNulls(expected.Requestor), withoutNulls(rule.Requestor)) &&
+		reflect.DeepEqual(withoutNulls(expected.Approval), withoutNulls(rule.Approval))
+}
+
 func (bundle *AccessBundle) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_access_bundle"
 }
@@ -262,11 +327,30 @@ func (bundle *AccessBundle) Configure(ctx context.Context, req resource.Configur
 
 // ModifyPlan refuses to plan a bundle unless preview resources are enabled.
 // Destroying one is still allowed, so turning the flag off doesn't strand it.
+//
+// When Read found the bundle's rule changed outside Terraform, it plans an
+// update, so that apply sends the bundle again and P0 rewrites the rule.
 func (bundle *AccessBundle) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() {
 		return
 	}
 	internal.RequirePreviewResources(bundle.data, "p0_access_bundle", &resp.Diagnostics)
+	if resp.Diagnostics.HasError() || req.State.Raw.IsNull() {
+		return
+	}
+
+	drift, diags := req.Private.GetKey(ctx, policyDriftKey)
+	resp.Diagnostics.Append(diags...)
+	if drift == nil {
+		return
+	}
+	var policyName types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("policy_name"), &policyName)...)
+	resp.Diagnostics.AddWarning(
+		"Access bundle policy rule changed outside Terraform",
+		fmt.Sprintf("The policy rule %q no longer matches this bundle. Applying will update the bundle, which rewrites the rule.", policyName.ValueString()),
+	)
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("updated_at"), types.Int64Unknown())...)
 }
 
 func (bundle *AccessBundle) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -290,6 +374,8 @@ func (bundle *AccessBundle) Create(ctx context.Context, req resource.CreateReque
 	}
 
 	diag.Append(resp.State.Set(ctx, bundleToModel(created.Bundle))...)
+	// P0 just wrote the rule from this bundle.
+	diag.Append(resp.Private.SetKey(ctx, policyDriftKey, nil)...)
 }
 
 func (bundle *AccessBundle) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -314,6 +400,19 @@ func (bundle *AccessBundle) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 
 	diag.Append(resp.State.Set(ctx, bundleToModel(read.Bundle))...)
+
+	var rule AccessPolicyJson
+	ruleResponse, ruleErr := bundle.data.Get(getPath(bundlePolicyName(read.Bundle.Id)), &rule)
+	if ruleErr != nil && (ruleResponse == nil || ruleResponse.StatusCode != 404) {
+		diag.AddError("Error communicating with P0", fmt.Sprintf("Unable to read access bundle policy rule:\n%s", ruleErr))
+		return
+	}
+	var drift []byte
+	if ruleErr != nil || !bundlePolicyMatches(read.Bundle, rule) {
+		tflog.Debug(ctx, "Access bundle policy rule is missing or changed")
+		drift = policyDrifted
+	}
+	diag.Append(resp.Private.SetKey(ctx, policyDriftKey, drift)...)
 }
 
 func (bundle *AccessBundle) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -337,6 +436,8 @@ func (bundle *AccessBundle) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	diag.Append(resp.State.Set(ctx, bundleToModel(updated.Bundle))...)
+	// P0 just wrote the rule from this bundle.
+	diag.Append(resp.Private.SetKey(ctx, policyDriftKey, nil)...)
 }
 
 func (bundle *AccessBundle) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
