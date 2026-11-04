@@ -40,6 +40,7 @@ import (
 	installdatadogai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/datadog-ai"
 	installdocker "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/docker"
 	installdynamodbai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/dynamodb-ai"
+	installentraid "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/entra-id"
 	installfiletransfer "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/file_transfer"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
 	installgcpcloudsql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloudsql"
@@ -327,6 +328,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installtableauai.NewTableauAiCredential,
 		installlookerai.NewLookerAiCredentialStaged,
 		installlookerai.NewLookerAiCredential,
+		installentraid.NewEntraIdStaged,
+		installentraid.NewEntraId,
 		installgithubrepositories.NewRepositoryAccess,
 		installgithub.NewRepositoryAccess,
 		installdatabricks.NewConnectorStaged,
