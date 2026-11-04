@@ -15,20 +15,23 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-// An in-memory stand-in for P0's policy API that refuses a write while another
-// is in flight, the way P0's Firestore transaction on the org's one policy
-// document gives up under contention.
+// An in-memory stand-in for P0's policy and bundles APIs that refuses a write
+// while another is in flight, the way P0's Firestore transaction on the org's
+// one policy document gives up under contention. Bundle writes also write
+// their `bundle:<id>` rule, so they contend the same way.
 type fakePolicyP0 struct {
 	server *httptest.Server
 
 	mu       sync.Mutex
 	policies map[string]json.RawMessage
+	bundles  map[string]map[string]any
+	nextId   int
 	writing  bool
 	overlaps int
 }
 
 func newFakePolicyP0(t *testing.T) *fakePolicyP0 {
-	f := &fakePolicyP0{policies: map[string]json.RawMessage{}}
+	f := &fakePolicyP0{policies: map[string]json.RawMessage{}, bundles: map[string]map[string]any{}}
 
 	mux := http.NewServeMux()
 	policy := "/o/" + fakeOrg + "/policy/name/{name}"
@@ -36,6 +39,11 @@ func newFakePolicyP0(t *testing.T) *fakePolicyP0 {
 	mux.HandleFunc("PUT "+policy, f.write)
 	mux.HandleFunc("DELETE "+policy, f.write)
 	mux.HandleFunc("GET "+policy, f.read)
+	bundles := "/o/" + fakeOrg + "/bundles"
+	mux.HandleFunc("POST "+bundles, f.writeBundle)
+	mux.HandleFunc("PUT "+bundles+"/{id}", f.writeBundle)
+	mux.HandleFunc("DELETE "+bundles+"/{id}", f.deleteBundle)
+	mux.HandleFunc("GET "+bundles+"/{id}", f.readBundle)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("unexpected request to the fake P0 API: %s %s", r.Method, r.URL.Path)
 		notFound(w)
@@ -46,24 +54,37 @@ func newFakePolicyP0(t *testing.T) *fakePolicyP0 {
 	return f
 }
 
-func (f *fakePolicyP0) write(w http.ResponseWriter, r *http.Request) {
+// beginWrite refuses the request if another write is in flight. Otherwise it
+// keeps this one in flight long enough that unserialized writes overlap, and
+// returns holding f.mu; the caller must call endWrite.
+func (f *fakePolicyP0) beginWrite(w http.ResponseWriter) bool {
 	f.mu.Lock()
 	if f.writing {
 		f.overlaps++
 		f.mu.Unlock()
 		http.Error(w, `{"error":"10 ABORTED: Too much contention on these documents. Please try again."}`, http.StatusInternalServerError)
-		return
+		return false
 	}
 	f.writing = true
 	f.mu.Unlock()
 
-	// Stay in flight long enough that unserialized writes overlap.
 	time.Sleep(20 * time.Millisecond)
-	body, _ := io.ReadAll(r.Body)
 
 	f.mu.Lock()
-	defer f.mu.Unlock()
+	return true
+}
+
+func (f *fakePolicyP0) endWrite() {
 	f.writing = false
+	f.mu.Unlock()
+}
+
+func (f *fakePolicyP0) write(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	if !f.beginWrite(w) {
+		return
+	}
+	defer f.endWrite()
 
 	name := r.PathValue("name")
 	if r.Method == http.MethodDelete {
