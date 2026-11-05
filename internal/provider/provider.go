@@ -35,6 +35,7 @@ import (
 	installawssm "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-sm"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
 	installclickhouse "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/clickhouse"
+	installcloudflareai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/cloudflare-ai"
 	installdatabricks "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/databricks"
 	installdatabricksai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/databricks-ai"
 	installdatadogai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/datadog-ai"
@@ -309,6 +310,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installgcpwif.NewGcpWifIdentity,
 		installgithubai.NewGithubAiCredentialStaged,
 		installgithubai.NewGithubAiCredential,
+		installcloudflareai.NewCloudflareAiCredentialStaged,
+		installcloudflareai.NewCloudflareAiCredential,
 		installdatadogai.NewDatadogAiCredentialStaged,
 		installdatadogai.NewDatadogAiCredential,
 		installgitlabai.NewGitlabAiCredentialStaged,
