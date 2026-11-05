@@ -49,12 +49,12 @@ resource "google_service_account" "p0_security_perimeter_sa" {
   project      = local.project
 }
 
-# P0-proprietary connector image pinned to the staged image_digest; P0 verifies
-# the deployed digest matches exactly at install, so a floating tag like :latest
-# fails. DOMAIN_ALLOW_PATTERN uses the staged allowed_domains so the deployed
-# service enforces exactly the domain pattern P0 records at install (same source
-# as the final install below). GCLOUD_PROJECT points at the P0 production project
-# so the service can authenticate callers from P0.
+# P0-proprietary connector image pinned to the staged image_digest, which is the
+# image tag and digest; Cloud Run pulls by the digest. P0 checks only the image
+# repository at install. DOMAIN_ALLOW_PATTERN uses the staged allowed_domains so
+# the deployed service enforces exactly the domain pattern P0 records at install
+# (same source as the final install below). GCLOUD_PROJECT points at the P0
+# production project so the service can authenticate callers from P0.
 resource "google_cloud_run_service" "p0_security_perimeter" {
   name     = "p0-security-perimeter-prod"
   project  = local.project
@@ -71,6 +71,11 @@ resource "google_cloud_run_service" "p0_security_perimeter" {
         env {
           name  = "GCLOUD_PROJECT"
           value = local.p0_project_id
+        }
+        # INVOKER_SA_EMAIL is the email of the service account you are using to configure P0
+        env {
+          name  = "INVOKER_SA_EMAIL"
+          value = p0_gcp.example.service_account_email
         }
       }
       service_account_name = google_service_account.p0_security_perimeter_sa.email
