@@ -48,6 +48,7 @@ import (
 	installgcpcloudsql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloudsql"
 	installgcpserviceaccount "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-service-account"
 	installgcpwif "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-wif"
+	installgitguardianai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gitguardian-ai"
 	installgithub "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github"
 	installgithubai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-ai"
 	installgithubrepositories "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github-repositories"
@@ -313,6 +314,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installawsoidc.NewAwsOidcIdentity,
 		installgcpwif.NewGcpWifIdentityStaged,
 		installgcpwif.NewGcpWifIdentity,
+		installgitguardianai.NewGitguardianAiCredentialStaged,
+		installgitguardianai.NewGitguardianAiCredential,
 		installgithubai.NewGithubAiCredentialStaged,
 		installgithubai.NewGithubAiCredential,
 		installcloudflareai.NewCloudflareAiCredentialStaged,
