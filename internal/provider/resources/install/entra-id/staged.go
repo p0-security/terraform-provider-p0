@@ -33,8 +33,8 @@ type entraIdStagedModel struct {
 }
 
 type entraIdStagedJson struct {
-	SovereignCloudId *string `json:"sovereignCloudId,omitempty"`
-	State            *string `json:"state,omitempty"`
+	SovereignCloudId *optionJson `json:"sovereignCloudId,omitempty"`
+	State            *string     `json:"state,omitempty"`
 }
 
 type entraIdStagedApi struct {
@@ -117,7 +117,7 @@ func (r *EntraIdStaged) fromJson(_ context.Context, _ *diag.Diagnostics, id stri
 	}
 	return &entraIdStagedModel{
 		TenantId:            types.StringValue(id),
-		SovereignCloudId:    sovereignCloudIdFromJson(jsonv.SovereignCloudId),
+		SovereignCloudId:    optionFromJson(jsonv.SovereignCloudId, sovereignClouds[0]),
 		ServiceAccountId:    types.StringNull(),
 		ServiceAccountEmail: types.StringNull(),
 		State:               types.StringPointerValue(jsonv.State),
@@ -129,7 +129,7 @@ func (r *EntraIdStaged) toJson(data any) any {
 	if !ok {
 		return nil
 	}
-	return &entraIdStagedJson{SovereignCloudId: datav.SovereignCloudId.ValueStringPointer()}
+	return &entraIdStagedJson{SovereignCloudId: optionToJson(datav.SovereignCloudId)}
 }
 
 // Sets the service account fields from the base item that P0 made when it staged the

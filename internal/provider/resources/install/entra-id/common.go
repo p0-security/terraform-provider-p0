@@ -58,13 +58,25 @@ func sovereignCloudIdAttribute(suffix string) schema.StringAttribute {
 	}
 }
 
-// P0 defaults the cloud to AzureCloud, so an item without one, such as an import of
-// an install made in the app, matches the default and isn't replaced.
-func sovereignCloudIdFromJson(value *string) types.String {
-	if value == nil {
-		return types.StringValue(sovereignClouds[0])
+// P0 holds the cloud and the email field as objects with the chosen option in "type".
+type optionJson struct {
+	Type string `json:"type"`
+}
+
+func optionToJson(value types.String) *optionJson {
+	if value.IsNull() || value.IsUnknown() {
+		return nil
 	}
-	return types.StringValue(*value)
+	return &optionJson{Type: value.ValueString()}
+}
+
+// P0 defaults both options, so an item without one, such as an import of an install
+// made in the app, matches the default and isn't replaced.
+func optionFromJson(value *optionJson, fallback string) types.String {
+	if value == nil {
+		return types.StringValue(fallback)
+	}
+	return types.StringValue(value.Type)
 }
 
 func basePath(tenantId string) string {
