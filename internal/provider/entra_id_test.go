@@ -65,6 +65,16 @@ func (f *entraFake) base() map[string]any {
 	return f.item("entra-id", "base", entraTenantId)
 }
 
+// The option P0 holds in an item's field, as {"type": option}, the way the app writes
+// it. Anything else, such as a bare string, reads as no option.
+func option(item map[string]any, field string) any {
+	value, ok := item[field].(map[string]any)
+	if !ok {
+		return nil
+	}
+	return value["type"]
+}
+
 func entraStagedConfig(f *entraFake, cloud string) string {
 	cloudLine := ""
 	if cloud != "" {
@@ -120,7 +130,7 @@ func TestEntraId(t *testing.T) {
 					resource.TestCheckResourceAttr(entraStaged, "service_account_id", entraSaId),
 					resource.TestCheckResourceAttr(entraStaged, "service_account_email", entraSaEmail),
 					func(*terraform.State) error {
-						if item := f.iamWrite(); item["sovereignCloudId"] != "AzureCloud" {
+						if item := f.iamWrite(); option(item, "sovereignCloudId") != "AzureCloud" {
 							return fmt.Errorf("P0 item does not hold the cloud: %v", item)
 						}
 						return nil
@@ -139,7 +149,7 @@ func TestEntraId(t *testing.T) {
 					func(*terraform.State) error {
 						item := f.iamWrite()
 						if item["state"] != "installed" || item["clientId"] != entraClientId ||
-							item["emailField"] != "userPrincipalName" || item["sovereignCloudId"] != "AzureCloud" {
+							option(item, "emailField") != "userPrincipalName" || option(item, "sovereignCloudId") != "AzureCloud" {
 							return fmt.Errorf("P0 item is not installed with the caller app: %v", item)
 						}
 						return nil
@@ -173,7 +183,7 @@ func TestEntraId(t *testing.T) {
 					},
 				},
 				Check: func(*terraform.State) error {
-					if item := f.iamWrite(); item["state"] != "installed" || item["emailField"] != "mail" {
+					if item := f.iamWrite(); item["state"] != "installed" || option(item, "emailField") != "mail" {
 						return fmt.Errorf("P0 item does not hold the new email field: %v", item)
 					}
 					return nil
@@ -193,7 +203,7 @@ func TestEntraId(t *testing.T) {
 					resource.TestCheckResourceAttr(entraStaged, "service_account_id", entraSaId),
 					resource.TestCheckResourceAttr(entraFinal, "state", "installed"),
 					func(*terraform.State) error {
-						if item := f.iamWrite(); item["sovereignCloudId"] != "AzureUSGovernment" || item["state"] != "installed" {
+						if item := f.iamWrite(); option(item, "sovereignCloudId") != "AzureUSGovernment" || item["state"] != "installed" {
 							return fmt.Errorf("P0 item does not hold the new cloud: %v", item)
 						}
 						return nil

@@ -34,11 +34,11 @@ type entraIdModel struct {
 }
 
 type entraIdJson struct {
-	SovereignCloudId *string `json:"sovereignCloudId,omitempty"`
-	ClientId         *string `json:"clientId,omitempty"`
-	EmailField       *string `json:"emailField,omitempty"`
-	Label            *string `json:"label,omitempty"`
-	State            *string `json:"state,omitempty"`
+	SovereignCloudId *optionJson `json:"sovereignCloudId,omitempty"`
+	ClientId         *string     `json:"clientId,omitempty"`
+	EmailField       *optionJson `json:"emailField,omitempty"`
+	Label            *string     `json:"label,omitempty"`
+	State            *string     `json:"state,omitempty"`
 }
 
 type entraIdApi struct {
@@ -132,17 +132,11 @@ func (r *EntraId) fromJson(_ context.Context, _ *diag.Diagnostics, id string, js
 	if !ok {
 		return nil
 	}
-	// P0 defaults the field to userPrincipalName, so an item without one matches the
-	// default.
-	emailField := types.StringValue(emailFields[0])
-	if jsonv.EmailField != nil {
-		emailField = types.StringValue(*jsonv.EmailField)
-	}
 	return &entraIdModel{
 		TenantId:         types.StringValue(id),
-		SovereignCloudId: sovereignCloudIdFromJson(jsonv.SovereignCloudId),
+		SovereignCloudId: optionFromJson(jsonv.SovereignCloudId, sovereignClouds[0]),
 		ClientId:         types.StringPointerValue(jsonv.ClientId),
-		EmailField:       emailField,
+		EmailField:       optionFromJson(jsonv.EmailField, emailFields[0]),
 		Label:            types.StringPointerValue(jsonv.Label),
 		State:            types.StringPointerValue(jsonv.State),
 	}
@@ -156,7 +150,7 @@ func (r *EntraId) toJson(data any) any {
 	// The cloud is fixed at staging, so it isn't sent.
 	return &entraIdJson{
 		ClientId:   datav.ClientId.ValueStringPointer(),
-		EmailField: datav.EmailField.ValueStringPointer(),
+		EmailField: optionToJson(datav.EmailField),
 	}
 }
 
