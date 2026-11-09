@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -54,11 +55,33 @@ type awsIamWriteLoginProviderModel struct {
 	Method           *awsIamWriteLoginProviderMethodModel `json:"method" tfsdk:"method"`
 }
 
+// A field that is null in the plan is left out, so that P0 keeps the stored value.
 type awsIamWriteLoginModel struct {
-	Type     string                         `json:"type" tfsdk:"type"`
-	Identity *awsIamWriteLoginIdentityModel `json:"identity" tfsdk:"identity"`
-	Parent   *string                        `json:"parent" tfsdk:"parent"`
-	Provider *awsIamWriteLoginProviderModel `json:"provider" tfsdk:"provider"`
+	Type         string                         `json:"type" tfsdk:"type"`
+	Identity     *awsIamWriteLoginIdentityModel `json:"identity" tfsdk:"identity"`
+	Parent       *string                        `json:"parent" tfsdk:"parent"`
+	Provider     *awsIamWriteLoginProviderModel `json:"provider,omitempty" tfsdk:"provider"`
+	Federation   *string                        `json:"federation,omitempty" tfsdk:"federation"`
+	SamlProvider *string                        `json:"samlProvider,omitempty" tfsdk:"saml_provider"`
+}
+
+// Removes the federation fields that managed does not hold, so that the state holds
+// only the fields that the configuration manages. P0 copies a federation app's
+// provider into the login, and an expand migration adds the federation app to a login.
+func keepManagedFederation(login, managed *awsIamWriteLoginModel) {
+	// An import has no prior login, so the first plan decides what is managed
+	if login == nil || managed == nil {
+		return
+	}
+	if managed.Provider == nil {
+		login.Provider = nil
+	}
+	if managed.Federation == nil {
+		login.Federation = nil
+	}
+	if managed.SamlProvider == nil {
+		login.SamlProvider = nil
+	}
 }
 
 type awsIamWriteModel struct {
@@ -156,7 +179,7 @@ For the full install steps, see [Setting up AWS IAM management](https://docs.p0.
     - 'idc': Users log in via Identity Center (formerly 'SSO'); 'parent' and 'identity' attributes are required
     - 'merged-idc': Users log in via Identity Center using a single shared permission set per principal; requires a
        separately installed AWS Identity Center (merged) integration (see the 'aws_midc' resource); 'parent' attribute is required
-    - 'federated': Users log in via a federated identity provider; 'provider' attribute is required`,
+    - 'federated': Users log in via a federation app; 'federation' and 'saml_provider', or 'provider', are required`,
 						Validators: []validator.String{
 							stringvalidator.AnyWithAllWarnings(
 								stringvalidator.All(
@@ -181,12 +204,7 @@ For the full install steps, see [Setting up AWS IAM management](https://docs.p0.
 										path.MatchRelative().AtParent().AtName("identity"),
 									),
 								),
-								stringvalidator.All(
-									stringvalidator.OneOf("federated"),
-									stringvalidator.AlsoRequires(
-										path.MatchRelative().AtParent().AtName("provider"),
-									),
-								),
+								stringvalidator.OneOf("federated"),
 							),
 						},
 					},
@@ -237,9 +255,30 @@ For the full install steps, see [Setting up AWS IAM management](https://docs.p0.
 							stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
 						},
 					},
+					"federation": schema.StringAttribute{
+						Optional:            true,
+						MarkdownDescription: `The ID of the 'p0_aws_federation' app that users log in with (used by the 'federated' login type)`,
+						Validators: []validator.String{
+							stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("saml_provider")),
+							stringvalidator.ConflictsWith(
+								path.MatchRelative().AtParent().AtName("provider"),
+								path.MatchRelative().AtParent().AtName("identity"),
+								path.MatchRelative().AtParent().AtName("parent"),
+							),
+						},
+					},
+					"saml_provider": schema.StringAttribute{
+						Optional: true,
+						MarkdownDescription: `The name of the IAM SAML identity provider in this account that trusts the federation app,
+defined on the ["Identity providers" tab](https://console.aws.amazon.com/iam/home#/identity_providers) of your IAM dashboard`,
+						Validators: []validator.String{
+							stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("federation")),
+							stringvalidator.RegexMatches(AwsIdpPattern, "AWS identity provider names should contain no special characters other than /."),
+						},
+					},
 					"provider": schema.SingleNestedAttribute{
 						Optional:            true,
-						MarkdownDescription: `Federated login provider details`,
+						MarkdownDescription: `Federated login provider details. Use 'federation' and 'saml_provider' instead.`,
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								Optional:            true,
@@ -398,12 +437,14 @@ func (r *AwsIamWrite) Create(ctx context.Context, req resource.CreateRequest, re
 	var data awsIamWriteModel
 	req.Config.Get(ctx, &data)
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	r.keepManagedFederation(ctx, &resp.Diagnostics, req.Plan.Get, &resp.State)
 }
 
 func (r *AwsIamWrite) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var json awsIamWriteApi
 	var data awsIamWriteModel
 	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &json, &data)
+	r.keepManagedFederation(ctx, &resp.Diagnostics, req.State.Get, &resp.State)
 }
 
 func (r *AwsIamWrite) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -411,6 +452,22 @@ func (r *AwsIamWrite) Update(ctx context.Context, req resource.UpdateRequest, re
 	var data awsIamWriteModel
 	req.Config.Get(ctx, &data)
 	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &json, &data)
+	r.keepManagedFederation(ctx, &resp.Diagnostics, req.Plan.Get, &resp.State)
+}
+
+// Keeps in state only the federation fields that getManaged holds
+func (r *AwsIamWrite) keepManagedFederation(ctx context.Context, diags *diag.Diagnostics, getManaged func(context.Context, any) diag.Diagnostics, state *tfsdk.State) {
+	if diags.HasError() || state.Raw.IsNull() {
+		return
+	}
+	var managed, data awsIamWriteModel
+	diags.Append(getManaged(ctx, &managed)...)
+	diags.Append(state.Get(ctx, &data)...)
+	if diags.HasError() {
+		return
+	}
+	keepManagedFederation(data.Login, managed.Login)
+	diags.Append(state.Set(ctx, &data)...)
 }
 
 func (r *AwsIamWrite) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

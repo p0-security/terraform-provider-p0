@@ -13,7 +13,7 @@ var Components = []string{installresources.IamWrite, installresources.Inventory}
 
 var AwsAccountIdRegex = regexp.MustCompile(`^\d{12}$`)
 var AwsPartitionRegex = regexp.MustCompile(`^(aws|aws-us-gov)$`)
-var AwsIdpPattern = regexp.MustCompile(`^[\w.-/]+$`)
+var AwsIdpPattern = regexp.MustCompile(`^[\w.\-/]+$`)
 var OktaAppIdRegex = regexp.MustCompile(`^0o\w+$`)
 
 const AwsLabelMarkdownDescription = "The AWS account's alias (if available)"

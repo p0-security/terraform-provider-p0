@@ -133,15 +133,18 @@ Required:
     - 'idc': Users log in via Identity Center (formerly 'SSO'); 'parent' and 'identity' attributes are required
     - 'merged-idc': Users log in via Identity Center using a single shared permission set per principal; requires a
        separately installed AWS Identity Center (merged) integration (see the 'aws_midc' resource); 'parent' attribute is required
-    - 'federated': Users log in via a federated identity provider; 'provider' attribute is required
+    - 'federated': Users log in via a federation app; 'federation' and 'saml_provider', or 'provider', are required
 
 Optional:
 
+- `federation` (String) The ID of the 'p0_aws_federation' app that users log in with (used by the 'federated' login type)
 - `identity` (Attributes) How user identities are mapped. When login type is 'iam', valid identity types are 'email' and 'tag'.
     When login type is 'idc', valid identity types are 'user' (username is email) and 'email' (match by IDC email).
     May not be used when login type is 'merged-idc' (identity mapping is configured on the 'aws_midc' resource instead). (see [below for nested schema](#nestedatt--login--identity))
 - `parent` (String) The ID of the AWS account that contains the Identity Center instance (used by the 'idc' and 'merged-idc' login types)
-- `provider` (Attributes) Federated login provider details (see [below for nested schema](#nestedatt--login--provider))
+- `provider` (Attributes) Federated login provider details. Use 'federation' and 'saml_provider' instead. (see [below for nested schema](#nestedatt--login--provider))
+- `saml_provider` (String) The name of the IAM SAML identity provider in this account that trusts the federation app,
+defined on the ["Identity providers" tab](https://console.aws.amazon.com/iam/home#/identity_providers) of your IAM dashboard
 
 <a id="nestedatt--login--identity"></a>
 ### Nested Schema for `login.identity`

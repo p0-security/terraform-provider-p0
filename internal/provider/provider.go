@@ -30,6 +30,7 @@ import (
 	installargocd "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/argocd"
 	installauth0 "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/auth0"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
+	installawsfederation "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-federation"
 	installawslambdanotifier "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-lambda-notifier"
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
 	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
@@ -228,6 +229,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installaws.NewAwsFunctionCallerStaged,
 		installaws.NewAwsFunctionCaller,
 		installawslambdanotifier.NewAwsLambdaNotifier,
+		installawsfederation.NewAwsFederation,
 		installawsmidc.NewAwsMidc,
 		installawsmidc.NewAwsMidcStaged,
 		installk8s.NewAwsKubernetes,
