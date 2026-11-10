@@ -16,4 +16,11 @@ resource "aws_iam_role_policy" "p0_function_caller" {
   policy = p0_aws_function_caller_staged.example.role.inline_policy
 }
 
+# Lets P0 read the role, so it can check it at install.
+resource "aws_iam_role_policy" "p0_read_role" {
+  name   = p0_aws_function_caller_staged.example.role.reader_policy_name
+  role   = aws_iam_role.p0_function_caller.name
+  policy = p0_aws_function_caller_staged.example.role.reader_policy
+}
+
 # The p0_aws_function_caller example completes the install.

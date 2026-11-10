@@ -26,6 +26,9 @@ type lambdaNotifierFake struct {
 	failedCheck string
 	// The states that each write to a notifier moved it to, in order.
 	notifierSteps []string
+	// When set, the function caller's metadata has no reader policy, as from P0
+	// before INT-1359.
+	noReaderPolicy bool
 }
 
 // Adds what P0's AWS installer does for a function caller: the account and partition
@@ -42,13 +45,20 @@ func newLambdaNotifierFake(t *testing.T) *lambdaNotifierFake {
 		if key.integration != "aws" || key.component != "function-caller" {
 			return nil
 		}
-		return map[string]any{
+		metadata := map[string]any{
 			"roleName":         "P0RoleIamFunctionCaller",
-			"inlinePolicyName": "P0RoleIamFunctionCallerPolicy",
+			"inlinePolicyName": "P0Invokep0-notifier",
 			"inlinePolicy":     `{"Version":"2012-10-17","Statement":[{"Action":["lambda:InvokeFunction"],"Resource":["` + key.id + `"]}]}`,
+			"readerPolicyName": "P0CanReadRolesPolicy",
+			"readerPolicy":     `{"Version":"2012-10-17","Statement":[{"Action":["iam:GetRole","iam:ListRoles","iam:GetRolePolicy"]}]}`,
 			"serviceAccountId": "101234567890123456789",
 			"trustPolicy":      `{"Version":"2012-10-17"}`,
 		}
+		if f.noReaderPolicy {
+			delete(metadata, "readerPolicyName")
+			delete(metadata, "readerPolicy")
+		}
+		return metadata
 	}
 	f.refuse = func(step fakeStep, _ map[fakeItemKey]map[string]any) (int, string) {
 		switch {
@@ -144,7 +154,9 @@ func TestAwsLambdaNotifier(t *testing.T) {
 					resource.TestCheckResourceAttr(functionCallerStaged, "partition", "aws"),
 					resource.TestCheckResourceAttr(functionCallerStaged, "service_account_id", "101234567890123456789"),
 					resource.TestCheckResourceAttr(functionCallerStaged, "role.name", "P0RoleIamFunctionCaller"),
-					resource.TestCheckResourceAttr(functionCallerStaged, "role.inline_policy_name", "P0RoleIamFunctionCallerPolicy"),
+					resource.TestCheckResourceAttr(functionCallerStaged, "role.inline_policy_name", "P0Invokep0-notifier"),
+					resource.TestCheckResourceAttr(functionCallerStaged, "role.reader_policy_name", "P0CanReadRolesPolicy"),
+					resource.TestMatchResourceAttr(functionCallerStaged, "role.reader_policy", harborError("iam:GetRolePolicy")),
 					resource.TestCheckResourceAttr(functionCallerStaged, "role.trust_policy", `{"Version":"2012-10-17"}`),
 					resource.TestMatchResourceAttr(functionCallerStaged, "role.inline_policy", harborError(notifierLambdaArn)),
 				),
@@ -223,6 +235,28 @@ func TestAwsLambdaNotifier(t *testing.T) {
 				Config:             lambdaNotifierConfig(f, notifierOtherLambdaArn),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+// A P0 that returns no reader policy, as before INT-1359, leaves the reader
+// attributes null rather than failing the refresh.
+func TestAwsFunctionCallerStagedWithoutReaderPolicy(t *testing.T) {
+	f := newLambdaNotifierFake(t)
+	f.noReaderPolicy = true
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkLambdaNotifierDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: functionCallerStagedConfig(f),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(functionCallerStaged, "role.name", "P0RoleIamFunctionCaller"),
+					resource.TestCheckNoResourceAttr(functionCallerStaged, "role.reader_policy"),
+					resource.TestCheckNoResourceAttr(functionCallerStaged, "role.reader_policy_name"),
+				),
 			},
 		},
 	})

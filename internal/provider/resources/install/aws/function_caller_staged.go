@@ -43,9 +43,13 @@ type awsFunctionCallerStagedApi struct {
 	Metadata struct {
 		InlinePolicy     string `json:"inlinePolicy"`
 		InlinePolicyName string `json:"inlinePolicyName"`
-		RoleName         string `json:"roleName"`
-		ServiceAccountId string `json:"serviceAccountId"`
-		TrustPolicy      string `json:"trustPolicy"`
+		// P0 versions before INT-1359 return no reader policy, so these are null
+		// until it is deployed.
+		ReaderPolicy     *string `json:"readerPolicy"`
+		ReaderPolicyName *string `json:"readerPolicyName"`
+		RoleName         string  `json:"roleName"`
+		ServiceAccountId string  `json:"serviceAccountId"`
+		TrustPolicy      string  `json:"trustPolicy"`
 	} `json:"metadata"`
 }
 
@@ -53,6 +57,8 @@ var functionCallerRoleTypes = map[string]attr.Type{
 	"name":               types.StringType,
 	"inline_policy":      types.StringType,
 	"inline_policy_name": types.StringType,
+	"reader_policy":      types.StringType,
+	"reader_policy_name": types.StringType,
 	"trust_policy":       types.StringType,
 }
 
@@ -68,7 +74,7 @@ func (*AwsFunctionCallerStaged) Schema(_ context.Context, _ resource.SchemaReque
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A staged AWS function caller, which lets P0 invoke one Lambda function. Staging gives you the IAM role to create in the function's account.
 
-Create the role from the read-only ` + "`role`" + ` attributes, then create a ` + "`p0_aws_function_caller`" + ` resource with the same ` + "`id`" + ` to complete the installation.
+Create the role from the read-only ` + "`role`" + ` attributes, with both its inline policy and its reader policy, then create a ` + "`p0_aws_function_caller`" + ` resource with the same ` + "`id`" + ` to complete the installation.
 
 Notifiers such as ` + "`p0_aws_lambda_notifier`" + ` call the function through it.
 
@@ -101,7 +107,15 @@ For the full install steps, see [AWS Lambda notifier](https://docs.p0.dev/integr
 					},
 					"inline_policy_name": schema.StringAttribute{
 						Computed:            true,
-						MarkdownDescription: "The name of the inline policy",
+						MarkdownDescription: "The name of the inline policy. P0's install check reads the policy by this name.",
+					},
+					"reader_policy": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "A second inline policy to attach to the role, which lets P0 read the role to check it",
+					},
+					"reader_policy_name": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "The name of the reader policy",
 					},
 					"trust_policy": schema.StringAttribute{
 						Computed:            true,
@@ -155,6 +169,8 @@ func (r *AwsFunctionCallerStaged) fromJson(_ context.Context, diags *diag.Diagno
 		"name":               types.StringValue(jsonv.Metadata.RoleName),
 		"inline_policy":      types.StringValue(jsonv.Metadata.InlinePolicy),
 		"inline_policy_name": types.StringValue(jsonv.Metadata.InlinePolicyName),
+		"reader_policy":      types.StringPointerValue(jsonv.Metadata.ReaderPolicy),
+		"reader_policy_name": types.StringPointerValue(jsonv.Metadata.ReaderPolicyName),
 		"trust_policy":       types.StringValue(jsonv.Metadata.TrustPolicy),
 	})
 	diags.Append(roleDiags...)

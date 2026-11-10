@@ -35,9 +35,18 @@ resource "aws_iam_role_policy" "p0_function_caller" {
   policy = p0_aws_function_caller_staged.notifier.role.inline_policy
 }
 
+resource "aws_iam_role_policy" "p0_read_role" {
+  name   = p0_aws_function_caller_staged.notifier.role.reader_policy_name
+  role   = aws_iam_role.p0_function_caller.name
+  policy = p0_aws_function_caller_staged.notifier.role.reader_policy
+}
+
 resource "p0_aws_function_caller" "notifier" {
-  id         = p0_aws_function_caller_staged.notifier.id
-  depends_on = [aws_iam_role_policy.p0_function_caller]
+  id = p0_aws_function_caller_staged.notifier.id
+  depends_on = [
+    aws_iam_role_policy.p0_function_caller,
+    aws_iam_role_policy.p0_read_role,
+  ]
 }
 
 # The notifier. Referencing the function caller's id creates it after the

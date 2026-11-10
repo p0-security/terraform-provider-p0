@@ -4,7 +4,7 @@ page_title: "p0_aws_function_caller_staged Resource - p0"
 subcategory: ""
 description: |-
   A staged AWS function caller, which lets P0 invoke one Lambda function. Staging gives you the IAM role to create in the function's account.
-  Create the role from the read-only role attributes, then create a p0_aws_function_caller resource with the same id to complete the installation.
+  Create the role from the read-only role attributes, with both its inline policy and its reader policy, then create a p0_aws_function_caller resource with the same id to complete the installation.
   Notifiers such as p0_aws_lambda_notifier call the function through it.
   For the full install steps, see AWS Lambda notifier https://docs.p0.dev/integrations/notifier-integrations/custom-notifiers/aws-lambda-notifier.
 ---
@@ -13,7 +13,7 @@ description: |-
 
 A staged AWS function caller, which lets P0 invoke one Lambda function. Staging gives you the IAM role to create in the function's account.
 
-Create the role from the read-only `role` attributes, then create a `p0_aws_function_caller` resource with the same `id` to complete the installation.
+Create the role from the read-only `role` attributes, with both its inline policy and its reader policy, then create a `p0_aws_function_caller` resource with the same `id` to complete the installation.
 
 Notifiers such as `p0_aws_lambda_notifier` call the function through it.
 
@@ -38,6 +38,13 @@ resource "aws_iam_role_policy" "p0_function_caller" {
   name   = p0_aws_function_caller_staged.example.role.inline_policy_name
   role   = aws_iam_role.p0_function_caller.name
   policy = p0_aws_function_caller_staged.example.role.inline_policy
+}
+
+# Lets P0 read the role, so it can check it at install.
+resource "aws_iam_role_policy" "p0_read_role" {
+  name   = p0_aws_function_caller_staged.example.role.reader_policy_name
+  role   = aws_iam_role.p0_function_caller.name
+  policy = p0_aws_function_caller_staged.example.role.reader_policy
 }
 
 # The p0_aws_function_caller example completes the install.
@@ -67,6 +74,8 @@ resource "aws_iam_role_policy" "p0_function_caller" {
 Read-Only:
 
 - `inline_policy` (String) The inline policy to attach to the role, which allows it to invoke the function
-- `inline_policy_name` (String) The name of the inline policy
+- `inline_policy_name` (String) The name of the inline policy. P0's install check reads the policy by this name.
 - `name` (String) The AWS role name
+- `reader_policy` (String) A second inline policy to attach to the role, which lets P0 read the role to check it
+- `reader_policy_name` (String) The name of the reader policy
 - `trust_policy` (String) The role's trust policy
