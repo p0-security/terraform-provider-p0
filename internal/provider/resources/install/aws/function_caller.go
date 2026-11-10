@@ -47,7 +47,7 @@ func (*AwsFunctionCaller) Schema(_ context.Context, _ resource.SchemaRequest, re
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `An AWS function caller, which lets P0 invoke one Lambda function.
 
-**Important:** Before you create this resource, stage the installation with ` + "`p0_aws_function_caller_staged`" + ` and create its role and inline policy in the function's account. Creating this resource runs P0's install check, which fails until the role has the policy, so make it depend on the policy.
+**Important:** Before you create this resource, stage the installation with ` + "`p0_aws_function_caller_staged`" + ` and create its role, inline policy and reader policy in the function's account. Creating this resource runs P0's install check, which fails until the role has both policies, so make it depend on them.
 
 For the full install steps, see [AWS Lambda notifier](https://docs.p0.dev/integrations/notifier-integrations/custom-notifiers/aws-lambda-notifier).`,
 		Attributes: map[string]schema.Attribute{

@@ -4,7 +4,7 @@ page_title: "p0_aws_function_caller Resource - p0"
 subcategory: ""
 description: |-
   An AWS function caller, which lets P0 invoke one Lambda function.
-  Important: Before you create this resource, stage the installation with p0_aws_function_caller_staged and create its role and inline policy in the function's account. Creating this resource runs P0's install check, which fails until the role has the policy, so make it depend on the policy.
+  Important: Before you create this resource, stage the installation with p0_aws_function_caller_staged and create its role, inline policy and reader policy in the function's account. Creating this resource runs P0's install check, which fails until the role has both policies, so make it depend on them.
   For the full install steps, see AWS Lambda notifier https://docs.p0.dev/integrations/notifier-integrations/custom-notifiers/aws-lambda-notifier.
 ---
 
@@ -12,7 +12,7 @@ description: |-
 
 An AWS function caller, which lets P0 invoke one Lambda function.
 
-**Important:** Before you create this resource, stage the installation with `p0_aws_function_caller_staged` and create its role and inline policy in the function's account. Creating this resource runs P0's install check, which fails until the role has the policy, so make it depend on the policy.
+**Important:** Before you create this resource, stage the installation with `p0_aws_function_caller_staged` and create its role, inline policy and reader policy in the function's account. Creating this resource runs P0's install check, which fails until the role has both policies, so make it depend on them.
 
 For the full install steps, see [AWS Lambda notifier](https://docs.p0.dev/integrations/notifier-integrations/custom-notifiers/aws-lambda-notifier).
 
@@ -20,11 +20,14 @@ For the full install steps, see [AWS Lambda notifier](https://docs.p0.dev/integr
 
 ```terraform
 # Stage the function caller and create its role, as in the
-# p0_aws_function_caller_staged example, then install it. P0 checks that the
-# role has the inline policy, so install only after the policy exists.
+# p0_aws_function_caller_staged example, then install it. P0 checks the role's
+# policies, so install only after both exist.
 resource "p0_aws_function_caller" "example" {
-  id         = p0_aws_function_caller_staged.example.id
-  depends_on = [aws_iam_role_policy.p0_function_caller]
+  id = p0_aws_function_caller_staged.example.id
+  depends_on = [
+    aws_iam_role_policy.p0_function_caller,
+    aws_iam_role_policy.p0_read_role,
+  ]
 }
 ```
 
