@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -107,7 +108,7 @@ func (r *Cluster) Read(ctx context.Context, _ resource.ReadRequest, resp *resour
 }
 
 func (*Cluster) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	planFinishingInstall(ctx, req, resp)
+	planFinishingInstall(ctx, req, resp, path.Root("arn"))
 }
 
 // Only database and object_owner change in place. P0 checks them on the
