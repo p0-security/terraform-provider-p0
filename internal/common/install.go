@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -208,7 +209,12 @@ func (i *Install) upsert(ctx context.Context, diags *diag.Diagnostics, plan *tfs
 	}
 
 	for _, step := range steps {
-		// in-place evolves data object
+		// Each step answers with the whole item, so decode it into an empty value. A field
+		// that an earlier response had, Stage's included, and this one leaves out would
+		// otherwise survive into state.
+		if v := reflect.ValueOf(json); v.Kind() == reflect.Pointer && !v.IsNil() {
+			v.Elem().SetZero()
+		}
 		path := fmt.Sprintf("%s/%s", i.itemPath(*id), step)
 		resp, err := i.ProviderData.Post(path, inputJson, json)
 		if err != nil {

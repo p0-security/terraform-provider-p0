@@ -307,6 +307,32 @@ func TestUpsertSteps(t *testing.T) {
 	}
 }
 
+// Create passes UpsertFromStage the response that Stage decoded. Each step answers with
+// the whole item, so a field that the configure step leaves out is left out of state,
+// even though an earlier response had it (INT-1457).
+func TestUpsertDropsFieldsFromEarlierResponses(t *testing.T) {
+	server := newRecordingServer(t, func(r *http.Request) (int, string) {
+		if strings.HasSuffix(r.URL.Path, "/"+Verify) {
+			return http.StatusOK, `{"ok":true,"item":{"state":"configure"}}`
+		}
+		return http.StatusOK, `{"ok":true,"item":{}}`
+	})
+	plan := tfsdk.Plan{Schema: testItemSchema, Raw: testItemValue(t, tftypes.UnknownValue)}
+	state := tfsdk.State{Schema: testItemSchema, Raw: testItemValue(t, StateStage)}
+	stage := StateStage
+	staged := &testItemApi{Item: &testItemJson{State: &stage}}
+
+	var diags diag.Diagnostics
+	newTestInstall(server.URL, server.Client()).UpsertFromStage(context.Background(), &diags, &plan, &state, staged, &testItemModel{})
+
+	if diags.HasError() {
+		t.Fatalf("diagnostics = %v", diags)
+	}
+	if !state.Raw.Equal(testItemValue(t, nil)) {
+		t.Errorf("state = %v; want the configure step's item, with no state", state.Raw)
+	}
+}
+
 // P0 saves nothing when the configure step fails, so neither does UpsertFromConfigure:
 // an Update that fails keeps the item's state, which the framework starts as the prior
 // state.
