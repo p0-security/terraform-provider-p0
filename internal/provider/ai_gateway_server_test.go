@@ -112,6 +112,47 @@ func TestAiGatewayServerInstance(t *testing.T) {
 	})
 }
 
+// P0 can answer the stage with a credential the request left out, OAuth's grant
+// included, and drops the grant once a later step sets a non-OAuth credential. The
+// grant must not survive into state (INT-1457).
+func TestAiGatewayServerVaultCredentialHasNoGrant(t *testing.T) {
+	f := newAiGatewayServerFake(t)
+	f.normalize = func(_ fakeItemKey, item map[string]any) {
+		credential, ok := item["credential"].(map[string]any)
+		if !ok {
+			item["credential"] = map[string]any{"type": "oauth", "grant": map[string]any{"type": "authorization_code"}}
+			return
+		}
+		if credential["type"] != "oauth" {
+			delete(credential, "grant")
+		}
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkAiGatewayServerDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: providerConfig(f) + fmt.Sprintf(`
+resource "p0_ai_gateway_server" "example" {
+  id         = %q
+  gateway    = "primary"
+  credential = { type = "vault" }
+  definition = {
+    type = "p0"
+    id   = "example"
+  }
+}
+`, aiGatewayServerId),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(aiGatewayServerAddress, "credential.type", "vault"),
+					resource.TestCheckNoResourceAttr(aiGatewayServerAddress, "credential.grant"),
+				),
+			},
+		},
+	})
+}
+
 // A server without an instance stages only its gateway, as before, and P0 stores no
 // instance.
 func TestAiGatewayServerWithoutInstance(t *testing.T) {
