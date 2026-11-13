@@ -17,7 +17,11 @@ import (
 // covers an item imported before P0 finished installing it, and one that a
 // failed apply left unfinished. An installed item keeps the framework's plan,
 // which shows no difference while the configuration matches it.
-func planFinishingInstall(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+//
+// generated names the resource's generatedAttribute fields. One that the state
+// has no value for is unknown in the plan, so that the configure step's value
+// can fill it.
+func planFinishingInstall(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse, generated ...path.Path) {
 	// Nothing is installed yet on create, and nothing is left to finish on destroy.
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
@@ -33,6 +37,17 @@ func planFinishingInstall(ctx context.Context, req resource.ModifyPlanRequest, r
 	// unknown until apply. Update takes it from P0's response, which has the item's
 	// new state.
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("state"), types.StringUnknown())...)
+
+	for _, attribute := range generated {
+		var value types.String
+		resp.Diagnostics.Append(req.State.GetAttribute(ctx, attribute, &value)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if value.IsNull() {
+			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, attribute, types.StringUnknown())...)
+		}
+	}
 }
 
 // Update for a Redshift (AI) resource that installs its item. It applies the

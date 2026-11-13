@@ -469,6 +469,41 @@ func TestRedshiftAiClusterKeptWhenUpdateFails(t *testing.T) {
 	}
 }
 
+// A cluster that P0 hasn't installed, such as one imported while staged or one
+// whose install check failed, has no ARN in its state. The apply that finishes
+// the install takes the ARN that P0 finds when it configures the cluster.
+func TestRedshiftAiClusterFinishedFromStage(t *testing.T) {
+	f := newRedshiftAiFake(t)
+	d := redshiftAiTestDefaults
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkRedshiftAiDestroyed(f.client()),
+		Steps: []resource.TestStep{
+			{Config: f.providerConfig() + d.clusterStaged()},
+			{
+				Config:             f.providerConfig() + d.cluster(),
+				ResourceName:       "p0_redshift_ai_cluster.test",
+				ImportState:        true,
+				ImportStateId:      d.clusterId,
+				ImportStatePersist: true,
+			},
+			{
+				Config: f.providerConfig() + d.cluster(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("p0_redshift_ai_cluster.test", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("p0_redshift_ai_cluster.test", "arn", redshiftAiArn(d.clusterId)),
+					resource.TestCheckResourceAttr("p0_redshift_ai_cluster.test", "state", "installed"),
+				),
+			},
+		},
+	})
+}
+
 // The provider refuses at plan time what P0 would refuse: a malformed key, a
 // cluster outside AWS's commercial partition, an unknown type, and a database
 // or object owner that isn't a Redshift name.
