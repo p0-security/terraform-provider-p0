@@ -55,10 +55,11 @@ type awsIamWriteLoginProviderModel struct {
 }
 
 type awsIamWriteLoginModel struct {
-	Type     string                         `json:"type" tfsdk:"type"`
-	Identity *awsIamWriteLoginIdentityModel `json:"identity" tfsdk:"identity"`
-	Parent   *string                        `json:"parent" tfsdk:"parent"`
-	Provider *awsIamWriteLoginProviderModel `json:"provider" tfsdk:"provider"`
+	Type       string                         `json:"type" tfsdk:"type"`
+	Identity   *awsIamWriteLoginIdentityModel `json:"identity" tfsdk:"identity"`
+	Parent     *string                        `json:"parent" tfsdk:"parent"`
+	Provider   *awsIamWriteLoginProviderModel `json:"provider" tfsdk:"provider"`
+	Federation *string                        `json:"federation" tfsdk:"federation"`
 }
 
 type awsIamWriteModel struct {
@@ -156,7 +157,9 @@ For the full install steps, see [Setting up AWS IAM management](https://docs.p0.
     - 'idc': Users log in via Identity Center (formerly 'SSO'); 'parent' and 'identity' attributes are required
     - 'merged-idc': Users log in via Identity Center using a single shared permission set per principal; requires a
        separately installed AWS Identity Center (merged) integration (see the 'aws_midc' resource); 'parent' attribute is required
-    - 'federated': Users log in via a federated identity provider; 'provider' attribute is required`,
+    - 'federated': Users log in via a federated identity provider; 'provider' attribute is required
+    - 'aws-iam-federation': Users log in through an installed AWS IAM Federation;
+       'federation' attribute is required`,
 						Validators: []validator.String{
 							stringvalidator.AnyWithAllWarnings(
 								stringvalidator.All(
@@ -185,6 +188,12 @@ For the full install steps, see [Setting up AWS IAM management](https://docs.p0.
 									stringvalidator.OneOf("federated"),
 									stringvalidator.AlsoRequires(
 										path.MatchRelative().AtParent().AtName("provider"),
+									),
+								),
+								stringvalidator.All(
+									stringvalidator.OneOf("aws-iam-federation"),
+									stringvalidator.AlsoRequires(
+										path.MatchRelative().AtParent().AtName("federation"),
 									),
 								),
 							),
@@ -235,6 +244,18 @@ For the full install steps, see [Setting up AWS IAM management](https://docs.p0.
 						Validators: []validator.String{
 							stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("provider")),
 							stringvalidator.RegexMatches(AwsAccountIdRegex, "AWS account IDs should consist of 12 numeric digits"),
+						},
+					},
+					"federation": schema.StringAttribute{
+						Optional:            true,
+						MarkdownDescription: `The ID of the installed AWS IAM Federation that users log in through (used by the 'aws-iam-federation' login type)`,
+						Validators: []validator.String{
+							stringvalidator.RegexMatches(AwsIamFederationIdRegex, "Use only lowercase letters, digits, and hyphens, start with a letter or a digit, and use at most 32 characters"),
+							stringvalidator.ConflictsWith(
+								path.MatchRelative().AtParent().AtName("identity"),
+								path.MatchRelative().AtParent().AtName("parent"),
+								path.MatchRelative().AtParent().AtName("provider"),
+							),
 						},
 					},
 					"provider": schema.SingleNestedAttribute{
