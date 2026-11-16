@@ -1,17 +1,16 @@
-# The federation app's SAML metadata URL, as the app's settings in Okta or PingOne show it
-variable "saml_metadata_url" {
-  type = string
-}
-
+# Has AWS account 123456789012 trust the Okta app that the
+# p0_okta_aws_iam_federation_app example installs. For a PingOne app, set
+# identity_provider to "pingone" and read the p0_pingone_aws_iam_federation_app
+# resource instead.
 resource "p0_aws_iam_federation_staged" "example" {
   id                = "okta-prod"
   account_id        = "123456789012"
   identity_provider = "okta"
-  app               = "0oa1b2c3d4e5f6g7h8i9"
+  app               = p0_okta_aws_iam_federation_app.example.id
 }
 
 data "http" "saml_metadata" {
-  url = var.saml_metadata_url
+  url = p0_okta_aws_iam_federation_app.example.saml_metadata_url
 }
 
 resource "aws_iam_saml_provider" "p0_federation" {

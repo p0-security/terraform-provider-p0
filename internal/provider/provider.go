@@ -66,6 +66,7 @@ import (
 	installmongodbatlasai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mongodb-atlas-ai"
 	installmysql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/mysql"
 	installokta "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta"
+	installoktaawsiamfederation "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta-aws-iam-federation"
 	installonepassword "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/onepassword"
 	installpagerdutyai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/pagerduty-ai"
 	installpostgres "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/postgres"
@@ -301,6 +302,9 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installauth0.NewAuth0ConnectorStaged,
 		installauth0.NewAuth0Connector,
 		installauth0.NewAuth0Tenant,
+		installoktaawsiamfederation.NewOktaAwsIamFederationConnectorStaged,
+		installoktaawsiamfederation.NewOktaAwsIamFederationConnector,
+		installoktaawsiamfederation.NewOktaAwsIamFederationApp,
 		installtailscale.NewTailscaleConnectorStaged,
 		installtailscale.NewTailscaleConnector,
 		installtailscale.NewTailscaleTailnet,
