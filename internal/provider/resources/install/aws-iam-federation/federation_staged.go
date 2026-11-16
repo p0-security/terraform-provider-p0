@@ -66,7 +66,7 @@ func (*AwsIamFederationStaged) Metadata(_ context.Context, req resource.Metadata
 }
 
 func (*AwsIamFederationStaged) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	attributes := configAttributes()
+	attributes := configAttributes(`A name you choose for the federation, such as ` + "`okta-prod`" + `. P0 names the federation's IAM role, SAML provider and pool path after it. Use only lowercase letters, digits, and hyphens, start with a letter or a digit, and use at most 32 characters.`)
 	attributes["role"] = schema.SingleNestedAttribute{
 		Computed:            true,
 		MarkdownDescription: `P0's IAM role for this federation. P0 uses it to read the SAML provider and the pool roles, and to put policies on the pool roles.`,

@@ -51,12 +51,12 @@ type federationConfigModel struct {
 	App       types.String `tfsdk:"app"`
 }
 
-func configAttributes() map[string]schema.Attribute {
+func configAttributes(idDescription string) map[string]schema.Attribute {
 	replace := []planmodifier.String{stringplanmodifier.RequiresReplace()}
 	return map[string]schema.Attribute{
 		"id": schema.StringAttribute{
 			Required:            true,
-			MarkdownDescription: `A name you choose for the federation, such as ` + "`okta-prod`" + `. P0 names the federation's IAM role, SAML provider and pool path after it. Use only lowercase letters, digits, and hyphens, start with a letter or a digit, and use at most 32 characters.`,
+			MarkdownDescription: idDescription,
 			Validators: []validator.String{
 				stringvalidator.RegexMatches(federationIdRegex, "Use only lowercase letters, digits, and hyphens, start with a letter or a digit, and use at most 32 characters"),
 			},

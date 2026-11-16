@@ -39,10 +39,7 @@ func (*AwsIamFederation) Metadata(_ context.Context, req resource.MetadataReques
 }
 
 func (*AwsIamFederation) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	attributes := configAttributes()
-	id := attributes["id"].(schema.StringAttribute)
-	id.MarkdownDescription = "The `id` of the `p0_aws_iam_federation_staged` resource whose install this finishes"
-	attributes["id"] = id
+	attributes := configAttributes("The `id` of the `p0_aws_iam_federation_staged` resource whose install this finishes")
 	attributes["state"] = common.StateAttribute
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `An AWS IAM Federation installation. Users sign in to one AWS account through a federation app in Okta or PingOne, and P0 grants them access by putting policies on the account's roles and pool roles.
