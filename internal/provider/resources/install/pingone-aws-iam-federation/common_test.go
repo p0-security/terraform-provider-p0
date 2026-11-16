@@ -384,12 +384,12 @@ func (f *fakeItems) seed(t *testing.T, itemPath string, state string, item any) 
 		t.Fatalf("unmarshal: %v", err)
 	}
 	stored["state"] = state
-	f.complete(itemPath, stored)
+	f.complete(stored)
 	f.items[itemPath] = stored
 }
 
 // Adds what P0's installers assign once an item is verified.
-func (f *fakeItems) complete(itemPath string, item map[string]any) {
+func (f *fakeItems) complete(item map[string]any) {
 	if item["state"] == common.StateStage {
 		return
 	}
@@ -492,7 +492,7 @@ func (f *fakeItems) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		updated[name] = value
 	}
 	updated["state"] = nextState
-	f.complete(itemPath, updated)
+	f.complete(updated)
 	f.items[itemPath] = updated
 
 	response := map[string]any{"ok": true, "item": updated}
