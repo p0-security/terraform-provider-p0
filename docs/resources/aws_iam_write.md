@@ -134,9 +134,12 @@ Required:
     - 'merged-idc': Users log in via Identity Center using a single shared permission set per principal; requires a
        separately installed AWS Identity Center (merged) integration (see the 'aws_midc' resource); 'parent' attribute is required
     - 'federated': Users log in via a federated identity provider; 'provider' attribute is required
+    - 'aws-iam-federation': Users log in through an installed AWS IAM Federation;
+       'federation' attribute is required
 
 Optional:
 
+- `federation` (String) The ID of the installed AWS IAM Federation that users log in through (used by the 'aws-iam-federation' login type)
 - `identity` (Attributes) How user identities are mapped. When login type is 'iam', valid identity types are 'email' and 'tag'.
     When login type is 'idc', valid identity types are 'user' (username is email) and 'email' (match by IDC email).
     May not be used when login type is 'merged-idc' (identity mapping is configured on the 'aws_midc' resource instead). (see [below for nested schema](#nestedatt--login--identity))
