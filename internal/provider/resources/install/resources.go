@@ -26,4 +26,5 @@ const (
 	PoolAccount      = "pool-account"
 	Tenant           = "tenant"
 	Federation       = "federation"
+	App              = "app"
 )
