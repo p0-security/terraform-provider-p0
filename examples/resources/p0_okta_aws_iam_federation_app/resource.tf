@@ -14,8 +14,15 @@
 #
 # Then give it a custom admin role with the permissions "Edit users'
 # application assignments" and "Manage applications", on a resource set that
-# holds all users and the AWS Account Federation app. The example doesn't create
-# the secret, which keeps the private key out of Terraform's state.
+# holds all users and the AWS Account Federation app.
+#
+# On the AWS Account Federation app's Sign On tab, add an attribute statement
+# named https://aws.amazon.com/SAML/Attributes/SourceIdentity, with the name
+# format Unspecified and the value user.email. AWS then records who signed in
+# on each role session.
+#
+# The example doesn't create the secret, which keeps the private key out of
+# Terraform's state.
 #
 # Creating p0_okta_aws_iam_federation_app has the connector read the private
 # key, so store it before then, as the secret's whole value. With the AWS CLI
