@@ -370,6 +370,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installaigateway.NewGatewayStaged,
 		installaigateway.NewGateway,
 		installaigateway.NewServer,
+		installaigateway.NewLogProvider,
+		installaigateway.NewLogProviderLink,
 		installidentityprovider.NewIdentityProvider,
 		installintegrationitem.NewIntegrationItemStaged,
 		installintegrationitem.NewIntegrationItem,
