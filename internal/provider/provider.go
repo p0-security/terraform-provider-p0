@@ -30,6 +30,7 @@ import (
 	installargocd "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/argocd"
 	installauth0 "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/auth0"
 	installaws "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws"
+	installawscloudwatch "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-cloudwatch"
 	installawsiamfederation "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-iam-federation"
 	installawslambdanotifier "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-lambda-notifier"
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
@@ -46,6 +47,7 @@ import (
 	installentraid "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/entra-id"
 	installfiletransfer "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/file_transfer"
 	installgcp "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp"
+	installgcpcloudlogging "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloud-logging"
 	installgcpcloudsql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloudsql"
 	installgcpserviceaccount "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-service-account"
 	installgcpwif "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-wif"
@@ -367,6 +369,12 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installredshiftai.NewConnector,
 		installredshiftai.NewClusterStaged,
 		installredshiftai.NewCluster,
+		installawscloudwatch.NewLogsStaged,
+		installawscloudwatch.NewLogs,
+		installgcpcloudlogging.NewProjectStaged,
+		installgcpcloudlogging.NewProject,
+		installgcpcloudlogging.NewOrganizationStaged,
+		installgcpcloudlogging.NewOrganization,
 		installaigateway.NewGatewayStaged,
 		installaigateway.NewGateway,
 		installaigateway.NewServer,

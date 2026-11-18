@@ -1,0 +1,22 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.RenderedProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile "examples/resources/p0_aws_cloudwatch_logs/resource.tf" }}
+
+### CloudTrail organization trail
+
+Your own infrastructure, not P0's: an organization trail that delivers to the log group above. Skip it if a trail already delivers to CloudWatch Logs in the log source's account and region.
+
+{{ tffile "examples/resources/p0_aws_cloudwatch_logs/cloudtrail.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}
