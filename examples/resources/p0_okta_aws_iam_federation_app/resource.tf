@@ -21,6 +21,11 @@
 # format Unspecified and the value user.email. AWS then records who signed in
 # on each role session.
 #
+# The P0 CLI gets AWS credentials through the app only if your users sign in
+# to P0 with Okta, in the same Okta org. If they do, on the same tab, under
+# "Single use native to web exchange", add the Okta app that they sign in to P0
+# with. Without it, the P0 CLI can't get AWS credentials through the app.
+#
 # The example doesn't create the secret, which keeps the private key out of
 # Terraform's state.
 #
