@@ -50,6 +50,7 @@ import (
 	installgcpcloudlogging "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloud-logging"
 	installgcpcloudsql "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-cloudsql"
 	installgcpserviceaccount "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-service-account"
+	installgcpsm "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-sm"
 	installgcpwif "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gcp-wif"
 	installgitguardianai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/gitguardian-ai"
 	installgithub "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/github"
@@ -316,6 +317,7 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installtailscale.NewTailscaleTailnet,
 		installfiletransfer.NewFileTransferIamWrite,
 		installawssm.NewAwsSmVault,
+		installgcpsm.NewGcpSmVault,
 		installapp.NewAppIamWrite,
 		installsplunk.NewAuditLogs,
 		installdatadog.NewAuditLogs,
