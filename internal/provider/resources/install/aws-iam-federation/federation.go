@@ -42,7 +42,7 @@ func (*AwsIamFederation) Schema(_ context.Context, _ resource.SchemaRequest, res
 	attributes := configAttributes("The `id` of the `p0_aws_iam_federation_staged` resource whose install this finishes")
 	attributes["state"] = common.StateAttribute
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `An AWS IAM Federation installation. Users sign in to one AWS account through a federation app in Okta or PingOne, and P0 grants them access by putting policies on the account's roles and pool roles.
+		MarkdownDescription: `An AWS IAM Federation installation. Users sign in to one AWS account through a federation app in Okta, PingOne or PingFederate, and P0 grants them access by putting policies on the account's roles and pool roles.
 
 **Important:** Before you create this resource, stage the federation with ` + "`p0_aws_iam_federation_staged`" + `, and create P0's role, the SAML provider and the pool roles that it describes. Creating this resource has P0 check that the SAML provider trusts the federation app and that the pool has ` + "`pool_size`" + ` roles that trust the SAML provider. If a check fails, the apply fails with P0's message.
 

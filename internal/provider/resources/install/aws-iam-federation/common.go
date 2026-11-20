@@ -90,13 +90,13 @@ func configAttributes(idDescription string) map[string]schema.Attribute {
 		},
 		"identity_provider": schema.StringAttribute{
 			Required:            true,
-			MarkdownDescription: `The identity provider of the federation app: 'okta' or 'pingone'`,
-			Validators:          []validator.String{stringvalidator.OneOf("okta", "pingone")},
+			MarkdownDescription: `The identity provider of the federation app: 'okta', 'pingone' or 'pingfederate'`,
+			Validators:          []validator.String{stringvalidator.OneOf("okta", "pingone", "pingfederate")},
 			PlanModifiers:       replace,
 		},
 		"app": schema.StringAttribute{
 			Required:            true,
-			MarkdownDescription: `The ID of the installed federation app, in P0's Okta (AWS IAM Federation) or PingOne (AWS IAM Federation) integration, that the AWS account trusts`,
+			MarkdownDescription: `The ID of the installed federation app, in P0's Okta (AWS IAM Federation), PingOne (AWS IAM Federation) or PingFederate (AWS IAM Federation) integration, that the AWS account trusts`,
 			PlanModifiers:       replace,
 		},
 	}

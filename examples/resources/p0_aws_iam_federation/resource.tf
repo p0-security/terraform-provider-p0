@@ -1,7 +1,8 @@
 # Has AWS account 123456789012 trust the Okta app that the
 # p0_okta_aws_iam_federation_app example installs. For a PingOne app, set
 # identity_provider to "pingone" and read the p0_pingone_aws_iam_federation_app
-# resource instead.
+# resource instead. For a PingFederate app, set identity_provider to
+# "pingfederate" and read the p0_pingfederate_aws_iam_federation_app resource.
 resource "p0_aws_iam_federation_staged" "example" {
   id                = "okta-prod"
   account_id        = "123456789012"

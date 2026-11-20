@@ -97,7 +97,7 @@ Use the read-only ` + "`role`" + `, ` + "`saml_provider_name`" + ` and ` + "`poo
 
 P0 fixes every attribute when it adds the federation, so a change replaces it.
 
-**Prerequisite:** the federation app, installed in P0's Okta (AWS IAM Federation) or PingOne (AWS IAM Federation) integration.
+**Prerequisite:** the federation app, installed in P0's Okta (AWS IAM Federation), PingOne (AWS IAM Federation) or PingFederate (AWS IAM Federation) integration.
 
 **Note:** This integration is currently in preview.
 

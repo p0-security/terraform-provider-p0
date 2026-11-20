@@ -6,7 +6,7 @@ description: |-
   A staged AWS IAM Federation installation. Staging tells P0 which AWS account trusts which federation app, and gives the names and policies of the IAM resources to create in that account.
   Use the read-only role, saml_provider_name and pool to create P0's role, the SAML provider and the pool roles. Then create a p0_aws_iam_federation resource with the same id to complete the installation.
   P0 fixes every attribute when it adds the federation, so a change replaces it.
-  Prerequisite: the federation app, installed in P0's Okta (AWS IAM Federation) or PingOne (AWS IAM Federation) integration.
+  Prerequisite: the federation app, installed in P0's Okta (AWS IAM Federation), PingOne (AWS IAM Federation) or PingFederate (AWS IAM Federation) integration.
   Note: This integration is currently in preview.
   For the AWS install steps, see Setting up AWS IAM management https://docs.p0.dev/integrations/resource-integrations/aws/installation-methods.
 ---
@@ -19,7 +19,7 @@ Use the read-only `role`, `saml_provider_name` and `pool` to create P0's role, t
 
 P0 fixes every attribute when it adds the federation, so a change replaces it.
 
-**Prerequisite:** the federation app, installed in P0's Okta (AWS IAM Federation) or PingOne (AWS IAM Federation) integration.
+**Prerequisite:** the federation app, installed in P0's Okta (AWS IAM Federation), PingOne (AWS IAM Federation) or PingFederate (AWS IAM Federation) integration.
 
 **Note:** This integration is currently in preview.
 
@@ -33,9 +33,9 @@ For the AWS install steps, see [Setting up AWS IAM management](https://docs.p0.d
 ### Required
 
 - `account_id` (String) The ID of the AWS account that users sign in to
-- `app` (String) The ID of the installed federation app, in P0's Okta (AWS IAM Federation) or PingOne (AWS IAM Federation) integration, that the AWS account trusts
+- `app` (String) The ID of the installed federation app, in P0's Okta (AWS IAM Federation), PingOne (AWS IAM Federation) or PingFederate (AWS IAM Federation) integration, that the AWS account trusts
 - `id` (String) A name you choose for the federation, such as `okta-prod`. P0 names the federation's IAM role, SAML provider and pool path after it. Use only lowercase letters, digits, and hyphens, start with a letter or a digit, and use at most 32 characters.
-- `identity_provider` (String) The identity provider of the federation app: 'okta' or 'pingone'
+- `identity_provider` (String) The identity provider of the federation app: 'okta', 'pingone' or 'pingfederate'
 
 ### Optional
 
