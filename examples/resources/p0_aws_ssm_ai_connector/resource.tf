@@ -309,11 +309,6 @@ resource "p0_aws_ssm_ai_connector" "example" {
   # The regions whose instances agents can request.
   instance_regions = ["us-east-1", "us-west-2"]
 
-  # Left out, agents run only as their own Linux users. To let them switch
-  # with sudo, list the users they can ask for. Listing root gives agents
-  # full control of every instance.
-  # run_as_users = ["deploy"]
-
   depends_on = [
     aws_iam_role_policy.connector_instances,
     aws_iam_role_policy.connector_run_script,

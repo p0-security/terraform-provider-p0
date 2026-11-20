@@ -29,8 +29,7 @@ type awsSsmAiTestInstall struct {
 	vaultAccountId  string
 	secretsRegion   string
 	instanceRegions []string
-	// Each is left out of the configuration when nil.
-	runAsUsers    []string
+	// Left out of the configuration when nil.
 	isSudoEnabled *bool
 }
 
@@ -158,15 +157,11 @@ resource "p0_aws_ssm_ai_connector_staged" "test" {
 `, d.awsAccountId, d.region, d.vaultAccountId, d.secretsRegion)
 }
 
-// Leaves run_as_users and is_sudo_enabled out when the install doesn't set
-// them.
+// Leaves is_sudo_enabled out when the install doesn't set it.
 func (d awsSsmAiTestInstall) connector() string {
-	optional := ""
-	if d.runAsUsers != nil {
-		optional += "\n  run_as_users     = " + awsSsmAiHclList(d.runAsUsers)
-	}
+	isSudoEnabled := ""
 	if d.isSudoEnabled != nil {
-		optional += "\n  is_sudo_enabled  = " + strconv.FormatBool(*d.isSudoEnabled)
+		isSudoEnabled = "\n  is_sudo_enabled  = " + strconv.FormatBool(*d.isSudoEnabled)
 	}
 	return d.connectorStaged() + fmt.Sprintf(`
 resource "p0_aws_ssm_ai_connector" "test" {
@@ -175,7 +170,7 @@ resource "p0_aws_ssm_ai_connector" "test" {
   vault            = p0_aws_ssm_ai_connector_staged.test.vault
   instance_regions = %s%s
 }
-`, awsSsmAiHclList(d.instanceRegions), optional)
+`, awsSsmAiHclList(d.instanceRegions), isSudoEnabled)
 }
 
 // A list of strings in HCL.
@@ -304,62 +299,44 @@ func TestAwsSsmAi(t *testing.T) {
 	}
 }
 
-// P0 takes the instance regions and the run-as users each as one string,
-// separated by commas, and the provider reads them back as lists. A
-// configuration without run-as users sends an empty string.
-func TestAwsSsmAiConnectorSendsLists(t *testing.T) {
-	cases := []struct {
-		name           string
-		runAsUsers     []string
-		wantRunAsUsers string
-	}{
-		{name: "NoRunAsUsers"},
-		{name: "RunAsUsers", runAsUsers: []string{"root", "deploy"}, wantRunAsUsers: "root,deploy"},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			f := newAwsSsmAiFake(t)
-			d := awsSsmAiTestDefaults
-			d.runAsUsers = c.runAsUsers
+// P0 takes the instance regions as one string, separated by commas, and the
+// provider reads them back as a list. It sends no sudo switch.
+func TestAwsSsmAiConnectorSendsInstanceRegions(t *testing.T) {
+	f := newAwsSsmAiFake(t)
+	d := awsSsmAiTestDefaults
 
-			resource.UnitTest(t, resource.TestCase{
-				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-				CheckDestroy:             checkAwsSsmAiDestroyed(f.client()),
-				Steps: []resource.TestStep{
-					{
-						Config: f.providerConfig() + d.connector(),
-						Check: resource.ComposeAggregateTestCheckFunc(
-							resource.TestCheckResourceAttr("p0_aws_ssm_ai_connector.test", "run_as_users.#", strconv.Itoa(len(c.runAsUsers))),
-							func(*terraform.State) error {
-								item := f.item("aws-ssm-ai", "connector", d.awsAccountId)
-								if item["instanceRegions"] != "us-west-2,us-east-1" || item["runAsUsers"] != c.wantRunAsUsers {
-									return fmt.Errorf("P0 has the connector %v, want instanceRegions \"us-west-2,us-east-1\" and runAsUsers %q", item, c.wantRunAsUsers)
-								}
-								return nil
-							},
-						),
-					},
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             checkAwsSsmAiDestroyed(f.client()),
+		Steps: []resource.TestStep{
+			{
+				Config: f.providerConfig() + d.connector(),
+				Check: func(*terraform.State) error {
+					item := f.item("aws-ssm-ai", "connector", d.awsAccountId)
+					_, hasSudo := item["isSudoEnabled"]
+					if item["instanceRegions"] != "us-west-2,us-east-1" || hasSudo {
+						return fmt.Errorf("P0 has the connector %v, want instanceRegions \"us-west-2,us-east-1\" and no isSudoEnabled", item)
+					}
+					return nil
 				},
-			})
-		})
-	}
+			},
+		},
+	})
 }
 
 func awsSsmAiBool(value bool) *bool {
 	return &value
 }
 
-// P0 accepts new instance regions or run-as users when it configures the
-// connector, so either updates it in place. Removing run_as_users clears them
-// in P0. The deprecated is_sudo_enabled sends root as the only run-as user,
-// and the plan after each apply shows no change.
+// P0 accepts new instance regions when it configures the connector, so they
+// update it in place. The deprecated is_sudo_enabled changes in place too, and
+// stays in state as configured, but never reaches P0.
 func TestAwsSsmAiConnectorUpdatedInPlace(t *testing.T) {
 	cases := []struct {
 		name                string
 		from                func(*awsSsmAiTestInstall)
 		to                  func(*awsSsmAiTestInstall)
 		wantInstanceRegions string
-		wantRunAsUsers      string
 		wantIsSudoEnabled   bool
 	}{
 		{
@@ -369,31 +346,10 @@ func TestAwsSsmAiConnectorUpdatedInPlace(t *testing.T) {
 			wantInstanceRegions: "eu-west-1",
 		},
 		{
-			name:                "RunAsUsersAdded",
-			from:                func(*awsSsmAiTestInstall) {},
-			to:                  func(d *awsSsmAiTestInstall) { d.runAsUsers = []string{"deploy", "root"} },
-			wantInstanceRegions: "us-west-2,us-east-1",
-			wantRunAsUsers:      "deploy,root",
-		},
-		{
-			name:                "RunAsUsersChanged",
-			from:                func(d *awsSsmAiTestInstall) { d.runAsUsers = []string{"root"} },
-			to:                  func(d *awsSsmAiTestInstall) { d.runAsUsers = []string{"deploy"} },
-			wantInstanceRegions: "us-west-2,us-east-1",
-			wantRunAsUsers:      "deploy",
-		},
-		{
-			name:                "RunAsUsersRemoved",
-			from:                func(d *awsSsmAiTestInstall) { d.runAsUsers = []string{"root"} },
-			to:                  func(d *awsSsmAiTestInstall) { d.runAsUsers = nil },
-			wantInstanceRegions: "us-west-2,us-east-1",
-		},
-		{
 			name:                "SudoEnabled",
 			from:                func(*awsSsmAiTestInstall) {},
 			to:                  func(d *awsSsmAiTestInstall) { d.isSudoEnabled = awsSsmAiBool(true) },
 			wantInstanceRegions: "us-west-2,us-east-1",
-			wantRunAsUsers:      "root",
 			wantIsSudoEnabled:   true,
 		},
 		{
@@ -401,16 +357,6 @@ func TestAwsSsmAiConnectorUpdatedInPlace(t *testing.T) {
 			from:                func(d *awsSsmAiTestInstall) { d.isSudoEnabled = awsSsmAiBool(true) },
 			to:                  func(d *awsSsmAiTestInstall) { d.isSudoEnabled = nil },
 			wantInstanceRegions: "us-west-2,us-east-1",
-		},
-		{
-			name: "SudoToRunAsUsers",
-			from: func(d *awsSsmAiTestInstall) { d.isSudoEnabled = awsSsmAiBool(true) },
-			to: func(d *awsSsmAiTestInstall) {
-				d.isSudoEnabled = nil
-				d.runAsUsers = []string{"root"}
-			},
-			wantInstanceRegions: "us-west-2,us-east-1",
-			wantRunAsUsers:      "root",
 		},
 	}
 	for _, c := range cases {
@@ -438,106 +384,13 @@ func TestAwsSsmAiConnectorUpdatedInPlace(t *testing.T) {
 							resource.TestCheckResourceAttr("p0_aws_ssm_ai_connector.test", "state", "installed"),
 							func(*terraform.State) error {
 								item := f.item("aws-ssm-ai", "connector", from.awsAccountId)
-								if item["instanceRegions"] != c.wantInstanceRegions || item["runAsUsers"] != c.wantRunAsUsers {
-									return fmt.Errorf("P0 has the connector %v, want instanceRegions %q and runAsUsers %q", item, c.wantInstanceRegions, c.wantRunAsUsers)
+								_, hasSudo := item["isSudoEnabled"]
+								if item["instanceRegions"] != c.wantInstanceRegions || hasSudo {
+									return fmt.Errorf("P0 has the connector %v, want instanceRegions %q and no isSudoEnabled", item, c.wantInstanceRegions)
 								}
 								return nil
 							},
 						),
-					},
-				},
-			})
-		})
-	}
-}
-
-// The state keeps the deprecated switch only while P0 has root as the only
-// run-as user. Any other list in P0 shows in the next plan, which puts root
-// back.
-func TestAwsSsmAiConnectorSudoDrift(t *testing.T) {
-	f := newAwsSsmAiFake(t)
-	d := awsSsmAiTestDefaults
-	d.isSudoEnabled = awsSsmAiBool(true)
-
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             checkAwsSsmAiDestroyed(f.client()),
-		Steps: []resource.TestStep{
-			{Config: f.providerConfig() + d.connector()},
-			{
-				PreConfig: func() {
-					f.update("aws-ssm-ai", "connector", d.awsAccountId, func(item map[string]any) {
-						item["runAsUsers"] = "root,deploy"
-					})
-				},
-				Config: f.providerConfig() + d.connector(),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("p0_aws_ssm_ai_connector.test", plancheck.ResourceActionUpdate),
-					},
-				},
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("p0_aws_ssm_ai_connector.test", "is_sudo_enabled", "true"),
-					resource.TestCheckNoResourceAttr("p0_aws_ssm_ai_connector.test", "run_as_users"),
-					func(*terraform.State) error {
-						if item := f.item("aws-ssm-ai", "connector", d.awsAccountId); item["runAsUsers"] != "root" {
-							return fmt.Errorf("P0 has the connector %v, want runAsUsers \"root\"", item)
-						}
-						return nil
-					},
-				),
-			},
-		},
-	})
-}
-
-// P0 lets agents run as root on a connector installed before run-as users
-// while its old sudo switch is on, so the provider reads it as root. A
-// configuration with the switch shows no change, and one without it clears
-// root in P0.
-func TestAwsSsmAiConnectorSudoInstalledBefore(t *testing.T) {
-	cases := []struct {
-		name           string
-		isSudoEnabled  *bool
-		wantAction     plancheck.ResourceActionType
-		wantRunAsUsers any
-	}{
-		{name: "SudoKept", isSudoEnabled: awsSsmAiBool(true), wantAction: plancheck.ResourceActionNoop, wantRunAsUsers: nil},
-		{name: "SudoRemoved", wantAction: plancheck.ResourceActionUpdate, wantRunAsUsers: ""},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			f := newAwsSsmAiFake(t)
-			before := awsSsmAiTestDefaults
-			before.isSudoEnabled = awsSsmAiBool(true)
-			after := awsSsmAiTestDefaults
-			after.isSudoEnabled = c.isSudoEnabled
-
-			resource.UnitTest(t, resource.TestCase{
-				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-				CheckDestroy:             checkAwsSsmAiDestroyed(f.client()),
-				Steps: []resource.TestStep{
-					{Config: f.providerConfig() + before.connector()},
-					{
-						// As the previous provider left it.
-						PreConfig: func() {
-							f.update("aws-ssm-ai", "connector", before.awsAccountId, func(item map[string]any) {
-								delete(item, "runAsUsers")
-								item["isSudoEnabled"] = true
-							})
-						},
-						Config: f.providerConfig() + after.connector(),
-						ConfigPlanChecks: resource.ConfigPlanChecks{
-							PreApply: []plancheck.PlanCheck{
-								plancheck.ExpectResourceAction("p0_aws_ssm_ai_connector.test", c.wantAction),
-							},
-						},
-						Check: func(*terraform.State) error {
-							if item := f.item("aws-ssm-ai", "connector", before.awsAccountId); item["runAsUsers"] != c.wantRunAsUsers {
-								return fmt.Errorf("P0 has the connector %v, want runAsUsers %v", item, c.wantRunAsUsers)
-							}
-							return nil
-						},
 					},
 				},
 			})
@@ -675,11 +528,9 @@ func TestAwsSsmAiConnectorFinishedFromStage(t *testing.T) {
 }
 
 // The provider refuses at plan time what P0 would refuse: a vault outside the
-// connector's account, a region outside AWS's commercial partition, an empty
-// or repeated list of instance regions or run-as users, and a run-as user that
-// isn't a Linux user name. It also refuses run_as_users with the deprecated
-// is_sudo_enabled. Terraform wraps long messages, so a space in want matches
-// any whitespace.
+// connector's account, a region outside AWS's commercial partition, and an
+// empty or repeated list of instance regions. Terraform wraps long messages,
+// so a space in want matches any whitespace.
 func TestAwsSsmAiConnectorInvalid(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -696,18 +547,6 @@ func TestAwsSsmAiConnectorInvalid(t *testing.T) {
 		{name: "InstanceRegion", change: func(d *awsSsmAiTestInstall) { d.instanceRegions = []string{"us-west-2", "us-gov-east-1"} }, want: `Enter commercial AWS regions`},
 		{name: "DuplicateInstanceRegions", change: func(d *awsSsmAiTestInstall) { d.instanceRegions = []string{"us-west-2", "us-west-2"} }, want: `Duplicate List Value`},
 		{name: "NoInstanceRegions", change: func(d *awsSsmAiTestInstall) { d.instanceRegions = nil }, want: `must contain at least 1`},
-		{name: "RunAsUser", change: func(d *awsSsmAiTestInstall) { d.runAsUsers = []string{"root", "Deploy"} }, want: `must be a Linux user name`},
-		{name: "RunAsUserWithComma", change: func(d *awsSsmAiTestInstall) { d.runAsUsers = []string{"root,deploy"} }, want: `must be a Linux user name`},
-		{name: "DuplicateRunAsUsers", change: func(d *awsSsmAiTestInstall) { d.runAsUsers = []string{"root", "root"} }, want: `Duplicate List Value`},
-		{name: "NoRunAsUsers", change: func(d *awsSsmAiTestInstall) { d.runAsUsers = []string{} }, want: `must contain at least 1`},
-		{
-			name: "RunAsUsersWithSudo",
-			change: func(d *awsSsmAiTestInstall) {
-				d.runAsUsers = []string{"root"}
-				d.isSudoEnabled = awsSsmAiBool(true)
-			},
-			want: `Invalid Attribute Combination`,
-		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -730,25 +569,6 @@ func TestAwsSsmAiConnectorInvalid(t *testing.T) {
 			})
 		})
 	}
-}
-
-// A null run-as user would reach P0 as an empty name, so the provider refuses
-// it at plan time.
-func TestAwsSsmAiConnectorNullRunAsUser(t *testing.T) {
-	f := newAwsSsmAiFake(t)
-	d := awsSsmAiTestDefaults
-	d.runAsUsers = []string{"root"}
-	config := strings.Replace(d.connector(), `["root"]`, `["root", null]`, 1)
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{
-				Config:      f.providerConfig() + config,
-				PlanOnly:    true,
-				ExpectError: regexp.MustCompile(`Null List Value`),
-			},
-		},
-	})
 }
 
 // The vault takes only AWS Secrets Manager, since the connector and the

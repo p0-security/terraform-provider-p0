@@ -23,7 +23,7 @@ import (
 // packages/integrations/aws-ssm-ai/shared/src/components.ts: its fields, and those
 // marked `step: "new"`, which P0 refuses to change after staging.
 var awsSsmAiSchema = struct{ fields, stepNew []string }{
-	fields:  []string{"region", "instanceRegions", "vault", "runAsUsers", "isSudoEnabled"},
+	fields:  []string{"region", "instanceRegions", "vault", "isSudoEnabled"},
 	stepNew: []string{"region", "vault"},
 }
 

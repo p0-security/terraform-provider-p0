@@ -350,11 +350,6 @@ resource "p0_aws_ssm_ai_connector" "example" {
   # The regions whose instances agents can request.
   instance_regions = ["us-east-1", "us-west-2"]
 
-  # Left out, agents run only as their own Linux users. To let them switch
-  # with sudo, list the users they can ask for. Listing root gives agents
-  # full control of every instance.
-  # run_as_users = ["deploy"]
-
   depends_on = [
     aws_iam_role_policy.connector_instances,
     aws_iam_role_policy.connector_run_script,
@@ -376,8 +371,7 @@ resource "p0_aws_ssm_ai_connector" "example" {
 
 ### Optional
 
-- `is_sudo_enabled` (Boolean, Deprecated) Use `run_as_users` instead. `true` lets agents run as `root`, as `run_as_users = ["root"]` does. Defaults to `false`. It can't be set with `run_as_users`. Changing it updates the connector in place.
-- `run_as_users` (List of String) The Linux users that agents can ask to run as on an instance, such as `["root", "deploy"]`. Each must be a Linux user name, listed once. An agent always signs in as its own Linux user, then switches to the user it asked for with `sudo`. Leave it out to let agents run only as their own users. P0 refuses requests for any user not listed. Changing it updates the connector in place.
+- `is_sudo_enabled` (Boolean, Deprecated) Has no effect. Agents now ask for a Linux user to run as on each access request, and P0's access policies decide which users they can get. Remove it from the configuration.
 
 ### Read-Only
 
