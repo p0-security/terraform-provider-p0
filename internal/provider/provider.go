@@ -36,6 +36,7 @@ import (
 	installawsmidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-midc"
 	installawsoidc "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-oidc"
 	installawssm "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-sm"
+	installawsssmai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/aws-ssm-ai"
 	installazure "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/azure"
 	installclickhouse "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/clickhouse"
 	installcloudflareai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/cloudflare-ai"
@@ -371,6 +372,8 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installredshiftai.NewConnector,
 		installredshiftai.NewClusterStaged,
 		installredshiftai.NewCluster,
+		installawsssmai.NewConnectorStaged,
+		installawsssmai.NewConnector,
 		installawscloudwatch.NewLogsStaged,
 		installawscloudwatch.NewLogs,
 		installgcpcloudlogging.NewProjectStaged,
