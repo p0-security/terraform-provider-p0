@@ -5,9 +5,11 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -43,9 +45,11 @@ func (*Connector) Schema(_ context.Context, _ resource.SchemaRequest, resp *reso
 			listvalidator.ValueStringsAre(commercialRegionValidator(invalidInstanceRegions)),
 		},
 	}
-	attributes["is_sudo_enabled"] = switchAttribute(
-		"Whether agents can request sudo on an instance. Defaults to `false`. While it is off, P0 refuses those requests. Changing it updates the connector in place.",
+	sudo := switchAttribute(
+		"Has no effect. Agents now ask for a Linux user to run as on each access request, and P0's access policies decide which users they can get. Remove it from the configuration.",
 	)
+	sudo.DeprecationMessage = "is_sudo_enabled has no effect: agents ask for a run-as user on each access request, and P0's access policies restrict it. Remove it from the configuration. It will be removed in a future release."
+	attributes["is_sudo_enabled"] = sudo
 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `An AWS SSM (AI) connector installation.
@@ -80,10 +84,11 @@ func connectorFromJson(ctx context.Context, diags *diag.Diagnostics, id string, 
 	if !ok {
 		return nil
 	}
+	// P0 has no sudo switch. keepSudoSwitch puts the configured one in state.
 	return &connectorModel{
 		connectorStagedModel: newConnectorStagedModel(id, item),
 		InstanceRegions:      instanceRegionsFromJson(ctx, diags, item.InstanceRegions),
-		IsSudoEnabled:        types.BoolPointerValue(item.IsSudoEnabled),
+		IsSudoEnabled:        types.BoolValue(false),
 	}
 }
 
@@ -94,8 +99,27 @@ func connectorToJson(data any) any {
 	}
 	json := model.toJson()
 	json.InstanceRegions = instanceRegionsToJson(model.InstanceRegions)
-	json.IsSudoEnabled = model.IsSudoEnabled.ValueBoolPointer()
 	return json
+}
+
+// The value of an attribute, from a plan or a state.
+type attributeGetter interface {
+	GetAttribute(ctx context.Context, path path.Path, target interface{}) diag.Diagnostics
+}
+
+// Puts the deprecated sudo switch in state as configured, since P0 doesn't
+// store it. Without this, a configuration that turns it on would read back as
+// off, and every plan would show a change.
+func keepSudoSwitch(ctx context.Context, diags *diag.Diagnostics, configured attributeGetter, state *tfsdk.State) {
+	if diags.HasError() || state.Raw.IsNull() {
+		return
+	}
+	var sudo types.Bool
+	diags.Append(configured.GetAttribute(ctx, path.Root("is_sudo_enabled"), &sudo)...)
+	if diags.HasError() || sudo.IsNull() || sudo.IsUnknown() {
+		return
+	}
+	diags.Append(state.SetAttribute(ctx, path.Root("is_sudo_enabled"), sudo)...)
 }
 
 func (*Connector) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
@@ -104,23 +128,27 @@ func (*Connector) ValidateConfig(ctx context.Context, req resource.ValidateConfi
 
 func (r *Connector) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	stageAndInstall(ctx, r.installer, &resp.Diagnostics, &req.Plan, &resp.State, &connectorApi{}, &connectorModel{})
+	keepSudoSwitch(ctx, &resp.Diagnostics, req.Plan, &resp.State)
 }
 
-func (r *Connector) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *Connector) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	r.installer.Read(ctx, &resp.Diagnostics, &resp.State, &connectorApi{}, &connectorModel{})
+	keepSudoSwitch(ctx, &resp.Diagnostics, req.State, &resp.State)
 }
 
 func (*Connector) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	planFinishingInstall(ctx, req, resp)
 }
 
-// Only instance_regions and is_sudo_enabled change in place. P0 checks them on
-// the configure step, which is all an installed connector gets, and saves
-// nothing if the check fails: the connector stays installed with its current
-// values, and the next plan shows the update again. A staged connector is
-// verified first, and a failed verify saves nothing either.
+// Only instance_regions and the deprecated is_sudo_enabled change in place. P0
+// checks the regions on the configure step, which is all an installed
+// connector gets, and saves nothing if the check fails: the connector stays
+// installed with its current values, and the next plan shows the update
+// again. A staged connector is verified first, and a failed verify saves
+// nothing either.
 func (r *Connector) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	updateFromInstallState(ctx, r.installer, req, resp, &connectorApi{}, &connectorModel{})
+	keepSudoSwitch(ctx, &resp.Diagnostics, req.Plan, &resp.State)
 }
 
 // Returns the connector to the "stage" state, so that the staged resource

@@ -350,10 +350,6 @@ resource "p0_aws_ssm_ai_connector" "example" {
   # The regions whose instances agents can request.
   instance_regions = ["us-east-1", "us-west-2"]
 
-  # Lets agents request sudo on an instance. While it is off, P0 refuses
-  # those requests.
-  is_sudo_enabled = false
-
   depends_on = [
     aws_iam_role_policy.connector_instances,
     aws_iam_role_policy.connector_run_script,
@@ -375,7 +371,7 @@ resource "p0_aws_ssm_ai_connector" "example" {
 
 ### Optional
 
-- `is_sudo_enabled` (Boolean) Whether agents can request sudo on an instance. Defaults to `false`. While it is off, P0 refuses those requests. Changing it updates the connector in place.
+- `is_sudo_enabled` (Boolean, Deprecated) Has no effect. Agents now ask for a Linux user to run as on each access request, and P0's access policies decide which users they can get. Remove it from the configuration.
 
 ### Read-Only
 

@@ -309,10 +309,6 @@ resource "p0_aws_ssm_ai_connector" "example" {
   # The regions whose instances agents can request.
   instance_regions = ["us-east-1", "us-west-2"]
 
-  # Lets agents request sudo on an instance. While it is off, P0 refuses
-  # those requests.
-  is_sudo_enabled = false
-
   depends_on = [
     aws_iam_role_policy.connector_instances,
     aws_iam_role_policy.connector_run_script,

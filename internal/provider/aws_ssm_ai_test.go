@@ -300,7 +300,7 @@ func TestAwsSsmAi(t *testing.T) {
 }
 
 // P0 takes the instance regions as one string, separated by commas, and the
-// provider reads them back as a list.
+// provider reads them back as a list. It sends no sudo switch.
 func TestAwsSsmAiConnectorSendsInstanceRegions(t *testing.T) {
 	f := newAwsSsmAiFake(t)
 	d := awsSsmAiTestDefaults
@@ -313,8 +313,9 @@ func TestAwsSsmAiConnectorSendsInstanceRegions(t *testing.T) {
 				Config: f.providerConfig() + d.connector(),
 				Check: func(*terraform.State) error {
 					item := f.item("aws-ssm-ai", "connector", d.awsAccountId)
-					if item["instanceRegions"] != "us-west-2,us-east-1" || item["isSudoEnabled"] != false {
-						return fmt.Errorf("P0 has the connector %v, want instanceRegions \"us-west-2,us-east-1\" and isSudoEnabled false", item)
+					_, hasSudo := item["isSudoEnabled"]
+					if item["instanceRegions"] != "us-west-2,us-east-1" || hasSudo {
+						return fmt.Errorf("P0 has the connector %v, want instanceRegions \"us-west-2,us-east-1\" and no isSudoEnabled", item)
 					}
 					return nil
 				},
@@ -327,9 +328,9 @@ func awsSsmAiBool(value bool) *bool {
 	return &value
 }
 
-// P0 accepts new instance regions or a new sudo switch when it configures the
-// connector, so either updates it in place. Removing is_sudo_enabled turns
-// sudo off in P0.
+// P0 accepts new instance regions when it configures the connector, so they
+// update it in place. The deprecated is_sudo_enabled changes in place too, and
+// stays in state as configured, but never reaches P0.
 func TestAwsSsmAiConnectorUpdatedInPlace(t *testing.T) {
 	cases := []struct {
 		name                string
@@ -383,8 +384,9 @@ func TestAwsSsmAiConnectorUpdatedInPlace(t *testing.T) {
 							resource.TestCheckResourceAttr("p0_aws_ssm_ai_connector.test", "state", "installed"),
 							func(*terraform.State) error {
 								item := f.item("aws-ssm-ai", "connector", from.awsAccountId)
-								if item["instanceRegions"] != c.wantInstanceRegions || item["isSudoEnabled"] != c.wantIsSudoEnabled {
-									return fmt.Errorf("P0 has the connector %v, want instanceRegions %q and isSudoEnabled %t", item, c.wantInstanceRegions, c.wantIsSudoEnabled)
+								_, hasSudo := item["isSudoEnabled"]
+								if item["instanceRegions"] != c.wantInstanceRegions || hasSudo {
+									return fmt.Errorf("P0 has the connector %v, want instanceRegions %q and no isSudoEnabled", item, c.wantInstanceRegions)
 								}
 								return nil
 							},

@@ -119,16 +119,16 @@ func (m connectorStagedModel) key() string {
 type connectorModel struct {
 	connectorStagedModel
 	InstanceRegions types.List `tfsdk:"instance_regions"`
-	IsSudoEnabled   types.Bool `tfsdk:"is_sudo_enabled"`
+	// Deprecated, and never sent to P0.
+	IsSudoEnabled types.Bool `tfsdk:"is_sudo_enabled"`
 }
 
 type connectorJson struct {
 	Region *string    `json:"region,omitempty"`
 	Vault  *vaultJson `json:"vault,omitempty"`
-	// Only p0_aws_ssm_ai_connector sends these two. P0 takes the instance regions
-	// as one string, separated by commas.
+	// Only p0_aws_ssm_ai_connector sends this. P0 takes the instance regions as
+	// one string, separated by commas.
 	InstanceRegions *string `json:"instanceRegions,omitempty"`
-	IsSudoEnabled   *bool   `json:"isSudoEnabled,omitempty"`
 	// P0 sets this.
 	State *string `json:"state,omitempty"`
 }
