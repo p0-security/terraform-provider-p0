@@ -73,6 +73,7 @@ import (
 	installoktaawsiamfederation "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/okta-aws-iam-federation"
 	installonepassword "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/onepassword"
 	installpagerdutyai "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/pagerduty-ai"
+	installpingfederateawsiamfederation "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/pingfederate-aws-iam-federation"
 	installpingoneawsiamfederation "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/pingone-aws-iam-federation"
 	installpostgres "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/postgres"
 	installrds "github.com/p0-security/terraform-provider-p0/internal/provider/resources/install/rds"
@@ -313,6 +314,9 @@ func (p *P0Provider) Resources(ctx context.Context) []func() resource.Resource {
 		installpingoneawsiamfederation.NewPingOneAwsIamFederationConnectorStaged,
 		installpingoneawsiamfederation.NewPingOneAwsIamFederationConnector,
 		installpingoneawsiamfederation.NewPingOneAwsIamFederationApp,
+		installpingfederateawsiamfederation.NewPingFederateAwsIamFederationConnectorStaged,
+		installpingfederateawsiamfederation.NewPingFederateAwsIamFederationConnector,
+		installpingfederateawsiamfederation.NewPingFederateAwsIamFederationApp,
 		installtailscale.NewTailscaleConnectorStaged,
 		installtailscale.NewTailscaleConnector,
 		installtailscale.NewTailscaleTailnet,

@@ -3,7 +3,7 @@
 page_title: "p0_aws_iam_federation Resource - p0"
 subcategory: ""
 description: |-
-  An AWS IAM Federation installation. Users sign in to one AWS account through a federation app in Okta or PingOne, and P0 grants them access by putting policies on the account's roles and pool roles.
+  An AWS IAM Federation installation. Users sign in to one AWS account through a federation app in Okta, PingOne or PingFederate, and P0 grants them access by putting policies on the account's roles and pool roles.
   Important: Before you create this resource, stage the federation with p0_aws_iam_federation_staged, and create P0's role, the SAML provider and the pool roles that it describes. Creating this resource has P0 check that the SAML provider trusts the federation app and that the pool has pool_size roles that trust the SAML provider. If a check fails, the apply fails with P0's message.
   To have an account's users sign in through the federation, set its p0_aws_iam_write login to type = "aws-iam-federation" and federation to this resource's id.
   Set every other attribute to the staged resource's value, so that a change to the staged federation replaces this resource too.
@@ -14,7 +14,7 @@ description: |-
 
 # p0_aws_iam_federation (Resource)
 
-An AWS IAM Federation installation. Users sign in to one AWS account through a federation app in Okta or PingOne, and P0 grants them access by putting policies on the account's roles and pool roles.
+An AWS IAM Federation installation. Users sign in to one AWS account through a federation app in Okta, PingOne or PingFederate, and P0 grants them access by putting policies on the account's roles and pool roles.
 
 **Important:** Before you create this resource, stage the federation with `p0_aws_iam_federation_staged`, and create P0's role, the SAML provider and the pool roles that it describes. Creating this resource has P0 check that the SAML provider trusts the federation app and that the pool has `pool_size` roles that trust the SAML provider. If a check fails, the apply fails with P0's message.
 
@@ -34,7 +34,8 @@ For the AWS install steps, see [Setting up AWS IAM management](https://docs.p0.d
 # Has AWS account 123456789012 trust the Okta app that the
 # p0_okta_aws_iam_federation_app example installs. For a PingOne app, set
 # identity_provider to "pingone" and read the p0_pingone_aws_iam_federation_app
-# resource instead.
+# resource instead. For a PingFederate app, set identity_provider to
+# "pingfederate" and read the p0_pingfederate_aws_iam_federation_app resource.
 resource "p0_aws_iam_federation_staged" "example" {
   id                = "okta-prod"
   account_id        = "123456789012"
@@ -98,9 +99,9 @@ resource "p0_aws_iam_federation" "example" {
 ### Required
 
 - `account_id` (String) The ID of the AWS account that users sign in to
-- `app` (String) The ID of the installed federation app, in P0's Okta (AWS IAM Federation) or PingOne (AWS IAM Federation) integration, that the AWS account trusts
+- `app` (String) The ID of the installed federation app, in P0's Okta (AWS IAM Federation), PingOne (AWS IAM Federation) or PingFederate (AWS IAM Federation) integration, that the AWS account trusts
 - `id` (String) The `id` of the `p0_aws_iam_federation_staged` resource whose install this finishes
-- `identity_provider` (String) The identity provider of the federation app: 'okta' or 'pingone'
+- `identity_provider` (String) The identity provider of the federation app: 'okta', 'pingone' or 'pingfederate'
 
 ### Optional
 
