@@ -119,16 +119,21 @@ func (m connectorStagedModel) key() string {
 type connectorModel struct {
 	connectorStagedModel
 	InstanceRegions types.List `tfsdk:"instance_regions"`
-	IsSudoEnabled   types.Bool `tfsdk:"is_sudo_enabled"`
+	RunAsUsers      types.List `tfsdk:"run_as_users"`
+	// Deprecated: run_as_users replaces it.
+	IsSudoEnabled types.Bool `tfsdk:"is_sudo_enabled"`
 }
 
 type connectorJson struct {
 	Region *string    `json:"region,omitempty"`
 	Vault  *vaultJson `json:"vault,omitempty"`
-	// Only p0_aws_ssm_ai_connector sends these two. P0 takes the instance regions
-	// as one string, separated by commas.
+	// Only p0_aws_ssm_ai_connector sends these two. P0 takes each list as one
+	// string, separated by commas.
 	InstanceRegions *string `json:"instanceRegions,omitempty"`
-	IsSudoEnabled   *bool   `json:"isSudoEnabled,omitempty"`
+	RunAsUsers      *string `json:"runAsUsers,omitempty"`
+	// Read only. P0 lets agents run as root when an item installed before
+	// runAsUsers has this on and no run-as users.
+	IsSudoEnabled *bool `json:"isSudoEnabled,omitempty"`
 	// P0 sets this.
 	State *string `json:"state,omitempty"`
 }
@@ -152,32 +157,32 @@ func (m *connectorStagedModel) toJson() *connectorJson {
 	}
 }
 
-// The instance regions as P0 stores them: one string, separated by commas.
-func instanceRegionsToJson(regions types.List) *string {
-	if regions.IsNull() || regions.IsUnknown() {
+// A list as P0 stores it: one string, separated by commas.
+func listToJson(list types.List) *string {
+	if list.IsNull() || list.IsUnknown() {
 		return nil
 	}
 	var values []string
-	for _, element := range regions.Elements() {
-		if region, ok := element.(types.String); ok {
-			values = append(values, region.ValueString())
+	for _, element := range list.Elements() {
+		if value, ok := element.(types.String); ok {
+			values = append(values, value.ValueString())
 		}
 	}
 	joined := strings.Join(values, ",")
 	return &joined
 }
 
-// The instance regions that P0 stores, or null when it has none, as for an
-// item that was only staged.
-func instanceRegionsFromJson(ctx context.Context, diags *diag.Diagnostics, value *string) types.List {
+// A list that P0 stores, or null when it has none, as for an item that was
+// only staged.
+func listFromJson(ctx context.Context, diags *diag.Diagnostics, value *string) types.List {
 	if value == nil || strings.TrimSpace(*value) == "" {
 		return types.ListNull(types.StringType)
 	}
-	var regions []string
-	for _, region := range strings.Split(*value, ",") {
-		regions = append(regions, strings.TrimSpace(region))
+	var values []string
+	for _, element := range strings.Split(*value, ",") {
+		values = append(values, strings.TrimSpace(element))
 	}
-	list, listDiags := types.ListValueFrom(ctx, types.StringType, regions)
+	list, listDiags := types.ListValueFrom(ctx, types.StringType, values)
 	diags.Append(listDiags...)
 	return list
 }
