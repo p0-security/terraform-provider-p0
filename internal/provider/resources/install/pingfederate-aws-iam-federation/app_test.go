@@ -25,9 +25,9 @@ type appCloud struct {
 	vault func() *vaultModel
 	// The name of the secret that holds the SCIM password.
 	secret string
-	// The body of every request that carries the app: its connector, PingFederate's URL,
-	// its role attribute, its SCIM user name, its vault, its secret's name and its CA
-	// certificate.
+	// The body of every request that carries the app: PingFederate's URL, and its SCIM
+	// role source with the connector, role attribute, SCIM user name, vault, secret's
+	// name and CA certificate.
 	body string
 	// The app's CA certificate, which the AWS app has and the Google Cloud app doesn't.
 	caCertificate types.String
@@ -39,11 +39,11 @@ var awsApp = appCloud{
 	name:   "aws",
 	vault:  awsVault,
 	secret: "pingfederate/acme/p0",
-	body: `{"connector":"prod","pingFederateUrl":"` + testPingFederateUrl + `","roleAttribute":"awsRole",` +
+	body: `{"pingFederateUrl":"` + testPingFederateUrl + `","roleSource":{"type":"scim","connector":"prod","roleAttribute":"awsRole",` +
 		`"scimUsername":"p0",` +
 		`"vault":{"type":"aws-sm","install":"123456789012","secretsRegion":"us-west-2"},` +
 		`"scimPasswordName":"pingfederate/acme/p0",` +
-		`"caCertificate":"-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----"}`,
+		`"caCertificate":"-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----"}}`,
 	caCertificate: types.StringValue(testCaCertificate),
 }
 
@@ -51,10 +51,10 @@ var gcpApp = appCloud{
 	name:   "gcp",
 	vault:  gcpVault,
 	secret: "pingfederate-acme-p0",
-	body: `{"connector":"prod","pingFederateUrl":"` + testPingFederateUrl + `","roleAttribute":"awsRole",` +
+	body: `{"pingFederateUrl":"` + testPingFederateUrl + `","roleSource":{"type":"scim","connector":"prod","roleAttribute":"awsRole",` +
 		`"scimUsername":"p0",` +
 		`"vault":{"type":"gcp-sm","install":"acme-secrets"},` +
-		`"scimPasswordName":"pingfederate-acme-p0"}`,
+		`"scimPasswordName":"pingfederate-acme-p0"}}`,
 	caCertificate: types.StringNull(),
 }
 
@@ -63,16 +63,18 @@ var appClouds = []appCloud{awsApp, gcpApp}
 // The app at state, with the metadata URL that P0 gives once it has the item.
 func (c appCloud) app(state string) *pingFederateAwsIamFederationAppModel {
 	return &pingFederateAwsIamFederationAppModel{
-		Id:               types.StringValue(testAppId),
-		Connector:        types.StringValue("prod"),
-		PingFederateUrl:  types.StringValue(testPingFederateUrl),
-		RoleAttribute:    types.StringValue("awsRole"),
-		ScimUsername:     types.StringValue("p0"),
-		Vault:            c.vault(),
-		ScimPasswordName: types.StringValue(c.secret),
-		CaCertificate:    c.caCertificate,
-		SamlMetadataUrl:  types.StringValue(fakeMetadataUrl),
-		State:            types.StringValue(state),
+		Id:              types.StringValue(testAppId),
+		PingFederateUrl: types.StringValue(testPingFederateUrl),
+		Scim: &scimModel{
+			Connector:        types.StringValue("prod"),
+			RoleAttribute:    types.StringValue("awsRole"),
+			ScimUsername:     types.StringValue("p0"),
+			Vault:            c.vault(),
+			ScimPasswordName: types.StringValue(c.secret),
+			CaCertificate:    c.caCertificate,
+		},
+		SamlMetadataUrl: types.StringValue(fakeMetadataUrl),
+		State:           types.StringValue(state),
 	}
 }
 
@@ -90,9 +92,9 @@ func (c appCloud) response(state string) string {
 		`"metadata":{"samlMetadataUrl":"` + fakeMetadataUrl + `"}}`
 }
 
-// The PUT that stages the item, and verify and configure, carry the app's
-// connector, PingFederate's URL, role attribute, SCIM user name, vault, secret name and CA certificate, in the field names of the app's install
-// schema. `vault` is the shared Vault element, in which "install" names the account or
+// The PUT that stages the item, and verify and configure, carry PingFederate's URL
+// and the SCIM role source's connector, role attribute, SCIM user name, vault, secret
+// name and CA certificate, in the field names of the app's install schema. `vault` is the shared Vault element, in which "install" names the account or
 // the project. None carries what P0 assigns.
 func TestAppRequestJson(t *testing.T) {
 	for _, c := range appClouds {
@@ -135,7 +137,7 @@ func TestAppFromJson(t *testing.T) {
 
 func TestAppFromJsonRequiresVault(t *testing.T) {
 	var diags diag.Diagnostics
-	got := (&PingFederateAwsIamFederationApp{}).fromJson(context.Background(), &diags, testAppId, &pingFederateAwsIamFederationAppApi{Item: &pingFederateAwsIamFederationAppJson{}})
+	got := (&PingFederateAwsIamFederationApp{}).fromJson(context.Background(), &diags, testAppId, &pingFederateAwsIamFederationAppApi{Item: &pingFederateAwsIamFederationAppJson{RoleSource: &roleSourceJson{Type: scimRoleSourceType}}})
 	if got != nil || len(diags.Errors()) != 1 || diags.Errors()[0].Summary() != "Bad API response" {
 		t.Errorf("fromJson = %+v, %v; want nil and a bad response error", got, diags)
 	}
@@ -144,7 +146,7 @@ func TestAppFromJsonRequiresVault(t *testing.T) {
 // A vault of a type this provider doesn't know is refused rather than read into the
 // wrong fields.
 func TestAppFromJsonRequiresAKnownVault(t *testing.T) {
-	item := pingFederateAwsIamFederationAppApi{Item: &pingFederateAwsIamFederationAppJson{Vault: &vaultJson{Type: "azure-kv", Install: "acme"}}}
+	item := pingFederateAwsIamFederationAppApi{Item: &pingFederateAwsIamFederationAppJson{RoleSource: &roleSourceJson{Type: scimRoleSourceType, Vault: &vaultJson{Type: "azure-kv", Install: "acme"}}}}
 
 	var diags diag.Diagnostics
 	got := (&PingFederateAwsIamFederationApp{}).fromJson(context.Background(), &diags, testAppId, &item)
@@ -160,33 +162,43 @@ func TestAppFromJsonRequiresAKnownVault(t *testing.T) {
 	}
 }
 
-// P0 fixes the connector, PingFederate's URL, the role attribute, the SCIM user name,
-// the vault, the secret's name and the CA certificate when it
-// creates the item, so changing any of them replaces the installation. What P0 assigns
-// is read-only.
+// P0 fixes the app's ID, PingFederate's URL and every SCIM field when it creates the
+// item, so changing any of them replaces the installation. An attribute source's fields
+// change in place. What P0 assigns is read-only.
 func TestAppSchema(t *testing.T) {
 	s := schemaOf(t, NewPingFederateAwsIamFederationApp())
-	vault := nestedAttributes(t, s, "vault")
+	scim := nestedAttributes(t, s, "scim")
+	vault := scim["vault"].(schema.SingleNestedAttribute).Attributes
+	attributeSource := nestedAttributes(t, s, "attribute_source")
 	for field, attribute := range map[string]schema.Attribute{
-		"id":                   s.Attributes["id"],
-		"connector":            s.Attributes["connector"],
-		"pingfederate_url":     s.Attributes["pingfederate_url"],
-		"role_attribute":       s.Attributes["role_attribute"],
-		"scim_username":        s.Attributes["scim_username"],
-		"scim_password_name":   s.Attributes["scim_password_name"],
-		"ca_certificate":       s.Attributes["ca_certificate"],
-		"vault.type":           vault["type"],
-		"vault.account_id":     vault["account_id"],
-		"vault.project_id":     vault["project_id"],
-		"vault.secrets_region": vault["secrets_region"],
+		"id":                        s.Attributes["id"],
+		"pingfederate_url":          s.Attributes["pingfederate_url"],
+		"scim.connector":            scim["connector"],
+		"scim.role_attribute":       scim["role_attribute"],
+		"scim.scim_username":        scim["scim_username"],
+		"scim.scim_password_name":   scim["scim_password_name"],
+		"scim.ca_certificate":       scim["ca_certificate"],
+		"scim.vault.type":           vault["type"],
+		"scim.vault.account_id":     vault["account_id"],
+		"scim.vault.project_id":     vault["project_id"],
+		"scim.vault.secrets_region": vault["secrets_region"],
 	} {
 		if !requiresReplace(t, attribute) {
 			t.Errorf("%s doesn't require replacement", field)
 		}
 	}
+	for _, name := range []string{"entity_id", "issuer", "jwks"} {
+		if requiresReplace(t, attributeSource[name]) {
+			t.Errorf("attribute_source.%s requires replacement", name)
+		}
+	}
 
-	for _, name := range []string{"saml_metadata_url", "state"} {
-		attribute := s.Attributes[name]
+	for name, attribute := range map[string]schema.Attribute{
+		"saml_metadata_url":          s.Attributes["saml_metadata_url"],
+		"state":                      s.Attributes["state"],
+		"attribute_source.audience":  attributeSource["audience"],
+		"attribute_source.roles_url": attributeSource["roles_url"],
+	} {
 		if !attribute.IsComputed() || attribute.IsOptional() || attribute.IsRequired() {
 			t.Errorf("%s = %+v; want a read-only attribute", name, attribute)
 		}
@@ -212,20 +224,35 @@ var (
 	gcpVaultFields = map[string]tftypes.Value{"type": str("gcp-sm"), "project_id": str("acme-secrets")}
 )
 
-// The app's fields other than the vault and the secret's name, as a configuration
-// sets them.
+// The app's own fields, as a configuration sets them.
 func appValues() map[string]tftypes.Value {
-	return map[string]tftypes.Value{"id": str(testAppId), "connector": str("prod"), "pingfederate_url": str(testPingFederateUrl), "role_attribute": str("awsRole"), "scim_username": str("p0")}
+	return map[string]tftypes.Value{"id": str(testAppId), "pingfederate_url": str(testPingFederateUrl)}
 }
 
-// Runs the app's ValidateConfig against a configuration with the given vault
-// and secret name.
+// The scim block's fields other than the vault and the secret's name.
+func scimValues() map[string]tftypes.Value {
+	return map[string]tftypes.Value{"connector": str("prod"), "role_attribute": str("awsRole"), "scim_username": str("p0")}
+}
+
+// The scim block, with vault and fields.
+func scimBlock(vault func(tftypes.Object) tftypes.Value, fields map[string]tftypes.Value) func(tftypes.Object) tftypes.Value {
+	return func(typ tftypes.Object) tftypes.Value {
+		values := map[string]tftypes.Value{"vault": vault(typ.AttributeTypes["vault"].(tftypes.Object))}
+		for name, value := range fields {
+			values[name] = value
+		}
+		return objectOf(values)(typ)
+	}
+}
+
+// Runs the app's ValidateConfig against a SCIM app with the given vault and secret
+// name.
 func validateApp(t *testing.T, vault func(tftypes.Object) tftypes.Value, secret tftypes.Value) diag.Diagnostics {
 	t.Helper()
-	blocks := map[string]func(tftypes.Object) tftypes.Value{"vault": vault}
-	values := appValues()
-	values["scim_password_name"] = secret
-	return validateConfig(t, &PingFederateAwsIamFederationApp{}, blocks, values)
+	fields := scimValues()
+	fields["scim_password_name"] = secret
+	blocks := map[string]func(tftypes.Object) tftypes.Value{"scim": scimBlock(vault, fields)}
+	return validateConfig(t, &PingFederateAwsIamFederationApp{}, blocks, appValues())
 }
 
 // P0's own cases for where the SCIM password is
@@ -254,61 +281,61 @@ func TestAppValidateConfig(t *testing.T) {
 		{name: "a secret in another account", vault: with(awsVaultFields, "account_id", str("210987654321")), secret: awsSecret},
 
 		// Where the secret is.
-		{name: "an account that isn't an AWS account ID", vault: with(awsVaultFields, "account_id", str("acme-secrets")), secret: awsSecret, want: []string{"vault.account_id: " + vaultAccountRule}},
-		{name: "a Google Cloud region on AWS", vault: with(awsVaultFields, "secrets_region", str("us-west1")), secret: awsSecret, want: []string{"vault.secrets_region: " + vaultRegionRule}},
-		{name: "a GovCloud region", vault: with(awsVaultFields, "secrets_region", str("us-gov-west-1")), secret: awsSecret, want: []string{"vault.secrets_region: " + unsupported}},
-		{name: "a project that isn't a project ID", vault: with(gcpVaultFields, "project_id", str("123456789012")), secret: gcpSecret, want: []string{"vault.project_id: " + vaultProjectRule}},
+		{name: "an account that isn't an AWS account ID", vault: with(awsVaultFields, "account_id", str("acme-secrets")), secret: awsSecret, want: []string{"scim.vault.account_id: " + vaultAccountRule}},
+		{name: "a Google Cloud region on AWS", vault: with(awsVaultFields, "secrets_region", str("us-west1")), secret: awsSecret, want: []string{"scim.vault.secrets_region: " + vaultRegionRule}},
+		{name: "a GovCloud region", vault: with(awsVaultFields, "secrets_region", str("us-gov-west-1")), secret: awsSecret, want: []string{"scim.vault.secrets_region: " + unsupported}},
+		{name: "a project that isn't a project ID", vault: with(gcpVaultFields, "project_id", str("123456789012")), secret: gcpSecret, want: []string{"scim.vault.project_id: " + vaultProjectRule}},
 
 		// The fields each vault takes.
-		{name: "aws without an account", vault: without(awsVaultFields, "account_id"), secret: awsSecret, want: []string{`vault.account_id: 'vault.account_id' is required when 'vault.type' is "aws-sm".`}},
-		{name: "aws without a region", vault: without(awsVaultFields, "secrets_region"), secret: awsSecret, want: []string{`vault.secrets_region: 'vault.secrets_region' is required when 'vault.type' is "aws-sm".`}},
+		{name: "aws without an account", vault: without(awsVaultFields, "account_id"), secret: awsSecret, want: []string{`scim.vault.account_id: 'scim.vault.account_id' is required when 'scim.vault.type' is "aws-sm".`}},
+		{name: "aws without a region", vault: without(awsVaultFields, "secrets_region"), secret: awsSecret, want: []string{`scim.vault.secrets_region: 'scim.vault.secrets_region' is required when 'scim.vault.type' is "aws-sm".`}},
 		{
 			name:   "aws with a project",
 			vault:  with(awsVaultFields, "project_id", str("acme-secrets")),
 			secret: awsSecret,
-			want:   []string{`vault.project_id: 'vault.project_id' may only be set when 'vault.type' is "gcp-sm".`},
+			want:   []string{`scim.vault.project_id: 'scim.vault.project_id' may only be set when 'scim.vault.type' is "gcp-sm".`},
 		},
-		{name: "gcp without a project", vault: without(gcpVaultFields, "project_id"), secret: gcpSecret, want: []string{`vault.project_id: 'vault.project_id' is required when 'vault.type' is "gcp-sm".`}},
+		{name: "gcp without a project", vault: without(gcpVaultFields, "project_id"), secret: gcpSecret, want: []string{`scim.vault.project_id: 'scim.vault.project_id' is required when 'scim.vault.type' is "gcp-sm".`}},
 		{
 			name:   "gcp with an account",
 			vault:  with(gcpVaultFields, "account_id", str("123456789012")),
 			secret: gcpSecret,
-			want:   []string{`vault.account_id: 'vault.account_id' may only be set when 'vault.type' is "aws-sm".`},
+			want:   []string{`scim.vault.account_id: 'scim.vault.account_id' may only be set when 'scim.vault.type' is "aws-sm".`},
 		},
 		{
 			name:   "gcp with a region",
 			vault:  with(gcpVaultFields, "secrets_region", str("us-west-2")),
 			secret: gcpSecret,
-			want:   []string{`vault.secrets_region: 'vault.secrets_region' may only be set when 'vault.type' is "aws-sm".`},
+			want:   []string{`scim.vault.secrets_region: 'scim.vault.secrets_region' may only be set when 'scim.vault.type' is "aws-sm".`},
 		},
 
 		// The secret's name, which each secret manager has its own rule for.
-		{name: "an empty name", vault: awsVault, secret: str(""), want: []string{"scim_password_name: " + missingSecretRule}},
-		{name: "an empty name with an unknown vault", vault: unknownObject, secret: str(""), want: []string{"scim_password_name: " + missingSecretRule}},
+		{name: "an empty name", vault: awsVault, secret: str(""), want: []string{"scim.scim_password_name: " + missingSecretRule}},
+		{name: "an empty name with an unknown vault", vault: unknownObject, secret: str(""), want: []string{"scim.scim_password_name: " + missingSecretRule}},
 		// P0 trims the name whatever the vault, so this doesn't wait for the vault's type.
 		{
 			name:   "a padded name with an unknown vault type",
 			vault:  objectOf(map[string]tftypes.Value{"type": unknownString}),
 			secret: str(" pingfederate/secret"),
-			want: []string{"scim_password_name: P0 removes the whitespace around 'scim_password_name', so the value it stores " +
+			want: []string{"scim.scim_password_name: P0 removes the whitespace around 'scim.scim_password_name', so the value it stores " +
 				"wouldn't match this configuration. Remove the whitespace, for example with trimspace()."},
 		},
-		{name: "an ARN", vault: awsVault, secret: str(arn + "-AbCdEf"), want: []string{"scim_password_name: " + secretNameRule}},
-		{name: "a name with a space", vault: awsVault, secret: str("pingfederate secret"), want: []string{"scim_password_name: " + secretNameRule}},
-		{name: "a wildcard", vault: awsVault, secret: str("pingfederate/*"), want: []string{"scim_password_name: " + secretNameRule}},
-		{name: "a name that ends like an ARN", vault: awsVault, secret: str("pingfederate/secret-AbCdEf"), want: []string{"scim_password_name: " + secretSuffixRule}},
-		{name: "a Google secret's full resource name", vault: gcpVault, secret: str("projects/acme-secrets/secrets/pingfederate-secret"), want: []string{"scim_password_name: " + secretNameRule}},
-		{name: "a Google secret's name with a slash", vault: gcpVault, secret: awsSecret, want: []string{"scim_password_name: " + secretNameRule}},
-		{name: "a Google secret's name with a dot", vault: gcpVault, secret: str("pingfederate.secret"), want: []string{"scim_password_name: " + secretNameRule}},
+		{name: "an ARN", vault: awsVault, secret: str(arn + "-AbCdEf"), want: []string{"scim.scim_password_name: " + secretNameRule}},
+		{name: "a name with a space", vault: awsVault, secret: str("pingfederate secret"), want: []string{"scim.scim_password_name: " + secretNameRule}},
+		{name: "a wildcard", vault: awsVault, secret: str("pingfederate/*"), want: []string{"scim.scim_password_name: " + secretNameRule}},
+		{name: "a name that ends like an ARN", vault: awsVault, secret: str("pingfederate/secret-AbCdEf"), want: []string{"scim.scim_password_name: " + secretSuffixRule}},
+		{name: "a Google secret's full resource name", vault: gcpVault, secret: str("projects/acme-secrets/secrets/pingfederate-secret"), want: []string{"scim.scim_password_name: " + secretNameRule}},
+		{name: "a Google secret's name with a slash", vault: gcpVault, secret: awsSecret, want: []string{"scim.scim_password_name: " + secretNameRule}},
+		{name: "a Google secret's name with a dot", vault: gcpVault, secret: str("pingfederate.secret"), want: []string{"scim.scim_password_name: " + secretNameRule}},
 		// A Google secret's ID can end the way an AWS ARN does.
 		{name: "a Google secret's name that ends like an ARN", vault: gcpVault, secret: str("pingfederate-secret-AbCdEf")},
 		// One error for the field, for the first rule the trimmed name breaks.
-		{name: "a padded name that ends like an ARN", vault: awsVault, secret: str(" pingfederate/secret-AbCdEf\n"), want: []string{"scim_password_name: " + secretSuffixRule}},
+		{name: "a padded name that ends like an ARN", vault: awsVault, secret: str(" pingfederate/secret-AbCdEf\n"), want: []string{"scim.scim_password_name: " + secretSuffixRule}},
 		{
 			name:   "a name with a trailing newline",
 			vault:  awsVault,
 			secret: str("pingfederate/secret\n"),
-			want: []string{"scim_password_name: P0 removes the whitespace around 'scim_password_name', so the value it stores " +
+			want: []string{"scim.scim_password_name: P0 removes the whitespace around 'scim.scim_password_name', so the value it stores " +
 				"wouldn't match this configuration. Remove the whitespace, for example with trimspace()."},
 		},
 	}
@@ -367,7 +394,7 @@ func TestAppValidateConfigSummaries(t *testing.T) {
 // one error, at its attribute, with P0's message, which doesn't repeat the value: the
 // SCIM password may be pasted in its place.
 func TestAppValidateConfigFields(t *testing.T) {
-	const padded = "role_attribute: P0 removes the whitespace around 'role_attribute', so the value it stores " +
+	const padded = "scim.role_attribute: P0 removes the whitespace around 'scim.role_attribute', so the value it stores " +
 		"wouldn't match this configuration. Remove the whitespace, for example with trimspace()."
 
 	cases := []struct {
@@ -381,21 +408,21 @@ func TestAppValidateConfigFields(t *testing.T) {
 		{name: "an http URL", field: "pingfederate_url", value: str("http://sso.example.com"), want: []string{"pingfederate_url: " + urlRule}},
 		{name: "a URL with a query", field: "pingfederate_url", value: str("https://sso.example.com?a=b"), want: []string{"pingfederate_url: " + urlRule}},
 		{name: "a role attribute with digits and hyphens", field: "role_attribute", value: str("aws-role-2")},
-		{name: "a role attribute with a space", field: "role_attribute", value: str("aws role"), want: []string{"role_attribute: " + roleAttributeRule}},
-		{name: "a role attribute with an underscore", field: "role_attribute", value: str("aws_role"), want: []string{"role_attribute: " + roleAttributeRule}},
-		{name: "a role attribute that starts with a digit", field: "role_attribute", value: str("2roles"), want: []string{"role_attribute: " + roleAttributeRule}},
-		{name: "a role attribute that's too long", field: "role_attribute", value: str("a" + strings.Repeat("b", 100)), want: []string{"role_attribute: " + roleAttributeRule}},
+		{name: "a role attribute with a space", field: "role_attribute", value: str("aws role"), want: []string{"scim.role_attribute: " + roleAttributeRule}},
+		{name: "a role attribute with an underscore", field: "role_attribute", value: str("aws_role"), want: []string{"scim.role_attribute: " + roleAttributeRule}},
+		{name: "a role attribute that starts with a digit", field: "role_attribute", value: str("2roles"), want: []string{"scim.role_attribute: " + roleAttributeRule}},
+		{name: "a role attribute that's too long", field: "role_attribute", value: str("a" + strings.Repeat("b", 100)), want: []string{"scim.role_attribute: " + roleAttributeRule}},
 		{name: "a padded role attribute", field: "role_attribute", value: str(" awsRole\n"), want: []string{padded}},
-		{name: "a SCIM user name with a colon", field: "scim_username", value: str("p0:admin"), want: []string{"scim_username: " + scimUsernameRule}},
-		{name: "a SCIM user name with a space", field: "scim_username", value: str("p0 admin"), want: []string{"scim_username: " + scimUsernameRule}},
+		{name: "a SCIM user name with a colon", field: "scim_username", value: str("p0:admin"), want: []string{"scim.scim_username: " + scimUsernameRule}},
+		{name: "a SCIM user name with a space", field: "scim_username", value: str("p0 admin"), want: []string{"scim.scim_username: " + scimUsernameRule}},
 		{name: "a CA certificate", field: "ca_certificate", value: str(testCaCertificate)},
 		{name: "an empty CA certificate", field: "ca_certificate", value: str("")},
-		{name: "a CA certificate that isn't PEM", field: "ca_certificate", value: str("MIIB"), want: []string{"ca_certificate: " + caCertificateRule}},
+		{name: "a CA certificate that isn't PEM", field: "ca_certificate", value: str("MIIB"), want: []string{"scim.ca_certificate: " + caCertificateRule}},
 		{
 			name:  "a CA certificate with a trailing newline",
 			field: "ca_certificate",
 			value: str(testCaCertificate + "\n"),
-			want: []string{"ca_certificate: P0 removes the whitespace around 'ca_certificate', so the value it stores " +
+			want: []string{"scim.ca_certificate: P0 removes the whitespace around 'scim.ca_certificate', so the value it stores " +
 				"wouldn't match this configuration. Remove the whitespace, for example with trimspace()."},
 		},
 		{name: "an unknown URL", field: "pingfederate_url", value: unknownString},
@@ -403,10 +430,14 @@ func TestAppValidateConfigFields(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			blocks := map[string]func(tftypes.Object) tftypes.Value{"vault": objectOf(awsVaultFields)}
-			values := appValues()
-			values["scim_password_name"] = str(awsApp.secret)
-			values[c.field] = c.value
+			values, fields := appValues(), scimValues()
+			fields["scim_password_name"] = str(awsApp.secret)
+			if _, ok := values[c.field]; ok {
+				values[c.field] = c.value
+			} else {
+				fields[c.field] = c.value
+			}
+			blocks := map[string]func(tftypes.Object) tftypes.Value{"scim": scimBlock(objectOf(awsVaultFields), fields)}
 			diags := validateConfig(t, &PingFederateAwsIamFederationApp{}, blocks, values)
 			if got := errorDetails(diags); !reflect.DeepEqual(got, append([]string{}, c.want...)) {
 				t.Errorf("errors =\n%v\nwant\n%v", got, c.want)
@@ -419,7 +450,7 @@ func TestAppValidateConfigFields(t *testing.T) {
 // value, which skips the check silently.
 func TestVaultRuleFieldNames(t *testing.T) {
 	names := awsApp.vault().fields()
-	attributes := nestedAttributes(t, schemaOf(t, NewPingFederateAwsIamFederationApp()), "vault")
+	attributes := nestedAttributes(t, schemaOf(t, NewPingFederateAwsIamFederationApp()), "scim")["vault"].(schema.SingleNestedAttribute).Attributes
 	for vaultType, fields := range vaultRules {
 		for _, field := range fields {
 			if _, ok := names[field.name]; !ok {

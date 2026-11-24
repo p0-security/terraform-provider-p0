@@ -1,5 +1,5 @@
-# Adds the PingFederate app acme-aws, whose SCIM password is in AWS Secrets
-# Manager, in the account of the connector on AWS Lambda that the
+# Adds the PingFederate app acme-aws, whose roles P0's connector writes through
+# SCIM, and whose SCIM password is in AWS Secrets Manager, in the account of the connector on AWS Lambda that the
 # p0_pingfederate_aws_iam_federation_connector example installs. For a connector on
 # Cloud Run and a SCIM password in Google Secret Manager, see gcp.tf in this
 # directory.
@@ -134,17 +134,20 @@ resource "aws_iam_role_policy" "p0_pingfederate_aws_iam_federation_app_acme_aws_
 # secret, apply again.
 resource "p0_pingfederate_aws_iam_federation_app" "example" {
   id               = "acme-aws"
-  connector        = p0_pingfederate_aws_iam_federation_connector.example.id
   pingfederate_url = "https://sso.example.com:9031"
-  role_attribute   = "awsRole"
-  scim_username    = "p0-scim"
 
-  vault = {
-    type           = "aws-sm"
-    account_id     = local.p0_pingfederate_aws_iam_federation_app_acme_aws.secrets_account_id
-    secrets_region = local.p0_pingfederate_aws_iam_federation_app_acme_aws.secrets_region
+  scim = {
+    connector      = p0_pingfederate_aws_iam_federation_connector.example.id
+    role_attribute = "awsRole"
+    scim_username  = "p0-scim"
+
+    vault = {
+      type           = "aws-sm"
+      account_id     = local.p0_pingfederate_aws_iam_federation_app_acme_aws.secrets_account_id
+      secrets_region = local.p0_pingfederate_aws_iam_federation_app_acme_aws.secrets_region
+    }
+    scim_password_name = local.p0_pingfederate_aws_iam_federation_app_acme_aws.scim_password_name
   }
-  scim_password_name = local.p0_pingfederate_aws_iam_federation_app_acme_aws.scim_password_name
 
   depends_on = [aws_iam_role_policy.p0_pingfederate_aws_iam_federation_app_acme_aws_secret]
 }

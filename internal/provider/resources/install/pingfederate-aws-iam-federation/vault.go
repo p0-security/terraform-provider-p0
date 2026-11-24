@@ -5,7 +5,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -28,6 +27,9 @@ const (
 	awsSecretsManager = "aws-sm"
 	gcpSecretManager  = "gcp-sm"
 )
+
+// The vault is a field of the app's SCIM role source.
+var vaultPath = scimPath.AtName("vault")
 
 // The secret managers a vault can be: the one in each cloud a connector runs in.
 var vaultTypes = []string{awsSecretsManager, gcpSecretManager}
@@ -97,7 +99,7 @@ func vaultAttribute(description string, secret string) schema.SingleNestedAttrib
 // Returns nil when the block is null, or unknown until apply.
 func vaultFromConfig(ctx context.Context, config tfsdk.Config, diags *diag.Diagnostics) *vaultModel {
 	var vault vaultModel
-	if !common.GetKnownObject(ctx, config, path.Root("vault"), &vault, diags) {
+	if !common.GetKnownObject(ctx, config, vaultPath, &vault, diags) {
 		return nil
 	}
 	return &vault
@@ -116,45 +118,45 @@ func validateVault(vault *vaultModel, diags *diag.Diagnostics) {
 	case awsSecretsManager:
 		if vault.AccountId.IsNull() {
 			diags.AddAttributeError(
-				path.Root("vault").AtName("account_id"),
+				vaultPath.AtName("account_id"),
 				"Missing AWS account ID",
-				"'vault.account_id' is required when 'vault.type' is \"aws-sm\".",
+				"'scim.vault.account_id' is required when 'scim.vault.type' is \"aws-sm\".",
 			)
 		}
 		if vault.SecretsRegion.IsNull() {
 			diags.AddAttributeError(
-				path.Root("vault").AtName("secrets_region"),
+				vaultPath.AtName("secrets_region"),
 				"Missing secrets region",
-				"'vault.secrets_region' is required when 'vault.type' is \"aws-sm\".",
+				"'scim.vault.secrets_region' is required when 'scim.vault.type' is \"aws-sm\".",
 			)
 		}
 		if isSet(vault.ProjectId) {
 			diags.AddAttributeError(
-				path.Root("vault").AtName("project_id"),
+				vaultPath.AtName("project_id"),
 				"Unexpected Google Cloud project",
-				"'vault.project_id' may only be set when 'vault.type' is \"gcp-sm\".",
+				"'scim.vault.project_id' may only be set when 'scim.vault.type' is \"gcp-sm\".",
 			)
 		}
 	case gcpSecretManager:
 		if vault.ProjectId.IsNull() {
 			diags.AddAttributeError(
-				path.Root("vault").AtName("project_id"),
+				vaultPath.AtName("project_id"),
 				"Missing Google Cloud project",
-				"'vault.project_id' is required when 'vault.type' is \"gcp-sm\".",
+				"'scim.vault.project_id' is required when 'scim.vault.type' is \"gcp-sm\".",
 			)
 		}
 		if isSet(vault.AccountId) {
 			diags.AddAttributeError(
-				path.Root("vault").AtName("account_id"),
+				vaultPath.AtName("account_id"),
 				"Unexpected AWS account ID",
-				"'vault.account_id' may only be set when 'vault.type' is \"aws-sm\".",
+				"'scim.vault.account_id' may only be set when 'scim.vault.type' is \"aws-sm\".",
 			)
 		}
 		if isSet(vault.SecretsRegion) {
 			diags.AddAttributeError(
-				path.Root("vault").AtName("secrets_region"),
+				vaultPath.AtName("secrets_region"),
 				"Unexpected secrets region",
-				"'vault.secrets_region' may only be set when 'vault.type' is \"aws-sm\".",
+				"'scim.vault.secrets_region' may only be set when 'scim.vault.type' is \"aws-sm\".",
 			)
 		}
 	}

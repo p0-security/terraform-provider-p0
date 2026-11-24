@@ -3,15 +3,17 @@ package installpingfederateawsiamfederation
 import (
 	"context"
 	"fmt"
-	"slices"
-	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -35,27 +37,65 @@ type PingFederateAwsIamFederationApp struct {
 }
 
 type pingFederateAwsIamFederationAppModel struct {
-	Id               types.String `tfsdk:"id"`
-	Connector        types.String `tfsdk:"connector"`
-	PingFederateUrl  types.String `tfsdk:"pingfederate_url"`
-	RoleAttribute    types.String `tfsdk:"role_attribute"`
-	ScimUsername     types.String `tfsdk:"scim_username"`
-	Vault            *vaultModel  `tfsdk:"vault"`
-	ScimPasswordName types.String `tfsdk:"scim_password_name"`
-	CaCertificate    types.String `tfsdk:"ca_certificate"`
-	SamlMetadataUrl  types.String `tfsdk:"saml_metadata_url"`
-	State            types.String `tfsdk:"state"`
+	Id              types.String          `tfsdk:"id"`
+	PingFederateUrl types.String          `tfsdk:"pingfederate_url"`
+	Scim            *scimModel            `tfsdk:"scim"`
+	AttributeSource *attributeSourceModel `tfsdk:"attribute_source"`
+	SamlMetadataUrl types.String          `tfsdk:"saml_metadata_url"`
+	State           types.String          `tfsdk:"state"`
 }
 
 type pingFederateAwsIamFederationAppJson struct {
+	PingFederateUrl *string         `json:"pingFederateUrl,omitempty"`
+	RoleSource      *roleSourceJson `json:"roleSource,omitempty"`
+	State           *string         `json:"state,omitempty"`
+}
+
+// The app's `roleSource` element: a discriminated union on "type", whose fields are
+// those of its option.
+type roleSourceJson struct {
+	Type string `json:"type"`
+
 	Connector        *string    `json:"connector,omitempty"`
-	PingFederateUrl  *string    `json:"pingFederateUrl,omitempty"`
 	RoleAttribute    *string    `json:"roleAttribute,omitempty"`
 	ScimUsername     *string    `json:"scimUsername,omitempty"`
 	Vault            *vaultJson `json:"vault,omitempty"`
 	ScimPasswordName *string    `json:"scimPasswordName,omitempty"`
 	CaCertificate    *string    `json:"caCertificate,omitempty"`
-	State            *string    `json:"state,omitempty"`
+
+	EntityId *string   `json:"entityId,omitempty"`
+	Issuer   *string   `json:"issuer,omitempty"`
+	Jwks     *jwksJson `json:"jwks,omitempty"`
+	Audience *string   `json:"audience,omitempty"`
+}
+
+// One option of the app's `roleSource` element, as a block of this resource.
+type roleSource interface {
+	attribute() schema.Attribute
+	// Checks the role source's block, which may be null.
+	validate(ctx context.Context, config tfsdk.Config, diags *diag.Diagnostics)
+	// Returns nil when the model doesn't use this role source.
+	toJson(model *pingFederateAwsIamFederationAppModel) *roleSourceJson
+	// Sets the model's block, or reports why it can't.
+	fromJson(installer *common.Install, diags *diag.Diagnostics, id string, json *roleSourceJson, model *pingFederateAwsIamFederationAppModel)
+}
+
+// Keyed by P0's role source type.
+var roleSources = map[string]roleSource{
+	scimRoleSourceType:            scimRoleSource{},
+	attributeSourceRoleSourceType: attributeSourceRoleSource{},
+}
+
+// P0 fixes an app's role source when it adds the app, so a block that appears or goes
+// away replaces it. A change inside the block is the block's own to plan.
+func roleSourcePlanModifiers() []planmodifier.Object {
+	return []planmodifier.Object{objectplanmodifier.RequiresReplaceIf(
+		func(_ context.Context, req planmodifier.ObjectRequest, resp *objectplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = req.StateValue.IsNull() != req.PlanValue.IsNull()
+		},
+		"Replaces the app when its role source changes.",
+		"Replaces the app when its role source changes.",
+	)}
 }
 
 // What P0 computes for the item without storing it.
@@ -78,24 +118,42 @@ func (*PingFederateAwsIamFederationApp) Metadata(_ context.Context, req resource
 
 func (*PingFederateAwsIamFederationApp) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	replace := []planmodifier.String{stringplanmodifier.RequiresReplace()}
+	scim := scimRoleSource{}.attribute().(schema.SingleNestedAttribute)
+	scim.Validators = []validator.Object{objectvalidator.ExactlyOneOf(path.MatchRoot("attribute_source"))}
 	resp.Schema = schema.Schema{
-		MarkdownDescription: `A PingFederate SP connection that signs users in to AWS, and the SCIM connection that P0 assigns AWS roles through, from one of your PingFederate (AWS IAM Federation) connectors. A ` + "`p0_aws_iam_federation`" + ` resource has an AWS account trust it.
+		MarkdownDescription: `A PingFederate SP connection that signs users in to AWS. A ` + "`p0_aws_iam_federation`" + ` resource has an AWS account trust it.
 
-The connector writes each user's AWS roles to Active Directory through PingFederate's SCIM inbound provisioning, and signs in to it with HTTP Basic credentials. P0 never holds the SCIM password. You store it in your own secret manager, in the connector's cloud, and the connector reads it on every call. This resource tells P0 which connector acts on the app, PingFederate's URL, the role attribute, the SCIM user name, and where the SCIM password is.
+Its role source sets how PingFederate gets each user's AWS roles. Set exactly one of ` + "`attribute_source`" + ` or ` + "`scim`" + `. P0 fixes ` + "`id`" + `, ` + "`pingfederate_url`" + `, the role source and every ` + "`scim`" + ` field when it adds the app, so changing one replaces the installation. An attribute source's ` + "`entity_id`" + `, ` + "`issuer`" + ` and ` + "`jwks`" + ` change in place. If the app is already added in P0, import it rather than creating it: P0 refuses to add an app twice. If P0 hasn't finished installing the app, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
 
-**Important:** Set up PingFederate, store the SCIM password and let the connector read it before Terraform creates this resource. Do that in an earlier apply, or in the same apply with this resource depending on the connector's read grant. Creating this resource has P0 validate the install through the connector: the connector reads the secret, searches PingFederate's SCIM users by email, checks the role attribute in the custom SCIM schema, and reads PingFederate's SAML metadata for AWS. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the connector is denied the secret right after you grant it, apply again.
+## Attribute source
 
-P0 fixes every attribute when it adds the app, so changing any of them replaces the installation. To rotate the SCIM password, store the new one as a new version of the same secret, which needs no change here. If the app is already added in P0, import it rather than creating it: P0 refuses to add an app twice. If P0 hasn't finished installing the app, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
+PingFederate reads each user's roles from P0 at each sign-in, through a REST API data store. P0 calls nothing in your network and holds no secret: PingFederate's own OAuth server issues the data store's access token, and P0 checks it against ` + "`issuer`" + `, the public keys, and the audience that P0 sets for the app. A grant or a revoke takes effect at the user's next sign-in.
+
+Creating this resource doesn't call PingFederate, so a mistake in PingFederate's setup shows as a refused AWS sign-in. Set up PingFederate with the values this resource gives:
+
+- Under **Access Token Management**, add a **JSON Web Tokens** instance that uses the centralized signing key. Set its **Issuer Claim Value** to ` + "`issuer`" + `, and its **Audience Claim Value** to ` + "`attribute_source.audience`" + `, which P0 sets when it adds the app.
+
+- Map the instance for the ` + "`client_credentials`" + ` context, and add an OAuth client with the client credentials grant that issues only this instance's tokens.
+
+- Add a **REST API** data store whose base URL is ` + "`attribute_source.roles_url`" + `. Its authentication method is **OAuth 2.0 Bearer Token** with **Client Credentials**, the client above, and PingFederate's own token endpoint, ` + "`<pingfederate_url>/as/token.oauth2`" + `. Map the local attribute ` + "`roles`" + ` to ` + "`/roles`" + `.
+
+- Create an SP connection to the partner ` + "`urn:amazon:webservices`" + `. Add the data store as an attribute source with the resource path ` + "`/apps/<id>/roles?email=${mail}`" + `, and fulfill ` + "`https://aws.amazon.com/SAML/Attributes/Role`" + ` from its ` + "`roles`" + `. Map the user's ` + "`mail`" + ` to ` + "`https://aws.amazon.com/SAML/Attributes/RoleSessionName`" + ` and ` + "`https://aws.amazon.com/SAML/Attributes/SourceIdentity`" + `, with the URI name format. Its subject uses the persistent NameID format. In its signature policy, select **Always sign the SAML Assertion**: AWS refuses a response that signs only the SAML response.
+
+## SCIM
+
+P0's connector writes each user's AWS roles to Active Directory through PingFederate's SCIM inbound provisioning, and signs in to it with HTTP Basic credentials. P0 never holds the SCIM password. You store it in your own secret manager, in the connector's cloud, and the connector reads it on every call.
+
+**Important:** Set up PingFederate, store the SCIM password and let the connector read it before Terraform creates this resource. Do that in an earlier apply, or in the same apply with this resource depending on the connector's read grant. Creating this resource has P0 validate the install through the connector: the connector reads the secret, searches PingFederate's SCIM users by email, checks the role attribute in the custom SCIM schema, and reads PingFederate's SAML metadata for AWS. If a check fails, the apply fails with P0's message. IAM changes can take a few seconds to propagate, so if the connector is denied the secret right after you grant it, apply again. To rotate the SCIM password, store the new one as a new version of the same secret, which needs no change here.
 
 **Prerequisites:**
 
 - A PingFederate (AWS IAM Federation) connector, installed with ` + "`p0_pingfederate_aws_iam_federation_connector`" + `. The connector must reach PingFederate's runtime at ` + "`pingfederate_url`" + `, including ` + "`/pf-scim`" + `. The SCIM password must be in the connector's cloud: AWS Secrets Manager for a connector on AWS Lambda, or Google Secret Manager for one on Cloud Run. It can be in another account or project.
 
-- A multi-valued string attribute on users in the Active Directory schema, named by ` + "`role_attribute`" + `, that P0 adds each user's AWS roles to. The account of PingFederate's Active Directory data store must be able to write it.
+- A multi-valued string attribute on users in the Active Directory schema, named by ` + "`scim.role_attribute`" + `, that P0 adds each user's AWS roles to. The account of PingFederate's Active Directory data store must be able to write it.
 
-- A PingFederate IdP connection with only Inbound Provisioning, on SCIM 2.0, whose user repository is the Active Directory data store. Add ` + "`role_attribute`" + ` to its custom SCIM schema as a multi-valued, read-write string. In Write Users, map the Active Directory attribute to the SCIM attribute of the same name. In Read Users, map ` + "`emails.work.value`" + ` to ` + "`mail`" + `, and ` + "`role_attribute`" + ` to itself. A SCIM search must return each user's ` + "`id`" + `. The connection uses HTTP Basic authentication with the user name ` + "`scim_username`" + `. Store its password outside Terraform, as the secret's whole value, in the account and region or the project that ` + "`vault`" + ` names. Storing it outside Terraform keeps it out of Terraform's state.
+- A PingFederate IdP connection with only Inbound Provisioning, on SCIM 2.0, whose user repository is the Active Directory data store. Add ` + "`scim.role_attribute`" + ` to its custom SCIM schema as a multi-valued, read-write string. In Write Users, map the Active Directory attribute to the SCIM attribute of the same name. In Read Users, map ` + "`emails.work.value`" + ` to ` + "`mail`" + `, and ` + "`scim.role_attribute`" + ` to itself. A SCIM search must return each user's ` + "`id`" + `. The connection uses HTTP Basic authentication with the user name ` + "`scim.scim_username`" + `. Store its password outside Terraform, as the secret's whole value, in the account and region or the project that ` + "`scim.vault`" + ` names. Storing it outside Terraform keeps it out of Terraform's state.
 
-- A PingFederate SP connection to the partner ` + "`urn:amazon:webservices`" + `. It maps ` + "`role_attribute`" + ` to ` + "`https://aws.amazon.com/SAML/Attributes/Role`" + `, and the user's ` + "`mail`" + ` to ` + "`https://aws.amazon.com/SAML/Attributes/RoleSessionName`" + ` and ` + "`https://aws.amazon.com/SAML/Attributes/SourceIdentity`" + `, with the URI name format. Its subject uses the persistent NameID format. In its signature policy, select **Always sign the SAML Assertion**: AWS refuses a response that signs only the SAML response.
+- A PingFederate SP connection to the partner ` + "`urn:amazon:webservices`" + `. It maps ` + "`scim.role_attribute`" + ` to ` + "`https://aws.amazon.com/SAML/Attributes/Role`" + `, and the user's ` + "`mail`" + ` to ` + "`https://aws.amazon.com/SAML/Attributes/RoleSessionName`" + ` and ` + "`https://aws.amazon.com/SAML/Attributes/SourceIdentity`" + `, with the URI name format. Its subject uses the persistent NameID format. In its signature policy, select **Always sign the SAML Assertion**: AWS refuses a response that signs only the SAML response.
 
 - Read access to that one secret, and no other, for the connector's identity (its ` + "`connector_identity`" + `). P0 names the secret in each call, so a call could point the connector at any other secret it can read.
 
@@ -115,44 +173,13 @@ For the AWS install steps, see [Setting up AWS IAM management](https://docs.p0.d
 				Validators:          connectorIdValidators(),
 				PlanModifiers:       replace,
 			},
-			"connector": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "The connector that acts on this app: the `id` of a `p0_pingfederate_aws_iam_federation_connector` resource. Requires that connector to be installed. It must reach PingFederate's runtime, including `/pf-scim`.",
-				Validators:          connectorIdValidators(),
-				PlanModifiers:       replace,
-			},
 			"pingfederate_url": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "PingFederate's runtime base URL, such as `https://sso.example.com:9031`. P0 calls its SCIM endpoint, and reads the SAML metadata of its SP connection to AWS, from it.",
+				MarkdownDescription: "PingFederate's runtime base URL, such as `https://sso.example.com:9031`. P0 reads the SAML metadata of its SP connection to AWS from it. With `scim`, P0 also calls its SCIM endpoint there.",
 				PlanModifiers:       replace,
 			},
-			"role_attribute": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "The multi-valued attribute in the SCIM connection's custom schema that holds each user's AWS roles, such as `awsRole`. Active Directory has an attribute of the same name. The SP connection maps it to AWS's Role attribute.",
-				PlanModifiers:       replace,
-			},
-			"scim_username": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "The user name of the HTTP Basic credentials on PingFederate's SCIM IdP connection, which writes to Active Directory",
-				PlanModifiers:       replace,
-			},
-			"vault": vaultAttribute(
-				`The secret manager that holds the SCIM password. Your connector reads the secret, and P0 never does. It must be in the connector's cloud, and can be in another account or project there.`,
-				secretPlace.what,
-			),
-			"scim_password_name": schema.StringAttribute{
-				Required: true,
-				MarkdownDescription: `The name of the secret that holds the SCIM connection's password, such as ` + "`pingfederate/acme/p0`" + ` in AWS Secrets Manager or ` + "`pingfederate-acme-p0`" + ` in Google Secret Manager: the name alone, not the secret's ARN or its full resource name. ` +
-					`In AWS Secrets Manager the name can't end in a hyphen and six letters or digits, like ` + "`-AbCdEf`" + `, because Secrets Manager can't find a secret by such a name. ` +
-					`To rotate the SCIM password, store the new one as a new version of the same secret, which needs no change here.`,
-				PlanModifiers: replace,
-			},
-			"ca_certificate": schema.StringAttribute{
-				Optional: true,
-				MarkdownDescription: `PEM certificates of the CA that issued PingFederate's TLS certificate, if it isn't a public CA. ` +
-					`P0 removes the whitespace around the value, so remove it here too, for example with ` + "`trimspace(file(\"ca.pem\"))`" + `.`,
-				PlanModifiers: replace,
-			},
+			"scim":             scim,
+			"attribute_source": attributeSourceRoleSource{}.attribute(),
 			"saml_metadata_url": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The URL of the app's SAML metadata. Create each AWS account's SAML provider from it.",
@@ -167,29 +194,17 @@ For the AWS install steps, see [Setting up AWS IAM management](https://docs.p0.d
 // is skipped while planning, and checked when Terraform validates the configuration
 // again before it applies.
 func (*PingFederateAwsIamFederationApp) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var pingFederateUrl, roleAttribute, scimUsername, secretName, caCertificate types.String
+	var pingFederateUrl types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("pingfederate_url"), &pingFederateUrl)...)
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("role_attribute"), &roleAttribute)...)
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("scim_username"), &scimUsername)...)
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("scim_password_name"), &secretName)...)
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("ca_certificate"), &caCertificate)...)
-	vault := vaultFromConfig(ctx, req.Config, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// P0's checks (`validatePingFederateUrl`, `validateRoleAttribute`,
-	// `validateScimUsername` and `validateCaCertificate` in
-	// packages/integrations/pingfederate-aws-iam-federation/backend/src/install/validation.ts in
-	// the app). None repeats the value, because it may be the pasted SCIM password.
+	// P0's `validatePingFederateUrl`.
 	validateField(path.Root("pingfederate_url"), pingFederateUrl, []rule{{summary: "Invalid PingFederate URL", message: invalidPingFederateUrl, test: PingFederateUrlRegex.MatchString}}, &resp.Diagnostics)
-	validateField(path.Root("role_attribute"), roleAttribute, []rule{{summary: "Invalid role attribute", message: invalidRoleAttribute, test: RoleAttributeRegex.MatchString}}, &resp.Diagnostics)
-	validateField(path.Root("scim_username"), scimUsername, []rule{{summary: "Invalid SCIM user name", message: invalidScimUsername, test: ScimUsernameRegex.MatchString}}, &resp.Diagnostics)
-	// P0 accepts an empty certificate.
-	validateField(path.Root("ca_certificate"), caCertificate, []rule{{summary: "Invalid CA certificate", message: invalidCaCertificate, test: func(pem string) bool {
-		return pem == "" || strings.Contains(pem, pemCertificateBegin)
-	}}}, &resp.Diagnostics)
-	validateScimPassword(vault, secretName, &resp.Diagnostics)
+
+	for _, source := range roleSources {
+		source.validate(ctx, req.Config, &resp.Diagnostics)
+	}
 }
 
 func (r *PingFederateAwsIamFederationApp) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -233,25 +248,22 @@ func (r *PingFederateAwsIamFederationApp) fromJson(_ context.Context, diags *dia
 	}
 	jsonv := api.Item
 
-	// vault is Required, so a nil vault would surface as Terraform core's "provider
-	// produced inconsistent result after apply", which tells the reader nothing to do.
-	if jsonv.Vault == nil {
+	// Every app has a role source, so one without is a bad response.
+	if jsonv.RoleSource == nil {
 		diags.AddError(
 			"Bad API response",
-			fmt.Sprintf("The PingFederate (AWS IAM Federation) app %s carries no vault configuration. "+
+			fmt.Sprintf("The PingFederate (AWS IAM Federation) app %s carries no role source. "+
 				"Remove it in the P0 app and add it again, or remove it from Terraform state with `terraform state rm`.", id),
 		)
 		return nil
 	}
-
-	// A vault of a type this provider doesn't know can't be read into the attribute's
-	// fields.
-	if !slices.Contains(vaultTypes, jsonv.Vault.Type) {
+	source, known := roleSources[jsonv.RoleSource.Type]
+	if !known {
 		diags.AddError(
 			"Unsupported PingFederate (AWS IAM Federation) app",
-			fmt.Sprintf("The PingFederate (AWS IAM Federation) app %s has a %q vault. This provider supports only %s. "+
+			fmt.Sprintf("The PingFederate (AWS IAM Federation) app %s has a %q role source. This provider supports only %s and %s. "+
 				"Upgrade the provider, manage the app in the P0 app, or remove it from Terraform state with `terraform state rm`.",
-				id, jsonv.Vault.Type, strings.Join(vaultTypes, " and ")),
+				id, jsonv.RoleSource.Type, attributeSourceRoleSourceType, scimRoleSourceType),
 		)
 		return nil
 	}
@@ -261,39 +273,33 @@ func (r *PingFederateAwsIamFederationApp) fromJson(_ context.Context, diags *dia
 		samlMetadataUrl = types.StringPointerValue(api.Metadata.SamlMetadataUrl)
 	}
 
-	return &pingFederateAwsIamFederationAppModel{
-		Id:               types.StringValue(id),
-		Connector:        types.StringPointerValue(jsonv.Connector),
-		PingFederateUrl:  types.StringPointerValue(jsonv.PingFederateUrl),
-		RoleAttribute:    types.StringPointerValue(jsonv.RoleAttribute),
-		ScimUsername:     types.StringPointerValue(jsonv.ScimUsername),
-		Vault:            vaultFromJson(jsonv.Vault),
-		ScimPasswordName: types.StringPointerValue(jsonv.ScimPasswordName),
-		CaCertificate:    types.StringPointerValue(jsonv.CaCertificate),
-		SamlMetadataUrl:  samlMetadataUrl,
-		State:            types.StringPointerValue(jsonv.State),
+	model := pingFederateAwsIamFederationAppModel{
+		Id:              types.StringValue(id),
+		PingFederateUrl: types.StringPointerValue(jsonv.PingFederateUrl),
+		SamlMetadataUrl: samlMetadataUrl,
+		State:           types.StringPointerValue(jsonv.State),
 	}
+	source.fromJson(r.installer, diags, id, jsonv.RoleSource, &model)
+	if diags.HasError() {
+		return nil
+	}
+	return &model
 }
 
-// The body of the PUT that stages the item, and of verify and configure: the fields
-// that P0 fixes when it creates the item. Sending them on each step has P0 refuse a
-// request that would change any of them, before it calls the connector.
+// The body of the PUT that stages the item, and of verify and configure. Sending the
+// fields that P0 fixes on each step has P0 refuse a request that would change any of
+// them, before it calls the connector.
 func (r *PingFederateAwsIamFederationApp) toJson(data any) any {
 	datav, ok := data.(*pingFederateAwsIamFederationAppModel)
 	if !ok {
 		return nil
 	}
 
-	json := pingFederateAwsIamFederationAppJson{
-		Connector:        datav.Connector.ValueStringPointer(),
-		PingFederateUrl:  datav.PingFederateUrl.ValueStringPointer(),
-		RoleAttribute:    datav.RoleAttribute.ValueStringPointer(),
-		ScimUsername:     datav.ScimUsername.ValueStringPointer(),
-		ScimPasswordName: datav.ScimPasswordName.ValueStringPointer(),
-		CaCertificate:    datav.CaCertificate.ValueStringPointer(),
-	}
-	if datav.Vault != nil {
-		json.Vault = datav.Vault.toJson()
+	json := pingFederateAwsIamFederationAppJson{PingFederateUrl: datav.PingFederateUrl.ValueStringPointer()}
+	for _, source := range roleSources {
+		if roleSource := source.toJson(datav); roleSource != nil {
+			json.RoleSource = roleSource
+		}
 	}
 	return &json
 }
@@ -330,11 +336,21 @@ func (*PingFederateAwsIamFederationApp) ModifyPlan(ctx context.Context, req reso
 	planUnfinishedInstall(ctx, req, resp)
 }
 
-// Every configurable attribute requires replacement, so the only update Terraform
-// plans is the one that finishes an install, which verifies and configures the item as
-// Create does. P0 validates the install on verify alone, so there is no shorter way.
+// An update finishes an install, or changes an attribute source's fields in place. An
+// app at "stage" still needs verify, where P0 runs the SCIM checks, and then configure.
+// One that P0 has verified needs configure alone, which saves nothing unless it
+// accepts the planned values.
 func (r *PingFederateAwsIamFederationApp) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	r.installer.UpsertFromStage(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &pingFederateAwsIamFederationAppApi{}, &pingFederateAwsIamFederationAppModel{})
+	var state types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("state"), &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	upsert := r.installer.UpsertFromConfigure
+	if state.ValueString() == common.StateStage {
+		upsert = r.installer.UpsertFromStage
+	}
+	upsert(ctx, &resp.Diagnostics, &req.Plan, &resp.State, &pingFederateAwsIamFederationAppApi{}, &pingFederateAwsIamFederationAppModel{})
 }
 
 func (r *PingFederateAwsIamFederationApp) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
