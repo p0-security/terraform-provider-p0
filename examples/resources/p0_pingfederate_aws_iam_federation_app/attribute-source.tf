@@ -9,7 +9,9 @@
 #   below, and its Audience Claim Value to the
 #   pingfederate_attribute_source_audience output.
 # - Map the instance for the client_credentials context, and add an OAuth
-#   client with the client credentials grant that issues only its tokens.
+#   client with the client ID below and the client credentials grant, that
+#   issues only its tokens. Keep the instance's Client ID Claim Name as
+#   client_id.
 # - Add a REST API data store whose base URL is the
 #   pingfederate_attribute_source_roles_url output. Authenticate with OAuth 2.0
 #   Bearer Token and Client Credentials, the client above and PingFederate's
@@ -26,6 +28,7 @@ resource "p0_pingfederate_aws_iam_federation_app" "attribute_source_example" {
     # PingFederate's System > Server > Protocol Settings > Federation Info.
     entity_id = "urn:acme:pingfederate"
     issuer    = "urn:acme:pingfederate:p0"
+    client_id = "p0-roles"
     # Unset, P0 reads https://sso.example.com:9031/pf/JWKS. To paste the keys
     # instead, and paste them again after each key rotation:
     # jwks = trimspace(file("${path.module}/pingfederate-jwks.json"))

@@ -217,6 +217,7 @@ resource "p0_pingfederate_aws_iam_federation_app" "example" {
   attribute_source = {
     entity_id = "urn:example:pingfederate"
     issuer    = %q
+    client_id = "p0-roles"
     jwks      = %s
   }
 }

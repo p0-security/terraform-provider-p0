@@ -20,6 +20,7 @@ import (
 const (
 	testEntityId = "urn:example:pingfederate"
 	testIssuer   = "urn:example:pingfederate:p0"
+	testClientId = "p0-roles"
 	testJwks     = `{"keys":[{"kty":"RSA","e":"AQAB","n":"x"}]}`
 )
 
@@ -32,6 +33,7 @@ func attributeSourceApp(state string, issuer string, jwks types.String) *pingFed
 		AttributeSource: &attributeSourceModel{
 			EntityId: types.StringValue(testEntityId),
 			Issuer:   types.StringValue(issuer),
+			ClientId: types.StringValue(testClientId),
 			Jwks:     jwks,
 			Audience: types.StringValue(fakeAudience),
 			RolesUrl: types.StringNull(),
@@ -50,7 +52,7 @@ func attributeSourceBody(t *testing.T, issuer string, jwks types.String) string 
 		keys = jwksJson{Type: jwksFromKeys, Keys: jwks.ValueStringPointer()}
 	}
 	return `{"pingFederateUrl":"` + testPingFederateUrl + `","roleSource":{"type":"attribute-source",` +
-		`"entityId":"` + testEntityId + `","issuer":"` + issuer + `","jwks":` + marshal(t, keys) + `}}`
+		`"entityId":"` + testEntityId + `","issuer":"` + issuer + `","clientId":"` + testClientId + `","jwks":` + marshal(t, keys) + `}}`
 }
 
 var jwksCases = []struct {
@@ -159,6 +161,7 @@ func TestAttributeSourceValidateConfig(t *testing.T) {
 		{name: "an empty entity ID", field: "entity_id", value: str(""), want: []string{"attribute_source.entity_id: " + invalidEntityId}},
 		{name: "a blank issuer", field: "issuer", value: str(" "), want: []string{"attribute_source.issuer: " + invalidIssuer}},
 		{name: "a padded issuer", field: "issuer", value: str(testIssuer + "\n"), want: []string{padded("issuer")}},
+		{name: "an empty client ID", field: "client_id", value: str(""), want: []string{"attribute_source.client_id: " + invalidClientId}},
 		{name: "an empty key list", field: "jwks", value: str(`{"keys":[]}`), want: []string{"attribute_source.jwks: " + invalidJwks}},
 		{name: "a key without kty", field: "jwks", value: str(`{"keys":[{"kid":"a"}]}`), want: []string{"attribute_source.jwks: " + invalidJwks}},
 		{name: "keys that aren't JSON", field: "jwks", value: str("{"), want: []string{"attribute_source.jwks: " + invalidJwks}},
@@ -166,7 +169,7 @@ func TestAttributeSourceValidateConfig(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			fields := map[string]tftypes.Value{"entity_id": str(testEntityId), "issuer": str(testIssuer)}
+			fields := map[string]tftypes.Value{"entity_id": str(testEntityId), "issuer": str(testIssuer), "client_id": str(testClientId)}
 			fields[c.field] = c.value
 			blocks := map[string]func(tftypes.Object) tftypes.Value{"attribute_source": objectOf(fields)}
 			got := errorDetails(validateConfig(t, &PingFederateAwsIamFederationApp{}, blocks, appValues()))

@@ -30,6 +30,7 @@ var attributeSourcePath = path.Root("attribute_source")
 type attributeSourceModel struct {
 	EntityId types.String `tfsdk:"entity_id"`
 	Issuer   types.String `tfsdk:"issuer"`
+	ClientId types.String `tfsdk:"client_id"`
 	Jwks     types.String `tfsdk:"jwks"`
 	Audience types.String `tfsdk:"audience"`
 	RolesUrl types.String `tfsdk:"roles_url"`
@@ -58,6 +59,10 @@ func (attributeSourceRoleSource) attribute() schema.Attribute {
 				Required:            true,
 				MarkdownDescription: "The Issuer Claim Value of the JWT access token manager that signs the REST API data store's tokens",
 			},
+			"client_id": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: "The client ID of the OAuth client that the REST API data store gets its tokens with. P0 refuses the tokens of other clients.",
+			},
 			"jwks": schema.StringAttribute{
 				Optional: true,
 				MarkdownDescription: "The JSON of PingFederate's public keys, from `<pingfederate_url>/pf/JWKS`, for P0 to check the data store's tokens with. " +
@@ -83,9 +88,10 @@ func (attributeSourceRoleSource) attribute() schema.Attribute {
 // packages/integrations/pingfederate-aws-iam-federation/backend/src/role-sources/attribute-source/install.ts
 // in the app).
 func (attributeSourceRoleSource) validate(ctx context.Context, config tfsdk.Config, diags *diag.Diagnostics) {
-	var entityId, issuer, jwks types.String
+	var entityId, issuer, clientId, jwks types.String
 	diags.Append(config.GetAttribute(ctx, attributeSourcePath.AtName("entity_id"), &entityId)...)
 	diags.Append(config.GetAttribute(ctx, attributeSourcePath.AtName("issuer"), &issuer)...)
+	diags.Append(config.GetAttribute(ctx, attributeSourcePath.AtName("client_id"), &clientId)...)
 	diags.Append(config.GetAttribute(ctx, attributeSourcePath.AtName("jwks"), &jwks)...)
 	if diags.HasError() {
 		return
@@ -94,6 +100,7 @@ func (attributeSourceRoleSource) validate(ctx context.Context, config tfsdk.Conf
 	notEmpty := func(value string) bool { return value != "" }
 	validateField(attributeSourcePath.AtName("entity_id"), entityId, []rule{{summary: "Missing entity ID", message: invalidEntityId, test: notEmpty}}, diags)
 	validateField(attributeSourcePath.AtName("issuer"), issuer, []rule{{summary: "Missing token issuer", message: invalidIssuer, test: notEmpty}}, diags)
+	validateField(attributeSourcePath.AtName("client_id"), clientId, []rule{{summary: "Missing OAuth client ID", message: invalidClientId, test: notEmpty}}, diags)
 	validateField(attributeSourcePath.AtName("jwks"), jwks, []rule{{summary: "Invalid JWKS", message: invalidJwks, test: isJwks}}, diags)
 }
 
@@ -129,6 +136,7 @@ func (attributeSourceRoleSource) toJson(model *pingFederateAwsIamFederationAppMo
 		Type:     attributeSourceRoleSourceType,
 		EntityId: source.EntityId.ValueStringPointer(),
 		Issuer:   source.Issuer.ValueStringPointer(),
+		ClientId: source.ClientId.ValueStringPointer(),
 		Jwks:     &jwks,
 	}
 }
@@ -154,6 +162,7 @@ func (attributeSourceRoleSource) fromJson(installer *common.Install, diags *diag
 	model.AttributeSource = &attributeSourceModel{
 		EntityId: types.StringPointerValue(json.EntityId),
 		Issuer:   types.StringPointerValue(json.Issuer),
+		ClientId: types.StringPointerValue(json.ClientId),
 		Jwks:     jwks,
 		Audience: types.StringPointerValue(json.Audience),
 		RolesUrl: rolesUrlOf(installer),
