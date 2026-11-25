@@ -3,13 +3,13 @@ page_title: "p0_pingfederate_aws_iam_federation_app Resource - p0"
 subcategory: ""
 description: |-
   A PingFederate SP connection that signs users in to AWS. A p0_aws_iam_federation resource has an AWS account trust it.
-  Its role source sets how PingFederate gets each user's AWS roles. Set exactly one of attribute_source or scim. P0 fixes id, pingfederate_url, the role source and every scim field when it adds the app, so changing one replaces the installation. An attribute source's entity_id, issuer and jwks change in place. If the app is already added in P0, import it rather than creating it: P0 refuses to add an app twice. If P0 hasn't finished installing the app, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
+  Its role source sets how PingFederate gets each user's AWS roles. Set exactly one of attribute_source or scim. P0 fixes id, pingfederate_url, the role source and every scim field when it adds the app, so changing one replaces the installation. An attribute source's entity_id, issuer, client_id and jwks change in place. If the app is already added in P0, import it rather than creating it: P0 refuses to add an app twice. If P0 hasn't finished installing the app, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
   Attribute source
-  PingFederate reads each user's roles from P0 at each sign-in, through a REST API data store. P0 calls nothing in your network and holds no secret: PingFederate's own OAuth server issues the data store's access token, and P0 checks it against issuer, the public keys, and the audience that P0 sets for the app. A grant or a revoke takes effect at the user's next sign-in.
+  PingFederate reads each user's roles from P0 at each sign-in, through a REST API data store. P0 calls nothing in your network and holds no secret: PingFederate's own OAuth server issues the data store's access token, and P0 checks it against issuer, client_id, the public keys, and the audience that P0 sets for the app. A grant or a revoke takes effect at the user's next sign-in.
   Creating this resource doesn't call PingFederate, so a mistake in PingFederate's setup shows as a refused AWS sign-in. Set up PingFederate with the values this resource gives:
   
   Under Access Token Management, add a JSON Web Tokens instance that uses the centralized signing key. Set its Issuer Claim Value to issuer, and its Audience Claim Value to attribute_source.audience, which P0 sets when it adds the app.
-  Map the instance for the client_credentials context, and add an OAuth client with the client credentials grant that issues only this instance's tokens.
+  Map the instance for the client_credentials context, and add an OAuth client whose client ID is client_id, with the client credentials grant, that issues only this instance's tokens. Keep the instance's Client ID Claim Name as client_id.
   Add a REST API data store whose base URL is attribute_source.roles_url. Its authentication method is OAuth 2.0 Bearer Token with Client Credentials, the client above, and PingFederate's own token endpoint, <pingfederate_url>/as/token.oauth2. Map the local attribute roles to /roles.
   Create an SP connection to the partner urn:amazon:webservices. Add the data store as an attribute source with the resource path /apps/<id>/roles?email=${mail}, and fulfill https://aws.amazon.com/SAML/Attributes/Role from its roles. Map the user's mail to https://aws.amazon.com/SAML/Attributes/RoleSessionName and https://aws.amazon.com/SAML/Attributes/SourceIdentity, with the URI name format. Its subject uses the persistent NameID format. In its signature policy, select Always sign the SAML Assertion: AWS refuses a response that signs only the SAML response.
   SCIM
@@ -33,17 +33,17 @@ description: |-
 
 A PingFederate SP connection that signs users in to AWS. A `p0_aws_iam_federation` resource has an AWS account trust it.
 
-Its role source sets how PingFederate gets each user's AWS roles. Set exactly one of `attribute_source` or `scim`. P0 fixes `id`, `pingfederate_url`, the role source and every `scim` field when it adds the app, so changing one replaces the installation. An attribute source's `entity_id`, `issuer` and `jwks` change in place. If the app is already added in P0, import it rather than creating it: P0 refuses to add an app twice. If P0 hasn't finished installing the app, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
+Its role source sets how PingFederate gets each user's AWS roles. Set exactly one of `attribute_source` or `scim`. P0 fixes `id`, `pingfederate_url`, the role source and every `scim` field when it adds the app, so changing one replaces the installation. An attribute source's `entity_id`, `issuer`, `client_id` and `jwks` change in place. If the app is already added in P0, import it rather than creating it: P0 refuses to add an app twice. If P0 hasn't finished installing the app, for example because you imported it before its checks passed, Terraform plans an update, and applying it finishes the install.
 
 ## Attribute source
 
-PingFederate reads each user's roles from P0 at each sign-in, through a REST API data store. P0 calls nothing in your network and holds no secret: PingFederate's own OAuth server issues the data store's access token, and P0 checks it against `issuer`, the public keys, and the audience that P0 sets for the app. A grant or a revoke takes effect at the user's next sign-in.
+PingFederate reads each user's roles from P0 at each sign-in, through a REST API data store. P0 calls nothing in your network and holds no secret: PingFederate's own OAuth server issues the data store's access token, and P0 checks it against `issuer`, `client_id`, the public keys, and the audience that P0 sets for the app. A grant or a revoke takes effect at the user's next sign-in.
 
 Creating this resource doesn't call PingFederate, so a mistake in PingFederate's setup shows as a refused AWS sign-in. Set up PingFederate with the values this resource gives:
 
 - Under **Access Token Management**, add a **JSON Web Tokens** instance that uses the centralized signing key. Set its **Issuer Claim Value** to `issuer`, and its **Audience Claim Value** to `attribute_source.audience`, which P0 sets when it adds the app.
 
-- Map the instance for the `client_credentials` context, and add an OAuth client with the client credentials grant that issues only this instance's tokens.
+- Map the instance for the `client_credentials` context, and add an OAuth client whose client ID is `client_id`, with the client credentials grant, that issues only this instance's tokens. Keep the instance's **Client ID Claim Name** as `client_id`.
 
 - Add a **REST API** data store whose base URL is `attribute_source.roles_url`. Its authentication method is **OAuth 2.0 Bearer Token** with **Client Credentials**, the client above, and PingFederate's own token endpoint, `<pingfederate_url>/as/token.oauth2`. Map the local attribute `roles` to `/roles`.
 
@@ -93,7 +93,9 @@ For the AWS install steps, see [Setting up AWS IAM management](https://docs.p0.d
 #   below, and its Audience Claim Value to the
 #   pingfederate_attribute_source_audience output.
 # - Map the instance for the client_credentials context, and add an OAuth
-#   client with the client credentials grant that issues only its tokens.
+#   client with the client ID below and the client credentials grant, that
+#   issues only its tokens. Keep the instance's Client ID Claim Name as
+#   client_id.
 # - Add a REST API data store whose base URL is the
 #   pingfederate_attribute_source_roles_url output. Authenticate with OAuth 2.0
 #   Bearer Token and Client Credentials, the client above and PingFederate's
@@ -110,6 +112,7 @@ resource "p0_pingfederate_aws_iam_federation_app" "attribute_source_example" {
     # PingFederate's System > Server > Protocol Settings > Federation Info.
     entity_id = "urn:acme:pingfederate"
     issuer    = "urn:acme:pingfederate:p0"
+    client_id = "p0-roles"
     # Unset, P0 reads https://sso.example.com:9031/pf/JWKS. To paste the keys
     # instead, and paste them again after each key rotation:
     # jwks = trimspace(file("${path.module}/pingfederate-jwks.json"))
@@ -398,6 +401,7 @@ resource "p0_pingfederate_aws_iam_federation_app" "gcp_example" {
 
 Required:
 
+- `client_id` (String) The client ID of the OAuth client that the REST API data store gets its tokens with. P0 refuses the tokens of other clients.
 - `entity_id` (String) PingFederate's SAML entity ID, under System > Server > Protocol Settings > Federation Info. Each AWS account's SAML provider trusts it.
 - `issuer` (String) The Issuer Claim Value of the JWT access token manager that signs the REST API data store's tokens
 

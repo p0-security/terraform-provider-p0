@@ -187,7 +187,7 @@ func TestAppSchema(t *testing.T) {
 			t.Errorf("%s doesn't require replacement", field)
 		}
 	}
-	for _, name := range []string{"entity_id", "issuer", "jwks"} {
+	for _, name := range []string{"entity_id", "issuer", "client_id", "jwks"} {
 		if requiresReplace(t, attributeSource[name]) {
 			t.Errorf("attribute_source.%s requires replacement", name)
 		}

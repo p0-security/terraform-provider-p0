@@ -54,10 +54,11 @@ const (
 )
 
 // P0's messages for an attribute source's fields (INVALID_ENTITY_ID, INVALID_ISSUER,
-// INVALID_JWKS).
+// INVALID_CLIENT_ID, INVALID_JWKS).
 const (
 	invalidEntityId = "Enter PingFederate's SAML entity ID, from System > Server > Protocol Settings > Federation Info."
 	invalidIssuer   = "Enter the Issuer Claim Value of the JWT access token manager."
+	invalidClientId = "Enter the client ID of the OAuth client that the REST API datastore uses."
 	invalidJwks     = `Paste the JSON from <PingFederate URL>/pf/JWKS: an object with a "keys" list.`
 )
 
