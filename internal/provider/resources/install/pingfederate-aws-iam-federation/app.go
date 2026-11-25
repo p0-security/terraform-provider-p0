@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -12,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal"
@@ -118,8 +116,6 @@ func (*PingFederateAwsIamFederationApp) Metadata(_ context.Context, req resource
 
 func (*PingFederateAwsIamFederationApp) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	replace := []planmodifier.String{stringplanmodifier.RequiresReplace()}
-	scim := scimRoleSource{}.attribute().(schema.SingleNestedAttribute)
-	scim.Validators = []validator.Object{objectvalidator.ExactlyOneOf(path.MatchRoot("attribute_source"))}
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A PingFederate SP connection that signs users in to AWS. A ` + "`p0_aws_iam_federation`" + ` resource has an AWS account trust it.
 
@@ -178,7 +174,7 @@ For the AWS install steps, see [Setting up AWS IAM management](https://docs.p0.d
 				MarkdownDescription: "PingFederate's runtime base URL, such as `https://sso.example.com:9031`. P0 reads the SAML metadata of its SP connection to AWS from it. With `scim`, P0 also calls its SCIM endpoint there.",
 				PlanModifiers:       replace,
 			},
-			"scim":             scim,
+			"scim":             scimRoleSource{}.attribute(),
 			"attribute_source": attributeSourceRoleSource{}.attribute(),
 			"saml_metadata_url": schema.StringAttribute{
 				Computed:            true,

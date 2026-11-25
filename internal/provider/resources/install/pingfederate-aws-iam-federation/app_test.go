@@ -168,7 +168,7 @@ func TestAppFromJsonRequiresAKnownVault(t *testing.T) {
 func TestAppSchema(t *testing.T) {
 	s := schemaOf(t, NewPingFederateAwsIamFederationApp())
 	scim := nestedAttributes(t, s, "scim")
-	vault := scim["vault"].(schema.SingleNestedAttribute).Attributes
+	vault := as[schema.SingleNestedAttribute](t, scim["vault"]).Attributes
 	attributeSource := nestedAttributes(t, s, "attribute_source")
 	for field, attribute := range map[string]schema.Attribute{
 		"id":                        s.Attributes["id"],
@@ -237,7 +237,11 @@ func scimValues() map[string]tftypes.Value {
 // The scim block, with vault and fields.
 func scimBlock(vault func(tftypes.Object) tftypes.Value, fields map[string]tftypes.Value) func(tftypes.Object) tftypes.Value {
 	return func(typ tftypes.Object) tftypes.Value {
-		values := map[string]tftypes.Value{"vault": vault(typ.AttributeTypes["vault"].(tftypes.Object))}
+		vaultType, ok := typ.AttributeTypes["vault"].(tftypes.Object)
+		if !ok {
+			panic("the scim block has no vault object")
+		}
+		values := map[string]tftypes.Value{"vault": vault(vaultType)}
 		for name, value := range fields {
 			values[name] = value
 		}
@@ -450,7 +454,8 @@ func TestAppValidateConfigFields(t *testing.T) {
 // value, which skips the check silently.
 func TestVaultRuleFieldNames(t *testing.T) {
 	names := awsApp.vault().fields()
-	attributes := nestedAttributes(t, schemaOf(t, NewPingFederateAwsIamFederationApp()), "scim")["vault"].(schema.SingleNestedAttribute).Attributes
+	vaultAttribute := nestedAttributes(t, schemaOf(t, NewPingFederateAwsIamFederationApp()), "scim")["vault"]
+	attributes := as[schema.SingleNestedAttribute](t, vaultAttribute).Attributes
 	for vaultType, fields := range vaultRules {
 		for _, field := range fields {
 			if _, ok := names[field.name]; !ok {

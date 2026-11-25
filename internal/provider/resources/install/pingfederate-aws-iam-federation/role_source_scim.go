@@ -6,11 +6,13 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/p0-security/terraform-provider-p0/internal/common"
@@ -39,6 +41,7 @@ func (scimRoleSource) attribute() schema.Attribute {
 	return schema.SingleNestedAttribute{
 		MarkdownDescription: "P0's connector writes each user's AWS roles to Active Directory through PingFederate's SCIM endpoint. Set this or `attribute_source`, not both.",
 		Optional:            true,
+		Validators:          []validator.Object{objectvalidator.ExactlyOneOf(path.MatchRoot("attribute_source"))},
 		PlanModifiers:       roleSourcePlanModifiers(),
 		Attributes: map[string]schema.Attribute{
 			"connector": schema.StringAttribute{

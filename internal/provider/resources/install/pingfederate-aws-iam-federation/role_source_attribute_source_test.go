@@ -234,8 +234,8 @@ func TestRoleSourcePlanModifiers(t *testing.T) {
 	// An update of the resource: a change to a block is planned only then.
 	existing := rawOf(t, r, attributeSourceApp(common.StateInstalled, testIssuer, types.StringNull()))
 	for _, name := range []string{"scim", "attribute_source"} {
-		attribute := s.Attributes[name].(schema.SingleNestedAttribute)
-		objectType := attribute.GetType().TerraformType(context.Background()).(tftypes.Object)
+		attribute := as[schema.SingleNestedAttribute](t, s.Attributes[name])
+		objectType := as[tftypes.Object](t, attribute.GetType().TerraformType(context.Background()))
 		set, _ := attribute.GetType().ValueFromTerraform(context.Background(), objectOf(nil)(objectType))
 		null, _ := attribute.GetType().ValueFromTerraform(context.Background(), tftypes.NewValue(objectType, nil))
 		cases := map[string]struct {
@@ -253,8 +253,8 @@ func TestRoleSourcePlanModifiers(t *testing.T) {
 					Path:       path.Root(name),
 					State:      tfsdk.State{Schema: s, Raw: existing},
 					Plan:       tfsdk.Plan{Schema: s, Raw: existing},
-					StateValue: c.state.(types.Object),
-					PlanValue:  c.plan.(types.Object),
+					StateValue: as[types.Object](t, c.state),
+					PlanValue:  as[types.Object](t, c.plan),
 				}, resp)
 			}
 			if resp.RequiresReplace != c.want {

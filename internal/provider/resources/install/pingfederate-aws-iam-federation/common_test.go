@@ -176,6 +176,15 @@ func accepts(t *testing.T, attribute schema.Attribute, value string) bool {
 	return !validateString(t, attribute, value).HasError()
 }
 
+func as[T any](t *testing.T, value any) T {
+	t.Helper()
+	typed, ok := value.(T)
+	if !ok {
+		t.Fatalf("%T is not a %T", value, typed)
+	}
+	return typed
+}
+
 func nestedAttributes(t *testing.T, s schema.Schema, name string) map[string]schema.Attribute {
 	t.Helper()
 	attribute, ok := s.Attributes[name].(schema.SingleNestedAttribute)
