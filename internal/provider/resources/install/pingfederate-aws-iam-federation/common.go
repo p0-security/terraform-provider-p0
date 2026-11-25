@@ -53,6 +53,14 @@ const (
 	invalidCaCertificate   = "Enter one or more PEM certificates, each starting with -----BEGIN CERTIFICATE-----, or leave it empty."
 )
 
+// P0's messages for an attribute source's fields (INVALID_ENTITY_ID, INVALID_ISSUER,
+// INVALID_JWKS).
+const (
+	invalidEntityId = "Enter PingFederate's SAML entity ID, from System > Server > Protocol Settings > Federation Info."
+	invalidIssuer   = "Enter the Issuer Claim Value of the JWT access token manager."
+	invalidJwks     = `Paste the JSON from <PingFederate URL>/pf/JWKS: an object with a "keys" list.`
+)
+
 // P0's rules for where the connector runs and where the SCIM password is, and its
 // messages for a value that breaks one, from
 // packages/integrations/pingfederate-aws-iam-federation/backend/src/install/validation.ts in the app.

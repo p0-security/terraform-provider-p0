@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
@@ -21,6 +22,7 @@ const (
 	pingFederateScimUsername  = "p0"
 	pingFederateMetadataUrl   = pingFederateUrl + "/pf/federation_metadata.ping?PartnerSpId=urn:amazon:webservices"
 	pingFederateConnectorName = "p0-pingfederate-prod"
+	pingFederateAudience      = "https://api.example/integrations/pingfederate-aws-iam-federation/tenants/t1/apps/" + pingFederateAppId
 )
 
 // Where a connector runs, and the secret manager of the same cloud, as a customer's
@@ -70,6 +72,9 @@ var pingFederateClouds = []pingFederateCloud{
 func newPingFederateFederationFake(t *testing.T) *fakeP0 {
 	f := newFakeP0(t)
 	f.normalize = func(key fakeItemKey, item map[string]any) {
+		if source, ok := item["roleSource"].(map[string]any); ok && source["type"] == "attribute-source" {
+			source["audience"] = pingFederateAudience
+		}
 		if item["state"] == "stage" {
 			return
 		}
@@ -102,7 +107,11 @@ func newPingFederateFederationFake(t *testing.T) *fakeP0 {
 		case step.nextState == "stage" && step.previous != nil:
 			return http.StatusConflict, "The item is already added."
 		case step.key.component == "app" && step.nextState == "stage":
-			connector, _ := step.body["connector"].(string)
+			source, _ := step.body["roleSource"].(map[string]any)
+			if source["type"] != "scim" {
+				break
+			}
+			connector, _ := source["connector"].(string)
 			if items[fakeItemKey{pingFederateFederation, "connector", connector}]["state"] != "installed" {
 				return http.StatusBadRequest, "Pick the connector that acts on this app."
 			}
@@ -125,13 +134,15 @@ resource "p0_pingfederate_aws_iam_federation_connector" "example" {
 }
 
 resource "p0_pingfederate_aws_iam_federation_app" "example" {
-  id                 = %q
-  connector          = p0_pingfederate_aws_iam_federation_connector.example.id
-  pingfederate_url   = %q
-  role_attribute     = "awsRole"
-  scim_username      = %q
-  vault              = %s
-  scim_password_name = %q
+  id               = %q
+  pingfederate_url = %q
+  scim = {
+    connector          = p0_pingfederate_aws_iam_federation_connector.example.id
+    role_attribute     = "awsRole"
+    scim_username      = %q
+    vault              = %s
+    scim_password_name = %q
+  }
 }
 `, pingFederateConnector, cloud.hosting, pingFederateAppId, pingFederateUrl, pingFederateScimUsername, cloud.vault, cloud.secret)
 }
@@ -163,9 +174,10 @@ func TestPingFederateAwsIamFederation(t *testing.T) {
 							resource.TestCheckResourceAttr("p0_pingfederate_aws_iam_federation_app.example", "saml_metadata_url", pingFederateMetadataUrl),
 							func(*terraform.State) error {
 								item := f.item(pingFederateFederation, "app", pingFederateAppId)
-								vault, _ := item["vault"].(map[string]any)
-								if item["connector"] != pingFederateConnector || item["pingFederateUrl"] != pingFederateUrl || item["scimUsername"] != pingFederateScimUsername ||
-									item["scimPasswordName"] != cloud.secret || vault["type"] != cloud.name+"-sm" {
+								source, _ := item["roleSource"].(map[string]any)
+								vault, _ := source["vault"].(map[string]any)
+								if source["type"] != "scim" || source["connector"] != pingFederateConnector || item["pingFederateUrl"] != pingFederateUrl || source["scimUsername"] != pingFederateScimUsername ||
+									source["scimPasswordName"] != cloud.secret || vault["type"] != cloud.name+"-sm" {
 									return fmt.Errorf("P0 item does not hold the configured app: %v", item)
 								}
 								return nil
@@ -195,4 +207,72 @@ func TestPingFederateAwsIamFederation(t *testing.T) {
 			})
 		})
 	}
+}
+
+func pingFederateAttributeSourceConfig(f *fakeP0, issuer string, jwks string) string {
+	return providerConfig(f) + fmt.Sprintf(`
+resource "p0_pingfederate_aws_iam_federation_app" "example" {
+  id               = %q
+  pingfederate_url = %q
+  attribute_source = {
+    entity_id = "urn:example:pingfederate"
+    issuer    = %q
+    jwks      = %s
+  }
+}
+`, pingFederateAppId, pingFederateUrl, issuer, jwks)
+}
+
+// An attribute-source app needs no connector. P0 sets its audience, and a new issuer or
+// pasted keys change it in place.
+func TestPingFederateAwsIamFederationAttributeSource(t *testing.T) {
+	const address = "p0_pingfederate_aws_iam_federation_app.example"
+	const pasted = `{"keys":[{"kty":"RSA","e":"AQAB","n":"x"}]}`
+	f := newPingFederateFederationFake(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy: func(*terraform.State) error {
+			if item := f.item(pingFederateFederation, "app", pingFederateAppId); item != nil {
+				return fmt.Errorf("app is still in P0: %v", item)
+			}
+			return nil
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: pingFederateAttributeSourceConfig(f, "urn:example:pingfederate:p0", "null"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(address, "state", "installed"),
+					resource.TestCheckResourceAttr(address, "attribute_source.audience", pingFederateAudience),
+					resource.TestCheckResourceAttr(address, "attribute_source.roles_url", f.server.URL+"/integrations/pingfederate-aws-iam-federation/"+fakeOrg),
+					resource.TestCheckNoResourceAttr(address, "attribute_source.jwks"),
+				),
+			},
+			{
+				Config: pingFederateAttributeSourceConfig(f, "urn:example:pingfederate:p0-2", fmt.Sprintf("%q", pasted)),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(address, plancheck.ResourceActionUpdate)},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(address, "attribute_source.issuer", "urn:example:pingfederate:p0-2"),
+					resource.TestCheckResourceAttr(address, "attribute_source.jwks", pasted),
+					resource.TestCheckResourceAttr(address, "attribute_source.audience", pingFederateAudience),
+					func(*terraform.State) error {
+						source, _ := f.item(pingFederateFederation, "app", pingFederateAppId)["roleSource"].(map[string]any)
+						jwks, _ := source["jwks"].(map[string]any)
+						if source["issuer"] != "urn:example:pingfederate:p0-2" || jwks["type"] != "keys" || jwks["keys"] != pasted {
+							return fmt.Errorf("P0 item does not hold the configured role source: %v", source)
+						}
+						return nil
+					},
+				),
+			},
+			{
+				ResourceName:      address,
+				ImportState:       true,
+				ImportStateId:     pingFederateAppId,
+				ImportStateVerify: true,
+			},
+		},
+	})
 }

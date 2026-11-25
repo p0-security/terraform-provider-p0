@@ -4,7 +4,6 @@ import (
 	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -78,7 +77,7 @@ var scimPasswordNameRules = map[string][]rule{
 func validateScimPassword(vault *vaultModel, name types.String, diags *diag.Diagnostics) {
 	validateVault(vault, diags)
 	if vault != nil && isSet(vault.Type) {
-		validateFields(path.Root("vault"), vault.fields(), vaultRules[vault.Type.ValueString()], diags)
+		validateFields(vaultPath, vault.fields(), vaultRules[vault.Type.ValueString()], diags)
 	}
 
 	if !isSet(name) {
@@ -86,12 +85,12 @@ func validateScimPassword(vault *vaultModel, name types.String, diags *diag.Diag
 	}
 	// P0 checks that the name is there before it trims it.
 	if name.ValueString() == "" {
-		diags.AddAttributeError(path.Root("scim_password_name"), "Missing secret name for the SCIM password", missingSecretName)
+		diags.AddAttributeError(scimPath.AtName("scim_password_name"), "Missing secret name for the SCIM password", missingSecretName)
 		return
 	}
 	var rules []rule
 	if vault != nil {
 		rules = scimPasswordNameRules[vault.Type.ValueString()]
 	}
-	validateField(path.Root("scim_password_name"), name, rules, diags)
+	validateField(scimPath.AtName("scim_password_name"), name, rules, diags)
 }

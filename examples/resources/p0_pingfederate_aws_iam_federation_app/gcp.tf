@@ -54,19 +54,22 @@ resource "google_secret_manager_secret_iam_member" "p0_pingfederate_aws_iam_fede
 # connector, so it waits until the connector can read the SCIM password.
 resource "p0_pingfederate_aws_iam_federation_app" "gcp_example" {
   id               = "acme-gcp"
-  connector        = p0_pingfederate_aws_iam_federation_connector.gcp_example.id
   pingfederate_url = "https://sso.example.com:9031"
-  role_attribute   = "awsRole"
-  scim_username    = "p0-scim"
 
-  vault = {
-    type       = "gcp-sm"
-    project_id = local.p0_pingfederate_aws_iam_federation_app_acme_gcp.scim_password_project
+  scim = {
+    connector      = p0_pingfederate_aws_iam_federation_connector.gcp_example.id
+    role_attribute = "awsRole"
+    scim_username  = "p0-scim"
+
+    vault = {
+      type       = "gcp-sm"
+      project_id = local.p0_pingfederate_aws_iam_federation_app_acme_gcp.scim_password_project
+    }
+    scim_password_name = local.p0_pingfederate_aws_iam_federation_app_acme_gcp.scim_password_id
+    # PingFederate's TLS certificate is from an internal CA. P0 removes the
+    # whitespace around the value, so trim the file's contents.
+    ca_certificate = trimspace(file("${path.module}/pingfederate-ca.pem"))
   }
-  scim_password_name = local.p0_pingfederate_aws_iam_federation_app_acme_gcp.scim_password_id
-  # PingFederate's TLS certificate is from an internal CA. P0 removes the
-  # whitespace around the value, so trim the file's contents.
-  ca_certificate = trimspace(file("${path.module}/pingfederate-ca.pem"))
 
   depends_on = [
     google_secret_manager_secret_iam_member.p0_pingfederate_aws_iam_federation_app_acme_gcp_accessor,

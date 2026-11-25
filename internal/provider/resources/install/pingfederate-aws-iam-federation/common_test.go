@@ -176,6 +176,15 @@ func accepts(t *testing.T, attribute schema.Attribute, value string) bool {
 	return !validateString(t, attribute, value).HasError()
 }
 
+func as[T any](t *testing.T, value any) T {
+	t.Helper()
+	typed, ok := value.(T)
+	if !ok {
+		t.Fatalf("%T is not a %T", value, typed)
+	}
+	return typed
+}
+
 func nestedAttributes(t *testing.T, s schema.Schema, name string) map[string]schema.Attribute {
 	t.Helper()
 	attribute, ok := s.Attributes[name].(schema.SingleNestedAttribute)
@@ -291,7 +300,7 @@ func TestConnectorIdValidators(t *testing.T) {
 	attributes := map[string]schema.Attribute{
 		"p0_pingfederate_aws_iam_federation_connector_staged.id": schemaOf(t, NewPingFederateAwsIamFederationConnectorStaged()).Attributes["id"],
 		"p0_pingfederate_aws_iam_federation_connector.id":        schemaOf(t, NewPingFederateAwsIamFederationConnector()).Attributes["id"],
-		"p0_pingfederate_aws_iam_federation_app.connector":       schemaOf(t, NewPingFederateAwsIamFederationApp()).Attributes["connector"],
+		"p0_pingfederate_aws_iam_federation_app.scim.connector":  nestedAttributes(t, schemaOf(t, NewPingFederateAwsIamFederationApp()), "scim")["connector"],
 		"p0_pingfederate_aws_iam_federation_app.id":              schemaOf(t, NewPingFederateAwsIamFederationApp()).Attributes["id"],
 	}
 	for name, attribute := range attributes {
@@ -365,6 +374,7 @@ const (
 	fakeServiceUri      = "https://p0-pingfederate-prod-abc123-uw.a.run.app"
 	testPingFederateUrl = "https://sso.example.com:9031"
 	fakeMetadataUrl     = testPingFederateUrl + "/pf/federation_metadata.ping?PartnerSpId=urn:amazon:webservices"
+	fakeAudience        = "https://api.example/integrations/pingfederate-aws-iam-federation/tenants/t1/apps/" + testAppId
 )
 
 func newFakeItems(t *testing.T) (*fakeItems, *httptest.Server) {
@@ -387,8 +397,12 @@ func (f *fakeItems) seed(t *testing.T, itemPath string, state string, item any) 
 	f.items[itemPath] = stored
 }
 
-// Adds what P0's installers assign once an item is verified.
+// Adds what P0's installers assign: an attribute source's audience on every step, and
+// what they assign once an item is verified.
 func (f *fakeItems) complete(item map[string]any) {
+	if source, ok := item["roleSource"].(map[string]any); ok && source["type"] == attributeSourceRoleSourceType {
+		source["audience"] = fakeAudience
+	}
 	if item["state"] == common.StateStage {
 		return
 	}
